@@ -1,0 +1,127 @@
+import { useState } from 'react'
+import type { Task } from '@/types'
+import { isTaskOverdue } from '@/lib/tasks'
+
+interface TaskItemProps {
+  task: Task
+  onToggleComplete: (taskId: string, completed: boolean) => void
+  onEdit: (task: Task) => void
+  onDelete: (taskId: string) => void
+}
+
+export default function TaskItem({ task, onToggleComplete, onEdit, onDelete }: TaskItemProps) {
+  const [isDeleting, setIsDeleting] = useState(false)
+  const isOverdue = isTaskOverdue(task)
+  
+  const handleDelete = async () => {
+    if (window.confirm('确定要删除这个任务吗？')) {
+      setIsDeleting(true)
+      await onDelete(task.id)
+      setIsDeleting(false)
+    }
+  }
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'high': return 'text-red-600 bg-red-100'
+      case 'medium': return 'text-yellow-600 bg-yellow-100'
+      case 'low': return 'text-green-600 bg-green-100'
+      default: return 'text-gray-600 bg-gray-100'
+    }
+  }
+
+  const getPriorityText = (priority: string) => {
+    switch (priority) {
+      case 'high': return '高'
+      case 'medium': return '中'
+      case 'low': return '低'
+      default: return '未知'
+    }
+  }
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    return date.toLocaleDateString('zh-CN', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    })
+  }
+
+  return (
+    <div className={`bg-white rounded-lg shadow-sm border p-4 ${
+      isOverdue ? 'border-red-300 bg-red-50' : 'border-gray-200'
+    } ${task.completed ? 'opacity-60' : ''}`}>
+      <div className="flex items-start space-x-3">
+        {/* 完成状态复选框 */}
+        <div className="flex-shrink-0 pt-1">
+          <input
+            type="checkbox"
+            checked={task.completed}
+            onChange={(e) => onToggleComplete(task.id, e.target.checked)}
+            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+          />
+        </div>
+
+        {/* 任务内容 */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between">
+            <h3 className={`text-lg font-medium ${
+              task.completed ? 'line-through text-gray-500' : 'text-gray-900'
+            }`}>
+              {task.title}
+              {isOverdue && !task.completed && (
+                <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                  已过期
+                </span>
+              )}
+            </h3>
+            
+            {/* 优先级标签 */}
+            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(task.priority)}`}>
+              {getPriorityText(task.priority)}优先级
+            </span>
+          </div>
+
+          {task.description && (
+            <p className={`mt-1 text-sm ${
+              task.completed ? 'text-gray-400' : 'text-gray-600'
+            }`}>
+              {task.description}
+            </p>
+          )}
+
+          <div className="mt-2 flex items-center justify-between">
+            <div className="flex items-center space-x-4 text-sm text-gray-500">
+              {task.deadline && (
+                <span className={isOverdue && !task.completed ? 'text-red-600 font-medium' : ''}>
+                  📅 {formatDate(task.deadline)}
+                </span>
+              )}
+              <span>
+                🕐 {formatDate(task.created_at)}
+              </span>
+            </div>
+
+            {/* 操作按钮 */}
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => onEdit(task)}
+                className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+              >
+                编辑
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="text-red-600 hover:text-red-800 text-sm font-medium disabled:opacity-50"
+              >
+                {isDeleting ? '删除中...' : '删除'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

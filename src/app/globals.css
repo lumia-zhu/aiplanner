@@ -3,11 +3,33 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  
+  /* 蓝色主题色彩 */
+  --primary: #3b82f6; /* blue-500 */
+  --primary-dark: #1d4ed8; /* blue-700 */
+  --primary-light: #93c5fd; /* blue-300 */
+  --secondary: #e0f2fe; /* light blue-50 */
+  --accent: #0ea5e9; /* sky-500 */
+  
+  /* 状态颜色 */
+  --success: #10b981; /* emerald-500 */
+  --warning: #f59e0b; /* amber-500 */
+  --danger: #ef4444; /* red-500 */
+  --overdue: #dc2626; /* red-600 */
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-dark: var(--primary-dark);
+  --color-primary-light: var(--primary-light);
+  --color-secondary: var(--secondary);
+  --color-accent: var(--accent);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-overdue: var(--overdue);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
