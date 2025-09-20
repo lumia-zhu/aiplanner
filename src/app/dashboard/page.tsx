@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { getUserFromStorage, clearUserFromStorage, AuthUser } from '@/lib/auth'
 import { getUserTasks, createTask, updateTask, deleteTask, toggleTaskComplete } from '@/lib/tasks'
@@ -44,6 +44,8 @@ export default function DashboardPage() {
   const [selectedImage, setSelectedImage] = useState<File | null>(null)
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [isSending, setIsSending] = useState(false)
+  const [streamingMessage, setStreamingMessage] = useState('')
+  const chatScrollRef = useRef<HTMLDivElement>(null)
   
   const router = useRouter()
 
@@ -209,6 +211,7 @@ export default function DashboardPage() {
     }
 
     setIsSending(true)
+    setStreamingMessage('')
     
     try {
       // 添加用户消息到聊天历史
@@ -240,15 +243,19 @@ export default function DashboardPage() {
       const newMessages = [...chatMessages, userMessage]
       setChatMessages(newMessages)
 
-      // 发送到豆包 API
+      // 发送到豆包 API（使用流式输出）
       const response = await doubaoService.sendMessage(
         chatMessage || '请分析这张图片',
         selectedImage || undefined,
-        chatMessages
+        chatMessages,
+        (chunk: string) => {
+          // 流式输出回调
+          setStreamingMessage(prev => prev + chunk)
+        }
       )
 
       if (response.success && response.message) {
-        // 添加 AI 回复
+        // 添加完整的 AI 回复
         const aiMessage: ChatMessage = {
           role: 'assistant',
           content: [
@@ -289,6 +296,7 @@ export default function DashboardPage() {
       setChatMessage('')
       setSelectedImage(null)
       setIsSending(false)
+      setStreamingMessage('')
     }
   }
 
@@ -299,6 +307,18 @@ export default function DashboardPage() {
       handleSendMessage()
     }
   }
+
+  // 自动滚动到底部
+  const scrollToBottom = useCallback(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight
+    }
+  }, [])
+
+  // 当消息更新或流式消息更新时自动滚动
+  useEffect(() => {
+    scrollToBottom()
+  }, [chatMessages, streamingMessage, scrollToBottom])
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const { active } = event
@@ -391,7 +411,7 @@ export default function DashboardPage() {
               </div>
               
               {/* 聊天消息区域 */}
-              <div className="h-48 p-4 overflow-y-auto bg-gray-50">
+              <div ref={chatScrollRef} className="h-48 p-4 overflow-y-auto bg-gray-50">
                 <div className="space-y-3">
                   {chatMessages.length === 0 ? (
                     /* 欢迎消息 */
@@ -441,17 +461,29 @@ export default function DashboardPage() {
                     ))
                   )}
                   
-                  {/* 发送中指示器 */}
+                  {/* 流式输出和发送中指示器 */}
                   {isSending && (
                     <div className="flex items-start gap-3">
                       <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
                         <span className="text-white text-sm font-medium">AI</span>
                       </div>
-                      <div className="bg-white rounded-lg px-3 py-2 shadow-sm">
-                        <div className="flex items-center gap-2">
-                          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600"></div>
-                          <span className="text-sm text-gray-500">思考中...</span>
-                        </div>
+                      <div className="bg-white rounded-lg px-3 py-2 shadow-sm max-w-xs">
+                        {streamingMessage ? (
+                          <div>
+                            <p className="text-sm whitespace-pre-wrap" style={{ color: '#3f3f3f' }}>
+                              {streamingMessage}
+                            </p>
+                            <div className="flex items-center gap-2 mt-2">
+                              <div className="animate-pulse w-2 h-2 bg-blue-600 rounded-full"></div>
+                              <span className="text-xs text-gray-500">正在输入...</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600"></div>
+                            <span className="text-sm text-gray-500">思考中...</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}

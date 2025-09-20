@@ -43,11 +43,64 @@ class DoubaoService {
     })
   }
 
+  // 处理流式响应
+  private async handleStreamResponse(response: Response, onStream: (chunk: string) => void): Promise<ChatResponse> {
+    const reader = response.body?.getReader()
+    if (!reader) {
+      return { success: false, error: '无法读取流式响应' }
+    }
+
+    const decoder = new TextDecoder()
+    let fullMessage = ''
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        const chunk = decoder.decode(value, { stream: true })
+        const lines = chunk.split('\n').filter(line => line.trim())
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6).trim()
+            
+            // 检查是否是结束标志
+            if (data === '[DONE]') {
+              return { success: true, message: fullMessage }
+            }
+
+            try {
+              const parsed = JSON.parse(data)
+              const content = parsed?.choices?.[0]?.delta?.content
+              
+              if (content) {
+                fullMessage += content
+                onStream(content) // 实时输出内容块
+              }
+            } catch (parseError) {
+              console.warn('解析流式数据失败:', data, parseError)
+            }
+          }
+        }
+      }
+
+      return { success: true, message: fullMessage }
+    } catch (error: unknown) {
+      console.error('流式响应处理失败:', error)
+      const errorMessage = error instanceof Error ? error.message : '未知错误'
+      return { success: false, error: `流式响应处理失败: ${errorMessage}` }
+    } finally {
+      reader.releaseLock()
+    }
+  }
+
   // 发送聊天消息（支持文本和图片）
   async sendMessage(
     message: string, 
     image?: File,
-    conversationHistory: ChatMessage[] = []
+    conversationHistory: ChatMessage[] = [],
+    onStream?: (chunk: string) => void
   ): Promise<ChatResponse> {
     const apiKey = this.getApiKey()
     if (!apiKey) {
@@ -99,7 +152,7 @@ class DoubaoService {
         messages: messages,
         max_tokens: 1000,
         temperature: 0.7,
-        stream: false
+        stream: !!onStream // 如果有回调函数就启用流式输出
       }
 
       console.log('发送消息到豆包:', requestBody)
@@ -132,24 +185,31 @@ class DoubaoService {
         }
       }
 
-      const responseData = await response.json()
-      console.log('豆包响应数据:', responseData)
-
-      if (responseData?.choices?.[0]?.message?.content) {
-        const aiMessage = responseData.choices[0].message.content
-        return {
-          success: true,
-          message: typeof aiMessage === 'string' ? aiMessage : aiMessage[0]?.text || '抱歉，我无法理解这个消息。'
-        }
+      // 处理流式响应
+      if (onStream && requestBody.stream) {
+        return await this.handleStreamResponse(response, onStream)
       } else {
-        return { success: false, error: '未收到有效响应' }
+        // 处理非流式响应
+        const responseData = await response.json()
+        console.log('豆包响应数据:', responseData)
+
+        if (responseData?.choices?.[0]?.message?.content) {
+          const aiMessage = responseData.choices[0].message.content
+          return {
+            success: true,
+            message: typeof aiMessage === 'string' ? aiMessage : aiMessage[0]?.text || '抱歉，我无法理解这个消息。'
+          }
+        } else {
+          return { success: false, error: '未收到有效响应' }
+        }
       }
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('豆包 API 调用失败:', error)
+      const errorMessage = error instanceof Error ? error.message : '未知错误'
       return { 
         success: false, 
-        error: `网络请求失败: ${error.message || '未知错误'}` 
+        error: `网络请求失败: ${errorMessage}` 
       }
     }
   }
