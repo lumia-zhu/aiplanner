@@ -28,12 +28,19 @@ export default function Home() {
             环境变量诊断
           </Link>
           
-          <Link 
-            href="/test"
-            className="w-full bg-gray-200 text-gray-600 py-3 px-4 rounded-lg hover:bg-gray-300 transition-colors font-medium block"
-          >
-            测试数据库连接
-          </Link>
+              <Link 
+                href="/test"
+                className="w-full bg-gray-200 text-gray-600 py-3 px-4 rounded-lg hover:bg-gray-300 transition-colors font-medium block"
+              >
+                测试数据库连接
+              </Link>
+              
+              <Link 
+                href="/debug-db"
+                className="w-full bg-yellow-100 text-yellow-800 py-3 px-4 rounded-lg hover:bg-yellow-200 transition-colors font-medium block"
+              >
+                🔧 数据库调试工具
+              </Link>
         </div>
         
         <div className="mt-8 text-sm text-gray-500">

@@ -15,6 +15,8 @@ import {
   useSensor,
   useSensors,
   DragEndEvent,
+  DragStartEvent,
+  DragOverlay,
 } from '@dnd-kit/core'
 import {
   arrayMove,
@@ -31,6 +33,7 @@ export default function DashboardPage() {
   const [editingTask, setEditingTask] = useState<Task | null>(null)
   const [isFormLoading, setIsFormLoading] = useState(false)
   const [error, setError] = useState('')
+  const [activeTask, setActiveTask] = useState<Task | null>(null)
   const router = useRouter()
 
   const sensors = useSensors(
@@ -66,7 +69,7 @@ export default function DashboardPage() {
   const handleCreateTask = async (taskData: {
     title: string
     description?: string
-    deadline?: string
+    deadline_time?: string
     priority: 'low' | 'medium' | 'high'
   }) => {
     if (!user) return
@@ -86,7 +89,7 @@ export default function DashboardPage() {
   const handleUpdateTask = async (taskData: {
     title: string
     description?: string
-    deadline?: string
+    deadline_time?: string
     priority: 'low' | 'medium' | 'high'
   }) => {
     if (!editingTask) return
@@ -139,7 +142,13 @@ export default function DashboardPage() {
     setEditingTask(task)
   }
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const { active } = event
+    const task = tasks.find(task => task.id === active.id)
+    setActiveTask(task || null)
+  }, [tasks])
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event
 
     if (active.id !== over?.id) {
@@ -150,7 +159,9 @@ export default function DashboardPage() {
         return arrayMove(items, oldIndex, newIndex)
       })
     }
-  }
+    
+    setActiveTask(null)
+  }, [])
 
   const handleLogout = () => {
     clearUserFromStorage()
@@ -252,6 +263,7 @@ export default function DashboardPage() {
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
+              onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
             >
               <SortableContext items={tasks} strategy={verticalListSortingStrategy}>
@@ -265,6 +277,19 @@ export default function DashboardPage() {
                   />
                 ))}
               </SortableContext>
+              <DragOverlay>
+                {activeTask ? (
+                  <div className="transform scale-105 shadow-2xl">
+                    <DraggableTaskItem
+                      task={activeTask}
+                      onToggleComplete={() => {}}
+                      onEdit={() => {}}
+                      onDelete={() => {}}
+                      isOverlay={true}
+                    />
+                  </div>
+                ) : null}
+              </DragOverlay>
             </DndContext>
           )}
         </div>

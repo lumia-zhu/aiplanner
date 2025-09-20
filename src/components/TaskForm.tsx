@@ -6,7 +6,7 @@ interface TaskFormProps {
   onSubmit: (taskData: {
     title: string
     description?: string
-    deadline?: string
+    deadline_time?: string
     priority: 'low' | 'medium' | 'high'
   }) => Promise<void>
   onCancel: () => void
@@ -16,7 +16,7 @@ interface TaskFormProps {
 export default function TaskForm({ task, onSubmit, onCancel, isLoading }: TaskFormProps) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [deadline, setDeadline] = useState('')
+  const [deadlineTime, setDeadlineTime] = useState('')
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium')
   const [error, setError] = useState('')
 
@@ -25,7 +25,7 @@ export default function TaskForm({ task, onSubmit, onCancel, isLoading }: TaskFo
     if (task) {
       setTitle(task.title)
       setDescription(task.description || '')
-      setDeadline(task.deadline ? task.deadline.split('T')[0] : '') // 只取日期部分
+      setDeadlineTime(task.deadline_time || '') // 直接使用时间
       setPriority(task.priority)
     }
   }, [task])
@@ -44,7 +44,7 @@ export default function TaskForm({ task, onSubmit, onCancel, isLoading }: TaskFo
       await onSubmit({
         title: title.trim(),
         description: description.trim() || undefined,
-        deadline: deadline || undefined,
+        deadline_time: deadlineTime || undefined,
         priority
       })
     } catch (err) {
@@ -92,19 +92,21 @@ export default function TaskForm({ task, onSubmit, onCancel, isLoading }: TaskFo
             />
           </div>
 
-          {/* 截止日期 */}
+          {/* 截止时间 */}
           <div>
-            <label htmlFor="deadline" className="block text-sm font-medium text-gray-700 mb-1">
-              截止日期
+            <label htmlFor="deadlineTime" className="block text-sm font-medium text-gray-700 mb-1">
+              截止时间 <span className="text-gray-500">(今天)</span>
             </label>
             <input
-              id="deadline"
-              type="date"
-              value={deadline}
-              onChange={(e) => setDeadline(e.target.value)}
+              id="deadlineTime"
+              type="time"
+              value={deadlineTime}
+              onChange={(e) => setDeadlineTime(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-[#3f3f3f]"
+              placeholder="选择时间（可选）"
               disabled={isLoading}
             />
+            <p className="text-xs text-gray-500 mt-1">留空表示无特定截止时间</p>
           </div>
 
           {/* 优先级 */}

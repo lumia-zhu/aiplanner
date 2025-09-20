@@ -54,11 +54,23 @@ export default function TaskItem({ task, onToggleComplete, onEdit, onDelete, isD
     })
   }
 
+  const formatTime = (timeString: string) => {
+    // 将24小时制时间转换为更友好的显示格式
+    const [hours, minutes] = timeString.split(':')
+    const hour = parseInt(hours)
+    const minute = minutes
+    
+    if (hour === 0) return `午夜 12:${minute}`
+    if (hour < 12) return `上午 ${hour}:${minute}`
+    if (hour === 12) return `中午 12:${minute}`
+    return `下午 ${hour - 12}:${minute}`
+  }
+
   return (
     <div className={`bg-white rounded-lg shadow-sm border p-4 transition-all duration-200 ${
       isOverdue ? 'border-red-300 bg-red-50' : 'border-gray-200'
     } ${task.completed ? 'opacity-60' : ''} ${
-      isDragging ? 'shadow-lg transform rotate-2' : 'hover:shadow-md'
+      isDragging ? 'shadow-2xl scale-105 z-50 bg-blue-50 border-blue-300' : 'hover:shadow-md'
     }`}>
       <div className="flex items-start space-x-3">
         {/* 拖拽手柄 */}
@@ -124,9 +136,9 @@ export default function TaskItem({ task, onToggleComplete, onEdit, onDelete, isD
 
           <div className="mt-2 flex items-center justify-between">
             <div className="flex items-center space-x-4 text-sm text-gray-500">
-              {task.deadline && (
+              {task.deadline_time && (
                 <span className={isOverdue && !task.completed ? 'text-red-600 font-medium' : ''}>
-                  📅 {formatDate(task.deadline)}
+                  ⏰ {formatTime(task.deadline_time)}
                 </span>
               )}
               <span>

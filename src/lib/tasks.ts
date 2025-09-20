@@ -13,13 +13,13 @@ export async function getUserTasks(userId: string): Promise<{ tasks?: Task[]; er
       .select('*')
       .eq('user_id', userId)
       .order('priority', { ascending: true }) // high=1, medium=2, low=3
-      .order('deadline', { ascending: true, nullsLast: true })
+      .order('deadline_time', { ascending: true, nullsLast: true })
     
     if (error) {
       return { error: error.message }
     }
     
-    // 按照PRD要求的排序逻辑重新排序
+    // 按照PRD要求的排序逻辑重新排序（针对当天任务）
     const sortedTasks = (data || []).sort((a, b) => {
       // 首先按优先级排序
       const priorityOrder = { 'high': 1, 'medium': 2, 'low': 3 }
@@ -30,12 +30,17 @@ export async function getUserTasks(userId: string): Promise<{ tasks?: Task[]; er
         return aPriority - bPriority
       }
       
-      // 然后按截止日期排序
-      if (!a.deadline && !b.deadline) return 0
-      if (!a.deadline) return 1
-      if (!b.deadline) return -1
+      // 然后按截止时间排序
+      if (!a.deadline_time && !b.deadline_time) return 0
+      if (!a.deadline_time) return 1
+      if (!b.deadline_time) return -1
       
-      return new Date(a.deadline).getTime() - new Date(b.deadline).getTime()
+      // 比较今天的时间
+      const today = new Date().toISOString().split('T')[0]
+      const aTime = new Date(`${today}T${a.deadline_time}`).getTime()
+      const bTime = new Date(`${today}T${b.deadline_time}`).getTime()
+      
+      return aTime - bTime
     })
     
     return { tasks: sortedTasks }
@@ -50,7 +55,7 @@ export async function createTask(
   taskData: {
     title: string
     description?: string
-    deadline?: string
+    deadline_time?: string
     priority: 'low' | 'medium' | 'high'
   }
 ): Promise<{ task?: Task; error?: string }> {
@@ -64,7 +69,7 @@ export async function createTask(
           user_id: userId,
           title: taskData.title,
           description: taskData.description || null,
-          deadline: taskData.deadline || null,
+          deadline_time: taskData.deadline_time || null,
           priority: taskData.priority,
           completed: false
         }
@@ -88,7 +93,7 @@ export async function updateTask(
   updates: {
     title?: string
     description?: string
-    deadline?: string
+    deadline_time?: string
     priority?: 'low' | 'medium' | 'high'
     completed?: boolean
   }
@@ -138,8 +143,13 @@ export async function toggleTaskComplete(taskId: string, completed: boolean): Pr
   return updateTask(taskId, { completed })
 }
 
-// 检查任务是否过期
+// 检查任务是否过期（基于当天时间）
 export function isTaskOverdue(task: Task): boolean {
-  if (!task.deadline || task.completed) return false
-  return new Date(task.deadline) < new Date()
+  if (!task.deadline_time || task.completed) return false
+  
+  const now = new Date()
+  const today = now.toISOString().split('T')[0]
+  const taskDeadline = new Date(`${today}T${task.deadline_time}`)
+  
+  return taskDeadline < now
 }
