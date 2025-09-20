@@ -7,9 +7,11 @@ interface TaskItemProps {
   onToggleComplete: (taskId: string, completed: boolean) => void
   onEdit: (task: Task) => void
   onDelete: (taskId: string) => void
+  isDragging?: boolean
+  dragHandleProps?: any
 }
 
-export default function TaskItem({ task, onToggleComplete, onEdit, onDelete }: TaskItemProps) {
+export default function TaskItem({ task, onToggleComplete, onEdit, onDelete, isDragging, dragHandleProps }: TaskItemProps) {
   const [isDeleting, setIsDeleting] = useState(false)
   const isOverdue = isTaskOverdue(task)
   
@@ -19,6 +21,10 @@ export default function TaskItem({ task, onToggleComplete, onEdit, onDelete }: T
       await onDelete(task.id)
       setIsDeleting(false)
     }
+  }
+
+  const handleToggleComplete = (completed: boolean) => {
+    onToggleComplete(task.id, completed)
   }
 
   const getPriorityColor = (priority: string) => {
@@ -49,16 +55,41 @@ export default function TaskItem({ task, onToggleComplete, onEdit, onDelete }: T
   }
 
   return (
-    <div className={`bg-white rounded-lg shadow-sm border p-4 ${
+    <div className={`bg-white rounded-lg shadow-sm border p-4 transition-all duration-200 ${
       isOverdue ? 'border-red-300 bg-red-50' : 'border-gray-200'
-    } ${task.completed ? 'opacity-60' : ''}`}>
+    } ${task.completed ? 'opacity-60' : ''} ${
+      isDragging ? 'shadow-lg transform rotate-2' : 'hover:shadow-md'
+    }`}>
       <div className="flex items-start space-x-3">
+        {/* 拖拽手柄 */}
+        <div className="flex-shrink-0 pt-1">
+          <div 
+            {...dragHandleProps}
+            className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 transition-colors p-1"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <circle cx="4" cy="4" r="1"/>
+              <circle cx="4" cy="8" r="1"/>
+              <circle cx="4" cy="12" r="1"/>
+              <circle cx="8" cy="4" r="1"/>
+              <circle cx="8" cy="8" r="1"/>
+              <circle cx="8" cy="12" r="1"/>
+              <circle cx="12" cy="4" r="1"/>
+              <circle cx="12" cy="8" r="1"/>
+              <circle cx="12" cy="12" r="1"/>
+            </svg>
+          </div>
+        </div>
+        
         {/* 完成状态复选框 */}
         <div className="flex-shrink-0 pt-1">
           <input
             type="checkbox"
             checked={task.completed}
-            onChange={(e) => onToggleComplete(task.id, e.target.checked)}
+            onChange={(e) => {
+              e.stopPropagation()
+              handleToggleComplete(e.target.checked)
+            }}
             className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
           />
         </div>
@@ -106,13 +137,19 @@ export default function TaskItem({ task, onToggleComplete, onEdit, onDelete }: T
             {/* 操作按钮 */}
             <div className="flex items-center space-x-2">
               <button
-                onClick={() => onEdit(task)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onEdit(task)
+                }}
                 className="text-blue-600 hover:text-blue-800 text-sm font-medium"
               >
                 编辑
               </button>
               <button
-                onClick={handleDelete}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleDelete()
+                }}
                 disabled={isDeleting}
                 className="text-red-600 hover:text-red-800 text-sm font-medium disabled:opacity-50"
               >

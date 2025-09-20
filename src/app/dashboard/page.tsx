@@ -1,12 +1,27 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { getUserFromStorage, clearUserFromStorage, AuthUser } from '@/lib/auth'
 import { getUserTasks, createTask, updateTask, deleteTask, toggleTaskComplete } from '@/lib/tasks'
 import type { Task } from '@/types'
-import TaskItem from '@/components/TaskItem'
+import DraggableTaskItem from '@/components/DraggableTaskItem'
 import TaskForm from '@/components/TaskForm'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
 
 export default function DashboardPage() {
   const [user, setUser] = useState<AuthUser | null>(null)
@@ -17,6 +32,13 @@ export default function DashboardPage() {
   const [isFormLoading, setIsFormLoading] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
 
   useEffect(() => {
     const currentUser = getUserFromStorage()
@@ -91,18 +113,43 @@ export default function DashboardPage() {
     }
   }
 
-  const handleToggleComplete = async (taskId: string, completed: boolean) => {
+  const handleToggleComplete = useCallback(async (taskId: string, completed: boolean) => {
+    // 立即更新UI状态，提供即时反馈
+    setTasks(prevTasks => 
+      prevTasks.map(task => 
+        task.id === taskId ? { ...task, completed } : task
+      )
+    )
+
+    // 然后更新数据库
     const result = await toggleTaskComplete(taskId, completed)
     
     if (result.error) {
+      // 如果失败，回滚UI状态
+      setTasks(prevTasks => 
+        prevTasks.map(task => 
+          task.id === taskId ? { ...task, completed: !completed } : task
+        )
+      )
       alert('更新失败：' + result.error)
-    } else {
-      await loadTasks(user!.id) // 重新加载任务列表
     }
-  }
+  }, [])
 
   const handleEditTask = (task: Task) => {
     setEditingTask(task)
+  }
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (active.id !== over?.id) {
+      setTasks((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id)
+        const newIndex = items.findIndex((item) => item.id === over?.id)
+
+        return arrayMove(items, oldIndex, newIndex)
+      })
+    }
   }
 
   const handleLogout = () => {
@@ -164,9 +211,10 @@ export default function DashboardPage() {
           </div>
           <button
             onClick={() => setShowTaskForm(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2"
           >
-            ➕ 新建任务
+            <span className="text-white text-lg">+</span>
+            新建任务
           </button>
         </div>
 
@@ -194,21 +242,30 @@ export default function DashboardPage() {
               </p>
               <button
                 onClick={() => setShowTaskForm(true)}
-                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2 mx-auto"
               >
+                <span className="text-white text-lg">+</span>
                 创建第一个任务
               </button>
             </div>
           ) : (
-            tasks.map((task) => (
-              <TaskItem
-                key={task.id}
-                task={task}
-                onToggleComplete={handleToggleComplete}
-                onEdit={handleEditTask}
-                onDelete={handleDeleteTask}
-              />
-            ))
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext items={tasks} strategy={verticalListSortingStrategy}>
+                {tasks.map((task) => (
+                  <DraggableTaskItem
+                    key={task.id}
+                    task={task}
+                    onToggleComplete={handleToggleComplete}
+                    onEdit={handleEditTask}
+                    onDelete={handleDeleteTask}
+                  />
+                ))}
+              </SortableContext>
+            </DndContext>
           )}
         </div>
       </main>
