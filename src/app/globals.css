@@ -47,23 +47,19 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* 弹窗从按钮位置放大动画 */
+/* 弹窗从按钮位置平滑放大动画 */
 @keyframes modal-scale-from-button {
   0% {
     opacity: 0;
     transform: scale(0.1);
   }
-  20% {
-    opacity: 0.3;
-    transform: scale(0.3);
+  30% {
+    opacity: 0.5;
+    transform: scale(0.5);
   }
-  60% {
-    opacity: 0.8;
+  70% {
+    opacity: 0.9;
     transform: scale(0.9);
-  }
-  80% {
-    opacity: 0.95;
-    transform: scale(1.02);
   }
   100% {
     opacity: 1;
@@ -72,7 +68,7 @@ body {
 }
 
 .animate-modal-scale {
-  animation: modal-scale-from-button 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  animation: modal-scale-from-button 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
   transform-origin: inherit;
 }
 
