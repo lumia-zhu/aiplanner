@@ -9,6 +9,7 @@ import DraggableTaskItem from '@/components/DraggableTaskItem'
 import TaskForm from '@/components/TaskForm'
 import OutlookImport from '@/components/OutlookImport'
 import { taskOperations } from '@/utils/taskUtils'
+import { doubaoService, type ChatMessage } from '@/lib/doubaoService'
 import {
   DndContext,
   closestCenter,
@@ -37,6 +38,13 @@ export default function DashboardPage() {
   const [error, setError] = useState('')
   const [activeTask, setActiveTask] = useState<Task | null>(null)
   const [showImport, setShowImport] = useState(false)
+  
+  // 聊天相关状态
+  const [chatMessage, setChatMessage] = useState('')
+  const [selectedImage, setSelectedImage] = useState<File | null>(null)
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
+  const [isSending, setIsSending] = useState(false)
+  
   const router = useRouter()
 
   const sensors = useSensors(
@@ -179,6 +187,119 @@ export default function DashboardPage() {
     setShowImport(false)
   }
 
+  // 处理图片选择
+  const handleImageSelect = (file: File) => {
+    if (file) {
+      setSelectedImage(file)
+      console.log('选择的图片:', file.name, file.size)
+    }
+  }
+
+  // 处理语音功能
+  const handleVoiceClick = () => {
+    alert('语音转文字功能即将推出，敬请期待！')
+  }
+
+  // 处理发送消息
+  const handleSendMessage = async () => {
+    if (!chatMessage.trim() && !selectedImage) return
+    if (!doubaoService.hasApiKey()) {
+      alert('请先在 .env.local 文件中配置 NEXT_PUBLIC_DOUBAO_API_KEY')
+      return
+    }
+
+    setIsSending(true)
+    
+    try {
+      // 添加用户消息到聊天历史
+      const userMessage: ChatMessage = {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: chatMessage || '请分析这张图片'
+          }
+        ]
+      }
+
+      if (selectedImage) {
+        const reader = new FileReader()
+        const base64Image = await new Promise<string>((resolve) => {
+          reader.onload = () => resolve(reader.result as string)
+          reader.readAsDataURL(selectedImage)
+        })
+        
+        userMessage.content.push({
+          type: 'image_url',
+          image_url: {
+            url: base64Image
+          }
+        })
+      }
+
+      const newMessages = [...chatMessages, userMessage]
+      setChatMessages(newMessages)
+
+      // 发送到豆包 API
+      const response = await doubaoService.sendMessage(
+        chatMessage || '请分析这张图片',
+        selectedImage || undefined,
+        chatMessages
+      )
+
+      if (response.success && response.message) {
+        // 添加 AI 回复
+        const aiMessage: ChatMessage = {
+          role: 'assistant',
+          content: [
+            {
+              type: 'text',
+              text: response.message
+            }
+          ]
+        }
+        setChatMessages([...newMessages, aiMessage])
+      } else {
+        // 显示错误消息
+        const errorMessage: ChatMessage = {
+          role: 'assistant',
+          content: [
+            {
+              type: 'text',
+              text: `抱歉，发生了错误: ${response.error || '未知错误'}`
+            }
+          ]
+        }
+        setChatMessages([...newMessages, errorMessage])
+      }
+
+    } catch (error) {
+      console.error('发送消息失败:', error)
+      const errorMessage: ChatMessage = {
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: '抱歉，发送消息时出现了问题，请稍后重试。'
+          }
+        ]
+      }
+      setChatMessages([...chatMessages, errorMessage])
+    } finally {
+      setChatMessage('')
+      setSelectedImage(null)
+      setIsSending(false)
+    }
+  }
+
+  // 处理回车发送
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSendMessage()
+    }
+  }
+
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const { active } = event
     const task = tasks.find(task => task.id === active.id)
@@ -251,41 +372,184 @@ export default function DashboardPage() {
             {/* AI 聊天框 */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
               <div className="p-4 border-b border-gray-100">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span className="text-sm font-medium" style={{ color: '#3f3f3f' }}>AI 助手</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${doubaoService.hasApiKey() ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                    <span className="text-sm font-medium" style={{ color: '#3f3f3f' }}>
+                      豆包 AI 助手 {!doubaoService.hasApiKey() && '(需要配置API Key)'}
+                    </span>
+                  </div>
+                  {chatMessages.length > 0 && (
+                    <button
+                      onClick={() => setChatMessages([])}
+                      className="text-xs text-gray-500 hover:text-red-600 underline"
+                    >
+                      清空对话
+                    </button>
+                  )}
                 </div>
               </div>
               
               {/* 聊天消息区域 */}
               <div className="h-48 p-4 overflow-y-auto bg-gray-50">
                 <div className="space-y-3">
-                  {/* AI 欢迎消息 */}
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
-                      <span className="text-white text-sm font-medium">AI</span>
+                  {chatMessages.length === 0 ? (
+                    /* 欢迎消息 */
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                        <span className="text-white text-sm font-medium">AI</span>
+                      </div>
+                      <div className="bg-white rounded-lg px-3 py-2 shadow-sm max-w-xs">
+                        <p className="text-sm" style={{ color: '#3f3f3f' }}>
+                          你好！我是豆包AI助手，可以帮你管理任务、分析图片。{!doubaoService.hasApiKey() ? '请先配置API Key。' : '有什么可以帮助你的吗？'}
+                        </p>
+                      </div>
                     </div>
-                    <div className="bg-white rounded-lg px-3 py-2 shadow-sm max-w-xs">
-                      <p className="text-sm" style={{ color: '#3f3f3f' }}>你好！我是你的任务管理助手，有什么可以帮助你的吗？</p>
+                  ) : (
+                    /* 聊天消息 */
+                    chatMessages.map((message, index) => (
+                      <div key={index} className={`flex items-start gap-3 ${message.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          message.role === 'user' ? 'bg-green-500' : 'bg-blue-500'
+                        }`}>
+                          <span className="text-white text-sm font-medium">
+                            {message.role === 'user' ? '我' : 'AI'}
+                          </span>
+                        </div>
+                        <div className={`rounded-lg px-3 py-2 shadow-sm max-w-xs ${
+                          message.role === 'user' ? 'bg-green-100' : 'bg-white'
+                        }`}>
+                          {message.content.map((content, contentIndex) => (
+                            <div key={contentIndex}>
+                              {content.type === 'text' && content.text && (
+                                <p className="text-sm whitespace-pre-wrap" style={{ color: '#3f3f3f' }}>
+                                  {content.text}
+                                </p>
+                              )}
+                              {content.type === 'image_url' && content.image_url && (
+                                <img 
+                                  src={content.image_url.url} 
+                                  alt="上传的图片" 
+                                  className="max-w-full h-auto rounded mt-2"
+                                  style={{ maxHeight: '150px' }}
+                                />
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                  
+                  {/* 发送中指示器 */}
+                  {isSending && (
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                        <span className="text-white text-sm font-medium">AI</span>
+                      </div>
+                      <div className="bg-white rounded-lg px-3 py-2 shadow-sm">
+                        <div className="flex items-center gap-2">
+                          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600"></div>
+                          <span className="text-sm text-gray-500">思考中...</span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
               
               {/* 输入框区域 */}
               <div className="p-4 border-t border-gray-100">
-                <div className="flex gap-2">
+                {/* 选中的图片预览 */}
+                {selectedImage && (
+                  <div className="mb-3 p-2 bg-blue-50 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <img 
+                          src={URL.createObjectURL(selectedImage)} 
+                          alt="预览" 
+                          className="w-12 h-12 object-cover rounded"
+                        />
+                        <div>
+                          <p className="text-sm font-medium text-blue-700">{selectedImage.name}</p>
+                          <p className="text-xs text-blue-600">
+                            {(selectedImage.size / 1024 / 1024).toFixed(2)} MB
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setSelectedImage(null)}
+                        className="text-blue-600 hover:text-red-600 p-1"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2">
+                  {/* 图片上传按钮 */}
+                  <div className="relative">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) {
+                          handleImageSelect(file)
+                        }
+                      }}
+                    />
+                    <button className="p-2 text-gray-500 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* 输入框 */}
                   <input
                     type="text"
+                    value={chatMessage}
+                    onChange={(e) => setChatMessage(e.target.value)}
+                    onKeyPress={handleKeyPress}
                     placeholder="输入消息..."
                     className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                     style={{ color: '#3f3f3f' }}
                   />
-                  <button className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium text-sm flex items-center gap-1">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+
+                  {/* 语音按钮 */}
+                  <button 
+                    onClick={handleVoiceClick}
+                    className="p-2 text-gray-500 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
                     </svg>
-                    发送
+                  </button>
+
+                  {/* 发送按钮 */}
+                  <button 
+                    onClick={handleSendMessage}
+                    disabled={isSending || (!chatMessage.trim() && !selectedImage)}
+                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium text-sm flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSending ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        发送中
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                        </svg>
+                        发送
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
