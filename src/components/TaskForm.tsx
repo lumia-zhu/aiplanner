@@ -11,9 +11,10 @@ interface TaskFormProps {
   }) => Promise<void>
   onCancel: () => void
   isLoading?: boolean
+  animationOrigin?: { x: number; y: number } | null
 }
 
-export default function TaskForm({ task, onSubmit, onCancel, isLoading }: TaskFormProps) {
+export default function TaskForm({ task, onSubmit, onCancel, isLoading, animationOrigin }: TaskFormProps) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [deadlineTime, setDeadlineTime] = useState('')
@@ -63,8 +64,15 @@ export default function TaskForm({ task, onSubmit, onCancel, isLoading }: TaskFo
   }
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
+      <div 
+        className="bg-white rounded-lg shadow-lg max-w-md w-full p-6 animate-modal-scale"
+        style={{
+          transformOrigin: animationOrigin 
+            ? `${((animationOrigin.x / window.innerWidth) * 100)}% ${((animationOrigin.y / window.innerHeight) * 100)}%`
+            : 'center center'
+        }}
+      >
         <h2 className="text-xl font-semibold text-gray-900 mb-4">
           {task ? '编辑任务' : '创建新任务'}
         </h2>

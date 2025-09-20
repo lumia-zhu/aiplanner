@@ -47,6 +47,11 @@ export default function DashboardPage() {
   const [streamingMessage, setStreamingMessage] = useState('')
   const chatScrollRef = useRef<HTMLDivElement>(null)
   
+  // 动画相关状态
+  const [animationOrigin, setAnimationOrigin] = useState<{ x: number; y: number } | null>(null)
+  const importButtonRef = useRef<HTMLButtonElement>(null)
+  const newTaskButtonRef = useRef<HTMLButtonElement>(null)
+  
   const router = useRouter()
 
   const sensors = useSensors(
@@ -177,7 +182,18 @@ export default function DashboardPage() {
     }
   }, [])
 
-  const handleEditTask = (task: Task) => {
+  const handleEditTask = (task: Task, buttonElement?: HTMLElement) => {
+    // 计算编辑按钮位置作为动画起点（相对于视口）
+    if (buttonElement) {
+      const rect = buttonElement.getBoundingClientRect()
+      const centerX = rect.left + rect.width / 2
+      const centerY = rect.top + rect.height / 2
+      
+      setAnimationOrigin({
+        x: centerX,
+        y: centerY
+      })
+    }
     setEditingTask(task)
   }
 
@@ -319,6 +335,38 @@ export default function DashboardPage() {
   useEffect(() => {
     scrollToBottom()
   }, [chatMessages, streamingMessage, scrollToBottom])
+
+  // 处理显示导入任务弹窗
+  const handleShowImport = () => {
+    // 计算按钮位置作为动画起点（相对于视口）
+    if (importButtonRef.current) {
+      const rect = importButtonRef.current.getBoundingClientRect()
+      const centerX = rect.left + rect.width / 2
+      const centerY = rect.top + rect.height / 2
+      
+      setAnimationOrigin({
+        x: centerX,
+        y: centerY
+      })
+    }
+    setShowImport(true)
+  }
+
+  // 处理显示新建任务表单
+  const handleShowTaskForm = () => {
+    // 计算按钮位置作为动画起点（相对于视口）
+    if (newTaskButtonRef.current) {
+      const rect = newTaskButtonRef.current.getBoundingClientRect()
+      const centerX = rect.left + rect.width / 2
+      const centerY = rect.top + rect.height / 2
+      
+      setAnimationOrigin({
+        x: centerX,
+        y: centerY
+      })
+    }
+    setShowTaskForm(true)
+  }
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const { active } = event
@@ -597,8 +645,9 @@ export default function DashboardPage() {
           </div>
           <div className="flex items-center space-x-3">
                 <button
-                  onClick={() => setShowImport(true)}
-                  className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10"
+                  ref={importButtonRef}
+                  onClick={handleShowImport}
+                  className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
                   style={{ backgroundColor: '#4ECDC4' }}
                 >
                   <svg className="w-4 h-4 fill-current flex-shrink-0" viewBox="0 0 20 20">
@@ -607,8 +656,9 @@ export default function DashboardPage() {
                   导入任务
                 </button>
                 <button
-                  onClick={() => setShowTaskForm(true)}
-                  className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10"
+                  ref={newTaskButtonRef}
+                  onClick={handleShowTaskForm}
+                  className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
                   style={{ backgroundColor: '#4A90E2' }}
                 >
                   <span className="text-white text-lg font-bold flex-shrink-0 w-4 h-4 flex items-center justify-center">+</span>
@@ -685,8 +735,15 @@ export default function DashboardPage() {
 
       {/* 导入任务弹窗 */}
       {showImport && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div 
+            className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-modal-scale"
+            style={{
+              transformOrigin: animationOrigin 
+                ? `${((animationOrigin.x / window.innerWidth) * 100)}% ${((animationOrigin.y / window.innerHeight) * 100)}%`
+                : 'center center'
+            }}
+          >
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-semibold text-gray-900">导入任务</h2>
@@ -716,6 +773,7 @@ export default function DashboardPage() {
           onSubmit={handleCreateTask}
           onCancel={() => setShowTaskForm(false)}
           isLoading={isFormLoading}
+          animationOrigin={animationOrigin}
         />
       )}
 
@@ -725,6 +783,7 @@ export default function DashboardPage() {
           onSubmit={handleUpdateTask}
           onCancel={() => setEditingTask(null)}
           isLoading={isFormLoading}
+          animationOrigin={animationOrigin}
         />
       )}
     </div>

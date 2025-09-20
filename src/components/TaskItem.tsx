@@ -5,7 +5,7 @@ import { isTaskOverdue } from '@/lib/tasks'
 interface TaskItemProps {
   task: Task
   onToggleComplete: (taskId: string, completed: boolean) => void
-  onEdit: (task: Task) => void
+  onEdit: (task: Task, buttonElement?: HTMLElement) => void
   onDelete: (taskId: string) => void
   isDragging?: boolean
   dragHandleProps?: any
@@ -145,7 +145,7 @@ export default function TaskItem({ task, onToggleComplete, onEdit, onDelete, isD
               <button
                 onClick={(e) => {
                   e.stopPropagation()
-                  onEdit(task)
+                  onEdit(task, e.currentTarget)
                 }}
                 className="text-blue-600 hover:text-blue-800 text-sm font-medium"
               >
