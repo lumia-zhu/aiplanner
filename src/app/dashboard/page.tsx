@@ -246,8 +246,50 @@ export default function DashboardPage() {
         </div>
       </nav>
 
-      {/* 主要内容区域 */}
-      <main className="max-w-4xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+          {/* 主要内容区域 */}
+          <main className="max-w-4xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+            {/* AI 聊天框 */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+              <div className="p-4 border-b border-gray-100">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <span className="text-sm font-medium" style={{ color: '#3f3f3f' }}>AI 助手</span>
+                </div>
+              </div>
+              
+              {/* 聊天消息区域 */}
+              <div className="h-48 p-4 overflow-y-auto bg-gray-50">
+                <div className="space-y-3">
+                  {/* AI 欢迎消息 */}
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                      <span className="text-white text-sm font-medium">AI</span>
+                    </div>
+                    <div className="bg-white rounded-lg px-3 py-2 shadow-sm max-w-xs">
+                      <p className="text-sm" style={{ color: '#3f3f3f' }}>你好！我是你的任务管理助手，有什么可以帮助你的吗？</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* 输入框区域 */}
+              <div className="p-4 border-t border-gray-100">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="输入消息..."
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    style={{ color: '#3f3f3f' }}
+                  />
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium text-sm flex items-center gap-1">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    </svg>
+                    发送
+                  </button>
+                </div>
+              </div>
+            </div>
         <div className="flex justify-between items-center mb-8">
           <div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">
@@ -258,20 +300,24 @@ export default function DashboardPage() {
             </p>
           </div>
           <div className="flex items-center space-x-3">
-            <button
-              onClick={() => setShowImport(true)}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center gap-2"
-            >
-              <span className="text-white text-lg">📥</span>
-              导入任务
-            </button>
-            <button
-              onClick={() => setShowTaskForm(true)}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2"
-            >
-              <span className="text-white text-lg">+</span>
-              新建任务
-            </button>
+                <button
+                  onClick={() => setShowImport(true)}
+                  className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10"
+                  style={{ backgroundColor: '#4ECDC4' }}
+                >
+                  <svg className="w-4 h-4 fill-current flex-shrink-0" viewBox="0 0 20 20">
+                    <path d="M13 8V2H7v6H2l8 8 8-8h-5zM0 18h20v2H0v-2z"/>
+                  </svg>
+                  导入任务
+                </button>
+                <button
+                  onClick={() => setShowTaskForm(true)}
+                  className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10"
+                  style={{ backgroundColor: '#4A90E2' }}
+                >
+                  <span className="text-white text-lg font-bold flex-shrink-0 w-4 h-4 flex items-center justify-center">+</span>
+                  新建任务
+                </button>
           </div>
         </div>
 
