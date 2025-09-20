@@ -7,6 +7,8 @@ import { getUserTasks, createTask, updateTask, deleteTask, toggleTaskComplete } 
 import type { Task } from '@/types'
 import DraggableTaskItem from '@/components/DraggableTaskItem'
 import TaskForm from '@/components/TaskForm'
+import OutlookImport from '@/components/OutlookImport'
+import { taskOperations } from '@/utils/taskUtils'
 import {
   DndContext,
   closestCenter,
@@ -34,6 +36,7 @@ export default function DashboardPage() {
   const [isFormLoading, setIsFormLoading] = useState(false)
   const [error, setError] = useState('')
   const [activeTask, setActiveTask] = useState<Task | null>(null)
+  const [showImport, setShowImport] = useState(false)
   const router = useRouter()
 
   const sensors = useSensors(
@@ -75,14 +78,23 @@ export default function DashboardPage() {
     if (!user) return
     
     setIsFormLoading(true)
-    const result = await createTask(user.id, taskData)
+    setError('')
     
-    if (result.error) {
-      throw new Error(result.error)
-    } else {
-      await loadTasks(user.id) // 重新加载任务列表
-      setShowTaskForm(false)
+    try {
+      const result = await createTask(user.id, taskData)
+      
+      if (result.error) {
+        setError(result.error)
+      } else if (result.task) {
+        // 直接添加新任务到列表，避免重新加载
+        setTasks(prevTasks => taskOperations.addTask(prevTasks, result.task!))
+        setShowTaskForm(false)
+      }
+    } catch (error) {
+      setError('创建任务时发生错误')
+      console.error('创建任务异常:', error)
     }
+    
     setIsFormLoading(false)
   }
 
@@ -95,51 +107,76 @@ export default function DashboardPage() {
     if (!editingTask) return
     
     setIsFormLoading(true)
-    const result = await updateTask(editingTask.id, taskData)
+    setError('')
     
-    if (result.error) {
-      throw new Error(result.error)
-    } else {
-      await loadTasks(user!.id) // 重新加载任务列表
-      setEditingTask(null)
+    try {
+      const result = await updateTask(editingTask.id, taskData)
+      
+      if (result.error) {
+        setError(result.error)
+      } else if (result.task) {
+        // 直接更新任务列表中的对应项，避免重新加载
+        setTasks(prevTasks => taskOperations.updateTask(prevTasks, result.task!))
+        setEditingTask(null)
+      }
+    } catch (error) {
+      setError('更新任务时发生错误')
+      console.error('更新任务异常:', error)
     }
+    
     setIsFormLoading(false)
   }
 
   const handleDeleteTask = async (taskId: string) => {
-    const result = await deleteTask(taskId)
-    
-    if (result.error) {
-      alert('删除失败：' + result.error)
-    } else {
-      await loadTasks(user!.id) // 重新加载任务列表
+    try {
+      // 先从UI中移除，提供即时反馈
+      const taskToDelete = tasks.find(task => task.id === taskId)
+      setTasks(prevTasks => taskOperations.removeTask(prevTasks, taskId))
+      
+      const result = await deleteTask(taskId)
+      
+      if (result.error) {
+        // 如果删除失败，恢复任务到列表中
+        if (taskToDelete) {
+          setTasks(prevTasks => taskOperations.addTask(prevTasks, taskToDelete))
+        }
+        console.error('删除失败:', result.error)
+      }
+    } catch (error) {
+      console.error('删除任务异常:', error)
     }
   }
 
   const handleToggleComplete = useCallback(async (taskId: string, completed: boolean) => {
     // 立即更新UI状态，提供即时反馈
-    setTasks(prevTasks => 
-      prevTasks.map(task => 
-        task.id === taskId ? { ...task, completed } : task
-      )
-    )
+    setTasks(prevTasks => taskOperations.toggleComplete(prevTasks, taskId, completed))
 
-    // 然后更新数据库
-    const result = await toggleTaskComplete(taskId, completed)
-    
-    if (result.error) {
-      // 如果失败，回滚UI状态
-      setTasks(prevTasks => 
-        prevTasks.map(task => 
-          task.id === taskId ? { ...task, completed: !completed } : task
-        )
-      )
-      alert('更新失败：' + result.error)
+    try {
+      // 然后更新数据库
+      const result = await toggleTaskComplete(taskId, completed)
+      
+      if (result.error) {
+        // 如果失败，回滚UI状态
+        setTasks(prevTasks => taskOperations.toggleComplete(prevTasks, taskId, !completed))
+        console.error('更新任务状态失败:', result.error)
+      }
+    } catch (error) {
+      // 网络错误或其他异常，回滚UI状态
+      setTasks(prevTasks => taskOperations.toggleComplete(prevTasks, taskId, !completed))
+      console.error('更新任务异常:', error)
     }
   }, [])
 
   const handleEditTask = (task: Task) => {
     setEditingTask(task)
+  }
+
+  const handleTasksImported = (count: number) => {
+    // 导入完成后重新加载任务列表
+    if (user) {
+      loadTasks(user.id)
+    }
+    setShowImport(false)
   }
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -220,13 +257,22 @@ export default function DashboardPage() {
               共 {tasks.length} 个任务，{tasks.filter(t => !t.completed).length} 个待完成
             </p>
           </div>
-          <button
-            onClick={() => setShowTaskForm(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2"
-          >
-            <span className="text-white text-lg">+</span>
-            新建任务
-          </button>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => setShowImport(true)}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center gap-2"
+            >
+              <span className="text-white text-lg">📥</span>
+              导入任务
+            </button>
+            <button
+              onClick={() => setShowTaskForm(true)}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2"
+            >
+              <span className="text-white text-lg">+</span>
+              新建任务
+            </button>
+          </div>
         </div>
 
         {error && (
@@ -294,6 +340,33 @@ export default function DashboardPage() {
           )}
         </div>
       </main>
+
+      {/* 导入任务弹窗 */}
+      {showImport && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">导入任务</h2>
+                <button
+                  onClick={() => setShowImport(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <span className="sr-only">关闭</span>
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <OutlookImport
+                existingTasks={tasks}
+                onTasksImported={handleTasksImported}
+                createTask={(taskData) => createTask(user!.id, taskData)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 任务表单弹窗 */}
       {showTaskForm && (

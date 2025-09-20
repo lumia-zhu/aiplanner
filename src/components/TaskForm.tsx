@@ -25,7 +25,17 @@ export default function TaskForm({ task, onSubmit, onCancel, isLoading }: TaskFo
     if (task) {
       setTitle(task.title)
       setDescription(task.description || '')
-      setDeadlineTime(task.deadline_time || '') // 直接使用时间
+      
+      // 从完整的日期时间中提取时间部分（本地时区）
+      if (task.deadline_datetime) {
+        const date = new Date(task.deadline_datetime)
+        const hours = date.getHours().toString().padStart(2, '0')
+        const minutes = date.getMinutes().toString().padStart(2, '0')
+        setDeadlineTime(`${hours}:${minutes}`)
+      } else {
+        setDeadlineTime('')
+      }
+      
       setPriority(task.priority)
     }
   }, [task])

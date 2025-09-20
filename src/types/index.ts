@@ -11,7 +11,7 @@ export interface Task {
   user_id: string
   title: string
   description?: string
-  deadline_time?: string // 改为截止时间（当天的具体时间）
+  deadline_datetime?: string // 完整的日期时间（当天+具体时间）
   priority: 'low' | 'medium' | 'high'
   completed: boolean
   created_at: string
@@ -22,7 +22,7 @@ export interface Task {
 export interface TaskInput {
   title: string
   description?: string
-  deadline_time?: string // 改为截止时间
+  deadline_time?: string // 用户输入的时间（如 "14:00"）
   priority: 'low' | 'medium' | 'high'
   completed?: boolean
 }

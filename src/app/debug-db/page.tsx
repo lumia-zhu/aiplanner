@@ -25,7 +25,7 @@ export default function DebugDBPage() {
       } else {
         setResult(prev => prev + `\n❌ 表结构检查失败: ${result.error}\n`)
         setResult(prev => prev + '\n🔧 建议操作:\n')
-        setResult(prev => prev + '1. 在 Supabase SQL Editor 中运行 complete-fix.sql\n')
+        setResult(prev => prev + '1. 在 Supabase SQL Editor 中运行 updated-fix.sql\n')
         setResult(prev => prev + '2. 重新检查表结构\n')
       }
     } catch (error) {
@@ -106,7 +106,10 @@ export default function DebugDBPage() {
             <div>
               <p className="font-medium">📝 SQL 脚本位置：</p>
               <p className="ml-4 font-mono text-xs bg-gray-200 p-1 rounded">
-                task-manager/database/fix-deadline-field.sql
+                task-manager/database/updated-fix.sql
+              </p>
+              <p className="text-xs text-gray-400 ml-4 mt-1">
+                ⚠️ 新版本：使用 deadline_datetime (TIMESTAMP) 而不是 deadline_time (TIME)
               </p>
             </div>
           </div>

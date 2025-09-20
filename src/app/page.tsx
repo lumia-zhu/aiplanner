@@ -41,6 +41,20 @@ export default function Home() {
               >
                 🔧 数据库调试工具
               </Link>
+              
+              <Link 
+                href="/quick-test"
+                className="w-full bg-green-100 text-green-800 py-3 px-4 rounded-lg hover:bg-green-200 transition-colors font-medium block"
+              >
+                🚀 快速测试
+              </Link>
+              
+              <Link 
+                href="/outlook-debug"
+                className="w-full bg-purple-100 text-purple-800 py-3 px-4 rounded-lg hover:bg-purple-200 transition-colors font-medium block"
+              >
+                🔍 Outlook 诊断
+              </Link>
         </div>
         
         <div className="mt-8 text-sm text-gray-500">
