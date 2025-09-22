@@ -45,6 +45,7 @@ export default function DashboardPage() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [isSending, setIsSending] = useState(false)
   const [streamingMessage, setStreamingMessage] = useState('')
+  const [isDragOver, setIsDragOver] = useState(false)
   const chatScrollRef = useRef<HTMLDivElement>(null)
   
   // 动画相关状态
@@ -207,9 +208,63 @@ export default function DashboardPage() {
 
   // 处理图片选择
   const handleImageSelect = (file: File) => {
-    if (file) {
+    if (file && file.type.startsWith('image/')) {
       setSelectedImage(file)
       console.log('选择的图片:', file.name, file.size)
+    }
+  }
+
+  // 处理拖拽进入
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(true)
+  }
+
+  // 处理拖拽离开
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    // 只有当拖拽完全离开聊天区域时才设置为false
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX
+    const y = e.clientY
+    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+      setIsDragOver(false)
+    }
+  }
+
+  // 处理拖拽悬停
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
+  // 处理文件拖拽放置
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+    
+    const files = Array.from(e.dataTransfer.files)
+    const imageFile = files.find(file => file.type.startsWith('image/'))
+    
+    if (imageFile) {
+      handleImageSelect(imageFile)
+    }
+  }
+
+  // 处理粘贴事件
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = Array.from(e.clipboardData.items)
+    const imageItem = items.find(item => item.type.startsWith('image/'))
+    
+    if (imageItem) {
+      const file = imageItem.getAsFile()
+      if (file) {
+        handleImageSelect(file)
+        e.preventDefault()
+      }
     }
   }
 
@@ -438,7 +493,15 @@ export default function DashboardPage() {
           {/* 主要内容区域 */}
           <main className="max-w-4xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
             {/* AI 聊天框 */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+            <div 
+              className={`bg-white rounded-lg shadow-sm border mb-6 transition-all duration-200 ${
+                isDragOver ? 'border-blue-400 bg-blue-50' : 'border-gray-200'
+              }`}
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+            >
               <div className="p-4 border-b border-gray-100">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -459,7 +522,19 @@ export default function DashboardPage() {
               </div>
               
               {/* 聊天消息区域 */}
-              <div ref={chatScrollRef} className="h-48 p-4 overflow-y-auto bg-gray-50">
+              <div ref={chatScrollRef} className="h-48 p-4 overflow-y-auto bg-gray-50 relative">
+                {/* 拖拽提示覆盖层 */}
+                {isDragOver && (
+                  <div className="absolute inset-0 bg-blue-100 bg-opacity-90 flex items-center justify-center z-10 rounded">
+                    <div className="text-center">
+                      <svg className="w-12 h-12 text-blue-500 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <p className="text-blue-700 font-medium">拖拽图片到这里</p>
+                      <p className="text-blue-600 text-sm">支持 JPG, PNG, GIF 等格式</p>
+                    </div>
+                  </div>
+                )}
                 <div className="space-y-3">
                   {chatMessages.length === 0 ? (
                     /* 欢迎消息 */
@@ -469,7 +544,7 @@ export default function DashboardPage() {
                       </div>
                       <div className="bg-white rounded-lg px-3 py-2 shadow-sm max-w-xs">
                         <p className="text-sm" style={{ color: '#3f3f3f' }}>
-                          你好！我是豆包AI助手，可以帮你管理任务、分析图片。{!doubaoService.hasApiKey() ? '请先配置API Key。' : '有什么可以帮助你的吗？'}
+                          你好！我是豆包AI助手，可以帮你管理任务、分析图片。{!doubaoService.hasApiKey() ? '请先配置API Key。' : '你可以直接粘贴图片(Ctrl+V)或拖拽图片到这里，有什么可以帮助你的吗？'}
                         </p>
                       </div>
                     </div>
@@ -596,7 +671,8 @@ export default function DashboardPage() {
                     value={chatMessage}
                     onChange={(e) => setChatMessage(e.target.value)}
                     onKeyPress={handleKeyPress}
-                    placeholder="输入消息..."
+                    onPaste={handlePaste}
+                    placeholder="输入消息或粘贴图片(Ctrl+V)..."
                     className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                     style={{ color: '#3f3f3f' }}
                   />
