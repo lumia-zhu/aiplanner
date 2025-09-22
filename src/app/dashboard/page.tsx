@@ -10,6 +10,16 @@ import TaskForm from '@/components/TaskForm'
 import OutlookImport from '@/components/OutlookImport'
 import { taskOperations } from '@/utils/taskUtils'
 import { doubaoService, type ChatMessage } from '@/lib/doubaoService'
+
+// 任务识别相关类型
+interface RecognizedTask {
+  id: string
+  title: string
+  description?: string
+  priority: 'high' | 'medium' | 'low'
+  deadline_time?: string
+  isSelected: boolean
+}
 import {
   DndContext,
   closestCenter,
@@ -47,6 +57,11 @@ export default function DashboardPage() {
   const [streamingMessage, setStreamingMessage] = useState('')
   const [isDragOver, setIsDragOver] = useState(false)
   const chatScrollRef = useRef<HTMLDivElement>(null)
+  
+  // 任务识别相关状态
+  const [isTaskRecognitionMode, setIsTaskRecognitionMode] = useState(false)
+  const [recognizedTasks, setRecognizedTasks] = useState<RecognizedTask[]>([])
+  const [showTaskPreview, setShowTaskPreview] = useState(false)
   
   // 动画相关状态
   const [animationOrigin, setAnimationOrigin] = useState<{ x: number; y: number } | null>(null)
@@ -273,6 +288,87 @@ export default function DashboardPage() {
     alert('语音转文字功能即将推出，敬请期待！')
   }
 
+  // 解析AI返回的任务识别结果
+  const parseTaskRecognitionResponse = (response: string): RecognizedTask[] => {
+    try {
+      // 尝试从响应中提取JSON
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        console.warn('未找到JSON格式的响应');
+        return [];
+      }
+
+      const jsonStr = jsonMatch[0];
+      const parsed = JSON.parse(jsonStr);
+      
+      if (!parsed.tasks || !Array.isArray(parsed.tasks)) {
+        console.warn('响应格式不正确，缺少tasks数组');
+        return [];
+      }
+
+      // 转换为RecognizedTask格式
+      return parsed.tasks.map((task: any, index: number) => ({
+        id: `recognized-${Date.now()}-${index}`,
+        title: task.title || '未知任务',
+        description: task.description || '',
+        priority: ['high', 'medium', 'low'].includes(task.priority) ? task.priority : 'medium',
+        deadline_time: task.deadline_time || undefined,
+        isSelected: true // 默认选中
+      }));
+    } catch (error) {
+      console.error('解析任务识别响应失败:', error);
+      return [];
+    }
+  }
+
+  // 添加识别的任务到系统
+  const handleAddRecognizedTasks = async () => {
+    if (!user) return;
+    
+    const selectedTasks = recognizedTasks.filter(t => t.isSelected);
+    if (selectedTasks.length === 0) return;
+
+    try {
+      let successCount = 0;
+      
+      for (const recognizedTask of selectedTasks) {
+        // 转换为系统任务格式
+        const taskData = {
+          title: recognizedTask.title,
+          description: recognizedTask.description,
+          deadline_time: recognizedTask.deadline_time,
+          priority: recognizedTask.priority
+        };
+
+        const result = await createTask(user.id, taskData);
+        
+        if (result.error) {
+          console.error('创建任务失败:', result.error);
+        } else if (result.task) {
+          // 直接添加到任务列表
+          setTasks(prevTasks => taskOperations.addTask(prevTasks, result.task!));
+          successCount++;
+        }
+      }
+
+      // 显示结果
+      if (successCount > 0) {
+        alert(`成功添加 ${successCount} 个任务！`);
+        // 清理识别结果
+        setRecognizedTasks([]);
+        setShowTaskPreview(false);
+        // 关闭任务识别模式
+        setIsTaskRecognitionMode(false);
+      } else {
+        alert('添加任务失败，请稍后重试');
+      }
+    } catch (error) {
+      console.error('批量添加任务异常:', error);
+      alert('添加任务时发生错误');
+    }
+  }
+
+
   // 处理发送消息
   const handleSendMessage = async () => {
     if (!chatMessage.trim() && !selectedImage) return
@@ -285,13 +381,42 @@ export default function DashboardPage() {
     setStreamingMessage('')
     
     try {
+      // 根据模式生成不同的prompt
+      let finalPrompt = chatMessage || '请分析这张图片'
+      
+      if (isTaskRecognitionMode) {
+        finalPrompt = `【任务识别】请仔细分析${selectedImage ? '图片' : ''}${selectedImage && chatMessage ? '和' : ''}${chatMessage ? '文字描述' : ''}，识别其中包含的任务信息。
+
+${chatMessage ? `用户描述：${chatMessage}` : ''}
+
+请以JSON格式返回识别到的任务，格式如下：
+{
+  "tasks": [
+    {
+      "title": "任务标题",
+      "description": "任务详细描述",
+      "priority": "high|medium|low",
+      "deadline_time": "HH:MM格式的时间，如14:30，如果没有则为null"
+    }
+  ],
+  "summary": "识别结果的简要说明"
+}
+
+要求：
+1. 如果识别到多个任务，请在tasks数组中列出所有任务
+2. priority必须是high、medium、low之一，根据任务紧急程度判断
+3. deadline_time只包含时间，格式为HH:MM，如果没有明确时间则为null
+4. 如果没有识别到任何任务，tasks数组为空，在summary中说明原因
+5. 请确保返回的是有效的JSON格式`
+      }
+      
       // 添加用户消息到聊天历史
       const userMessage: ChatMessage = {
         role: 'user',
         content: [
           {
             type: 'text',
-            text: chatMessage || '请分析这张图片'
+            text: isTaskRecognitionMode ? `🔍 ${finalPrompt}` : finalPrompt
           }
         ]
       }
@@ -316,7 +441,7 @@ export default function DashboardPage() {
 
       // 发送到豆包 API（使用流式输出）
       const response = await doubaoService.sendMessage(
-        chatMessage || '请分析这张图片',
+        finalPrompt,
         selectedImage || undefined,
         chatMessages,
         (chunk: string) => {
@@ -337,6 +462,18 @@ export default function DashboardPage() {
           ]
         }
         setChatMessages([...newMessages, aiMessage])
+
+        // 如果是任务识别模式，解析识别结果
+        if (isTaskRecognitionMode) {
+          const tasks = parseTaskRecognitionResponse(response.message);
+          if (tasks.length > 0) {
+            setRecognizedTasks(tasks);
+            setShowTaskPreview(true);
+            console.log('识别到的任务:', tasks);
+          } else {
+            console.log('未识别到任何任务');
+          }
+        }
       } else {
         // 显示错误消息
         const errorMessage: ChatMessage = {
@@ -672,8 +809,15 @@ export default function DashboardPage() {
                     onChange={(e) => setChatMessage(e.target.value)}
                     onKeyPress={handleKeyPress}
                     onPaste={handlePaste}
-                    placeholder="输入消息或粘贴图片(Ctrl+V)..."
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    placeholder={isTaskRecognitionMode 
+                      ? "描述任务内容或上传包含任务的图片..." 
+                      : "输入消息或粘贴图片(Ctrl+V)..."
+                    }
+                    className={`flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent text-sm transition-all duration-200 ${
+                      isTaskRecognitionMode 
+                        ? 'border-green-300 focus:ring-green-500 bg-green-50' 
+                        : 'border-gray-300 focus:ring-blue-500 bg-white'
+                    }`}
                     style={{ color: '#3f3f3f' }}
                   />
 
@@ -691,25 +835,159 @@ export default function DashboardPage() {
                   <button 
                     onClick={handleSendMessage}
                     disabled={isSending || (!chatMessage.trim() && !selectedImage)}
-                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium text-sm flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className={`px-4 py-2 text-white rounded-lg transition-all duration-200 font-medium text-sm flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed ${
+                      isTaskRecognitionMode 
+                        ? 'bg-green-500 hover:bg-green-600' 
+                        : 'bg-blue-500 hover:bg-blue-600'
+                    }`}
                   >
                     {isSending ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                        发送中
+                        {isTaskRecognitionMode ? '识别中...' : '发送中'}
                       </>
                     ) : (
                       <>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                        </svg>
-                        发送
+                        {isTaskRecognitionMode ? (
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                          </svg>
+                        ) : (
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                          </svg>
+                        )}
+                        {isTaskRecognitionMode ? '识别任务' : '发送'}
                       </>
                     )}
                   </button>
                 </div>
+                
+                {/* 任务识别开关 */}
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-gray-700">智能任务识别</span>
+                      <span className="text-xs text-gray-500">
+                        {isTaskRecognitionMode ? '已启用' : '已关闭'}
+                      </span>
+                    </div>
+                    
+                    {/* 开关按钮 */}
+                    <button
+                      onClick={() => setIsTaskRecognitionMode(!isTaskRecognitionMode)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${
+                        isTaskRecognitionMode ? 'bg-green-500' : 'bg-gray-200'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          isTaskRecognitionMode ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                  
+                  {/* 模式提示 */}
+                  {isTaskRecognitionMode && (
+                    <div className="mt-2 p-2 bg-green-50 rounded text-xs text-green-700">
+                      💡 任务识别模式已启用：在上方输入框中描述任务或上传图片，点击发送后AI将识别并提取任务信息
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
+
+            {/* 任务识别结果预览 */}
+            {showTaskPreview && recognizedTasks.length > 0 && (
+              <div className="mt-4 bg-white rounded-lg shadow-sm border border-green-200">
+                <div className="p-4 border-b border-green-100 bg-green-50">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <h3 className="font-medium text-green-800">识别到 {recognizedTasks.length} 个任务</h3>
+                    </div>
+                    <button
+                      onClick={() => setShowTaskPreview(false)}
+                      className="text-green-600 hover:text-green-800"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-4 space-y-3">
+                  {/* 批量操作 */}
+                  <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={recognizedTasks.every(task => task.isSelected)}
+                        onChange={(e) => {
+                          const allSelected = e.target.checked;
+                          setRecognizedTasks(tasks => 
+                            tasks.map(task => ({ ...task, isSelected: allSelected }))
+                          );
+                        }}
+                        className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                      />
+                      <span className="text-sm text-gray-600">
+                        全选 ({recognizedTasks.filter(t => t.isSelected).length}/{recognizedTasks.length})
+                      </span>
+                    </div>
+                    <button
+                      onClick={handleAddRecognizedTasks}
+                      disabled={recognizedTasks.filter(t => t.isSelected).length === 0}
+                      className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      添加选中任务 ({recognizedTasks.filter(t => t.isSelected).length})
+                    </button>
+                  </div>
+
+                  {/* 任务列表 */}
+                  {recognizedTasks.map((task) => (
+                    <div key={task.id} className="border border-gray-200 rounded-lg p-3 hover:border-green-300 transition-colors">
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          checked={task.isSelected}
+                          onChange={(e) => {
+                            setRecognizedTasks(tasks => 
+                              tasks.map(t => t.id === task.id ? { ...t, isSelected: e.target.checked } : t)
+                            );
+                          }}
+                          className="mt-1 h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h4 className="font-medium text-gray-900 text-sm">{task.title}</h4>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              task.priority === 'high' ? 'bg-red-100 text-red-700' :
+                              task.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-green-100 text-green-700'
+                            }`}>
+                              {task.priority === 'high' ? '高' : task.priority === 'medium' ? '中' : '低'}优先级
+                            </span>
+                            {task.deadline_time && (
+                              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                                {task.deadline_time}
+                              </span>
+                            )}
+                          </div>
+                          {task.description && (
+                            <p className="text-sm text-gray-600 leading-relaxed">{task.description}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
         <div className="flex justify-between items-center mb-6">
           <div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">
