@@ -45,3 +45,4 @@ SELECT COUNT(*) as user_count FROM users;
 
 -- 完成提示
 SELECT '✅ Database fix completed! You can now try creating tasks.' as result;
+

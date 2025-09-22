@@ -49,3 +49,4 @@ SELECT COUNT(*) as user_count FROM users;
 
 -- 完成提示
 SELECT '✅ Database updated! Now using deadline_datetime (TIMESTAMP WITH TIME ZONE) field.' as result;
+

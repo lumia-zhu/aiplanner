@@ -25,3 +25,4 @@ CREATE INDEX IF NOT EXISTS idx_tasks_deadline_time ON tasks(deadline_time);
 -- FROM information_schema.columns 
 -- WHERE table_name = 'tasks' 
 -- ORDER BY ordinal_position;
+

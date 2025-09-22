@@ -113,3 +113,4 @@ export function clearUserFromStorage() {
 export function isLoggedIn(): boolean {
   return getUserFromStorage() !== null
 }
+

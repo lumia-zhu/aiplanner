@@ -22,3 +22,4 @@ CREATE INDEX IF NOT EXISTS idx_tasks_deadline_time ON tasks(deadline_time);
 -- 1. 执行前请备份数据库
 -- 2. 现有任务的日期信息将丢失，只保留时间部分
 -- 3. 建议在测试环境先验证迁移效果
+

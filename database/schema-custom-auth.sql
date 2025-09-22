@@ -53,3 +53,4 @@ CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 -- 如果需要启用 RLS，可以使用以下策略（需要配合 Supabase Auth）：
 -- CREATE POLICY "Enable access for authenticated users" ON users FOR ALL USING (auth.role() = 'authenticated');
 -- CREATE POLICY "Enable access for authenticated users" ON tasks FOR ALL USING (auth.role() = 'authenticated');
+

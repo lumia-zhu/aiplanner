@@ -23,3 +23,4 @@ BEGIN
     (test_user_id, '完成单元测试', '为核心功能编写单元测试', NOW() + INTERVAL '5 days', 'medium', true) -- 已完成任务
     ON CONFLICT DO NOTHING;
 END $$;
+

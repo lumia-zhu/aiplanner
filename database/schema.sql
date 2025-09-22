@@ -69,3 +69,4 @@ CREATE POLICY "Users can update their own tasks" ON tasks
 
 CREATE POLICY "Users can delete their own tasks" ON tasks
     FOR DELETE USING (auth.uid()::text = user_id::text);
+

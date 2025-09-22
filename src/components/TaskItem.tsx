@@ -90,17 +90,25 @@ export default function TaskItem({ task, onToggleComplete, onEdit, onDelete, isD
           </div>
         </div>
         
-        {/* 完成状态复选框 */}
+        {/* 完成状态复选框 - 圆形样式 */}
         <div className="flex-shrink-0 pt-1">
-          <input
-            type="checkbox"
-            checked={task.completed}
-            onChange={(e) => {
+          <div
+            onClick={(e) => {
               e.stopPropagation()
-              handleToggleComplete(e.target.checked)
+              handleToggleComplete(!task.completed)
             }}
-            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-          />
+            className={`w-5 h-5 rounded-full border-2 cursor-pointer transition-all duration-200 flex items-center justify-center ${
+              task.completed
+                ? 'bg-blue-500 border-blue-500'
+                : 'bg-white border-gray-300 hover:border-blue-400'
+            }`}
+          >
+            {task.completed && (
+              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+          </div>
         </div>
 
         {/* 任务内容 */}
