@@ -10,6 +10,7 @@ import TaskForm from '@/components/TaskForm'
 import OutlookImport from '@/components/OutlookImport'
 import ImportSelector from '@/components/ImportSelector'
 import GoogleCalendarImport from '@/components/GoogleCalendarImport'
+import CalendarView from '@/components/CalendarView'
 import { taskOperations } from '@/utils/taskUtils'
 import { doubaoService, type ChatMessage } from '@/lib/doubaoService'
 
@@ -1014,6 +1015,16 @@ ${chatMessage ? `用户描述：${chatMessage}` : ''}
                 </div>
               </div>
             )}
+
+        {/* 日历视图 */}
+        <CalendarView 
+          tasks={tasks}
+          onDateSelect={(date) => {
+            // 可以在这里添加日期选择的逻辑，比如筛选任务
+            console.log('Selected date:', date)
+          }}
+        />
+
         <div className="flex justify-between items-center mb-6">
           <div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">
