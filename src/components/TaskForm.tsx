@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import type { Task } from '@/types'
 
-interface TaskFormProps {
+export interface TaskFormProps {
   task?: Task // 如果提供了task，则为编辑模式
+  defaultDate?: Date // 默认截止日期
   onSubmit: (taskData: {
     title: string
     description?: string
@@ -14,32 +15,47 @@ interface TaskFormProps {
   animationOrigin?: { x: number; y: number } | null
 }
 
-export default function TaskForm({ task, onSubmit, onCancel, isLoading, animationOrigin }: TaskFormProps) {
+export default function TaskForm({ task, defaultDate, onSubmit, onCancel, isLoading, animationOrigin }: TaskFormProps) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [deadlineDate, setDeadlineDate] = useState('')
   const [deadlineTime, setDeadlineTime] = useState('')
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium')
   const [error, setError] = useState('')
 
-  // 如果是编辑模式，填充表单数据
+  // 初始化表单数据
   useEffect(() => {
     if (task) {
+      // 编辑模式：使用任务的现有数据
       setTitle(task.title)
       setDescription(task.description || '')
       
-      // 从完整的日期时间中提取时间部分（本地时区）
       if (task.deadline_datetime) {
         const date = new Date(task.deadline_datetime)
+        // 设置日期
+        const year = date.getFullYear()
+        const month = (date.getMonth() + 1).toString().padStart(2, '0')
+        const day = date.getDate().toString().padStart(2, '0')
+        setDeadlineDate(`${year}-${month}-${day}`)
+        // 设置时间
         const hours = date.getHours().toString().padStart(2, '0')
         const minutes = date.getMinutes().toString().padStart(2, '0')
         setDeadlineTime(`${hours}:${minutes}`)
       } else {
+        setDeadlineDate('')
         setDeadlineTime('')
       }
       
       setPriority(task.priority)
+    } else if (defaultDate) {
+      // 新建模式：使用默认日期
+      const year = defaultDate.getFullYear()
+      const month = (defaultDate.getMonth() + 1).toString().padStart(2, '0')
+      const day = defaultDate.getDate().toString().padStart(2, '0')
+      setDeadlineDate(`${year}-${month}-${day}`)
+      setDeadlineTime('') // 时间留空让用户选择
     }
-  }, [task])
+  }, [task, defaultDate])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -51,11 +67,20 @@ export default function TaskForm({ task, onSubmit, onCancel, isLoading, animatio
 
     setError('')
     
+    // 组合日期和时间
+    let deadlineDateTime = undefined
+    if (deadlineDate && deadlineTime) {
+      deadlineDateTime = `${deadlineDate}T${deadlineTime}:00`
+    } else if (deadlineDate) {
+      // 如果只有日期没有时间，设置为当天23:59
+      deadlineDateTime = `${deadlineDate}T23:59:00`
+    }
+
     try {
       await onSubmit({
         title: title.trim(),
         description: description.trim() || undefined,
-        deadline_time: deadlineTime || undefined,
+        deadline_time: deadlineDateTime,
         priority
       })
     } catch (err) {
@@ -110,20 +135,44 @@ export default function TaskForm({ task, onSubmit, onCancel, isLoading, animatio
             />
           </div>
 
-          {/* 截止时间 */}
+          {/* 截止日期和时间 */}
           <div>
-            <label htmlFor="deadlineTime" className="block text-sm font-medium text-gray-700 mb-1">
-              截止时间 <span className="text-gray-500">(今天)</span>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              截止时间
             </label>
-            <input
-              id="deadlineTime"
-              type="time"
-              value={deadlineTime}
-              onChange={(e) => setDeadlineTime(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-[#3f3f3f]"
-              placeholder="选择时间（可选）"
-              disabled={isLoading}
-            />
+            <div className="grid grid-cols-2 gap-3">
+              {/* 日期选择 */}
+              <div>
+                <input
+                  type="date"
+                  value={deadlineDate}
+                  onChange={(e) => setDeadlineDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-[#3f3f3f]"
+                  disabled={isLoading}
+                />
+                {deadlineDate && (
+                  <p className="text-xs text-gray-600 mt-1">
+                    {new Date(deadlineDate + 'T00:00:00').toLocaleDateString('zh-CN', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      weekday: 'short'
+                    })}
+                  </p>
+                )}
+              </div>
+              {/* 时间选择 */}
+              <div>
+                <input
+                  type="time"
+                  value={deadlineTime}
+                  onChange={(e) => setDeadlineTime(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-[#3f3f3f]"
+                  placeholder="选择时间（可选）"
+                  disabled={isLoading}
+                />
+              </div>
+            </div>
             <p className="text-xs text-gray-500 mt-1">留空表示无特定截止时间</p>
           </div>
 

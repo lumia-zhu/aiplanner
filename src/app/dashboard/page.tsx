@@ -69,6 +69,9 @@ export default function DashboardPage() {
   
   // 动画相关状态
   const [animationOrigin, setAnimationOrigin] = useState<{ x: number; y: number } | null>(null)
+  
+  // 日历选中日期状态
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const importButtonRef = useRef<HTMLButtonElement>(null)
   const newTaskButtonRef = useRef<HTMLButtonElement>(null)
   
@@ -571,6 +574,24 @@ ${chatMessage ? `用户描述：${chatMessage}` : ''}
     setSelectedImportPlatform(null)
   }
 
+  // 处理日期选择
+  const handleDateSelect = (date: Date) => {
+    setSelectedDate(date)
+    console.log('Selected date:', date)
+  }
+
+  // 获取选中日期的任务
+  const getTasksForSelectedDate = () => {
+    return tasks.filter(task => {
+      if (!task.deadline_datetime) return false
+      const taskDate = new Date(task.deadline_datetime)
+      return taskDate.toDateString() === selectedDate.toDateString()
+    })
+  }
+
+  // 获取要显示的任务（严格按选中日期筛选）
+  const displayTasks = getTasksForSelectedDate()
+
   // 处理显示新建任务表单
   const handleShowTaskForm = () => {
     // 计算按钮位置作为动画起点（相对于视口）
@@ -1019,19 +1040,17 @@ ${chatMessage ? `用户描述：${chatMessage}` : ''}
         {/* 日历视图 */}
         <CalendarView 
           tasks={tasks}
-          onDateSelect={(date) => {
-            // 可以在这里添加日期选择的逻辑，比如筛选任务
-            console.log('Selected date:', date)
-          }}
+          selectedDate={selectedDate}
+          onDateSelect={handleDateSelect}
         />
 
         <div className="flex justify-between items-center mb-6">
           <div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              {new Date().getMonth() + 1}月{new Date().getDate()}日的任务
+              {selectedDate.getMonth() + 1}月{selectedDate.getDate()}日的任务
             </h2>
             <p className="text-gray-600">
-              共 {tasks.length} 个任务，{tasks.filter(t => !t.completed).length} 个待完成
+              共 {displayTasks.length} 个任务，{displayTasks.filter(t => !t.completed).length} 个待完成
             </p>
           </div>
           <div className="flex items-center space-x-3">
@@ -1102,22 +1121,38 @@ ${chatMessage ? `用户描述：${chatMessage}` : ''}
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
               <p className="mt-4 text-gray-600">加载任务中...</p>
             </div>
-          ) : tasks.length === 0 ? (
+          ) : displayTasks.length === 0 ? (
             <div className="bg-white rounded-lg shadow p-12 text-center">
-              <div className="text-6xl mb-4">📝</div>
+              <div className="text-6xl mb-4">📅</div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">
-                还没有任务
+                {selectedDate.toDateString() === new Date().toDateString() 
+                  ? '今天还没有任务' 
+                  : `${selectedDate.getMonth() + 1}月${selectedDate.getDate()}日没有任务`
+                }
               </h3>
               <p className="text-gray-600 mb-6">
-                创建您的第一个任务开始管理待办事项
+                {selectedDate.toDateString() === new Date().toDateString()
+                  ? '创建一个新任务开始今天的工作'
+                  : '为这一天添加新任务或选择其他日期'
+                }
               </p>
-              <button
-                onClick={() => setShowTaskForm(true)}
-                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2 mx-auto"
-              >
-                <span className="text-white text-lg">+</span>
-                创建第一个任务
-              </button>
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={() => setShowTaskForm(true)}
+                  className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2"
+                >
+                  <span className="text-white text-lg">+</span>
+                  新建任务
+                </button>
+                {selectedDate.toDateString() !== new Date().toDateString() && (
+                  <button
+                    onClick={() => setSelectedDate(new Date())}
+                    className="bg-gray-100 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                  >
+                    回到今天
+                  </button>
+                )}
+              </div>
             </div>
           ) : (
             <DndContext
@@ -1126,8 +1161,8 @@ ${chatMessage ? `用户描述：${chatMessage}` : ''}
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
             >
-              <SortableContext items={tasks} strategy={verticalListSortingStrategy}>
-                {tasks.map((task) => (
+              <SortableContext items={displayTasks} strategy={verticalListSortingStrategy}>
+                {displayTasks.map((task) => (
                   <DraggableTaskItem
                     key={task.id}
                     task={task}
@@ -1255,6 +1290,7 @@ ${chatMessage ? `用户描述：${chatMessage}` : ''}
       {/* 任务表单弹窗 */}
       {showTaskForm && (
         <TaskForm
+          defaultDate={selectedDate}
           onSubmit={handleCreateTask}
           onCancel={() => setShowTaskForm(false)}
           isLoading={isFormLoading}
@@ -1265,6 +1301,7 @@ ${chatMessage ? `用户描述：${chatMessage}` : ''}
       {editingTask && (
         <TaskForm
           task={editingTask}
+          defaultDate={selectedDate}
           onSubmit={handleUpdateTask}
           onCancel={() => setEditingTask(null)}
           isLoading={isFormLoading}

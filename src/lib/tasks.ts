@@ -61,18 +61,12 @@ export async function createTask(
   try {
     const supabase = createClient()
     
-    // 如果用户提供了时间，将其转换为当天的完整时间戳（本地时区）
+    // 如果用户提供了日期时间，直接使用（已经是完整的日期时间格式）
     let deadlineDateTime = null
     if (taskData.deadline_time) {
-      // 使用本地时区的今天日期
-      const now = new Date()
-      const year = now.getFullYear()
-      const month = (now.getMonth() + 1).toString().padStart(2, '0')
-      const day = now.getDate().toString().padStart(2, '0')
-      const today = `${year}-${month}-${day}`
-      
-      // 创建本地时间戳，然后转换为 ISO 字符串
-      const localDateTime = new Date(`${today}T${taskData.deadline_time}:00`)
+      // TaskForm已经提供了完整的日期时间字符串（如：2025-09-24T23:59:00）
+      // 直接转换为ISO字符串用于数据库存储
+      const localDateTime = new Date(taskData.deadline_time)
       deadlineDateTime = localDateTime.toISOString()
     }
     
@@ -121,15 +115,9 @@ export async function updateTask(
     // 如果更新了截止时间，需要转换为完整的日期时间
     if (updates.deadline_time !== undefined) {
       if (updates.deadline_time) {
-        // 使用本地时区的今天日期
-        const now = new Date()
-        const year = now.getFullYear()
-        const month = (now.getMonth() + 1).toString().padStart(2, '0')
-        const day = now.getDate().toString().padStart(2, '0')
-        const today = `${year}-${month}-${day}`
-        
-        // 创建本地时间戳，然后转换为 ISO 字符串
-        const localDateTime = new Date(`${today}T${updates.deadline_time}:00`)
+        // TaskForm已经提供了完整的日期时间字符串（如：2025-09-24T23:59:00）
+        // 直接转换为ISO字符串用于数据库存储
+        const localDateTime = new Date(updates.deadline_time)
         updateData.deadline_datetime = localDateTime.toISOString()
       } else {
         updateData.deadline_datetime = null

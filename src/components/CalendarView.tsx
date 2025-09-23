@@ -5,6 +5,7 @@ import { Task } from '@/lib/types'
 
 interface CalendarViewProps {
   tasks: Task[]
+  selectedDate?: Date
   onDateSelect?: (date: Date) => void
 }
 
@@ -15,7 +16,7 @@ interface CalendarDay {
   tasks: Task[]
 }
 
-export default function CalendarView({ tasks, onDateSelect }: CalendarViewProps) {
+export default function CalendarView({ tasks, selectedDate, onDateSelect }: CalendarViewProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [currentDate, setCurrentDate] = useState(new Date())
 
@@ -62,8 +63,8 @@ export default function CalendarView({ tasks, onDateSelect }: CalendarViewProps)
       
       // 获取该日期的任务
       const dayTasks = tasks.filter(task => {
-        if (!task.deadline_time) return false
-        const taskDate = new Date(task.deadline_time)
+        if (!task.deadline_datetime) return false
+        const taskDate = new Date(task.deadline_datetime)
         return taskDate.toDateString() === date.toDateString()
       })
       
@@ -84,8 +85,8 @@ export default function CalendarView({ tasks, onDateSelect }: CalendarViewProps)
   // 获取指定日期的任务
   const getTasksForDate = (date: Date) => {
     return tasks.filter(task => {
-      if (!task.deadline_time) return false
-      const taskDate = new Date(task.deadline_time)
+      if (!task.deadline_datetime) return false
+      const taskDate = new Date(task.deadline_datetime)
       return taskDate.toDateString() === date.toDateString()
     })
   }
@@ -163,12 +164,13 @@ export default function CalendarView({ tasks, onDateSelect }: CalendarViewProps)
               {weekDays.map((date, index) => {
                 const dayTasks = getTasksForDate(date)
                 const isToday = date.toDateString() === today.toDateString()
+                const isSelected = selectedDate && date.toDateString() === selectedDate.toDateString()
                 
                 return (
                   <div
                     key={index}
                     className={`text-center p-2 rounded-lg cursor-pointer transition-colors hover:bg-gray-50 text-gray-700 ${
-                      isToday ? 'bg-blue-100' : ''
+                      isToday ? 'bg-blue-100' : isSelected ? 'bg-gray-200' : ''
                     }`}
                     onClick={() => onDateSelect?.(date)}
                   >
@@ -204,19 +206,24 @@ export default function CalendarView({ tasks, onDateSelect }: CalendarViewProps)
             
             {/* 月历网格 */}
             <div className="grid grid-cols-7 gap-1">
-              {monthDays.map((day, index) => (
-                <div
-                  key={index}
-                  className={`relative h-12 p-1 text-center cursor-pointer transition-colors rounded ${
-                    day.isToday ? 'bg-blue-100' : 'hover:bg-gray-50'
-                  } ${
-                    !day.isCurrentMonth ? 'text-gray-300' : 'text-gray-700'
-                  }`}
-                  onClick={() => onDateSelect?.(day.date)}
-                >
-                  <div className="text-sm pt-1">
-                    {day.date.getDate()}
-                  </div>
+              {monthDays.map((day, index) => {
+                const isSelected = selectedDate && day.date.toDateString() === selectedDate.toDateString()
+                
+                return (
+                  <div
+                    key={index}
+                    className={`relative h-12 p-1 text-center cursor-pointer transition-colors rounded ${
+                      day.isToday ? 'bg-blue-100' : 
+                      isSelected ? 'bg-gray-200' : 
+                      'hover:bg-gray-50'
+                    } ${
+                      !day.isCurrentMonth ? 'text-gray-300' : 'text-gray-700'
+                    }`}
+                    onClick={() => onDateSelect?.(day.date)}
+                  >
+                    <div className="text-sm pt-1">
+                      {day.date.getDate()}
+                    </div>
                   
                   {/* 任务指示器 */}
                   {day.tasks.length > 0 && (
@@ -241,8 +248,9 @@ export default function CalendarView({ tasks, onDateSelect }: CalendarViewProps)
                       )}
                     </div>
                   )}
-                </div>
-              ))}
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}
