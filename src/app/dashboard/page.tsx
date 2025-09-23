@@ -8,6 +8,8 @@ import type { Task } from '@/types'
 import DraggableTaskItem from '@/components/DraggableTaskItem'
 import TaskForm from '@/components/TaskForm'
 import OutlookImport from '@/components/OutlookImport'
+import ImportSelector from '@/components/ImportSelector'
+import GoogleCalendarImport from '@/components/GoogleCalendarImport'
 import { taskOperations } from '@/utils/taskUtils'
 import { doubaoService, type ChatMessage } from '@/lib/doubaoService'
 
@@ -48,6 +50,7 @@ export default function DashboardPage() {
   const [error, setError] = useState('')
   const [activeTask, setActiveTask] = useState<Task | null>(null)
   const [showImport, setShowImport] = useState(false)
+  const [selectedImportPlatform, setSelectedImportPlatform] = useState<'outlook' | 'google' | null>(null)
   
   // 聊天相关状态
   const [chatMessage, setChatMessage] = useState('')
@@ -213,8 +216,14 @@ export default function DashboardPage() {
     setEditingTask(task)
   }
 
-  const handleTasksImported = (count: number) => {
-    // 导入完成后重新加载任务列表
+  const handleTasksImported = (importedTasks: Task[]) => {
+    // 将导入的任务添加到当前任务列表
+    setTasks(prevTasks => [...prevTasks, ...importedTasks])
+    setShowImport(false)
+  }
+
+  const handleOutlookTasksImported = (count: number) => {
+    // Outlook导入完成后重新加载任务列表
     if (user) {
       loadTasks(user.id)
     }
@@ -542,6 +551,23 @@ ${chatMessage ? `用户描述：${chatMessage}` : ''}
       })
     }
     setShowImport(true)
+    setSelectedImportPlatform(null) // 重置平台选择
+  }
+
+  // 处理选择导入平台
+  const handleSelectImportPlatform = (platform: 'outlook' | 'google') => {
+    setSelectedImportPlatform(platform)
+  }
+
+  // 处理关闭导入弹窗
+  const handleCloseImport = () => {
+    setShowImport(false)
+    setSelectedImportPlatform(null)
+  }
+
+  // 处理返回平台选择
+  const handleBackToSelector = () => {
+    setSelectedImportPlatform(null)
   }
 
   // 处理显示新建任务表单
@@ -991,7 +1017,7 @@ ${chatMessage ? `用户描述：${chatMessage}` : ''}
         <div className="flex justify-between items-center mb-6">
           <div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              我的任务
+              {new Date().getMonth() + 1}月{new Date().getDate()}日的任务
             </h2>
             <p className="text-gray-600">
               共 {tasks.length} 个任务，{tasks.filter(t => !t.completed).length} 个待完成
@@ -1120,36 +1146,99 @@ ${chatMessage ? `用户描述：${chatMessage}` : ''}
 
       {/* 导入任务弹窗 */}
       {showImport && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div 
-            className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-modal-scale"
-            style={{
-              transformOrigin: animationOrigin 
-                ? `${((animationOrigin.x / window.innerWidth) * 100)}% ${((animationOrigin.y / window.innerHeight) * 100)}%`
-                : 'center center'
-            }}
-          >
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-gray-900">导入任务</h2>
-                <button
-                  onClick={() => setShowImport(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <span className="sr-only">关闭</span>
-                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+        <>
+          {!selectedImportPlatform ? (
+            // 显示平台选择器
+            <ImportSelector
+              onSelectPlatform={handleSelectImportPlatform}
+              onClose={handleCloseImport}
+            />
+          ) : selectedImportPlatform === 'outlook' ? (
+            // 显示Outlook导入
+            <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
+              <div 
+                className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-modal-scale"
+                style={{
+                  transformOrigin: animationOrigin 
+                    ? `${((animationOrigin.x / window.innerWidth) * 100)}% ${((animationOrigin.y / window.innerHeight) * 100)}%`
+                    : 'center center'
+                }}
+              >
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center space-x-3">
+                      <button
+                        onClick={handleBackToSelector}
+                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                      </button>
+                      <h2 className="text-xl font-semibold text-gray-900">Outlook 任务导入</h2>
+                    </div>
+                    <button
+                      onClick={handleCloseImport}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      <span className="sr-only">关闭</span>
+                      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  <OutlookImport
+                    existingTasks={tasks}
+                    onTasksImported={handleOutlookTasksImported}
+                    createTask={(taskData) => createTask(user!.id, taskData)}
+                  />
+                </div>
               </div>
-              <OutlookImport
-                existingTasks={tasks}
-                onTasksImported={handleTasksImported}
-                createTask={(taskData) => createTask(user!.id, taskData)}
-              />
             </div>
-          </div>
-        </div>
+          ) : (
+            // Google Calendar导入
+            <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
+              <div 
+                className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-modal-scale"
+                style={{
+                  transformOrigin: animationOrigin 
+                    ? `${((animationOrigin.x / window.innerWidth) * 100)}% ${((animationOrigin.y / window.innerHeight) * 100)}%`
+                    : 'center center'
+                }}
+              >
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center space-x-3">
+                      <button
+                        onClick={handleBackToSelector}
+                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                      </button>
+                      <h2 className="text-xl font-semibold text-gray-900">Google Calendar 导入</h2>
+                    </div>
+                    <button
+                      onClick={handleCloseImport}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      <span className="sr-only">关闭</span>
+                      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  <GoogleCalendarImport
+                    existingTasks={tasks}
+                    onTasksImported={handleTasksImported}
+                    createTask={(taskData) => createTask(user!.id, taskData)}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* 任务表单弹窗 */}
