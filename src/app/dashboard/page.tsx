@@ -1082,22 +1082,22 @@ ${chatMessage ? `用户描述：${chatMessage}` : ''}
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium text-gray-700">任务进度</span>
             <span className="text-sm text-gray-600">
-              {tasks.filter(t => t.completed).length}/{tasks.length}
+              {displayTasks.filter(t => t.completed).length}/{displayTasks.length}
             </span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-blue-500 to-green-500 rounded-full transition-all duration-500 ease-out"
               style={{
-                width: tasks.length > 0 ? `${(tasks.filter(t => t.completed).length / tasks.length) * 100}%` : '0%'
+                width: displayTasks.length > 0 ? `${(displayTasks.filter(t => t.completed).length / displayTasks.length) * 100}%` : '0%'
               }}
             />
           </div>
           <div className="flex justify-between items-center mt-2">
             <span className="text-xs text-gray-500">
-              {tasks.length > 0 ? Math.round((tasks.filter(t => t.completed).length / tasks.length) * 100) : 0}% 完成
+              {displayTasks.length > 0 ? Math.round((displayTasks.filter(t => t.completed).length / displayTasks.length) * 100) : 0}% 完成
             </span>
-            {tasks.length > 0 && tasks.filter(t => t.completed).length === tasks.length && (
+            {displayTasks.length > 0 && displayTasks.filter(t => t.completed).length === displayTasks.length && (
               <span className="text-xs text-green-600 font-medium flex items-center gap-1">
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
