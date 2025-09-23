@@ -692,7 +692,7 @@ ${chatMessage ? `用户描述：${chatMessage}` : ''}
                   <div className="flex items-center gap-2">
                     <div className={`w-2 h-2 rounded-full ${doubaoService.hasApiKey() ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
                     <span className="text-sm font-medium" style={{ color: '#3f3f3f' }}>
-                      豆包 AI 助手 {!doubaoService.hasApiKey() && '(需要配置API Key)'}
+                       AI 助手 {!doubaoService.hasApiKey() && '(需要配置API Key)'}
                     </span>
                   </div>
                   {chatMessages.length > 0 && (
@@ -729,7 +729,7 @@ ${chatMessage ? `用户描述：${chatMessage}` : ''}
                       </div>
                       <div className="bg-white rounded-lg px-3 py-2 shadow-sm max-w-xs">
                         <p className="text-sm" style={{ color: '#3f3f3f' }}>
-                          你好！我是豆包AI助手，可以帮你管理任务、分析图片。{!doubaoService.hasApiKey() ? '请先配置API Key。' : '你可以直接粘贴图片(Ctrl+V)或拖拽图片到这里，有什么可以帮助你的吗？'}
+                          你好！我是AI助手，可以帮你管理任务、分析图片。{!doubaoService.hasApiKey() ? '请先配置API Key。' : '你可以直接粘贴图片(Ctrl+V)或拖拽图片到这里，有什么可以帮助你的吗？'}
                         </p>
                       </div>
                     </div>
