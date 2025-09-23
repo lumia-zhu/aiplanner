@@ -58,8 +58,12 @@ export default function GoogleCalendarImport({ existingTasks, onTasksImported, c
   }
 
   const handleConnect = async () => {
+    console.log('Google配置信息:', googleAuthService.getConfigInfo())
+    
     if (!googleAuthService.isConfigured()) {
-      setConnectionError(googleAuthService.getConfigError())
+      const error = googleAuthService.getConfigError()
+      console.error('配置错误:', error)
+      setConnectionError(error)
       return
     }
 
@@ -67,14 +71,24 @@ export default function GoogleCalendarImport({ existingTasks, onTasksImported, c
     setConnectionError(null)
 
     try {
+      console.log('开始Google登录...')
       const user = await googleAuthService.signIn()
+      console.log('Google登录成功:', user)
       setCurrentUser(user)
       setIsConnected(true)
       setCurrentStep('calendars')
       await loadCalendars()
     } catch (error: any) {
       console.error('Google连接失败:', error)
-      setConnectionError(error.message || 'Google连接失败，请重试')
+      let errorMessage = 'Google连接失败，请重试'
+      
+      if (error.message) {
+        errorMessage = error.message
+      } else if (typeof error === 'string') {
+        errorMessage = error
+      }
+      
+      setConnectionError(errorMessage)
     } finally {
       setIsConnecting(false)
     }
@@ -303,7 +317,13 @@ export default function GoogleCalendarImport({ existingTasks, onTasksImported, c
         
         {connectionError && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-            {connectionError}
+            <strong>连接错误：</strong>{connectionError}
+            <details className="mt-2">
+              <summary className="cursor-pointer">调试信息</summary>
+              <pre className="mt-2 text-xs bg-gray-100 p-2 rounded overflow-auto">
+                {JSON.stringify(googleAuthService.getConfigInfo(), null, 2)}
+              </pre>
+            </details>
           </div>
         )}
         
