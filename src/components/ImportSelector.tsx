@@ -3,7 +3,7 @@
 import React from 'react'
 
 interface ImportOption {
-  id: 'outlook' | 'google'
+  id: 'outlook' | 'google' | 'canvas'
   name: string
   icon: React.ReactNode
   description: string
@@ -11,7 +11,7 @@ interface ImportOption {
 }
 
 interface ImportSelectorProps {
-  onSelectPlatform: (platform: 'outlook' | 'google') => void
+  onSelectPlatform: (platform: 'outlook' | 'google' | 'canvas') => void
   onClose: () => void
 }
 
@@ -42,6 +42,19 @@ export default function ImportSelector({ onSelectPlatform, onClose }: ImportSele
       ),
       description: '从 Google Calendar 导入你的日程作为任务',
       available: true // Google Calendar导入已完成开发
+    },
+    {
+      id: 'canvas',
+      name: 'Canvas 日历',
+      icon: (
+        <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-red-500 rounded-xl flex items-center justify-center shadow-lg">
+          <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM12 6c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z"/>
+          </svg>
+        </div>
+      ),
+      description: '通过 Canvas 日历订阅链接导入作业和课程事件',
+      available: true
     }
   ]
 

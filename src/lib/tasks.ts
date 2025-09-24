@@ -61,13 +61,32 @@ export async function createTask(
   try {
     const supabase = createClient()
     
-    // 如果用户提供了日期时间，直接使用（已经是完整的日期时间格式）
+    // 处理截止时间，支持两种格式：
+    // 1. 完整日期时间格式（如：2025-09-24T23:59:00）- 来自TaskForm和Canvas导入
+    // 2. 仅时间格式（如：16:00）- 来自Outlook导入
     let deadlineDateTime = null
     if (taskData.deadline_time) {
-      // TaskForm已经提供了完整的日期时间字符串（如：2025-09-24T23:59:00）
-      // 直接转换为ISO字符串用于数据库存储
-      const localDateTime = new Date(taskData.deadline_time)
-      deadlineDateTime = localDateTime.toISOString()
+      try {
+        if (taskData.deadline_time.includes('T')) {
+          // 完整的日期时间格式，直接使用
+          const localDateTime = new Date(taskData.deadline_time)
+          deadlineDateTime = localDateTime.toISOString()
+        } else if (taskData.deadline_time.match(/^\d{1,2}:\d{2}$/)) {
+          // 仅时间格式（HH:MM），组合今天的日期
+          const today = new Date()
+          const [hours, minutes] = taskData.deadline_time.split(':')
+          const localDateTime = new Date(today.getFullYear(), today.getMonth(), today.getDate(), parseInt(hours), parseInt(minutes))
+          deadlineDateTime = localDateTime.toISOString()
+        } else {
+          // 尝试直接解析
+          const localDateTime = new Date(taskData.deadline_time)
+          if (!isNaN(localDateTime.getTime())) {
+            deadlineDateTime = localDateTime.toISOString()
+          }
+        }
+      } catch (error) {
+        console.warn('解析截止时间失败:', taskData.deadline_time, error)
+      }
     }
     
     const { data, error } = await supabase
@@ -115,10 +134,30 @@ export async function updateTask(
     // 如果更新了截止时间，需要转换为完整的日期时间
     if (updates.deadline_time !== undefined) {
       if (updates.deadline_time) {
-        // TaskForm已经提供了完整的日期时间字符串（如：2025-09-24T23:59:00）
-        // 直接转换为ISO字符串用于数据库存储
-        const localDateTime = new Date(updates.deadline_time)
-        updateData.deadline_datetime = localDateTime.toISOString()
+        try {
+          if (updates.deadline_time.includes('T')) {
+            // 完整的日期时间格式，直接使用
+            const localDateTime = new Date(updates.deadline_time)
+            updateData.deadline_datetime = localDateTime.toISOString()
+          } else if (updates.deadline_time.match(/^\d{1,2}:\d{2}$/)) {
+            // 仅时间格式（HH:MM），组合今天的日期
+            const today = new Date()
+            const [hours, minutes] = updates.deadline_time.split(':')
+            const localDateTime = new Date(today.getFullYear(), today.getMonth(), today.getDate(), parseInt(hours), parseInt(minutes))
+            updateData.deadline_datetime = localDateTime.toISOString()
+          } else {
+            // 尝试直接解析
+            const localDateTime = new Date(updates.deadline_time)
+            if (!isNaN(localDateTime.getTime())) {
+              updateData.deadline_datetime = localDateTime.toISOString()
+            } else {
+              updateData.deadline_datetime = null
+            }
+          }
+        } catch (error) {
+          console.warn('解析截止时间失败:', updates.deadline_time, error)
+          updateData.deadline_datetime = null
+        }
       } else {
         updateData.deadline_datetime = null
       }

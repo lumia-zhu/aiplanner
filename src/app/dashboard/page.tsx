@@ -10,6 +10,7 @@ import TaskForm from '@/components/TaskForm'
 import OutlookImport from '@/components/OutlookImport'
 import ImportSelector from '@/components/ImportSelector'
 import GoogleCalendarImport from '@/components/GoogleCalendarImport'
+import CanvasImport from '@/components/CanvasImport'
 import CalendarView from '@/components/CalendarView'
 import { taskOperations } from '@/utils/taskUtils'
 import { doubaoService, type ChatMessage } from '@/lib/doubaoService'
@@ -51,7 +52,7 @@ export default function DashboardPage() {
   const [error, setError] = useState('')
   const [activeTask, setActiveTask] = useState<Task | null>(null)
   const [showImport, setShowImport] = useState(false)
-  const [selectedImportPlatform, setSelectedImportPlatform] = useState<'outlook' | 'google' | null>(null)
+  const [selectedImportPlatform, setSelectedImportPlatform] = useState<'outlook' | 'google' | 'canvas' | null>(null)
   
   // 聊天相关状态
   const [chatMessage, setChatMessage] = useState('')
@@ -559,7 +560,7 @@ ${chatMessage ? `用户描述：${chatMessage}` : ''}
   }
 
   // 处理选择导入平台
-  const handleSelectImportPlatform = (platform: 'outlook' | 'google') => {
+  const handleSelectImportPlatform = (platform: 'outlook' | 'google' | 'canvas') => {
     setSelectedImportPlatform(platform)
   }
 
@@ -583,7 +584,12 @@ ${chatMessage ? `用户描述：${chatMessage}` : ''}
   // 获取选中日期的任务
   const getTasksForSelectedDate = () => {
     return tasks.filter(task => {
-      if (!task.deadline_datetime) return false
+      // 如果任务没有截止时间，显示在今天的任务列表中
+      if (!task.deadline_datetime) {
+        return selectedDate.toDateString() === new Date().toDateString()
+      }
+      
+      // 如果有截止时间，按日期过滤
       const taskDate = new Date(task.deadline_datetime)
       return taskDate.toDateString() === selectedDate.toDateString()
     })
@@ -1241,7 +1247,7 @@ ${chatMessage ? `用户描述：${chatMessage}` : ''}
                 </div>
               </div>
             </div>
-          ) : (
+          ) : selectedImportPlatform === 'google' ? (
             // Google Calendar导入
             <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
               <div 
@@ -1276,6 +1282,48 @@ ${chatMessage ? `用户描述：${chatMessage}` : ''}
                     </button>
                   </div>
                   <GoogleCalendarImport
+                    existingTasks={tasks}
+                    onTasksImported={handleTasksImported}
+                    createTask={(taskData) => createTask(user!.id, taskData)}
+                  />
+                </div>
+              </div>
+            </div>
+          ) : (
+            // Canvas导入
+            <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
+              <div 
+                className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-modal-scale"
+                style={{
+                  transformOrigin: animationOrigin 
+                    ? `${((animationOrigin.x / window.innerWidth) * 100)}% ${((animationOrigin.y / window.innerHeight) * 100)}%`
+                    : 'center center'
+                }}
+              >
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center space-x-3">
+                      <button
+                        onClick={handleBackToSelector}
+                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                      </button>
+                      <h2 className="text-xl font-semibold text-gray-900">Canvas 日历导入</h2>
+                    </div>
+                    <button
+                      onClick={handleCloseImport}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      <span className="sr-only">关闭</span>
+                      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  <CanvasImport
                     existingTasks={tasks}
                     onTasksImported={handleTasksImported}
                     createTask={(taskData) => createTask(user!.id, taskData)}
