@@ -222,6 +222,61 @@ export default function DashboardPage() {
     setEditingTask(task)
   }
 
+  const handleDecomposeTask = (task: Task) => {
+    // 使用AI助手来拆解任务
+    const decomposePrompt = `请帮我将以下任务拆解为多个具体的子任务：
+
+任务标题：${task.title}
+任务描述：${task.description || '无'}
+优先级：${task.priority}
+截止时间：${task.deadline_datetime ? new Date(task.deadline_datetime).toLocaleString('zh-CN') : '无'}
+
+请将这个任务拆解为3-5个具体可执行的子任务，每个子任务都应该是明确、可衡量的行动步骤。请以JSON格式返回，格式如下：
+{
+  "tasks": [
+    {
+      "title": "子任务标题",
+      "description": "子任务详细描述",
+      "priority": "high/medium/low",
+      "deadline_time": "预估完成时间"
+    }
+  ]
+}`
+
+    // 设置任务识别模式并填入消息
+    setIsTaskRecognitionMode(true)
+    setChatMessage(decomposePrompt)
+    
+    // 提示用户
+    alert('任务拆解提示已生成并填入右侧AI助手，请点击发送让AI帮您拆解任务！')
+  }
+
+  const handleStuckHelp = () => {
+    // 生成求助提示
+    const helpPrompt = `我在使用任务管理系统时遇到了困难，需要您的帮助。
+
+当前情况：
+- 我有 ${displayTasks.length} 个任务
+- 其中 ${displayTasks.filter(t => !t.completed).length} 个待完成
+- 过期任务：${displayTasks.filter(t => !t.completed && t.deadline_datetime && new Date(t.deadline_datetime) < new Date()).length} 个
+
+我可能需要帮助的方面：
+1. 如何更好地安排任务优先级？
+2. 如何制定合理的时间计划？
+3. 如何处理过期或紧急的任务？
+4. 如何提高任务执行效率？
+5. 如何使用系统的各种功能？
+
+请根据我的情况给出具体的建议和指导。`
+
+    // 设置聊天消息并关闭任务识别模式
+    setIsTaskRecognitionMode(false)
+    setChatMessage(helpPrompt)
+    
+    // 提示用户
+    alert('AI助手已准备好帮助您！求助信息已填入右侧聊天框，请点击发送获取专业建议。')
+  }
+
   const handleTasksImported = (importedTasks: Task[]) => {
     // 将导入的任务添加到当前任务列表
     setTasks(prevTasks => [...prevTasks, ...importedTasks])
@@ -1080,6 +1135,17 @@ ${chatMessage ? `用户描述：${chatMessage}` : ''}
           </div>
           <div className="flex items-center space-x-3">
                 <button
+                  onClick={handleStuckHelp}
+                  className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
+                  style={{ backgroundColor: '#FF6B6B' }}
+                  title="获取AI帮助，解决遇到的困难"
+                >
+                  <svg className="w-4 h-4 fill-current flex-shrink-0" viewBox="0 0 20 20">
+                    <path d="M2 3a1 1 0 011-1h1a1 1 0 010 2H3a1 1 0 01-1-1zM3 7a1 1 0 000 2h1a1 1 0 100-2H3zM3 11a1 1 0 100 2h1a1 1 0 100-2H3zM4 15a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zM6 7a1 1 0 011-1h7a1 1 0 110 2H7a1 1 0 01-1-1zM6 11a1 1 0 011-1h7a1 1 0 110 2H7a1 1 0 01-1-1zM6 15a1 1 0 011-1h7a1 1 0 110 2H7a1 1 0 01-1-1z"/>
+                  </svg>
+                  卡住啦
+                </button>
+                <button
                   ref={importButtonRef}
                   onClick={handleShowImport}
                   className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
@@ -1194,6 +1260,7 @@ ${chatMessage ? `用户描述：${chatMessage}` : ''}
                     onToggleComplete={handleToggleComplete}
                     onEdit={handleEditTask}
                     onDelete={handleDeleteTask}
+                    onDecompose={handleDecomposeTask}
                   />
                 ))}
               </SortableContext>
@@ -1205,6 +1272,7 @@ ${chatMessage ? `用户描述：${chatMessage}` : ''}
                       onToggleComplete={() => {}}
                       onEdit={() => {}}
                       onDelete={() => {}}
+                      onDecompose={() => {}}
                       isOverlay={true}
                     />
                   </div>
