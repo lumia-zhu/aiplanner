@@ -9,7 +9,7 @@ interface SubtaskListProps {
   subtasks: Task[]
   isExpanded: boolean
   onToggleExpansion: (taskId: string, isExpanded: boolean) => void
-  onToggleComplete: (taskId: string) => void
+  onToggleComplete: (taskId: string, completed: boolean) => void
   onEdit: (task: Task) => void
   onDelete: (taskId: string) => void
   onDecompose: (task: Task) => void
@@ -64,7 +64,7 @@ export default function SubtaskList({
                   <input
                     type="checkbox"
                     checked={subtask.completed}
-                    onChange={() => onToggleComplete(subtask.id)}
+                    onChange={() => onToggleComplete(subtask.id, !subtask.completed)}
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
 

@@ -54,11 +54,25 @@ export const taskOperations = {
     return tasks.filter(task => task.id !== taskId)
   },
   
-  // 切换完成状态
+  // 切换完成状态（支持嵌套子任务）
   toggleComplete: (tasks: Task[], taskId: string, completed: boolean): Task[] => {
-    return tasks.map(task =>
-      task.id === taskId ? { ...task, completed } : task
-    )
+    return tasks.map(task => {
+      // 如果是目标任务，更新其完成状态
+      if (task.id === taskId) {
+        return { ...task, completed }
+      }
+      
+      // 如果任务有子任务，递归检查并更新子任务
+      if (task.subtasks && task.subtasks.length > 0) {
+        const updatedSubtasks = taskOperations.toggleComplete(task.subtasks, taskId, completed)
+        // 只有当子任务真的发生了变化时才返回新对象
+        if (updatedSubtasks !== task.subtasks) {
+          return { ...task, subtasks: updatedSubtasks }
+        }
+      }
+      
+      return task
+    })
   }
 }
 
