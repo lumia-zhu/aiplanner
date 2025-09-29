@@ -192,7 +192,7 @@ export default function TaskItem({ task, onToggleComplete, onEdit, onDelete, onD
               subtasks={task.subtasks}
               isExpanded={task.is_expanded || false}
               onToggleExpansion={onToggleExpansion}
-              onToggleComplete={(taskId) => onToggleComplete(taskId, true)}
+              onToggleComplete={onToggleComplete}
               onEdit={onEdit}
               onDelete={onDelete}
               onDecompose={onDecompose}

@@ -64,7 +64,10 @@ export default function SubtaskList({
                   <input
                     type="checkbox"
                     checked={subtask.completed}
-                    onChange={() => onToggleComplete(subtask.id, !subtask.completed)}
+                    onChange={(e) => {
+                      const newCompleted = e.target.checked;
+                      onToggleComplete(subtask.id, newCompleted);
+                    }}
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
 
