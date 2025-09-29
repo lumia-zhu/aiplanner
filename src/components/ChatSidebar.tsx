@@ -24,6 +24,7 @@ interface ChatSidebarProps {
   isSending: boolean
   streamingMessage: string
   isDragOver: boolean
+  isImageProcessing: boolean
   
   // 任务识别相关状态
   isTaskRecognitionMode: boolean
@@ -59,6 +60,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   isSending,
   streamingMessage,
   isDragOver,
+  isImageProcessing,
   isTaskRecognitionMode,
   setIsTaskRecognitionMode,
   recognizedTasks,
@@ -150,17 +152,38 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                   {message.content.map((content, contentIndex) => (
                     <div key={contentIndex}>
                       {content.type === 'text' && content.text && (
-                        <p className="text-sm whitespace-pre-wrap" style={{ color: '#3f3f3f' }}>
-                          {content.text}
-                        </p>
+                        <div>
+                          {content.text.startsWith('🔍 智能任务识别中...') ? (
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-green-600">🔍</span>
+                                <span className="text-sm font-medium text-green-700">智能任务识别</span>
+                              </div>
+                              {content.text.includes('\n用户输入：') && (
+                                <div className="pl-6">
+                                  <p className="text-xs text-gray-600">
+                                    {content.text.split('\n用户输入：')[1]}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-sm whitespace-pre-wrap" style={{ color: '#3f3f3f' }}>
+                              {content.text}
+                            </p>
+                          )}
+                        </div>
                       )}
                       {content.type === 'image_url' && content.image_url && (
-                        <img 
-                          src={content.image_url.url} 
-                          alt="上传的图片" 
-                          className="max-w-full h-auto rounded mt-2"
-                          style={{ maxHeight: '150px' }}
-                        />
+                        <div className="mt-2">
+                          <img 
+                            src={content.image_url.url} 
+                            alt="上传的图片" 
+                            className="max-w-full h-auto rounded border border-gray-200"
+                            style={{ maxHeight: '150px' }}
+                          />
+                          <p className="text-xs text-gray-500 mt-1">📸 已上传图片</p>
+                        </div>
                       )}
                     </div>
                   ))}
@@ -180,13 +203,15 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                   <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
                   <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
                   <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                  <span className="text-xs text-gray-500 ml-2">AI正在思考...</span>
+                  <span className="text-xs text-gray-500 ml-2">
+                    {isTaskRecognitionMode ? '🔍 正在识别任务信息...' : 'AI正在思考...'}
+                  </span>
                 </div>
               </div>
             </div>
           )}
           
-          {streamingMessage && (
+          {streamingMessage && !isTaskRecognitionMode && (
             <div className="flex items-start gap-3">
               <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
                 <span className="text-white text-sm font-medium">AI</span>
@@ -266,16 +291,18 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                         }`}>
                           {task.priority === 'high' ? '高' : task.priority === 'medium' ? '中' : '低'}
                         </span>
-                        {task.deadline_time ? (
+                        {task.deadline_date || task.deadline_time ? (
                           <span className="text-xs text-gray-500 bg-blue-100 px-1 py-0.5 rounded">
-                            {task.deadline_time.includes('T') ? 
-                              new Date(task.deadline_time).toLocaleString('zh-CN') : 
-                              task.deadline_time
+                            {task.deadline_date && task.deadline_time ? 
+                              `${task.deadline_date} ${task.deadline_time}` :
+                              task.deadline_date ? 
+                                `${task.deadline_date} 23:59` :
+                                `今天 ${task.deadline_time}`
                             }
                           </span>
                         ) : (
                           <span className="text-xs text-orange-600 bg-orange-100 px-1 py-0.5 rounded">
-                            需要指定日期
+                            无截止时间
                           </span>
                         )}
                       </div>
@@ -334,10 +361,18 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                 }
               }}
             />
-            <div className="w-10 h-10 flex items-center justify-center text-gray-500 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors border border-gray-300 bg-white cursor-pointer">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
+            <div className={`w-10 h-10 flex items-center justify-center rounded-lg transition-colors border bg-white cursor-pointer ${
+              isImageProcessing 
+                ? 'border-blue-500 text-blue-500' 
+                : 'border-gray-300 text-gray-500 hover:text-blue-500 hover:bg-blue-50'
+            }`}>
+              {isImageProcessing ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+              ) : (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              )}
             </div>
           </div>
 

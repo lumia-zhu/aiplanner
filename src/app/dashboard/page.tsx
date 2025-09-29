@@ -15,6 +15,7 @@ import CalendarView from '@/components/CalendarView'
 import ChatSidebar from '@/components/ChatSidebar'
 import { taskOperations } from '@/utils/taskUtils'
 import { doubaoService, type ChatMessage } from '@/lib/doubaoService'
+import { compressImage, fileToBase64, isFileSizeExceeded, formatFileSize } from '@/utils/imageUtils'
 
 // 任务识别相关类型
 interface RecognizedTask {
@@ -22,7 +23,8 @@ interface RecognizedTask {
   title: string
   description?: string
   priority: 'high' | 'medium' | 'low'
-  deadline_time?: string
+  deadline_date?: string // 日期，格式：YYYY-MM-DD
+  deadline_time?: string // 时间，格式：HH:MM
   isSelected: boolean
 }
 import {
@@ -63,6 +65,10 @@ export default function DashboardPage() {
   const [streamingMessage, setStreamingMessage] = useState('')
   const [isDragOver, setIsDragOver] = useState(false)
   const chatScrollRef = useRef<HTMLDivElement | null>(null)
+  
+  // 图片预处理缓存
+  const imageCache = useRef<Map<string, string>>(new Map())
+  const [isImageProcessing, setIsImageProcessing] = useState(false)
   
   // 任务识别相关状态
   const [isTaskRecognitionMode, setIsTaskRecognitionMode] = useState(false)
@@ -291,11 +297,66 @@ export default function DashboardPage() {
     setShowImport(false)
   }
 
+  // 生成文件缓存key
+  const generateCacheKey = (file: File): string => {
+    return `${file.name}-${file.size}-${file.lastModified}`
+  }
+
+  // 预处理图片（带缓存）
+  const preprocessImage = useCallback(async (file: File): Promise<string> => {
+    const cacheKey = generateCacheKey(file)
+    
+    // 检查缓存
+    if (imageCache.current.has(cacheKey)) {
+      console.log('使用缓存的图片:', file.name)
+      return imageCache.current.get(cacheKey)!
+    }
+
+    console.log(`开始处理图片: ${file.name}, 大小: ${formatFileSize(file.size)}`)
+    
+    // 压缩图片
+    const compressedFile = await compressImage(file, 800, 800, 0.8)
+    console.log(`压缩后图片: ${compressedFile.name}, 大小: ${formatFileSize(compressedFile.size)}`)
+    
+    // 转换为base64
+    const base64 = await fileToBase64(compressedFile)
+    
+    // 存入缓存（限制缓存大小）
+    if (imageCache.current.size >= 10) {
+      // 删除最老的缓存项
+      const firstKey = imageCache.current.keys().next().value
+      if (firstKey) {
+        imageCache.current.delete(firstKey)
+      }
+    }
+    imageCache.current.set(cacheKey, base64)
+    
+    return base64
+  }, [])
+
   // 处理图片选择
-  const handleImageSelect = (file: File) => {
+  const handleImageSelect = async (file: File) => {
     if (file && file.type.startsWith('image/')) {
-      setSelectedImage(file)
-      console.log('选择的图片:', file.name, file.size)
+      // 检查文件大小
+      if (isFileSizeExceeded(file, 10)) { // 限制10MB
+        alert(`图片文件过大 (${formatFileSize(file.size)})，请选择小于10MB的图片`)
+        return
+      }
+
+      try {
+        setIsImageProcessing(true)
+        
+        // 预处理图片（包含缓存）
+        await preprocessImage(file)
+        setSelectedImage(file)
+        
+        console.log('图片选择完成')
+      } catch (error) {
+        console.error('图片处理失败:', error)
+        alert('图片处理失败，请重试')
+      } finally {
+        setIsImageProcessing(false)
+      }
     }
   }
 
@@ -361,14 +422,55 @@ export default function DashboardPage() {
   // 解析AI返回的任务识别结果
   const parseTaskRecognitionResponse = (response: string): RecognizedTask[] => {
     try {
-      // 尝试从响应中提取JSON
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        console.warn('未找到JSON格式的响应');
-        return [];
+      console.log('AI响应原文:', response);
+      
+      // 清理响应文本，移除可能的markdown格式
+      let cleanResponse = response.trim();
+      
+      // 移除可能的代码块标记
+      cleanResponse = cleanResponse.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+      
+      // 尝试从响应中提取JSON（支持多种格式）
+      let jsonStr = '';
+      
+      // 方法1: 如果整个响应就是JSON
+      if (cleanResponse.startsWith('{') && cleanResponse.endsWith('}')) {
+        jsonStr = cleanResponse;
+      } else {
+        // 方法2: 寻找完整的JSON对象（更宽松的匹配）
+        const jsonMatch = cleanResponse.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          // 找到最大的JSON对象
+          let maxJson = '';
+          for (const match of cleanResponse.matchAll(/\{[\s\S]*?\}/g)) {
+            if (match[0].length > maxJson.length && match[0].includes('tasks')) {
+              maxJson = match[0];
+            }
+          }
+          jsonStr = maxJson || jsonMatch[0];
+        } else {
+          // 方法3: 寻找tasks数组部分
+          const tasksMatch = cleanResponse.match(/"tasks"\s*:\s*\[[\s\S]*?\]/);
+          if (tasksMatch) {
+            jsonStr = `{${tasksMatch[0]}}`;
+          } else {
+            console.warn('未找到JSON格式的响应，AI返回了说明文字');
+            console.warn('响应内容:', cleanResponse);
+            
+            // 尝试从说明文字中提取关键信息
+            const extractedTasks = extractTasksFromText(cleanResponse);
+            if (extractedTasks.length > 0) {
+              console.log('从文本中提取到任务:', extractedTasks);
+              return extractedTasks;
+            }
+            
+            alert('AI返回了详细说明而不是任务列表。正在尝试从文本中提取任务信息...');
+            return [];
+          }
+        }
       }
 
-      const jsonStr = jsonMatch[0];
+      console.log('提取的JSON:', jsonStr);
       const parsed = JSON.parse(jsonStr);
       
       if (!parsed.tasks || !Array.isArray(parsed.tasks)) {
@@ -376,19 +478,96 @@ export default function DashboardPage() {
         return [];
       }
 
+      if (parsed.tasks.length === 0) {
+        console.log('AI未识别到任何任务');
+        alert('AI未能从内容中识别到具体的任务项目。请尝试更明确的描述或手动创建任务。');
+        return [];
+      }
+
       // 转换为RecognizedTask格式
-      return parsed.tasks.map((task: any, index: number) => ({
+      const recognizedTasks = parsed.tasks.map((task: any, index: number) => ({
         id: `recognized-${Date.now()}-${index}`,
         title: task.title || '未知任务',
         description: task.description || '',
         priority: ['high', 'medium', 'low'].includes(task.priority) ? task.priority : 'medium',
-        deadline_time: task.deadline_time || undefined,
+        deadline_date: task.deadline_date === 'null' || !task.deadline_date || task.deadline_date === null ? undefined : task.deadline_date,
+        deadline_time: task.deadline_time === 'null' || !task.deadline_time || task.deadline_time === null ? undefined : task.deadline_time,
         isSelected: true // 默认选中
       }));
+
+      console.log('解析出的任务:', recognizedTasks);
+      return recognizedTasks;
+      
     } catch (error) {
-      console.error('解析任务识别响应失败:', error);
+      console.error('解析任务识别响应失败:', error, '原始响应:', response);
+      
+      // 尝试从文本中提取任务
+      const extractedTasks = extractTasksFromText(response);
+      if (extractedTasks.length > 0) {
+        console.log('从错误响应中提取到任务:', extractedTasks);
+        return extractedTasks;
+      }
+      
+      alert('任务解析失败，AI可能没有按照要求返回JSON格式。请重新尝试。');
       return [];
     }
+  }
+
+  // 从文本中提取任务信息的备用方法
+  const extractTasksFromText = (text: string): RecognizedTask[] => {
+    const tasks: RecognizedTask[] = [];
+    
+    // 简单的文本解析，寻找关键词
+    const lines = text.split('\n');
+    let currentTask: Partial<RecognizedTask> | null = null;
+    
+    for (const line of lines) {
+      // 寻找可能的任务标题
+      if (line.includes('报名') || line.includes('参加') || line.includes('讲座') || line.includes('任务')) {
+        if (currentTask) {
+          tasks.push({
+            id: `extracted-${Date.now()}-${tasks.length}`,
+            title: currentTask.title || '提取的任务',
+            description: currentTask.description || '',
+            priority: currentTask.priority || 'medium',
+            deadline_date: currentTask.deadline_date,
+            deadline_time: currentTask.deadline_time,
+            isSelected: true
+          });
+        }
+        
+        currentTask = {
+          title: line.trim().replace(/[*#-]/g, '').trim(),
+          priority: 'medium'
+        };
+      }
+      
+      // 寻找日期时间信息
+      const dateMatch = line.match(/(\d{4})[年-](\d{1,2})[月-](\d{1,2})/);
+      if (dateMatch && currentTask) {
+        currentTask.deadline_date = `${dateMatch[1]}-${dateMatch[2].padStart(2, '0')}-${dateMatch[3].padStart(2, '0')}`;
+      }
+      
+      const timeMatch = line.match(/(\d{1,2}):(\d{2})/);
+      if (timeMatch && currentTask) {
+        currentTask.deadline_time = `${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}`;
+      }
+    }
+    
+    // 添加最后一个任务
+    if (currentTask) {
+      tasks.push({
+        id: `extracted-${Date.now()}-${tasks.length}`,
+        title: currentTask.title || '提取的任务',
+        description: currentTask.description || '',
+        priority: currentTask.priority || 'medium',
+        deadline_date: currentTask.deadline_date,
+        deadline_time: currentTask.deadline_time,
+        isSelected: true
+      });
+    }
+    
+    return tasks;
   }
 
   // 添加识别的任务到系统
@@ -402,11 +581,26 @@ export default function DashboardPage() {
       let successCount = 0;
       
       for (const recognizedTask of selectedTasks) {
+        // 组合日期和时间为完整的deadline_time
+        let deadlineTime: string | undefined = undefined;
+        
+        if (recognizedTask.deadline_date && recognizedTask.deadline_time) {
+          // 有日期和时间，组合成完整格式
+          deadlineTime = `${recognizedTask.deadline_date}T${recognizedTask.deadline_time}:00`;
+        } else if (recognizedTask.deadline_time) {
+          // 只有时间，使用当前选中日期
+          const dateStr = selectedDate.toISOString().split('T')[0];
+          deadlineTime = `${dateStr}T${recognizedTask.deadline_time}:00`;
+        } else if (recognizedTask.deadline_date) {
+          // 只有日期，设置为当天23:59
+          deadlineTime = `${recognizedTask.deadline_date}T23:59:00`;
+        }
+
         // 转换为系统任务格式
         const taskData = {
           title: recognizedTask.title,
           description: recognizedTask.description,
-          deadline_time: recognizedTask.deadline_time,
+          deadline_time: deadlineTime,
           priority: recognizedTask.priority
         };
 
@@ -468,29 +662,20 @@ export default function DashboardPage() {
       let finalPrompt = chatMessage || '请分析这张图片'
       
       if (isTaskRecognitionMode) {
-        finalPrompt = `【任务识别】请仔细分析${selectedImage ? '图片' : ''}${selectedImage && chatMessage ? '和' : ''}${chatMessage ? '文字描述' : ''}，识别其中包含的任务信息。
+        finalPrompt = `TASK_RECOGNITION_MODE: JSON ONLY RESPONSE REQUIRED
 
-${chatMessage ? `用户描述：${chatMessage}` : ''}
+CRITICAL: You must respond with ONLY the JSON below. NO explanations. NO "这是". NO "以下是". NO text before {. NO text after }.
 
-请以JSON格式返回识别到的任务，格式如下：
-{
-  "tasks": [
-    {
-      "title": "任务标题",
-      "description": "任务详细描述",
-      "priority": "high|medium|low",
-      "deadline_time": "HH:MM格式的时间，如14:30，如果没有则为null"
-    }
-  ],
-  "summary": "识别结果的简要说明"
-}
+Content to analyze: ${selectedImage ? 'Image content' : ''}${selectedImage && chatMessage ? ' + ' : ''}${chatMessage ? chatMessage : ''}
 
-要求：
-1. 如果识别到多个任务，请在tasks数组中列出所有任务
-2. priority必须是high、medium、low之一，根据任务紧急程度判断
-3. deadline_time只包含时间，格式为HH:MM，如果没有明确时间则为null
-4. 如果没有识别到任何任务，tasks数组为空，在summary中说明原因
-5. 请确保返回的是有效的JSON格式`
+Required JSON format:
+{"tasks":[{"title":"具体任务","description":"描述","priority":"high|medium|low","deadline_date":"YYYY-MM-DD","deadline_time":"HH:MM"}]}
+
+Extract tasks: 报名, 参加, 提交, 完成, 准备. Use null for missing dates.
+
+CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
+        
+        console.log('任务识别模式 - 发送的prompt:', finalPrompt);
       }
       
       // 添加用户消息到聊天历史
@@ -499,22 +684,32 @@ ${chatMessage ? `用户描述：${chatMessage}` : ''}
         content: [
           {
             type: 'text',
-            text: isTaskRecognitionMode ? `🔍 ${finalPrompt}` : finalPrompt
+            text: isTaskRecognitionMode ? 
+              `🔍 智能任务识别中...${chatMessage ? `\n用户输入：${chatMessage}` : ''}` : 
+              finalPrompt
           }
         ]
       }
 
+      // 处理图片base64转换（使用缓存）
+      let imageBase64: string | undefined
       if (selectedImage) {
-        const reader = new FileReader()
-        const base64Image = await new Promise<string>((resolve) => {
-          reader.onload = () => resolve(reader.result as string)
-          reader.readAsDataURL(selectedImage)
-        })
+        const cacheKey = generateCacheKey(selectedImage)
+        
+        // 优先使用缓存
+        if (imageCache.current.has(cacheKey)) {
+          imageBase64 = imageCache.current.get(cacheKey)!
+          console.log('使用缓存的图片进行发送')
+        } else {
+          // 缓存未命中，重新处理
+          console.log('缓存未命中，重新处理图片')
+          imageBase64 = await preprocessImage(selectedImage)
+        }
         
         userMessage.content.push({
           type: 'image_url',
           image_url: {
-            url: base64Image
+            url: imageBase64
           }
         })
       }
@@ -525,7 +720,7 @@ ${chatMessage ? `用户描述：${chatMessage}` : ''}
       // 发送到豆包 API（使用流式输出）
       const response = await doubaoService.sendMessage(
         finalPrompt,
-        selectedImage || undefined,
+        imageBase64,
         chatMessages,
         (chunk: string) => {
           // 流式输出回调
@@ -534,28 +729,51 @@ ${chatMessage ? `用户描述：${chatMessage}` : ''}
       )
 
       if (response.success && response.message) {
-        // 添加完整的 AI 回复
-        const aiMessage: ChatMessage = {
-          role: 'assistant',
-          content: [
-            {
-              type: 'text',
-              text: response.message
-            }
-          ]
-        }
-        setChatMessages([...newMessages, aiMessage])
-
-        // 如果是任务识别模式，解析识别结果
+        // 如果是任务识别模式，解析识别结果但不显示JSON响应
         if (isTaskRecognitionMode) {
           const tasks = parseTaskRecognitionResponse(response.message);
           if (tasks.length > 0) {
             setRecognizedTasks(tasks);
             setShowTaskPreview(true);
             console.log('识别到的任务:', tasks);
+            
+            // 添加友好的任务识别结果消息
+            const aiMessage: ChatMessage = {
+              role: 'assistant',
+              content: [
+                {
+                  type: 'text',
+                  text: `✅ 任务识别完成！从内容中识别到 ${tasks.length} 个任务，请在下方预览区域查看并选择需要添加的任务。`
+                }
+              ]
+            }
+            setChatMessages([...newMessages, aiMessage])
           } else {
             console.log('未识别到任何任务');
+            // 添加未识别到任务的消息
+            const aiMessage: ChatMessage = {
+              role: 'assistant',
+              content: [
+                {
+                  type: 'text',
+                  text: `🤔 未能从内容中识别到具体的任务项目。请尝试更明确的描述，或者手动创建任务。`
+                }
+              ]
+            }
+            setChatMessages([...newMessages, aiMessage])
           }
+        } else {
+          // 普通聊天模式，正常显示AI回复
+          const aiMessage: ChatMessage = {
+            role: 'assistant',
+            content: [
+              {
+                type: 'text',
+                text: response.message
+              }
+            ]
+          }
+          setChatMessages([...newMessages, aiMessage])
         }
       } else {
         // 显示错误消息
@@ -1294,6 +1512,7 @@ ${chatMessage ? `用户描述：${chatMessage}` : ''}
               isSending={isSending}
               streamingMessage={streamingMessage}
               isDragOver={isDragOver}
+              isImageProcessing={isImageProcessing}
               isTaskRecognitionMode={isTaskRecognitionMode}
               setIsTaskRecognitionMode={setIsTaskRecognitionMode}
               recognizedTasks={recognizedTasks}

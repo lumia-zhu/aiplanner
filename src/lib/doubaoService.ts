@@ -98,7 +98,7 @@ class DoubaoService {
   // 发送聊天消息（支持文本和图片）
   async sendMessage(
     message: string, 
-    image?: File,
+    imageBase64?: string,
     conversationHistory: ChatMessage[] = [],
     onStream?: (chunk: string) => void
   ): Promise<ChatResponse> {
@@ -117,45 +117,76 @@ class DoubaoService {
       ]
 
       // 如果有图片，添加图片内容
-      if (image) {
-        const base64Image = await this.fileToBase64(image)
+      if (imageBase64) {
         messageContent.push({
           type: 'image_url',
           image_url: {
-            url: base64Image
+            url: imageBase64
           }
         })
       }
 
       // 构建完整的消息历史
+      const isTaskMode = message.includes('TASK_RECOGNITION_MODE')
+      
       const messages: ChatMessage[] = [
         // 系统提示词
         {
           role: 'system',
           content: [{
             type: 'text',
-            text: '你是一个专业的任务管理助手，可以帮助用户管理任务、制定计划、提供建议。如果用户发送了图片，请分析图片内容并提供相关的任务管理建议。请用中文回复。'
+            text: isTaskMode
+              ? 'You are a JSON task extractor. CRITICAL RULE: You must respond with ONLY valid JSON starting with { and ending with }. NO explanations. NO text before or after JSON. NO Chinese explanations. NO "这是" or "以下是". If you add any text outside JSON braces, the system will crash.'
+              : '你是一个专业的任务管理助手，可以帮助用户管理任务、制定计划、提供建议。如果用户发送了图片，请分析图片内容并提供相关的任务管理建议。请用中文回复。'
           }]
-        },
-        // 历史对话
-        ...conversationHistory,
-        // 当前消息
-        {
-          role: 'user',
-          content: messageContent
         }
       ]
+
+      // 如果是任务识别模式，添加强制JSON示例
+      if (isTaskMode) {
+        messages.push({
+          role: 'user',
+          content: [{
+            type: 'text',
+            text: 'Example: Extract tasks from "报名截止9月18日13:00，讲座9月19日9:30" Response format:'
+          }]
+        })
+        messages.push({
+          role: 'assistant',
+          content: [{
+            type: 'text',
+            text: '{"tasks":[{"title":"报名讲座","description":"","priority":"high","deadline_date":"2025-09-18","deadline_time":"13:00"},{"title":"参加讲座","description":"","priority":"medium","deadline_date":"2025-09-19","deadline_time":"09:30"}]}'
+          }]
+        })
+      }
+
+      // 添加历史对话
+      messages.push(...conversationHistory)
+      
+      // 添加当前消息
+      messages.push({
+        role: 'user',
+        content: messageContent
+      })
 
       // 准备请求体
       const requestBody = {
         model: DOUBAO_CONFIG.model,
         messages: messages,
         max_tokens: 1000,
-        temperature: 0.7,
+        temperature: isTaskMode ? 0.1 : 0.7, // 任务识别模式使用更低的温度
         stream: !!onStream // 如果有回调函数就启用流式输出
       }
 
       console.log('发送消息到豆包:', requestBody)
+      
+      // 调试：检查是否是任务识别模式
+      if (isTaskMode) {
+        console.log('🔍 检测到任务识别模式')
+        console.log('系统提示词:', messages[0].content[0].text)
+        console.log('消息总数:', messages.length)
+        console.log('最后一条用户消息:', messages[messages.length - 1].content[0].text?.substring(0, 200))
+      }
 
       // 调用豆包 API
       const response = await fetch(DOUBAO_CONFIG.endpoint, {
