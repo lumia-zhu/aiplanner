@@ -12,6 +12,7 @@ import ImportSelector from '@/components/ImportSelector'
 import GoogleCalendarImport from '@/components/GoogleCalendarImport'
 import CanvasImport from '@/components/CanvasImport'
 import CalendarView from '@/components/CalendarView'
+import ChatSidebar from '@/components/ChatSidebar'
 import { taskOperations } from '@/utils/taskUtils'
 import { doubaoService, type ChatMessage } from '@/lib/doubaoService'
 
@@ -61,7 +62,7 @@ export default function DashboardPage() {
   const [isSending, setIsSending] = useState(false)
   const [streamingMessage, setStreamingMessage] = useState('')
   const [isDragOver, setIsDragOver] = useState(false)
-  const chatScrollRef = useRef<HTMLDivElement>(null)
+  const chatScrollRef = useRef<HTMLDivElement | null>(null)
   
   // 任务识别相关状态
   const [isTaskRecognitionMode, setIsTaskRecognitionMode] = useState(false)
@@ -382,6 +383,19 @@ export default function DashboardPage() {
     }
   }
 
+  // 处理任务识别的全选/取消全选
+  const handleToggleAllTasks = (checked: boolean) => {
+    setRecognizedTasks(tasks => 
+      tasks.map(task => ({ ...task, isSelected: checked }))
+    );
+  }
+
+  // 处理单个任务的选择状态
+  const handleToggleTask = (taskId: string, checked: boolean) => {
+    setRecognizedTasks(tasks => 
+      tasks.map(t => t.id === taskId ? { ...t, isSelected: checked } : t)
+    );
+  }
 
   // 处理发送消息
   const handleSendMessage = async () => {
@@ -681,9 +695,14 @@ ${chatMessage ? `用户描述：${chatMessage}` : ''}
         </div>
       </nav>
 
-          {/* 主要内容区域 */}
-          <main className="max-w-4xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-            {/* AI 聊天框 */}
+      {/* 主要内容区域 */}
+      <main className="py-6 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          {/* flex布局容器：在主内容区域内部分左右 */}
+          <div className="flex gap-6 h-[calc(100vh-8rem)]">
+            {/* 左侧：任务管理区域 */}
+            <div className="flex-1 overflow-y-auto">
+              {/* AI 聊天框 */}
             <div 
               className={`bg-white rounded-lg shadow-sm border mb-6 transition-all duration-200 ${
                 isDragOver ? 'border-blue-400 bg-blue-50' : 'border-gray-200'
@@ -1193,6 +1212,36 @@ ${chatMessage ? `用户描述：${chatMessage}` : ''}
               </DragOverlay>
             </DndContext>
           )}
+        </div>
+            </div>
+
+            {/* 右侧：AI聊天侧边栏 */}
+            <ChatSidebar
+              chatMessage={chatMessage}
+              setChatMessage={setChatMessage}
+              selectedImage={selectedImage}
+              setSelectedImage={setSelectedImage}
+              chatMessages={chatMessages}
+              setChatMessages={setChatMessages}
+              isSending={isSending}
+              streamingMessage={streamingMessage}
+              isDragOver={isDragOver}
+              isTaskRecognitionMode={isTaskRecognitionMode}
+              setIsTaskRecognitionMode={setIsTaskRecognitionMode}
+              recognizedTasks={recognizedTasks}
+              showTaskPreview={showTaskPreview}
+              setShowTaskPreview={setShowTaskPreview}
+              handleSendMessage={handleSendMessage}
+              handleDragEnter={handleDragEnter}
+              handleDragLeave={handleDragLeave}
+              handleDragOver={handleDragOver}
+              handleDrop={handleDrop}
+              handleAddSelectedTasks={handleAddRecognizedTasks}
+              handleToggleAllTasks={handleToggleAllTasks}
+              handleToggleTask={handleToggleTask}
+              chatScrollRef={chatScrollRef}
+            />
+          </div>
         </div>
       </main>
 
