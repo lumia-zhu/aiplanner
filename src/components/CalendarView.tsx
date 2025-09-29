@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useMemo } from 'react'
-import { Task } from '@/lib/types'
+import { Task } from '@/types'
 
 interface CalendarViewProps {
   tasks: Task[]

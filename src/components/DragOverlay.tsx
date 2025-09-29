@@ -16,6 +16,7 @@ export default function DragOverlay({ activeTask }: DragOverlayProps) {
             onToggleComplete={() => {}}
             onEdit={() => {}}
             onDelete={() => {}}
+            onDecompose={() => {}}
             isDragging={true}
           />
         </div>

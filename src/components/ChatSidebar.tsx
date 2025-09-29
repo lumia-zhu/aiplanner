@@ -9,7 +9,8 @@ interface RecognizedTask {
   title: string
   description?: string
   priority: 'high' | 'medium' | 'low'
-  deadline_time?: string
+  deadline_date?: string // 日期，格式：YYYY-MM-DD
+  deadline_time?: string // 时间，格式：HH:MM
   isSelected: boolean
 }
 

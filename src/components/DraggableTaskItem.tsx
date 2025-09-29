@@ -10,10 +10,11 @@ interface DraggableTaskItemProps {
   onEdit: (task: Task) => void
   onDelete: (taskId: string) => void
   onDecompose: (task: Task) => void
+  onToggleExpansion?: (taskId: string, isExpanded: boolean) => void
   isOverlay?: boolean
 }
 
-export default function DraggableTaskItem({ task, onToggleComplete, onEdit, onDelete, onDecompose, isOverlay }: DraggableTaskItemProps) {
+export default function DraggableTaskItem({ task, onToggleComplete, onEdit, onDelete, onDecompose, onToggleExpansion, isOverlay }: DraggableTaskItemProps) {
   const {
     attributes,
     listeners,
@@ -44,6 +45,7 @@ export default function DraggableTaskItem({ task, onToggleComplete, onEdit, onDe
           onEdit={onEdit}
           onDelete={onDelete}
           onDecompose={onDecompose}
+          onToggleExpansion={onToggleExpansion}
           isDragging={isDragging}
           dragHandleProps={listeners}
         />

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Task } from '@/types'
 import { isTaskOverdue } from '@/lib/tasks'
+import SubtaskList from './SubtaskList'
 
 interface TaskItemProps {
   task: Task
@@ -8,11 +9,12 @@ interface TaskItemProps {
   onEdit: (task: Task, buttonElement?: HTMLElement) => void
   onDelete: (taskId: string) => void
   onDecompose: (task: Task) => void
+  onToggleExpansion?: (taskId: string, isExpanded: boolean) => void
   isDragging?: boolean
   dragHandleProps?: any
 }
 
-export default function TaskItem({ task, onToggleComplete, onEdit, onDelete, onDecompose, isDragging, dragHandleProps }: TaskItemProps) {
+export default function TaskItem({ task, onToggleComplete, onEdit, onDelete, onDecompose, onToggleExpansion, isDragging, dragHandleProps }: TaskItemProps) {
   const [isDeleting, setIsDeleting] = useState(false)
   const isOverdue = isTaskOverdue(task)
   
@@ -182,6 +184,20 @@ export default function TaskItem({ task, onToggleComplete, onEdit, onDelete, onD
               </button>
             </div>
           </div>
+
+          {/* 子任务列表 */}
+          {task.subtasks && task.subtasks.length > 0 && onToggleExpansion && (
+            <SubtaskList
+              parentTask={task}
+              subtasks={task.subtasks}
+              isExpanded={task.is_expanded || false}
+              onToggleExpansion={onToggleExpansion}
+              onToggleComplete={(taskId) => onToggleComplete(taskId, true)}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onDecompose={onDecompose}
+            />
+          )}
         </div>
       </div>
     </div>

@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { getUserFromStorage, clearUserFromStorage, AuthUser } from '@/lib/auth'
-import { getUserTasks, createTask, updateTask, deleteTask, toggleTaskComplete } from '@/lib/tasks'
-import type { Task } from '@/types'
+import { getUserTasks, createTask, updateTask, deleteTask, toggleTaskComplete, getUserTasksWithSubtasks, createSubtasks, toggleTaskExpansion } from '@/lib/tasks'
+import type { Task, SubtaskSuggestion } from '@/types'
 import DraggableTaskItem from '@/components/DraggableTaskItem'
 import TaskForm from '@/components/TaskForm'
 import OutlookImport from '@/components/OutlookImport'
@@ -13,6 +13,7 @@ import GoogleCalendarImport from '@/components/GoogleCalendarImport'
 import CanvasImport from '@/components/CanvasImport'
 import CalendarView from '@/components/CalendarView'
 import ChatSidebar from '@/components/ChatSidebar'
+import TaskDecompositionModal from '@/components/TaskDecompositionModal'
 import { taskOperations } from '@/utils/taskUtils'
 import { doubaoService, type ChatMessage } from '@/lib/doubaoService'
 import { compressImage, fileToBase64, isFileSizeExceeded, formatFileSize } from '@/utils/imageUtils'
@@ -75,6 +76,10 @@ export default function DashboardPage() {
   const [recognizedTasks, setRecognizedTasks] = useState<RecognizedTask[]>([])
   const [showTaskPreview, setShowTaskPreview] = useState(false)
   
+  // 任务拆解相关状态
+  const [showDecompositionModal, setShowDecompositionModal] = useState(false)
+  const [decomposingTask, setDecomposingTask] = useState<Task | null>(null)
+  
   // 动画相关状态
   const [animationOrigin, setAnimationOrigin] = useState<{ x: number; y: number } | null>(null)
   
@@ -104,10 +109,17 @@ export default function DashboardPage() {
 
   const loadTasks = async (userId: string) => {
     setIsLoading(true)
-    const result = await getUserTasks(userId)
+    // 使用新的带子任务的API
+    const result = await getUserTasksWithSubtasks(userId)
     
     if (result.error) {
       setError(result.error)
+      // 降级到旧API
+      const fallbackResult = await getUserTasks(userId)
+      if (!fallbackResult.error) {
+        setTasks(fallbackResult.tasks || [])
+        setError('')
+      }
     } else {
       setTasks(result.tasks || [])
       setError('')
@@ -229,32 +241,73 @@ export default function DashboardPage() {
   }
 
   const handleDecomposeTask = (task: Task) => {
-    // 使用AI助手来拆解任务
-    const decomposePrompt = `请帮我将以下任务拆解为多个具体的子任务：
+    // 打开任务拆解弹窗
+    setDecomposingTask(task)
+    setShowDecompositionModal(true)
+  }
 
-任务标题：${task.title}
-任务描述：${task.description || '无'}
-优先级：${task.priority}
-截止时间：${task.deadline_datetime ? new Date(task.deadline_datetime).toLocaleString('zh-CN') : '无'}
-
-请将这个任务拆解为3-5个具体可执行的子任务，每个子任务都应该是明确、可衡量的行动步骤。请以JSON格式返回，格式如下：
-{
-  "tasks": [
-    {
-      "title": "子任务标题",
-      "description": "子任务详细描述",
-      "priority": "high/medium/low",
-      "deadline_time": "预估完成时间"
+  // 处理子任务确认创建
+  const handleSubtasksConfirm = async (selectedSubtasks: SubtaskSuggestion[]) => {
+    if (!user || !decomposingTask) {
+      setError('用户信息或任务信息缺失')
+      return
     }
-  ]
-}`
 
-    // 设置任务识别模式并填入消息
-    setIsTaskRecognitionMode(true)
-    setChatMessage(decomposePrompt)
-    
-    // 提示用户
-    alert('任务拆解提示已生成并填入右侧AI助手，请点击发送让AI帮您拆解任务！')
+    console.log('🚀 开始创建子任务流程:', {
+      parentTaskId: decomposingTask.id,
+      userId: user.id,
+      selectedCount: selectedSubtasks.filter(t => t.is_selected).length
+    })
+
+    try {
+      // 创建子任务
+      const result = await createSubtasks(decomposingTask.id, user.id, selectedSubtasks)
+      
+      if (result.error) {
+        console.error('创建子任务API错误:', result.error)
+        setError(`创建失败: ${result.error}`)
+      } else {
+        console.log('✅ 子任务创建成功，开始刷新任务列表')
+        
+        // 重新加载任务列表以显示新的子任务
+        await loadTasks(user.id)
+        
+        // 显示成功消息
+        const createdCount = selectedSubtasks.filter(t => t.is_selected).length
+        alert(`✅ 成功创建了 ${createdCount} 个子任务！`)
+        
+        // 关闭弹窗
+        setShowDecompositionModal(false)
+        setDecomposingTask(null)
+      }
+    } catch (error) {
+      console.error('创建子任务异常:', error)
+      const errorMessage = error instanceof Error ? error.message : '未知错误'
+      setError(`创建子任务时发生错误: ${errorMessage}`)
+    }
+  }
+
+  // 处理任务展开/收起
+  const handleToggleExpansion = async (taskId: string, isExpanded: boolean) => {
+    try {
+      const result = await toggleTaskExpansion(taskId, isExpanded)
+      
+      if (result.error) {
+        setError(result.error)
+      } else {
+        // 更新本地状态
+        setTasks(prevTasks => 
+          prevTasks.map(task => 
+            task.id === taskId 
+              ? { ...task, is_expanded: isExpanded }
+              : task
+          )
+        )
+      }
+    } catch (error) {
+      console.error('切换任务展开状态失败:', error)
+      setError('切换任务展开状态时发生错误')
+    }
   }
 
   const handleStuckHelp = () => {
@@ -1479,6 +1532,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                     onEdit={handleEditTask}
                     onDelete={handleDeleteTask}
                     onDecompose={handleDecomposeTask}
+                    onToggleExpansion={handleToggleExpansion}
                   />
                 ))}
               </SortableContext>
@@ -1693,6 +1747,19 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
           onCancel={() => setEditingTask(null)}
           isLoading={isFormLoading}
           animationOrigin={animationOrigin}
+        />
+      )}
+
+      {/* 任务拆解弹窗 */}
+      {showDecompositionModal && decomposingTask && (
+        <TaskDecompositionModal
+          isOpen={showDecompositionModal}
+          onClose={() => {
+            setShowDecompositionModal(false)
+            setDecomposingTask(null)
+          }}
+          parentTask={decomposingTask}
+          onConfirm={handleSubtasksConfirm}
         />
       )}
     </div>

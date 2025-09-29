@@ -175,7 +175,10 @@ class DoubaoService {
         messages: messages,
         max_tokens: 1000,
         temperature: isTaskMode ? 0.1 : 0.7, // 任务识别模式使用更低的温度
-        stream: !!onStream // 如果有回调函数就启用流式输出
+        stream: !!onStream, // 如果有回调函数就启用流式输出
+        thinking: {
+          type: "disabled" // 关闭深度思考以提高响应速度
+        }
       }
 
       console.log('发送消息到豆包:', requestBody)
@@ -241,6 +244,137 @@ class DoubaoService {
       return { 
         success: false, 
         error: `网络请求失败: ${errorMessage}` 
+      }
+    }
+  }
+
+  // 任务拆解专用服务
+  async decomposeTask(
+    taskTitle: string,
+    taskDescription?: string,
+    onStream?: (chunk: string) => void
+  ): Promise<ChatResponse> {
+    const apiKey = this.getApiKey()
+    if (!apiKey) {
+      return { success: false, error: '请在环境变量中配置 NEXT_PUBLIC_DOUBAO_API_KEY' }
+    }
+
+    try {
+      // 构建任务拆解专用的系统提示词
+      const systemPrompt = `你是一个专业的任务分解专家。你的任务是将用户提供的复杂任务分解为3-5个具体可执行的子任务。
+
+重要要求：
+1. 必须严格按照JSON格式返回，不要添加任何解释文字
+2. 子任务标题要简洁明了，控制在10字以内，直接说明要做什么
+3. 预估执行时长使用简单格式（如"30分钟"、"1小时"、"半天"）
+4. 子任务应该按照逻辑顺序排列
+5. JSON格式必须严格正确，所有字符串必须用双引号包围
+
+返回格式：
+{
+  "subtasks": [
+    {
+      "title": "具体的子任务标题",
+      "estimated_duration": "时长",
+      "order": 1
+    }
+  ]
+}
+
+注意：只需要title、estimated_duration和order三个字段，不需要description。`
+
+      // 构建用户消息
+      const userMessage = `请将以下任务拆解为具体的子任务：
+
+任务标题：${taskTitle}
+${taskDescription ? `任务描述：${taskDescription}` : ''}
+
+请分析这个任务，并将其拆解为3-5个具体可执行的子任务。每个子任务都应该有明确的完成标准和合理的时间预估。`
+
+      const messages: ChatMessage[] = [
+        {
+          role: 'system',
+          content: [{
+            type: 'text',
+            text: systemPrompt
+          }]
+        },
+        // 添加示例对话
+        {
+          role: 'user',
+          content: [{
+            type: 'text',
+            text: '请将以下任务拆解为具体的子任务：\n\n任务标题：准备学术会议演讲\n任务描述：需要在下周的学术会议上做20分钟的演讲'
+          }]
+        },
+        {
+          role: 'assistant',
+          content: [{
+            type: 'text',
+            text: '{"subtasks":[{"title":"确定演讲主题和大纲","estimated_duration":"2小时","order":1},{"title":"收集整理相关资料","estimated_duration":"4小时","order":2},{"title":"制作演讲PPT","estimated_duration":"3小时","order":3},{"title":"练习演讲内容","estimated_duration":"2小时","order":4},{"title":"准备问答环节","estimated_duration":"1小时","order":5}]}'
+          }]
+        },
+        {
+          role: 'user',
+          content: [{
+            type: 'text',
+            text: userMessage
+          }]
+        }
+      ]
+
+      // 准备请求体
+      const requestBody = {
+        model: DOUBAO_CONFIG.model,
+        messages: messages,
+        max_tokens: 1500,
+        temperature: 0.3, // 较低的温度确保输出更稳定
+        stream: !!onStream,
+        thinking: {
+          type: "disabled" // 关闭深度思考以提高响应速度
+        }
+      }
+
+      console.log('🔧 任务拆解请求:', {
+        taskTitle,
+        taskDescription,
+        systemPrompt: systemPrompt.substring(0, 100) + '...'
+      })
+
+      const response = await fetch(DOUBAO_CONFIG.endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(requestBody)
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('任务拆解API响应错误:', response.status, errorText)
+        return { 
+          success: false, 
+          error: `API请求失败: ${response.status} ${response.statusText}` 
+        }
+      }
+
+      // 处理流式或非流式响应
+      if (onStream) {
+        return await this.handleStreamResponse(response, onStream)
+      } else {
+        const data = await response.json()
+        const message = data.choices?.[0]?.message?.content?.[0]?.text || ''
+        console.log('📝 任务拆解响应:', message.substring(0, 200) + '...')
+        return { success: true, message }
+      }
+
+    } catch (error: unknown) {
+      console.error('任务拆解请求失败:', error)
+      const errorMessage = error instanceof Error ? error.message : '未知错误'
+      return { 
+        success: false, 
+        error: `任务拆解失败: ${errorMessage}` 
       }
     }
   }
