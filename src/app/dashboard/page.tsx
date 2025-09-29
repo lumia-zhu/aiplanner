@@ -702,9 +702,9 @@ ${chatMessage ? `用户描述：${chatMessage}` : ''}
           <div className="flex gap-6 h-[calc(100vh-8rem)]">
             {/* 左侧：任务管理区域 */}
             <div className="flex-1 overflow-y-auto">
-              {/* AI 聊天框 */}
+              {/* AI 聊天框 - 临时隐藏 */}
             <div 
-              className={`bg-white rounded-lg shadow-sm border mb-6 transition-all duration-200 ${
+              className={`bg-white rounded-lg shadow-sm border mb-6 transition-all duration-200 hidden ${
                 isDragOver ? 'border-blue-400 bg-blue-50' : 'border-gray-200'
               }`}
               onDragEnter={handleDragEnter}
@@ -971,9 +971,9 @@ ${chatMessage ? `用户描述：${chatMessage}` : ''}
               </div>
             </div>
 
-            {/* 任务识别结果预览 */}
+            {/* 任务识别结果预览 - 临时隐藏 */}
             {showTaskPreview && recognizedTasks.length > 0 && (
-              <div className="mt-4 bg-white rounded-lg shadow-sm border border-green-200">
+              <div className="mt-4 bg-white rounded-lg shadow-sm border border-green-200 hidden">
                 <div className="p-4 border-b border-green-100 bg-green-50">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -1239,6 +1239,9 @@ ${chatMessage ? `用户描述：${chatMessage}` : ''}
               handleAddSelectedTasks={handleAddRecognizedTasks}
               handleToggleAllTasks={handleToggleAllTasks}
               handleToggleTask={handleToggleTask}
+              handleImageSelect={handleImageSelect}
+              handleVoiceClick={handleVoiceClick}
+              handlePaste={handlePaste}
               chatScrollRef={chatScrollRef}
             />
           </div>

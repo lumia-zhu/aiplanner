@@ -41,6 +41,9 @@ interface ChatSidebarProps {
   handleAddSelectedTasks: () => void
   handleToggleAllTasks: (checked: boolean) => void
   handleToggleTask: (taskId: string, checked: boolean) => void
+  handleImageSelect: (file: File) => void
+  handleVoiceClick: () => void
+  handlePaste: (e: React.ClipboardEvent) => void
   
   // Refs
   chatScrollRef: React.RefObject<HTMLDivElement | null>
@@ -69,6 +72,9 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   handleAddSelectedTasks,
   handleToggleAllTasks,
   handleToggleTask,
+  handleImageSelect,
+  handleVoiceClick,
+  handlePaste,
   chatScrollRef
 }) => {
   return (
@@ -287,82 +293,142 @@ const ChatSidebar = memo<ChatSidebarProps>(({
       
       {/* 输入区域 */}
       <div className="p-4 border-t border-gray-100 flex-shrink-0">
-        <div className="flex gap-2 mb-3">
-          <div className="flex-1">
-            <div className="relative">
-              <textarea
-                value={chatMessage}
-                onChange={(e) => setChatMessage(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault()
-                    handleSendMessage()
-                  }
-                }}
-                placeholder={doubaoService.hasApiKey() ? "输入消息或粘贴图片(Ctrl+V)..." : "请先配置API Key"}
-                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-sm"
-                rows={2}
-                disabled={!doubaoService.hasApiKey() || isSending}
+        {/* 显示选中的图片 */}
+        {selectedImage && (
+          <div className="mb-3 p-2 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="flex items-center gap-2">
+              <img 
+                src={URL.createObjectURL(selectedImage)} 
+                alt="待发送的图片" 
+                className="w-12 h-12 object-cover rounded"
               />
-              {selectedImage && (
-                <div className="absolute top-1 right-1 bg-white rounded shadow-md p-1">
-                  <div className="relative">
-                    <img 
-                      src={URL.createObjectURL(selectedImage)} 
-                      alt="待发送的图片" 
-                      className="w-12 h-12 object-cover rounded"
-                    />
-                    <button
-                      onClick={() => setSelectedImage(null)}
-                      className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs hover:bg-red-600"
-                    >
-                      ×
-                    </button>
-                  </div>
-                </div>
-              )}
+              <div className="flex-1">
+                <p className="text-sm text-blue-800 font-medium">{selectedImage.name}</p>
+                <p className="text-xs text-blue-600">
+                  {(selectedImage.size / 1024 / 1024).toFixed(2)} MB
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedImage(null)}
+                className="text-blue-600 hover:text-blue-800 p-1"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
           </div>
-          <button
-            onClick={handleSendMessage}
-            disabled={(!chatMessage.trim() && !selectedImage) || !doubaoService.hasApiKey() || isSending}
-            className="bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors text-sm font-medium flex items-center gap-1"
+        )}
+
+        <div className="flex items-stretch gap-2">
+          {/* 图片上传按钮 */}
+          <div className="relative">
+            <input
+              type="file"
+              accept="image/*"
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) {
+                  handleImageSelect(file)
+                }
+              }}
+            />
+            <div className="w-10 h-10 flex items-center justify-center text-gray-500 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors border border-gray-300 bg-white cursor-pointer">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </div>
+          </div>
+
+          {/* 输入框 */}
+          <textarea
+            value={chatMessage}
+            onChange={(e) => setChatMessage(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                handleSendMessage()
+              }
+            }}
+            onPaste={handlePaste}
+            placeholder={isTaskRecognitionMode 
+              ? "描述任务内容或上传包含任务的图片..." 
+              : doubaoService.hasApiKey() ? "输入消息或粘贴图片(Ctrl+V)..." : "请先配置API Key"
+            }
+            className={`flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent text-sm transition-all duration-200 resize-none text-gray-900 placeholder-gray-500 h-10 ${
+              isTaskRecognitionMode 
+                ? 'border-green-300 focus:ring-green-500 bg-green-50' 
+                : 'border-gray-300 focus:ring-blue-500 bg-white'
+            }`}
+            rows={1}
+            style={{ 
+              lineHeight: '1.2', 
+              minHeight: '40px',
+              maxHeight: '40px',
+              verticalAlign: 'top'
+            }}
+            disabled={!doubaoService.hasApiKey() || isSending}
+          />
+
+          {/* 语音按钮 */}
+          <div className="w-10 h-10 flex items-center justify-center text-gray-500 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors border border-gray-300 bg-white cursor-pointer"
+            onClick={handleVoiceClick}
+            title="语音输入"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+            </svg>
+          </div>
+
+          {/* 发送按钮 */}
+          <div
+            onClick={(!chatMessage.trim() && !selectedImage) || !doubaoService.hasApiKey() || isSending ? undefined : handleSendMessage}
+            className={`h-10 px-4 rounded-lg transition-colors text-sm font-medium flex items-center gap-1.5 border cursor-pointer ${
+              (!chatMessage.trim() && !selectedImage) || !doubaoService.hasApiKey() || isSending
+                ? 'bg-gray-300 text-gray-500 border-gray-300 cursor-not-allowed'
+                : 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
+            }`}
           >
             {isSending ? (
               <>
                 <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                发送中
+                <span>发送中</span>
               </>
             ) : (
               <>
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                 </svg>
-                发送
+                <span>发送</span>
               </>
             )}
-          </button>
+          </div>
         </div>
         
         {/* 任务识别开关 */}
-        <div className="pt-2 border-t border-gray-100">
-          <div className="flex items-center justify-between">
+        <div className="mt-3 pt-3 border-t border-gray-100">
+          <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-gray-700">智能任务识别</span>
-              <span className="text-xs text-gray-500">
+              <span className="text-sm font-medium text-gray-700">智能任务识别</span>
+              <span className={`text-xs px-2 py-0.5 rounded-full ${
+                isTaskRecognitionMode 
+                  ? 'bg-green-100 text-green-700' 
+                  : 'bg-gray-100 text-gray-500'
+              }`}>
                 {isTaskRecognitionMode ? '已启用' : '已关闭'}
               </span>
             </div>
 
             <button
               onClick={() => setIsTaskRecognitionMode(!isTaskRecognitionMode)}
-              className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${
                 isTaskRecognitionMode ? 'bg-green-600' : 'bg-gray-200'
               }`}
             >
               <span
-                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                  isTaskRecognitionMode ? 'translate-x-4' : 'translate-x-0'
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                  isTaskRecognitionMode ? 'translate-x-5' : 'translate-x-0'
                 }`}
               />
             </button>
@@ -370,8 +436,11 @@ const ChatSidebar = memo<ChatSidebarProps>(({
           
           {/* 模式提示 */}
           {isTaskRecognitionMode && (
-            <div className="mt-2 p-2 bg-green-50 rounded text-xs text-green-700">
-              💡 任务识别模式已启用：在上方输入框中描述任务或上传图片，点击发送后AI将识别并提取任务信息
+            <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700 leading-relaxed">
+              <div className="flex items-start gap-2">
+                <span className="text-green-600">💡</span>
+                <span>任务识别模式已启用：在输入框中描述任务或上传图片，AI将自动识别并提取任务信息</span>
+              </div>
             </div>
           )}
         </div>
