@@ -14,6 +14,7 @@ import CanvasImport from '@/components/CanvasImport'
 import CalendarView from '@/components/CalendarView'
 import ChatSidebar from '@/components/ChatSidebar'
 import TaskDecompositionModal from '@/components/TaskDecompositionModal'
+import QuickAddTask from '@/components/QuickAddTask'
 import { taskOperations } from '@/utils/taskUtils'
 import { doubaoService, type ChatMessage } from '@/lib/doubaoService'
 import { compressImage, fileToBase64, isFileSizeExceeded, formatFileSize } from '@/utils/imageUtils'
@@ -244,6 +245,45 @@ export default function DashboardPage() {
     // 打开任务拆解弹窗
     setDecomposingTask(task)
     setShowDecompositionModal(true)
+  }
+
+  // 快速添加任务（使用选中的日期）
+  const handleQuickAddTask = async (taskData: {
+    title: string
+    description?: string
+    priority: 'high' | 'medium' | 'low'
+    deadline_time?: string
+  }) => {
+    if (!user) return
+
+    try {
+      // 将选中日期和时间组合成deadline_datetime
+      const year = selectedDate.getFullYear()
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0')
+      const day = String(selectedDate.getDate()).padStart(2, '0')
+      
+      let deadline_datetime = `${year}-${month}-${day}`
+      if (taskData.deadline_time) {
+        deadline_datetime += ` ${taskData.deadline_time}:00`
+      } else {
+        deadline_datetime += ' 23:59:00'
+      }
+
+      const result = await createTask(user.id, {
+        ...taskData,
+        deadline_time: deadline_datetime
+      })
+
+      if (result.error) {
+        setError(result.error)
+      } else if (result.task) {
+        // 直接添加新任务到列表
+        setTasks(prevTasks => taskOperations.addTask(prevTasks, result.task!))
+      }
+    } catch (error) {
+      setError('创建任务时发生错误')
+      console.error('快速添加任务异常:', error)
+    }
   }
 
   // 处理子任务确认创建
@@ -1408,7 +1448,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                 <button
                   onClick={handleStuckHelp}
                   className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
-                  style={{ backgroundColor: '#FF6B6B' }}
+                  style={{ backgroundColor: '#4ECDC4' }}
                   title="获取AI帮助，解决遇到的困难"
                 >
                   <svg className="w-4 h-4 fill-current flex-shrink-0" viewBox="0 0 20 20">
@@ -1419,7 +1459,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                 <button
                   ref={importButtonRef}
                   onClick={handleShowImport}
-                  className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
+                  className="hidden text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
                   style={{ backgroundColor: '#4ECDC4' }}
                 >
                   <svg className="w-4 h-4 fill-current flex-shrink-0" viewBox="0 0 20 20">
@@ -1430,7 +1470,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                 <button
                   ref={newTaskButtonRef}
                   onClick={handleShowTaskForm}
-                  className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
+                  className="hidden text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
                   style={{ backgroundColor: '#4A90E2' }}
                 >
                   <span className="text-white text-lg font-bold flex-shrink-0 w-4 h-4 flex items-center justify-center">+</span>
@@ -1476,6 +1516,12 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
           </div>
         )}
 
+        {/* 快速添加任务 */}
+        <QuickAddTask 
+          selectedDate={selectedDate}
+          onTaskCreate={handleQuickAddTask}
+        />
+
         {/* 任务列表 */}
         <div className="space-y-4">
           {isLoading ? (
@@ -1493,19 +1539,9 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                 }
               </h3>
               <p className="text-gray-600 mb-6">
-                {selectedDate.toDateString() === new Date().toDateString()
-                  ? '创建一个新任务开始今天的工作'
-                  : '为这一天添加新任务或选择其他日期'
-                }
+                点击上方输入框添加新的任务
               </p>
               <div className="flex gap-3 justify-center">
-                <button
-                  onClick={() => setShowTaskForm(true)}
-                  className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2"
-                >
-                  <span className="text-white text-lg">+</span>
-                  新建任务
-                </button>
                 {selectedDate.toDateString() !== new Date().toDateString() && (
                   <button
                     onClick={() => setSelectedDate(new Date())}
