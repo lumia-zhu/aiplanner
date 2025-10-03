@@ -15,6 +15,10 @@ interface RecognizedTask {
 }
 
 interface ChatSidebarProps {
+  // 侧边栏状态
+  isOpen: boolean
+  onToggle: () => void
+  
   // 聊天相关状态
   chatMessage: string
   setChatMessage: (message: string) => void
@@ -52,6 +56,8 @@ interface ChatSidebarProps {
 }
 
 const ChatSidebar = memo<ChatSidebarProps>(({
+  isOpen,
+  onToggle,
   chatMessage,
   setChatMessage,
   selectedImage,
@@ -82,22 +88,56 @@ const ChatSidebar = memo<ChatSidebarProps>(({
 }) => {
   return (
     <aside 
-      className="w-[450px] bg-white border border-gray-200 rounded-lg flex flex-col h-full flex-shrink-0"
+      className={`bg-white border border-gray-200 rounded-lg flex flex-col h-full flex-shrink-0 transition-all duration-300 ease-in-out ${
+        isOpen ? 'w-[450px]' : 'w-12'
+      }`}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
-      {/* 聊天头部 */}
-      <div className="p-4 border-b border-gray-100 flex-shrink-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${doubaoService.hasApiKey() ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
-            <span className="text-sm font-medium" style={{ color: '#3f3f3f' }}>
-              AI 助手 {!doubaoService.hasApiKey() && '(需要配置API Key)'}
-            </span>
+      {/* 收起状态的竖向按钮条 */}
+      {!isOpen && (
+        <div className="flex flex-col items-center justify-start h-full py-4">
+          <button
+            onClick={onToggle}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors mb-4"
+            title="展开AI助手"
+          >
+            <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <div className="writing-vertical text-xs text-gray-600 font-medium">
+            AI助手
           </div>
-          {chatMessages.length > 0 && (
+        </div>
+      )}
+
+      {/* 展开状态的完整内容 */}
+      {isOpen && (
+        <>
+          {/* 聊天头部 */}
+          <div className="p-4 border-b border-gray-100 flex-shrink-0">
+            <div className="flex items-center justify-between">
+              {/* 折叠按钮 */}
+              <button
+                onClick={onToggle}
+                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors -ml-1"
+                title="收起AI助手"
+              >
+                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+              
+              <div className="flex items-center gap-2 flex-1 ml-2">
+                <div className={`w-2 h-2 rounded-full ${doubaoService.hasApiKey() ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                <span className="text-sm font-medium" style={{ color: '#3f3f3f' }}>
+                  AI 助手 {!doubaoService.hasApiKey() && '(需要配置API Key)'}
+                </span>
+              </div>
+              {chatMessages.length > 0 && (
             <button
               onClick={() => setChatMessages([])}
               className="text-xs text-gray-500 hover:text-red-600 underline"
@@ -481,6 +521,8 @@ const ChatSidebar = memo<ChatSidebarProps>(({
           )}
         </div>
       </div>
+      </>
+      )}
     </aside>
   )
 })

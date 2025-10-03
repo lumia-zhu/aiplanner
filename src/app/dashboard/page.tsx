@@ -68,6 +68,15 @@ export default function DashboardPage() {
   const [isDragOver, setIsDragOver] = useState(false)
   const chatScrollRef = useRef<HTMLDivElement | null>(null)
   
+  // 侧边栏展开/收起状态（从localStorage读取，默认展开）
+  const [isChatSidebarOpen, setIsChatSidebarOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('chatSidebarOpen')
+      return saved !== null ? JSON.parse(saved) : true
+    }
+    return true
+  })
+  
   // 图片预处理缓存
   const imageCache = useRef<Map<string, string>>(new Map())
   const [isImageProcessing, setIsImageProcessing] = useState(false)
@@ -922,6 +931,28 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
     scrollToBottom()
   }, [chatMessages, streamingMessage, scrollToBottom])
 
+  // 切换AI助手侧边栏
+  const toggleChatSidebar = useCallback(() => {
+    setIsChatSidebarOpen((prev: boolean) => {
+      const newValue = !prev
+      localStorage.setItem('chatSidebarOpen', JSON.stringify(newValue))
+      return newValue
+    })
+  }, [])
+
+  // 快捷键支持：Ctrl/Cmd + B 切换侧边栏
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+        e.preventDefault()
+        toggleChatSidebar()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [toggleChatSidebar])
+
   // 处理显示导入任务弹窗
   const handleShowImport = () => {
     // 计算按钮位置作为动画起点（相对于视口）
@@ -1067,7 +1098,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
           {/* flex布局容器：在主内容区域内部分左右 */}
           <div className="flex gap-6 h-[calc(100vh-8rem)]">
             {/* 左侧：任务管理区域 */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto transition-all duration-300 ease-in-out">
               {/* AI 聊天框 - 临时隐藏 */}
             <div 
               className={`bg-white rounded-lg shadow-sm border mb-6 transition-all duration-200 hidden ${
@@ -1593,6 +1624,8 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
 
             {/* 右侧：AI聊天侧边栏 */}
             <ChatSidebar
+              isOpen={isChatSidebarOpen}
+              onToggle={toggleChatSidebar}
               chatMessage={chatMessage}
               setChatMessage={setChatMessage}
               selectedImage={selectedImage}

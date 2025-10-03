@@ -242,14 +242,22 @@ export async function getUserTasksWithSubtasks(userId: string): Promise<{ tasks?
       .order('deadline_datetime', { ascending: true, nullsFirst: false })
     
     if (error) {
+      console.error('❌ 获取任务失败:', error)
       return { error: error.message }
     }
+    
+    console.log('📊 从数据库获取的任务数据:', data)
+    console.log('📊 子任务统计:', data?.filter(t => t.parent_id).length, '个子任务')
     
     // 构建任务树结构
     const tasks = buildTaskTree(data || [])
     
+    console.log('🌳 构建的任务树:', tasks)
+    console.log('🌳 顶级任务数:', tasks.length)
+    
     return { tasks }
   } catch (error) {
+    console.error('❌ 获取任务异常:', error)
     return { error: '获取任务失败' }
   }
 }
