@@ -1098,7 +1098,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
           {/* flex布局容器：在主内容区域内部分左右 */}
           <div className="flex gap-6 h-[calc(100vh-8rem)]">
             {/* 左侧：任务管理区域 */}
-            <div className="flex-1 overflow-y-auto transition-all duration-300 ease-in-out">
+            <div className="flex-1 overflow-y-auto transition-all duration-300 ease-in-out relative">
               {/* AI 聊天框 - 临时隐藏 */}
             <div 
               className={`bg-white rounded-lg shadow-sm border mb-6 transition-all duration-200 hidden ${
@@ -1620,6 +1620,24 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
             </DndContext>
           )}
         </div>
+
+              {/* 浮动AI助手按钮 - 仅在侧边栏收起时显示 */}
+              {!isChatSidebarOpen && (
+                <button
+                  onClick={toggleChatSidebar}
+                  className="absolute right-4 bottom-4 z-40 w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-full shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-300 flex items-center justify-center group"
+                  title="展开AI助手 (Ctrl+B)"
+                >
+                  {/* AI图标 */}
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                  </svg>
+                  {/* 悬停提示 */}
+                  <span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-lg">
+                    AI助手
+                  </span>
+                </button>
+              )}
             </div>
 
             {/* 右侧：AI聊天侧边栏 */}

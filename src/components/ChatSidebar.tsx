@@ -87,32 +87,18 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   chatScrollRef
 }) => {
   return (
-    <aside 
-      className={`bg-white border border-gray-200 rounded-lg flex flex-col h-full flex-shrink-0 transition-all duration-300 ease-in-out ${
-        isOpen ? 'w-[450px]' : 'w-12'
-      }`}
-      onDragEnter={handleDragEnter}
-      onDragLeave={handleDragLeave}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-    >
-      {/* 收起状态的竖向按钮条 */}
-      {!isOpen && (
-        <div className="flex flex-col items-center justify-start h-full py-4">
-          <button
-            onClick={onToggle}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors mb-4"
-            title="展开AI助手"
-          >
-            <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <div className="writing-vertical text-xs text-gray-600 font-medium">
-            AI助手
-          </div>
-        </div>
-      )}
+    <>
+
+      {/* 侧边栏容器 */}
+      <aside 
+        className={`bg-white border border-gray-200 rounded-lg flex flex-col h-full flex-shrink-0 transition-all duration-300 ease-in-out ${
+          isOpen ? 'w-[450px] opacity-100' : 'w-0 opacity-0 border-0'
+        } overflow-hidden`}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+      >
 
       {/* 展开状态的完整内容 */}
       {isOpen && (
@@ -524,6 +510,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
       </>
       )}
     </aside>
+    </>
   )
 })
 

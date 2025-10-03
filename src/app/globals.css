@@ -53,6 +53,22 @@ body {
   text-orientation: upright;
 }
 
+/* 浮动按钮淡入动画 */
+@keyframes fade-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-50%) scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(-50%) scale(1);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
 /* 弹窗从按钮位置平滑放大动画 */
 @keyframes modal-scale-from-button {
   0% {
