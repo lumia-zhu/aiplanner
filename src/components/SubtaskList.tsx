@@ -13,6 +13,7 @@ interface SubtaskListProps {
   onEdit: (task: Task) => void
   onDelete: (taskId: string) => void
   onDecompose: (task: Task) => void
+  onPromoteSubtasks?: (parentId: string) => void  // 新增：提升子任务为独立任务
 }
 
 export default function SubtaskList({
@@ -23,10 +24,26 @@ export default function SubtaskList({
   onToggleComplete,
   onEdit,
   onDelete,
-  onDecompose
+  onDecompose,
+  onPromoteSubtasks
 }: SubtaskListProps) {
   if (!subtasks || subtasks.length === 0) {
     return null
+  }
+
+  // 处理提升子任务的点击事件
+  const handlePromoteClick = () => {
+    if (!onPromoteSubtasks) return
+    
+    // 简单的确认提示，避免误操作
+    const confirmed = window.confirm(
+      `确定要将所有 ${subtasks.length} 个子任务提升为独立任务吗？\n\n` +
+      `提升后，这些子任务将变成当天的普通任务，不再与"${parentTask.title}"关联。`
+    )
+    
+    if (confirmed) {
+      onPromoteSubtasks(parentTask.id)
+    }
   }
 
   return (
@@ -133,19 +150,34 @@ export default function SubtaskList({
             </div>
           ))}
 
-          {/* 子任务统计 */}
-          <div className="text-xs text-gray-500 mt-3 flex items-center gap-4">
-            <span>
-              ✅ 已完成: {subtasks.filter(t => t.completed).length}
-            </span>
-            <span>
-              📋 总计: {subtasks.length}
-            </span>
-            <span>
-              📊 进度: {subtasks.length > 0 
-                ? Math.round((subtasks.filter(t => t.completed).length / subtasks.length) * 100)
-                : 0}%
-            </span>
+          {/* 子任务统计和提升按钮 */}
+          <div className="text-xs text-gray-500 mt-3 flex items-center justify-between gap-4">
+            {/* 左侧：统计信息 */}
+            <div className="flex items-center gap-4">
+              <span>
+                ✅ 已完成: {subtasks.filter(t => t.completed).length}
+              </span>
+              <span>
+                📋 总计: {subtasks.length}
+              </span>
+              <span>
+                📊 进度: {subtasks.length > 0 
+                  ? Math.round((subtasks.filter(t => t.completed).length / subtasks.length) * 100)
+                  : 0}%
+              </span>
+            </div>
+
+            {/* 右侧：提升按钮 */}
+            {onPromoteSubtasks && (
+              <button
+                onClick={handlePromoteClick}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 border border-blue-300 hover:border-blue-400 text-blue-700 hover:text-blue-900 rounded-lg transition-all text-xs font-medium shadow-sm hover:shadow whitespace-nowrap"
+                title="将所有子任务转换为独立的普通任务"
+              >
+                <span>⬆️</span>
+                <span>全部提升为独立任务</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

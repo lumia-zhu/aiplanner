@@ -10,11 +10,12 @@ interface TaskItemProps {
   onDelete: (taskId: string) => void
   onDecompose: (task: Task) => void
   onToggleExpansion?: (taskId: string, isExpanded: boolean) => void
+  onPromoteSubtasks?: (parentId: string) => void
   isDragging?: boolean
   dragHandleProps?: any
 }
 
-export default function TaskItem({ task, onToggleComplete, onEdit, onDelete, onDecompose, onToggleExpansion, isDragging, dragHandleProps }: TaskItemProps) {
+export default function TaskItem({ task, onToggleComplete, onEdit, onDelete, onDecompose, onToggleExpansion, onPromoteSubtasks, isDragging, dragHandleProps }: TaskItemProps) {
   const [isDeleting, setIsDeleting] = useState(false)
   const isOverdue = isTaskOverdue(task)
   
@@ -215,6 +216,7 @@ export default function TaskItem({ task, onToggleComplete, onEdit, onDelete, onD
               onEdit={onEdit}
               onDelete={onDelete}
               onDecompose={onDecompose}
+              onPromoteSubtasks={onPromoteSubtasks}
             />
           )}
         </div>

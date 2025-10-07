@@ -472,3 +472,79 @@ export async function updateSubtaskOrder(
     return { error: '更新子任务排序失败' }
   }
 }
+
+// 将所有子任务提升为独立任务（解除父子关系）
+export async function promoteSubtasksToTasks(
+  parentId: string,
+  userId: string
+): Promise<{ count?: number; error?: string }> {
+  try {
+    const supabase = createClient()
+    
+    console.log('🔧 开始提升子任务:', { parentId, userId })
+    
+    // 1. 验证父任务是否存在且属于当前用户
+    const { data: parentTask, error: parentError } = await supabase
+      .from('tasks')
+      .select('id, user_id, title')
+      .eq('id', parentId)
+      .eq('user_id', userId)
+      .single()
+    
+    if (parentError || !parentTask) {
+      console.error('父任务验证失败:', parentError)
+      return { error: '父任务不存在或无权限访问' }
+    }
+    
+    // 2. 获取所有子任务
+    const { data: subtasks, error: fetchError } = await supabase
+      .from('tasks')
+      .select('id')
+      .eq('parent_id', parentId)
+      .eq('user_id', userId)
+    
+    if (fetchError) {
+      console.error('获取子任务失败:', fetchError)
+      return { error: `获取子任务失败: ${fetchError.message}` }
+    }
+    
+    if (!subtasks || subtasks.length === 0) {
+      return { error: '没有子任务需要提升' }
+    }
+    
+    console.log('📋 找到子任务:', subtasks.length, '个')
+    
+    // 3. 批量更新子任务：移除 parent_id，重置 subtask_order
+    const { error: updateError } = await supabase
+      .from('tasks')
+      .update({ 
+        parent_id: null,
+        subtask_order: 0
+      })
+      .eq('parent_id', parentId)
+      .eq('user_id', userId)
+    
+    if (updateError) {
+      console.error('提升子任务失败:', updateError)
+      return { error: `提升子任务失败: ${updateError.message}` }
+    }
+    
+    console.log('✅ 子任务提升成功')
+    
+    // 4. 更新父任务的展开状态为收起
+    const { error: parentUpdateError } = await supabase
+      .from('tasks')
+      .update({ is_expanded: false })
+      .eq('id', parentId)
+    
+    if (parentUpdateError) {
+      console.warn('更新父任务状态失败:', parentUpdateError)
+      // 这不是关键错误，不阻止整体操作
+    }
+    
+    return { count: subtasks.length }
+  } catch (error) {
+    console.error('提升子任务异常:', error)
+    return { error: `提升子任务失败: ${error instanceof Error ? error.message : '未知错误'}` }
+  }
+}

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { getUserFromStorage, clearUserFromStorage, AuthUser } from '@/lib/auth'
-import { getUserTasks, createTask, updateTask, deleteTask, toggleTaskComplete, getUserTasksWithSubtasks, createSubtasks, toggleTaskExpansion } from '@/lib/tasks'
+import { getUserTasks, createTask, updateTask, deleteTask, toggleTaskComplete, getUserTasksWithSubtasks, createSubtasks, toggleTaskExpansion, promoteSubtasksToTasks } from '@/lib/tasks'
 import type { Task, SubtaskSuggestion } from '@/types'
 import DraggableTaskItem from '@/components/DraggableTaskItem'
 import TaskForm from '@/components/TaskForm'
@@ -418,6 +418,40 @@ export default function DashboardPage() {
     } catch (error) {
       console.error('切换任务展开状态失败:', error)
       setError('切换任务展开状态时发生错误')
+    }
+  }
+
+  // 处理提升子任务为独立任务
+  const handlePromoteSubtasks = async (parentId: string) => {
+    if (!user) {
+      setError('用户未登录')
+      return
+    }
+
+    console.log('🚀 开始提升子任务流程:', { parentId, userId: user.id })
+
+    try {
+      // 调用后端API
+      const result = await promoteSubtasksToTasks(parentId, user.id)
+      
+      if (result.error) {
+        console.error('提升子任务失败:', result.error)
+        setError(result.error)
+        alert(`❌ ${result.error}`)
+      } else {
+        console.log('✅ 子任务提升成功，提升了', result.count, '个任务')
+        
+        // 重新加载任务列表以反映变更
+        await loadTasks(user.id)
+        
+        // 显示成功消息
+        alert(`✅ 成功将 ${result.count} 个子任务提升为独立任务！`)
+      }
+    } catch (error) {
+      console.error('提升子任务异常:', error)
+      const errorMessage = error instanceof Error ? error.message : '未知错误'
+      setError(`提升子任务时发生错误: ${errorMessage}`)
+      alert(`❌ 提升失败: ${errorMessage}`)
     }
   }
 
@@ -1663,6 +1697,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                     onDelete={handleDeleteTask}
                     onDecompose={handleDecomposeTask}
                     onToggleExpansion={handleToggleExpansion}
+                    onPromoteSubtasks={handlePromoteSubtasks}
                   />
                 ))}
               </SortableContext>
