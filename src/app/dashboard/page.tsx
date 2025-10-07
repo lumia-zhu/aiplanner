@@ -378,10 +378,20 @@ export default function DashboardPage() {
         console.error('创建子任务API错误:', result.error)
         setError(`创建失败: ${result.error}`)
       } else {
-        console.log('✅ 子任务创建成功，开始刷新任务列表')
+        console.log('✅ 子任务创建成功，局部更新任务列表')
         
-        // 重新加载任务列表以显示新的子任务
-        await loadTasks(user.id)
+        // 🎯 优化：局部更新父任务，添加子任务（无需重新加载整个列表）
+        setTasks(prevTasks => 
+          prevTasks.map(task => 
+            task.id === decomposingTask.id 
+              ? { 
+                  ...task, 
+                  subtasks: result.tasks || [],  // 使用API返回的真实子任务数据
+                  is_expanded: true               // 自动展开显示子任务
+                }
+              : task
+          )
+        )
         
         // 显示成功消息
         const createdCount = selectedSubtasks.filter(t => t.is_selected).length
@@ -439,13 +449,19 @@ export default function DashboardPage() {
         setError(result.error)
         alert(`❌ ${result.error}`)
       } else {
-        console.log('✅ 子任务提升成功，提升了', result.count, '个任务')
+        console.log('✅ 子任务提升成功，提升了', result.count, '个任务，局部更新任务列表')
         
-        // 重新加载任务列表以反映变更
-        await loadTasks(user.id)
+        // 🎯 优化：局部更新任务列表（无需重新加载整个列表）
+        setTasks(prevTasks => {
+          // 1. 直接移除父任务（后端已删除父任务）
+          const tasksWithoutParent = prevTasks.filter(task => task.id !== parentId)
+          
+          // 2. 将提升后的任务添加到列表中
+          return [...tasksWithoutParent, ...(result.tasks || [])]
+        })
         
         // 显示成功消息
-        alert(`✅ 成功将 ${result.count} 个子任务提升为独立任务！`)
+        alert(`✅ 成功将 ${result.count} 个子任务提升为独立任务，父任务已删除！`)
       }
     } catch (error) {
       console.error('提升子任务异常:', error)

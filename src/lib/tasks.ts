@@ -342,14 +342,34 @@ export async function createSubtasks(
     
     console.log('🔧 开始创建子任务:', { parentId, userId, subtasksCount: subtasks.length })
     
-    // 准备子任务数据
+    // 1. 首先验证父任务是否存在（提前验证，避免后续无效操作）
+    const { data: parentTask, error: parentError } = await supabase
+      .from('tasks')
+      .select('id, user_id')
+      .eq('id', parentId)
+      .eq('user_id', userId)
+      .single()
+    
+    if (parentError) {
+      console.error('父任务验证失败 - 数据库错误:', parentError)
+      return { error: `父任务查询失败: ${parentError.message || '未知错误'}` }
+    }
+    
+    if (!parentTask) {
+      console.error('父任务验证失败 - 任务不存在')
+      return { error: '父任务不存在或无权限访问' }
+    }
+    
+    console.log('✅ 父任务验证通过:', parentTask.id)
+    
+    // 2. 准备子任务数据
     const subtaskData = subtasks
       .filter(subtask => subtask.is_selected)
       .map((subtask, index) => ({
         user_id: userId,
         title: subtask.title.trim(),
         description: subtask.description?.trim() || null,
-        priority: subtask.priority,
+        priority: subtask.priority || null, // ✅ 如果是 undefined，转为 null
         parent_id: parentId,
         subtask_order: subtask.order || index + 1,
         estimated_duration: subtask.estimated_duration?.trim() || null,
@@ -363,20 +383,7 @@ export async function createSubtasks(
       return { error: '没有选中的子任务' }
     }
     
-    // 验证父任务是否存在
-    const { data: parentTask, error: parentError } = await supabase
-      .from('tasks')
-      .select('id, user_id')
-      .eq('id', parentId)
-      .eq('user_id', userId)
-      .single()
-    
-    if (parentError || !parentTask) {
-      console.error('父任务验证失败:', parentError)
-      return { error: '父任务不存在或无权限访问' }
-    }
-    
-    // 批量插入子任务
+    // 3. 批量插入子任务
     const { data, error } = await supabase
       .from('tasks')
       .insert(subtaskData)
@@ -389,7 +396,7 @@ export async function createSubtasks(
     
     console.log('✅ 子任务插入成功:', data)
     
-    // 更新父任务的展开状态
+    // 4. 更新父任务的展开状态
     const { error: updateError } = await supabase
       .from('tasks')
       .update({ is_expanded: true })
@@ -477,16 +484,16 @@ export async function updateSubtaskOrder(
 export async function promoteSubtasksToTasks(
   parentId: string,
   userId: string
-): Promise<{ count?: number; error?: string }> {
+): Promise<{ count?: number; tasks?: Task[]; error?: string }> {
   try {
     const supabase = createClient()
     
     console.log('🔧 开始提升子任务:', { parentId, userId })
     
-    // 1. 验证父任务是否存在且属于当前用户
+    // 1. 验证父任务是否存在且属于当前用户，并获取其 description 用于构建路径
     const { data: parentTask, error: parentError } = await supabase
       .from('tasks')
-      .select('id, user_id, title')
+      .select('id, user_id, title, description')
       .eq('id', parentId)
       .eq('user_id', userId)
       .single()
@@ -496,10 +503,10 @@ export async function promoteSubtasksToTasks(
       return { error: '父任务不存在或无权限访问' }
     }
     
-    // 2. 获取所有子任务
+    // 2. 获取所有子任务（包含 description 用于追加路径）
     const { data: subtasks, error: fetchError } = await supabase
       .from('tasks')
-      .select('id')
+      .select('id, description')
       .eq('parent_id', parentId)
       .eq('user_id', userId)
     
@@ -514,35 +521,85 @@ export async function promoteSubtasksToTasks(
     
     console.log('📋 找到子任务:', subtasks.length, '个')
     
-    // 3. 批量更新子任务：移除 parent_id，重置 subtask_order
-    const { error: updateError } = await supabase
+    // 提取子任务ID列表
+    const subtaskIds = subtasks.map(s => s.id)
+    
+    // 3. 构建父任务路径
+    // 如果父任务的 description 已包含 "来自：" 说明它也是被提升过的，继承其路径
+    let parentPath: string
+    if (parentTask.description && parentTask.description.includes('来自：')) {
+      // 提取已有路径并追加当前父任务标题
+      const existingPath = parentTask.description.split('来自：')[1].trim()
+      parentPath = `来自：${existingPath} > ${parentTask.title}`
+    } else {
+      // 第一次提升，创建新路径
+      parentPath = `来自：${parentTask.title}`
+    }
+    
+    console.log('📍 构建的父任务路径:', parentPath)
+    
+    // 4. 逐个更新子任务，为每个子任务添加父任务路径到 description
+    for (const subtask of subtasks) {
+      let newDescription: string
+      
+      if (subtask.description && subtask.description.trim()) {
+        // 如果子任务已有描述，在末尾追加路径
+        newDescription = `${subtask.description}\n\n${parentPath}`
+      } else {
+        // 如果没有描述，直接设置路径
+        newDescription = parentPath
+      }
+      
+      const { error: updateError } = await supabase
+        .from('tasks')
+        .update({ 
+          parent_id: null,
+          subtask_order: 0,
+          description: newDescription
+        })
+        .eq('id', subtask.id)
+        .eq('user_id', userId)
+      
+      if (updateError) {
+        console.error(`更新子任务 ${subtask.id} 失败:`, updateError)
+        // 继续处理其他子任务，不中断整个流程
+      }
+    }
+    
+    console.log('✅ 子任务提升成功，已添加父任务路径')
+    
+    // 5. 查询提升后的任务数据（用于前端局部更新）
+    const { data: promotedTasks, error: fetchPromotedError } = await supabase
       .from('tasks')
-      .update({ 
-        parent_id: null,
-        subtask_order: 0
-      })
-      .eq('parent_id', parentId)
+      .select('*')
+      .in('id', subtaskIds)
       .eq('user_id', userId)
     
-    if (updateError) {
-      console.error('提升子任务失败:', updateError)
-      return { error: `提升子任务失败: ${updateError.message}` }
+    if (fetchPromotedError) {
+      console.warn('获取提升后的任务失败:', fetchPromotedError)
+      // 不阻止操作，返回空数组
     }
     
-    console.log('✅ 子任务提升成功')
+    console.log('📊 返回提升后的任务:', promotedTasks?.length, '个')
     
-    // 4. 更新父任务的展开状态为收起
-    const { error: parentUpdateError } = await supabase
+    // 6. 删除父任务（子任务已全部提升，父任务变成空壳，应该删除）
+    const { error: deleteError } = await supabase
       .from('tasks')
-      .update({ is_expanded: false })
+      .delete()
       .eq('id', parentId)
+      .eq('user_id', userId)
     
-    if (parentUpdateError) {
-      console.warn('更新父任务状态失败:', parentUpdateError)
-      // 这不是关键错误，不阻止整体操作
+    if (deleteError) {
+      console.warn('删除父任务失败:', deleteError)
+      // 不阻止操作，子任务已经提升成功
+    } else {
+      console.log('🗑️ 父任务已删除')
     }
     
-    return { count: subtasks.length }
+    return { 
+      count: subtasks.length,
+      tasks: promotedTasks || []
+    }
   } catch (error) {
     console.error('提升子任务异常:', error)
     return { error: `提升子任务失败: ${error instanceof Error ? error.message : '未知错误'}` }

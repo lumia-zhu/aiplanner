@@ -78,7 +78,7 @@ export function parseDecompositionResponse(aiResponse: string): SubtaskSuggestio
       id: `temp_${Date.now()}_${index}`, // 生成临时ID
       title: subtask.title || `子任务${index + 1}`,
       description: '', // 不再使用描述字段
-      priority: 'medium', // 所有子任务默认为中优先级
+      priority: undefined, // ✅ 不设置默认优先级，与快速创建任务保持一致
       estimated_duration: subtask.estimated_duration,
       is_selected: true, // 默认选中
       order: subtask.order || index + 1
@@ -133,7 +133,7 @@ function extractSubtasksFromText(text: string): SubtaskSuggestion[] {
           id: `extracted_${Date.now()}_${currentOrder}`,
           title: title,
           description: '从AI响应中提取的任务',
-          priority: 'medium',
+          priority: undefined, // ✅ 不设置默认优先级
           estimated_duration: undefined,
           is_selected: true,
           order: currentOrder++
@@ -148,7 +148,7 @@ function extractSubtasksFromText(text: string): SubtaskSuggestion[] {
       id: `fallback_${Date.now()}`,
       title: '分解原任务',
       description: 'AI无法自动拆解此任务，请手动编辑子任务',
-      priority: 'medium',
+      priority: undefined, // ✅ 不设置默认优先级
       estimated_duration: undefined,
       is_selected: true,
       order: 1
