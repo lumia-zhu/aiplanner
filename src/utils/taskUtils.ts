@@ -54,20 +54,42 @@ export const taskOperations = {
     return tasks.filter(task => task.id !== taskId)
   },
   
-  // 切换完成状态（支持嵌套子任务）
+  // 切换完成状态（支持嵌套子任务和父子联动）
   toggleComplete: (tasks: Task[], taskId: string, completed: boolean): Task[] => {
     return tasks.map(task => {
       // 如果是目标任务，更新其完成状态
       if (task.id === taskId) {
-        return { ...task, completed }
+        const updatedTask = { ...task, completed }
+        
+        // 如果是父任务被标记为完成，所有子任务也标记为完成
+        // 如果父任务被标记为未完成，所有子任务也标记为未完成
+        if (updatedTask.subtasks && updatedTask.subtasks.length > 0) {
+          updatedTask.subtasks = updatedTask.subtasks.map(subtask => ({
+            ...subtask,
+            completed
+          }))
+        }
+        
+        return updatedTask
       }
       
       // 如果任务有子任务，递归检查并更新子任务
       if (task.subtasks && task.subtasks.length > 0) {
         const updatedSubtasks = taskOperations.toggleComplete(task.subtasks, taskId, completed)
+        
         // 只有当子任务真的发生了变化时才返回新对象
         if (updatedSubtasks !== task.subtasks) {
-          return { ...task, subtasks: updatedSubtasks }
+          // 检查所有子任务是否都已完成，如果是，自动标记父任务为完成
+          const allSubtasksCompleted = updatedSubtasks.every(subtask => subtask.completed)
+          const anySubtaskCompleted = updatedSubtasks.some(subtask => subtask.completed)
+          
+          // 如果所有子任务都完成，父任务也完成
+          // 如果所有子任务都未完成，父任务也未完成
+          return {
+            ...task,
+            subtasks: updatedSubtasks,
+            completed: allSubtasksCompleted
+          }
         }
       }
       

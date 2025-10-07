@@ -216,24 +216,67 @@ export default function DashboardPage() {
   }
 
   const handleToggleComplete = useCallback(async (taskId: string, completed: boolean) => {
+    // 获取需要更新的任务ID列表（包括父任务和所有子任务）
+    const getAffectedTaskIds = (tasks: Task[], targetId: string): string[] => {
+      const affectedIds: string[] = []
+      
+      for (const task of tasks) {
+        if (task.id === targetId) {
+          // 找到目标任务
+          affectedIds.push(task.id)
+          // 如果是父任务，添加所有子任务ID
+          if (task.subtasks && task.subtasks.length > 0) {
+            affectedIds.push(...task.subtasks.map(st => st.id))
+          }
+          break
+        }
+        
+        // 检查是否是某个任务的子任务
+        if (task.subtasks && task.subtasks.length > 0) {
+          const foundInSubtasks = task.subtasks.find(st => st.id === targetId)
+          if (foundInSubtasks) {
+            // 目标是子任务，添加子任务ID和父任务ID
+            affectedIds.push(targetId)
+            affectedIds.push(task.id)
+            // 添加其他所有子任务ID（用于检查父任务状态）
+            affectedIds.push(...task.subtasks.filter(st => st.id !== targetId).map(st => st.id))
+            break
+          }
+        }
+      }
+      
+      return affectedIds
+    }
+
     // 立即更新UI状态，提供即时反馈
+    const affectedIds = getAffectedTaskIds(tasks, taskId)
+    const oldTasks = tasks
     setTasks(prevTasks => taskOperations.toggleComplete(prevTasks, taskId, completed))
 
     try {
-      // 然后更新数据库
-      const result = await toggleTaskComplete(taskId, completed)
+      // 更新数据库中的所有受影响任务
+      const updatePromises = affectedIds.map(id => {
+        // 计算该任务的新完成状态
+        const updatedTasks = taskOperations.toggleComplete(oldTasks, taskId, completed)
+        const taskToUpdate = updatedTasks.flatMap(t => [t, ...(t.subtasks || [])]).find(t => t.id === id)
+        return taskToUpdate ? toggleTaskComplete(id, taskToUpdate.completed) : Promise.resolve({ error: 'Task not found' })
+      })
       
-      if (result.error) {
+      const results = await Promise.all(updatePromises)
+      
+      // 检查是否有失败
+      const hasError = results.some(r => r.error)
+      if (hasError) {
         // 如果失败，回滚UI状态
-        setTasks(prevTasks => taskOperations.toggleComplete(prevTasks, taskId, !completed))
-        console.error('更新任务状态失败:', result.error)
+        setTasks(oldTasks)
+        console.error('更新任务状态失败')
       }
     } catch (error) {
       // 网络错误或其他异常，回滚UI状态
-      setTasks(prevTasks => taskOperations.toggleComplete(prevTasks, taskId, !completed))
+      setTasks(oldTasks)
       console.error('更新任务异常:', error)
     }
-  }, [])
+  }, [tasks])
 
   const handleEditTask = (task: Task, buttonElement?: HTMLElement) => {
     // 计算编辑按钮位置作为动画起点（相对于视口）

@@ -36,17 +36,23 @@ export default function SubtaskList({
         onClick={() => onToggleExpansion(parentTask.id, !isExpanded)}
         className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800 mb-2 transition-colors"
       >
-        <span className="transform transition-transform duration-200 ease-in-out">
-          {isExpanded ? '🔽' : '▶️'}
+        <span className={`transform transition-transform duration-200 ease-in-out ${
+          isExpanded ? 'rotate-90' : 'rotate-0'
+        }`}>
+          ▶️
         </span>
         <span>
           {subtasks.length} 个子任务 {isExpanded ? '(点击收起)' : '(点击展开)'}
         </span>
       </button>
 
-      {/* 子任务列表 */}
-      {isExpanded && (
-        <div className="ml-6 space-y-2 border-l-2 border-gray-200 pl-4">
+      {/* 子任务列表 - 使用动画过渡 */}
+      <div className={`
+        ml-6 border-l-2 border-gray-200 pl-4
+        transition-all duration-200 ease-in-out overflow-hidden
+        ${isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}
+      `}>
+        <div className="space-y-2">
           {subtasks.map((subtask, index) => (
             <div key={subtask.id} className="relative">
               {/* 连接线 */}
@@ -142,7 +148,7 @@ export default function SubtaskList({
             </span>
           </div>
         </div>
-      )}
+      </div>
     </div>
   )
 }
