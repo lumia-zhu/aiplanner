@@ -55,7 +55,7 @@ export async function createTask(
     title: string
     description?: string
     deadline_time?: string
-    priority: 'low' | 'medium' | 'high'
+    priority?: 'low' | 'medium' | 'high'
     parent_id?: string
     estimated_duration?: string
     subtask_order?: number
@@ -242,7 +242,6 @@ export async function getUserTasksWithSubtasks(userId: string): Promise<{ tasks?
       .order('deadline_datetime', { ascending: true, nullsFirst: false })
     
     if (error) {
-      console.error('❌ 获取任务失败:', error)
       return { error: error.message }
     }
     

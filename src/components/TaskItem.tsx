@@ -66,6 +66,23 @@ export default function TaskItem({ task, onToggleComplete, onEdit, onDelete, onD
     return `${hour}:${minute}`
   }
 
+  // 判断是否应该显示时间（排除默认的23:59:00）
+  const shouldShowTime = (datetimeString?: string) => {
+    if (!datetimeString) return false
+    
+    const date = new Date(datetimeString)
+    const hour = date.getHours()
+    const minute = date.getMinutes()
+    const second = date.getSeconds()
+    
+    // 如果是 23:59:00，认为是默认值，不显示
+    if (hour === 23 && minute === 59 && second === 0) {
+      return false
+    }
+    
+    return true
+  }
+
   return (
     <div className={`bg-white rounded-lg shadow-sm border p-4 transition-all duration-200 ${
       isOverdue ? 'border-red-300 bg-red-50' : 'border-gray-200'
@@ -128,10 +145,12 @@ export default function TaskItem({ task, onToggleComplete, onEdit, onDelete, onD
               )}
             </h3>
             
-            {/* 优先级标签 */}
-            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(task.priority)}`}>
-              {getPriorityText(task.priority)}优先级
-            </span>
+            {/* 优先级标签 - 仅在有优先级时显示 */}
+            {task.priority && (
+              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(task.priority)}`}>
+                {getPriorityText(task.priority)}优先级
+              </span>
+            )}
           </div>
 
           {task.description && (
@@ -144,9 +163,9 @@ export default function TaskItem({ task, onToggleComplete, onEdit, onDelete, onD
 
           <div className="mt-2 flex items-center justify-between">
                 <div className="flex items-center space-x-4 text-sm text-gray-500">
-                  {task.deadline_datetime && (
+                  {shouldShowTime(task.deadline_datetime) && (
                     <span className={isOverdue && !task.completed ? 'text-red-600 font-medium' : ''}>
-                      {formatTime(task.deadline_datetime)}
+                      {formatTime(task.deadline_datetime!)}
                     </span>
                   )}
                 </div>

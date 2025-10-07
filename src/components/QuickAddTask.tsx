@@ -19,7 +19,7 @@ export default function QuickAddTask({ selectedDate, onTaskCreate, onBatchUndo }
   const [isExpanded, setIsExpanded] = useState(false)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [priority, setPriority] = useState<'high' | 'medium' | 'low'>('medium')
+  const [priority, setPriority] = useState<'high' | 'medium' | 'low' | undefined>(undefined)
   const [deadlineDate, setDeadlineDate] = useState('')
   const [deadlineTime, setDeadlineTime] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -36,6 +36,9 @@ export default function QuickAddTask({ selectedDate, onTaskCreate, onBatchUndo }
     taskIds: string[]
     count: number
   } | null>(null)
+  
+  // 撤销按钮自动隐藏定时器
+  const undoTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Toast 提示
   const { toasts, dismissToast, success, error, info } = useToast()
@@ -58,12 +61,10 @@ export default function QuickAddTask({ selectedDate, onTaskCreate, onBatchUndo }
     }
   }
 
-  // 当选中日期变化时，更新默认截止日期
+  // 当选中日期变化时，不再自动设置默认截止日期
+  // 用户可以手动选择是否设置截止日期
   useEffect(() => {
-    const year = selectedDate.getFullYear()
-    const month = String(selectedDate.getMonth() + 1).padStart(2, '0')
-    const day = String(selectedDate.getDate()).padStart(2, '0')
-    setDeadlineDate(`${year}-${month}-${day}`)
+    // 不再自动设置日期
   }, [selectedDate])
   
   // 监听输入框内容变化，实时检测批量任务
@@ -79,6 +80,28 @@ export default function QuickAddTask({ selectedDate, onTaskCreate, onBatchUndo }
       setBatchPreview(null)
     }
   }, [title])
+  
+  // 撤销按钮自动隐藏（10秒后）
+  useEffect(() => {
+    if (lastBatchCreated) {
+      // 清除之前的定时器
+      if (undoTimerRef.current) {
+        clearTimeout(undoTimerRef.current)
+      }
+      
+      // 设置新的定时器：10秒后自动隐藏
+      undoTimerRef.current = setTimeout(() => {
+        setLastBatchCreated(null)
+      }, 10000)
+      
+      // 清理函数
+      return () => {
+        if (undoTimerRef.current) {
+          clearTimeout(undoTimerRef.current)
+        }
+      }
+    }
+  }, [lastBatchCreated])
 
   // 处理Enter键快速添加
   const handleKeyDown = async (e: KeyboardEvent<HTMLInputElement>) => {
@@ -114,7 +137,7 @@ export default function QuickAddTask({ selectedDate, onTaskCreate, onBatchUndo }
     }
   }
 
-  // 快速添加（使用默认值）
+  // 快速添加（不设置默认值）
   const handleQuickAdd = async () => {
     if (!title.trim()) return
 
@@ -122,7 +145,8 @@ export default function QuickAddTask({ selectedDate, onTaskCreate, onBatchUndo }
     try {
       await onTaskCreate({
         title: title.trim(),
-        priority: 'medium',
+        // 不传 priority，让其为 undefined
+        // 不传 deadline_time，让其为 undefined
       })
       
       // 清空输入并聚焦
@@ -157,12 +181,13 @@ export default function QuickAddTask({ selectedDate, onTaskCreate, onBatchUndo }
 
     setIsLoading(true)
     try {
-      // 逐个创建任务并收集任务ID
+      // 逐个创建任务并收集任务ID（不设置默认优先级和截止时间）
       const results = await Promise.all(
         titles.map(taskTitle => 
           onTaskCreate({
             title: taskTitle,
-            priority: 'medium',
+            // 不传 priority，让其为 undefined
+            // 不传 deadline_time，让其为 undefined
           })
         )
       )
@@ -220,20 +245,16 @@ export default function QuickAddTask({ selectedDate, onTaskCreate, onBatchUndo }
       await onTaskCreate({
         title: title.trim(),
         description: description.trim() || undefined,
-        priority,
+        priority: priority || undefined, // 如果未设置，传 undefined
         deadline_time: deadline_time_value,
       })
       
       // 重置所有状态
       setTitle('')
       setDescription('')
-      setPriority('medium')
+      setPriority(undefined)
       setDeadlineTime('')
-      // 保持日期为当前选中日期
-      const year = selectedDate.getFullYear()
-      const month = String(selectedDate.getMonth() + 1).padStart(2, '0')
-      const day = String(selectedDate.getDate()).padStart(2, '0')
-      setDeadlineDate(`${year}-${month}-${day}`)
+      setDeadlineDate('') // 清空日期
       setIsExpanded(false)
       titleInputRef.current?.focus()
     } catch (error) {
@@ -248,13 +269,9 @@ export default function QuickAddTask({ selectedDate, onTaskCreate, onBatchUndo }
     if (isExpanded) {
       setIsExpanded(false)
       setDescription('')
-      setPriority('medium')
+      setPriority(undefined)
       setDeadlineTime('')
-      // 重置日期为当前选中日期
-      const year = selectedDate.getFullYear()
-      const month = String(selectedDate.getMonth() + 1).padStart(2, '0')
-      const day = String(selectedDate.getDate()).padStart(2, '0')
-      setDeadlineDate(`${year}-${month}-${day}`)
+      setDeadlineDate('') // 清空日期
     } else {
       setTitle('')
     }
@@ -331,12 +348,12 @@ export default function QuickAddTask({ selectedDate, onTaskCreate, onBatchUndo }
 
       {/* 批量撤销按钮 */}
       {lastBatchCreated && onBatchUndo && !isExpanded && (
-        <div className="mt-2 animate-fade-in">
+        <div className="mt-2 flex justify-center animate-fade-in">
           <button
             onClick={handleBatchUndo}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-800 rounded-lg transition-colors text-sm font-medium"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-800 rounded-lg transition-colors text-sm font-medium shadow-sm"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
             </svg>
             <span>撤销刚才创建的 {lastBatchCreated.count} 个任务</span>
@@ -365,15 +382,26 @@ export default function QuickAddTask({ selectedDate, onTaskCreate, onBatchUndo }
           {/* 优先级选择 */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              优先级
+              优先级（可选）
             </label>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-4 gap-2">
+              <button
+                onClick={() => setPriority(undefined)}
+                disabled={isLoading}
+                className={`px-3 py-2 rounded-lg border transition-colors ${
+                  priority === undefined
+                    ? 'bg-gray-100 border-gray-400 text-gray-800 font-medium'
+                    : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                } disabled:opacity-50`}
+              >
+                无
+              </button>
               <button
                 onClick={() => setPriority('high')}
                 disabled={isLoading}
-                className={`flex-1 px-3 py-2 rounded-lg border transition-colors ${
+                className={`px-3 py-2 rounded-lg border transition-colors ${
                   priority === 'high'
-                    ? 'bg-red-50 border-red-500 text-red-700'
+                    ? 'bg-red-50 border-red-500 text-red-700 font-medium'
                     : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
                 } disabled:opacity-50`}
               >
@@ -382,9 +410,9 @@ export default function QuickAddTask({ selectedDate, onTaskCreate, onBatchUndo }
               <button
                 onClick={() => setPriority('medium')}
                 disabled={isLoading}
-                className={`flex-1 px-3 py-2 rounded-lg border transition-colors ${
+                className={`px-3 py-2 rounded-lg border transition-colors ${
                   priority === 'medium'
-                    ? 'bg-yellow-50 border-yellow-500 text-yellow-700'
+                    ? 'bg-yellow-50 border-yellow-500 text-yellow-700 font-medium'
                     : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
                 } disabled:opacity-50`}
               >
@@ -393,9 +421,9 @@ export default function QuickAddTask({ selectedDate, onTaskCreate, onBatchUndo }
               <button
                 onClick={() => setPriority('low')}
                 disabled={isLoading}
-                className={`flex-1 px-3 py-2 rounded-lg border transition-colors ${
+                className={`px-3 py-2 rounded-lg border transition-colors ${
                   priority === 'low'
-                    ? 'bg-green-50 border-green-500 text-green-700'
+                    ? 'bg-green-50 border-green-500 text-green-700 font-medium'
                     : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
                 } disabled:opacity-50`}
               >
@@ -409,15 +437,29 @@ export default function QuickAddTask({ selectedDate, onTaskCreate, onBatchUndo }
             {/* 截止日期 */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                截止日期
+                截止日期（可选）
               </label>
-              <input
-                type="date"
-                value={deadlineDate}
-                onChange={(e) => setDeadlineDate(e.target.value)}
-                disabled={isLoading}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 text-gray-900"
-              />
+              <div className="relative">
+                <input
+                  type="date"
+                  value={deadlineDate}
+                  onChange={(e) => setDeadlineDate(e.target.value)}
+                  disabled={isLoading}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 text-gray-900"
+                />
+                {deadlineDate && (
+                  <button
+                    type="button"
+                    onClick={() => setDeadlineDate('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    title="清除日期"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
             </div>
             
             {/* 截止时间 */}

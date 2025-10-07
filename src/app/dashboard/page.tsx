@@ -1639,6 +1639,21 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
               </DragOverlay>
             </DndContext>
           )}
+
+          {/* AI完善计划按钮 - 在所有任务下方 */}
+          {displayTasks.length > 0 && (
+            <div className="mt-6 flex justify-center">
+              <button
+                onClick={() => {
+                  // TODO: 添加AI完善计划功能
+                  console.log('写好任务了，AI帮忙完善计划')
+                }}
+                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-50 to-blue-50 hover:from-purple-100 hover:to-blue-100 border-2 border-purple-200 hover:border-purple-300 text-purple-700 rounded-xl transition-all font-medium shadow-sm hover:shadow-md"
+              >
+                <span>✨ 写好任务了，AI帮忙完善计划</span>
+              </button>
+            </div>
+          )}
         </div>
 
               {/* 浮动AI助手按钮 - 仅在侧边栏收起时显示 */}

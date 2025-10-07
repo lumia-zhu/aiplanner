@@ -12,7 +12,7 @@ export interface Task {
   title: string
   description?: string
   deadline_datetime?: string // 完整的日期时间（当天+具体时间）
-  priority: 'low' | 'medium' | 'high'
+  priority?: 'low' | 'medium' | 'high' // 可选：不是所有任务都有优先级
   completed: boolean
   created_at: string
   updated_at: string
@@ -33,7 +33,7 @@ export interface TaskInput {
   title: string
   description?: string
   deadline_time?: string // 用户输入的时间（如 "14:00"）
-  priority: 'low' | 'medium' | 'high'
+  priority?: 'low' | 'medium' | 'high' // 可选：不是所有任务都有优先级
   completed?: boolean
 }
 
