@@ -15,6 +15,7 @@ import CalendarView from '@/components/CalendarView'
 import ChatSidebar from '@/components/ChatSidebar'
 import TaskDecompositionModal from '@/components/TaskDecompositionModal'
 import QuickAddTask from '@/components/QuickAddTask'
+import EisenhowerMatrix from '@/components/EisenhowerMatrix'
 import { taskOperations } from '@/utils/taskUtils'
 import { doubaoService, type ChatMessage } from '@/lib/doubaoService'
 import { compressImage, fileToBase64, isFileSizeExceeded, formatFileSize } from '@/utils/imageUtils'
@@ -89,6 +90,9 @@ export default function DashboardPage() {
   // 任务拆解相关状态
   const [showDecompositionModal, setShowDecompositionModal] = useState(false)
   const [decomposingTask, setDecomposingTask] = useState<Task | null>(null)
+  
+  // 艾森豪威尔矩阵状态
+  const [showMatrix, setShowMatrix] = useState(false)
   
   // 动画相关状态
   const [animationOrigin, setAnimationOrigin] = useState<{ x: number; y: number } | null>(null)
@@ -471,6 +475,33 @@ export default function DashboardPage() {
     }
   }
 
+  // 艾森豪威尔矩阵保存处理
+  const handleMatrixSave = async (updatedTasks: { id: string; description: string }[]) => {
+    if (!user) return
+    
+    try {
+      console.log('保存矩阵分类，更新任务数量:', updatedTasks.length)
+      
+      // 批量更新任务
+      await Promise.all(
+        updatedTasks.map(({ id, description }) =>
+          updateTask(id, { description })
+        )
+      )
+      
+      // 刷新任务列表
+      await loadTasks(user.id)
+      
+      // 关闭模态框
+      setShowMatrix(false)
+      
+      alert('✅ 任务优先级分类已保存！')
+    } catch (error) {
+      console.error('保存矩阵分类失败:', error)
+      alert('❌ 保存失败，请重试')
+    }
+  }
+  
   const handleStuckHelp = () => {
     // 生成求助提示
     const helpPrompt = `我在使用任务管理系统时遇到了困难，需要您的帮助。
@@ -1589,6 +1620,17 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
           </div>
           <div className="flex items-center space-x-3">
                 <button
+                  onClick={() => setShowMatrix(true)}
+                  className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
+                  style={{ backgroundColor: '#FF6B6B' }}
+                  title="AI帮助排列任务优先级"
+                >
+                  <svg className="w-4 h-4 fill-current flex-shrink-0" viewBox="0 0 20 20">
+                    <path d="M3 3a1 1 0 000 2h11a1 1 0 100-2H3zM3 7a1 1 0 000 2h7a1 1 0 100-2H3zM3 11a1 1 0 100 2h4a1 1 0 100-2H3zM15 8a1 1 0 10-2 0v5.586l-1.293-1.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L15 13.586V8z"/>
+                  </svg>
+                  排列优先级
+                </button>
+                <button
                   onClick={handleStuckHelp}
                   className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
                   style={{ backgroundColor: '#4ECDC4' }}
@@ -1976,6 +2018,15 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
           }}
           parentTask={decomposingTask}
           onConfirm={handleSubtasksConfirm}
+        />
+      )}
+
+      {/* 艾森豪威尔矩阵 */}
+      {showMatrix && (
+        <EisenhowerMatrix
+          tasks={displayTasks}
+          onClose={() => setShowMatrix(false)}
+          onSave={handleMatrixSave}
         />
       )}
     </div>
