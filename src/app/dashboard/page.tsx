@@ -285,13 +285,32 @@ export default function DashboardPage() {
 
       if (result.error) {
         setError(result.error)
+        return
       } else if (result.task) {
         // 直接添加新任务到列表
         setTasks(prevTasks => taskOperations.addTask(prevTasks, result.task!))
+        // 返回任务ID
+        return { id: result.task.id }
       }
     } catch (error) {
       setError('创建任务时发生错误')
       console.error('快速添加任务异常:', error)
+    }
+  }
+
+  // 批量撤销任务
+  const handleBatchUndo = async (taskIds: string[]) => {
+    if (!user) return
+
+    try {
+      // 批量删除任务
+      await Promise.all(taskIds.map(taskId => deleteTask(taskId)))
+      
+      // 从列表中移除任务
+      setTasks(prevTasks => prevTasks.filter(task => !taskIds.includes(task.id)))
+    } catch (error) {
+      console.error('批量撤销失败:', error)
+      throw error
     }
   }
 
@@ -1551,6 +1570,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
         <QuickAddTask 
           selectedDate={selectedDate}
           onTaskCreate={handleQuickAddTask}
+          onBatchUndo={handleBatchUndo}
         />
 
         {/* 任务列表 */}

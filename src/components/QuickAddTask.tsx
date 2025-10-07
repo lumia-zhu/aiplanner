@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, KeyboardEvent } from 'react'
+import { useToast, ToastContainer } from './Toast'
 
 interface QuickAddTaskProps {
   selectedDate: Date
@@ -9,10 +10,11 @@ interface QuickAddTaskProps {
     description?: string
     priority: 'high' | 'medium' | 'low'
     deadline_time?: string
-  }) => Promise<void>
+  }) => Promise<{ id?: string } | void>
+  onBatchUndo?: (taskIds: string[]) => Promise<void>
 }
 
-export default function QuickAddTask({ selectedDate, onTaskCreate }: QuickAddTaskProps) {
+export default function QuickAddTask({ selectedDate, onTaskCreate, onBatchUndo }: QuickAddTaskProps) {
   // 状态管理
   const [isExpanded, setIsExpanded] = useState(false)
   const [title, setTitle] = useState('')
@@ -21,9 +23,40 @@ export default function QuickAddTask({ selectedDate, onTaskCreate }: QuickAddTas
   const [deadlineDate, setDeadlineDate] = useState('')
   const [deadlineTime, setDeadlineTime] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  
+  // 批量任务检测状态
+  const [batchPreview, setBatchPreview] = useState<{
+    isMultiple: boolean
+    tasks: string[]
+    count: number
+  } | null>(null)
+  
+  // 最近批量创建的任务记录（用于撤销）
+  const [lastBatchCreated, setLastBatchCreated] = useState<{
+    taskIds: string[]
+    count: number
+  } | null>(null)
+
+  // Toast 提示
+  const { toasts, dismissToast, success, error, info } = useToast()
 
   // 引用
   const titleInputRef = useRef<HTMLInputElement>(null)
+
+  // 分隔符检测函数
+  const detectMultipleTasks = (input: string) => {
+    // 同时支持中文分号和英文分号
+    const separators = /[;；]/g
+    const tasks = input.split(separators)
+      .map(t => t.trim())
+      .filter(t => t.length > 0)
+    
+    return {
+      isMultiple: tasks.length > 1,
+      tasks: tasks,
+      count: tasks.length
+    }
+  }
 
   // 当选中日期变化时，更新默认截止日期
   useEffect(() => {
@@ -32,14 +65,35 @@ export default function QuickAddTask({ selectedDate, onTaskCreate }: QuickAddTas
     const day = String(selectedDate.getDate()).padStart(2, '0')
     setDeadlineDate(`${year}-${month}-${day}`)
   }, [selectedDate])
+  
+  // 监听输入框内容变化，实时检测批量任务
+  useEffect(() => {
+    if (title.trim()) {
+      const detection = detectMultipleTasks(title)
+      if (detection.isMultiple) {
+        setBatchPreview(detection)
+      } else {
+        setBatchPreview(null)
+      }
+    } else {
+      setBatchPreview(null)
+    }
+  }, [title])
 
   // 处理Enter键快速添加
   const handleKeyDown = async (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
-      // Enter键：快速添加
+      // Enter键：快速添加或批量添加
       e.preventDefault()
       if (title.trim()) {
-        await handleQuickAdd()
+        // 检查是否为批量任务
+        if (batchPreview && batchPreview.isMultiple) {
+          // 批量创建
+          await handleBatchCreate(batchPreview.tasks)
+        } else {
+          // 单任务创建
+          await handleQuickAdd()
+        }
       }
     } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       // Ctrl+Enter：展开详细模式
@@ -76,6 +130,73 @@ export default function QuickAddTask({ selectedDate, onTaskCreate }: QuickAddTas
       titleInputRef.current?.focus()
     } catch (error) {
       console.error('快速添加任务失败:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // 批量撤销
+  const handleBatchUndo = async () => {
+    if (!lastBatchCreated || !onBatchUndo) return
+
+    const { taskIds, count } = lastBatchCreated
+    
+    try {
+      await onBatchUndo(taskIds)
+      setLastBatchCreated(null)
+      info(`↩️ 已撤销 ${count} 个任务`)
+    } catch (err) {
+      console.error('撤销失败:', err)
+      error('❌ 撤销失败，请重试')
+    }
+  }
+
+  // 批量创建任务
+  const handleBatchCreate = async (titles: string[]) => {
+    if (titles.length === 0) return
+
+    setIsLoading(true)
+    try {
+      // 逐个创建任务并收集任务ID
+      const results = await Promise.all(
+        titles.map(taskTitle => 
+          onTaskCreate({
+            title: taskTitle,
+            priority: 'medium',
+          })
+        )
+      )
+      
+      // 提取任务ID（过滤掉undefined）
+      const taskIds = results
+        .map(result => result?.id)
+        .filter((id): id is string => id !== undefined)
+      
+      // 清空输入并聚焦
+      setTitle('')
+      setBatchPreview(null)
+      titleInputRef.current?.focus()
+      
+      // 保存批量创建的任务记录
+      if (taskIds.length > 0 && onBatchUndo) {
+        setLastBatchCreated({
+          taskIds,
+          count: taskIds.length
+        })
+        
+        // 显示带撤销按钮的成功提示
+        success(`✨ 成功创建 ${taskIds.length} 个任务！`)
+      } else {
+        // 如果没有撤销功能，显示普通成功提示
+        success(`✨ 成功创建 ${titles.length} 个任务！`)
+      }
+      
+      // 返回成功创建的任务数量
+      return titles.length
+    } catch (err) {
+      console.error('批量创建任务失败:', err)
+      error('❌ 批量创建任务失败，请重试')
+      throw err
     } finally {
       setIsLoading(false)
     }
@@ -157,9 +278,13 @@ export default function QuickAddTask({ selectedDate, onTaskCreate }: QuickAddTas
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="输入任务标题，按 Enter 快速创建，点击右侧展开添加更多属性..."
+            placeholder="输入任务，用 ; 或 ； 分隔可批量添加，Enter 快速创建"
             disabled={isLoading}
-            className="w-full pl-12 pr-4 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 placeholder-gray-400 transition-all hover:border-gray-300"
+            className={`w-full pl-12 pr-4 py-2.5 border-2 rounded-lg focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 placeholder-gray-400 transition-all ${
+              batchPreview && batchPreview.isMultiple
+                ? 'border-purple-300 focus:ring-2 focus:ring-purple-400 focus:border-purple-400 bg-purple-50/30'
+                : 'border-gray-200 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 hover:border-gray-300'
+            }`}
           />
         </div>
         
@@ -180,6 +305,44 @@ export default function QuickAddTask({ selectedDate, onTaskCreate }: QuickAddTas
           </svg>
         </button>
       </div>
+
+      {/* 批量任务预览提示 */}
+      {batchPreview && batchPreview.isMultiple && !isExpanded && (
+        <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg animate-fade-in">
+          <div className="flex items-center gap-2 mb-2">
+            <svg className="w-5 h-5 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span className="text-sm font-medium text-blue-800">
+              检测到 {batchPreview.count} 个任务，按 Enter 将批量创建
+            </span>
+          </div>
+          <div className="ml-7 space-y-1">
+            <div className="text-xs font-medium text-blue-700 mb-1.5">📝 任务预览：</div>
+            {batchPreview.tasks.map((task, index) => (
+              <div key={index} className="text-sm text-blue-900 flex items-start gap-2">
+                <span className="text-blue-400 font-medium flex-shrink-0">{index + 1}.</span>
+                <span className="break-all">{task}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 批量撤销按钮 */}
+      {lastBatchCreated && onBatchUndo && !isExpanded && (
+        <div className="mt-2 animate-fade-in">
+          <button
+            onClick={handleBatchUndo}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-800 rounded-lg transition-colors text-sm font-medium"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+            </svg>
+            <span>撤销刚才创建的 {lastBatchCreated.count} 个任务</span>
+          </button>
+        </div>
+      )}
 
       {/* 详细模式 - 展开表单 */}
       {isExpanded && (
@@ -304,6 +467,9 @@ export default function QuickAddTask({ selectedDate, onTaskCreate }: QuickAddTas
           </div>
         </div>
       )}
+
+      {/* Toast 通知容器 */}
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   )
 }
