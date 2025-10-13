@@ -19,15 +19,30 @@
 - `created_at` - 创建时间
 - `updated_at` - 更新时间（自动更新）
 
+### chat_messages 表
+- `id` - UUID 主键，自动生成
+- `user_id` - 用户ID，外键关联 users.id
+- `chat_date` - 对话所属日期（DATE 类型，用于按天隔离对话）
+- `role` - 消息角色：'user'（用户）或 'assistant'（AI助手）
+- `content` - 消息内容（JSONB 格式，支持文本、图片等多种内容）
+- `created_at` - 创建时间
+
 ## 🚀 设置步骤
 
 ### 1. 在 Supabase 控制台中执行 SQL
 
+#### 初始化数据库（首次设置）
 1. 登录你的 Supabase 项目: https://eipmjbxhwaviitzerjkr.supabase.co
 2. 点击左侧菜单的 **"SQL Editor"**
 3. 点击 **"New query"**
 4. 复制并粘贴 `schema-custom-auth.sql` 的内容
 5. 点击 **"Run"** 执行
+
+#### 添加 AI 对话功能（新增）
+1. 在 SQL Editor 中点击 **"New query"**
+2. 复制并粘贴 `create-chat-messages-table.sql` 的内容
+3. 点击 **"Run"** 执行
+4. 执行成功后会看到 "Success. No rows returned" 提示
 
 ### 2. （可选）插入测试数据
 
@@ -54,6 +69,11 @@ WHERE table_name = 'users';
 SELECT column_name, data_type, is_nullable 
 FROM information_schema.columns 
 WHERE table_name = 'tasks';
+
+-- 查看 chat_messages 表结构（新增）
+SELECT column_name, data_type, is_nullable 
+FROM information_schema.columns 
+WHERE table_name = 'chat_messages';
 ```
 
 ## 🔍 任务排序查询

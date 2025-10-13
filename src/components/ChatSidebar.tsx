@@ -173,7 +173,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                     {message.role === 'user' ? '我' : 'AI'}
                   </span>
                 </div>
-                <div className={`rounded-lg px-3 py-2 shadow-sm flex-1 ${
+                <div className={`rounded-lg px-3 py-2 shadow-sm max-w-[80%] ${
                   message.role === 'user' ? 'bg-green-100' : 'bg-white'
                 }`}>
                   {message.content.map((content, contentIndex) => (
@@ -220,12 +220,12 @@ const ChatSidebar = memo<ChatSidebarProps>(({
           )}
           
           {/* 流式输出和发送中指示器 */}
-          {isSending && (
+          {isSending && !streamingMessage && (
             <div className="flex items-start gap-3">
               <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
                 <span className="text-white text-sm font-medium">AI</span>
               </div>
-              <div className="bg-white rounded-lg px-3 py-2 shadow-sm flex-1">
+              <div className="bg-white rounded-lg px-3 py-2 shadow-sm max-w-[80%]">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
                   <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
@@ -243,7 +243,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
               <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
                 <span className="text-white text-sm font-medium">AI</span>
               </div>
-              <div className="bg-white rounded-lg px-3 py-2 shadow-sm flex-1">
+              <div className="bg-white rounded-lg px-3 py-2 shadow-sm max-w-[80%]">
                 <p className="text-sm whitespace-pre-wrap" style={{ color: '#3f3f3f' }}>
                   {streamingMessage}
                   <span className="inline-block w-2 h-4 bg-blue-500 ml-1 animate-pulse"></span>

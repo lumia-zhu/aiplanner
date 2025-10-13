@@ -19,6 +19,7 @@ import EisenhowerMatrix from '@/components/EisenhowerMatrix'
 import { taskOperations } from '@/utils/taskUtils'
 import { doubaoService, type ChatMessage } from '@/lib/doubaoService'
 import { compressImage, fileToBase64, isFileSizeExceeded, formatFileSize } from '@/utils/imageUtils'
+import { saveChatMessage, getChatMessages, clearChatMessages } from '@/lib/chatMessages'
 
 // 任务识别相关类型
 interface RecognizedTask {
@@ -67,6 +68,7 @@ export default function DashboardPage() {
   const [isSending, setIsSending] = useState(false)
   const [streamingMessage, setStreamingMessage] = useState('')
   const [isDragOver, setIsDragOver] = useState(false)
+  const [isChatLoading, setIsChatLoading] = useState(false) // 加载对话记录的状态
   const chatScrollRef = useRef<HTMLDivElement | null>(null)
   
   // 侧边栏展开/收起状态（从localStorage读取，默认收起）
@@ -132,6 +134,35 @@ export default function DashboardPage() {
     })
   )
 
+  // 加载某天的对话记录
+  const loadChatMessages = useCallback(async (date: Date) => {
+    if (!user) return
+    
+    setIsChatLoading(true)
+    console.log('📖 开始加载对话记录...')
+    
+    try {
+      // 格式化日期为 YYYY-MM-DD
+      const year = date.getFullYear()
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      const chatDate = `${year}-${month}-${day}`
+      
+      const result = await getChatMessages(user.id, chatDate)
+      
+      if (result.success) {
+        setChatMessages(result.messages)
+        console.log(`✅ 加载了 ${result.messages.length} 条对话记录`)
+      } else {
+        console.error('❌ 加载对话失败:', result.error)
+      }
+    } catch (error) {
+      console.error('❌ 加载对话异常:', error)
+    } finally {
+      setIsChatLoading(false)
+    }
+  }, [user])
+
   useEffect(() => {
     const currentUser = getUserFromStorage()
     if (!currentUser) {
@@ -141,6 +172,13 @@ export default function DashboardPage() {
       loadTasks(currentUser.id)
     }
   }, [router])
+
+  // 监听日期变化，自动加载该日期的对话记录
+  useEffect(() => {
+    if (user) {
+      loadChatMessages(selectedDate)
+    }
+  }, [selectedDate, user, loadChatMessages])
 
   const loadTasks = async (userId: string) => {
     setIsLoading(true)
@@ -888,6 +926,36 @@ export default function DashboardPage() {
     );
   }
 
+  // 清空当前日期的对话记录
+  const handleClearChat = async () => {
+    if (!user) return
+    
+    const confirmed = window.confirm('确定要清空当前日期的所有对话记录吗？此操作无法撤销。')
+    if (!confirmed) return
+    
+    try {
+      // 格式化日期为 YYYY-MM-DD
+      const year = selectedDate.getFullYear()
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0')
+      const day = String(selectedDate.getDate()).padStart(2, '0')
+      const chatDate = `${year}-${month}-${day}`
+      
+      const result = await clearChatMessages(user.id, chatDate)
+      
+      if (result.success) {
+        setChatMessages([])
+        console.log(`✅ 已清空 ${result.count} 条对话记录`)
+        alert(`✅ 已清空 ${result.count} 条对话记录`)
+      } else {
+        console.error('❌ 清空对话失败:', result.error)
+        alert(`❌ 清空对话失败: ${result.error}`)
+      }
+    } catch (error) {
+      console.error('❌ 清空对话异常:', error)
+      alert('❌ 清空对话失败，请稍后重试')
+    }
+  }
+
   // 处理发送消息
   const handleSendMessage = async () => {
     if (!chatMessage.trim() && !selectedImage) return
@@ -989,7 +1057,15 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                 }
               ]
             }
+            setIsSending(false)  // 立即停止"正在思考"的显示
             setChatMessages([...newMessages, aiMessage])
+            
+            // 保存用户消息和AI回复到数据库
+            if (user) {
+              const chatDate = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`
+              await saveChatMessage(user.id, chatDate, 'user', userMessage.content)
+              await saveChatMessage(user.id, chatDate, 'assistant', aiMessage.content)
+            }
           } else {
             console.log('未识别到任何任务');
             // 添加未识别到任务的消息
@@ -1002,7 +1078,15 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                 }
               ]
             }
+            setIsSending(false)  // 立即停止"正在思考"的显示
             setChatMessages([...newMessages, aiMessage])
+            
+            // 保存用户消息和AI回复到数据库
+            if (user) {
+              const chatDate = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`
+              await saveChatMessage(user.id, chatDate, 'user', userMessage.content)
+              await saveChatMessage(user.id, chatDate, 'assistant', aiMessage.content)
+            }
           }
         } else {
           // 普通聊天模式，正常显示AI回复
@@ -1015,7 +1099,20 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
               }
             ]
           }
+          
+          // 注意：不要立即 setChatMessages，因为 streamingMessage 还在显示
+          // 我们在 finally 块中清空 streamingMessage 后，这条消息才会被添加
+          // 为了避免重复，我们先清空 streamingMessage 和 isSending，再添加完整消息
+          setStreamingMessage('')
+          setIsSending(false)  // 立即停止"正在思考"的显示
           setChatMessages([...newMessages, aiMessage])
+          
+          // 保存用户消息和AI回复到数据库（这个过程可能需要时间）
+          if (user) {
+            const chatDate = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`
+            await saveChatMessage(user.id, chatDate, 'user', userMessage.content)
+            await saveChatMessage(user.id, chatDate, 'assistant', aiMessage.content)
+          }
         }
       } else {
         // 显示错误消息
@@ -1259,7 +1356,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                   </div>
                   {chatMessages.length > 0 && (
                     <button
-                      onClick={() => setChatMessages([])}
+                      onClick={handleClearChat}
                       className="text-xs text-gray-500 hover:text-red-600 underline"
                     >
                       清空对话
