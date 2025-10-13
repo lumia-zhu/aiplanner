@@ -40,6 +40,7 @@ interface ChatSidebarProps {
   
   // 事件处理函数
   handleSendMessage: () => void
+  handleClearChat: () => void
   handleDragEnter: (e: React.DragEvent) => void
   handleDragLeave: (e: React.DragEvent) => void
   handleDragOver: (e: React.DragEvent) => void
@@ -74,6 +75,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   showTaskPreview,
   setShowTaskPreview,
   handleSendMessage,
+  handleClearChat,
   handleDragEnter,
   handleDragLeave,
   handleDragOver,
@@ -125,7 +127,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
               </div>
               {chatMessages.length > 0 && (
             <button
-              onClick={() => setChatMessages([])}
+              onClick={handleClearChat}
               className="text-xs text-gray-500 hover:text-red-600 underline"
             >
               清空对话

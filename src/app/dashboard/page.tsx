@@ -1919,6 +1919,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
               showTaskPreview={showTaskPreview}
               setShowTaskPreview={setShowTaskPreview}
               handleSendMessage={handleSendMessage}
+              handleClearChat={handleClearChat}
               handleDragEnter={handleDragEnter}
               handleDragLeave={handleDragLeave}
               handleDragOver={handleDragOver}

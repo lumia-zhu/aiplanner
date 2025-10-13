@@ -163,11 +163,16 @@ export async function clearChatMessages(
     }
     
     console.log('🗑️ 开始删除操作...')
+    console.log('🔍 删除条件:', {
+      user_id: userId,
+      chat_date: chatDate,
+      messagesToDelete: existingMessages.map(m => m.id)
+    })
     
-    // 删除该用户该日期的所有消息
-    const { data, error } = await supabase
+    // 方案1: 按条件删除
+    const { data, error, count: deletedCount } = await supabase
       .from('chat_messages')
-      .delete()
+      .delete({ count: 'exact' })
       .eq('user_id', userId)
       .eq('chat_date', chatDate)
       .select()
@@ -175,6 +180,7 @@ export async function clearChatMessages(
     console.log('🔍 删除操作结果:', {
       hasData: !!data,
       dataLength: data?.length || 0,
+      deletedCount: deletedCount,
       hasError: !!error
     })
     
@@ -189,9 +195,9 @@ export async function clearChatMessages(
       return { success: false, error: error.message || JSON.stringify(error), count: 0 }
     }
     
-    const count = data?.length || 0
-    console.log(`✅ 已清空 ${count} 条消息，实际删除的ID:`, data?.map(d => d.id))
-    return { success: true, count }
+    const finalCount = data?.length || deletedCount || 0
+    console.log(`✅ 已清空 ${finalCount} 条消息，实际删除的ID:`, data?.map(d => d.id))
+    return { success: true, count: finalCount }
     
   } catch (error) {
     console.error('❌ 清空消息异常:', error)
