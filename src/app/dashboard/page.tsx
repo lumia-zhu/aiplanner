@@ -69,13 +69,13 @@ export default function DashboardPage() {
   const [isDragOver, setIsDragOver] = useState(false)
   const chatScrollRef = useRef<HTMLDivElement | null>(null)
   
-  // 侧边栏展开/收起状态（从localStorage读取，默认展开）
+  // 侧边栏展开/收起状态（从localStorage读取，默认收起）
   const [isChatSidebarOpen, setIsChatSidebarOpen] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('chatSidebarOpen')
-      return saved !== null ? JSON.parse(saved) : true
+      return saved !== null ? JSON.parse(saved) : false
     }
-    return true
+    return false
   })
   
   // 图片预处理缓存
@@ -103,6 +103,27 @@ export default function DashboardPage() {
   const newTaskButtonRef = useRef<HTMLButtonElement>(null)
   
   const router = useRouter()
+  // 高级工具开关（默认关闭），用于控制：排列优先级按钮、拆解入口、AI侧边栏展开
+  const [advancedToolsEnabled, setAdvancedToolsEnabled] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('advancedToolsEnabled')
+      return saved !== null ? JSON.parse(saved) : false
+    }
+    return false
+  })
+
+  const enableAdvancedTools = useCallback(() => {
+    setAdvancedToolsEnabled(true)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('advancedToolsEnabled', 'true')
+    }
+    // 同时展开AI侧边栏
+    setIsChatSidebarOpen(true)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('chatSidebarOpen', 'true')
+    }
+  }, [])
+
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -1595,6 +1616,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
             </p>
           </div>
           <div className="flex items-center space-x-3">
+                {advancedToolsEnabled && (
                 <button
                   onClick={() => setShowMatrix(true)}
                   className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
@@ -1606,6 +1628,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                   </svg>
                   排列优先级
                 </button>
+                )}
                 {/* 移除“卡住啦”按钮 */}
                 <button
                   ref={importButtonRef}
@@ -1722,6 +1745,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                     onDecompose={handleDecomposeTask}
                     onToggleExpansion={handleToggleExpansion}
                     onPromoteSubtasks={handlePromoteSubtasks}
+                    decomposeEnabled={advancedToolsEnabled}
                   />
                 ))}
               </SortableContext>
@@ -1747,8 +1771,9 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
             <div className="mt-6 flex justify-center">
               <button
                 onClick={() => {
-                  // TODO: 添加AI完善计划功能
-                  console.log('写好任务了，AI帮忙完善计划')
+                  // 解锁高级功能并展开侧边栏
+                  enableAdvancedTools()
+                  console.log('写好任务了，开启高级功能')
                 }}
                 className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-50 to-blue-50 hover:from-purple-100 hover:to-blue-100 border-2 border-purple-200 hover:border-purple-300 text-purple-700 rounded-xl transition-all font-medium shadow-sm hover:shadow-md"
               >

@@ -11,11 +11,12 @@ interface TaskItemProps {
   onDecompose: (task: Task) => void
   onToggleExpansion?: (taskId: string, isExpanded: boolean) => void
   onPromoteSubtasks?: (parentId: string) => void
+  decomposeEnabled?: boolean
   isDragging?: boolean
   dragHandleProps?: any
 }
 
-export default function TaskItem({ task, onToggleComplete, onEdit, onDelete, onDecompose, onToggleExpansion, onPromoteSubtasks, isDragging, dragHandleProps }: TaskItemProps) {
+export default function TaskItem({ task, onToggleComplete, onEdit, onDelete, onDecompose, onToggleExpansion, onPromoteSubtasks, decomposeEnabled = true, isDragging, dragHandleProps }: TaskItemProps) {
   const [isDeleting, setIsDeleting] = useState(false)
   const isOverdue = isTaskOverdue(task)
   
@@ -173,16 +174,18 @@ export default function TaskItem({ task, onToggleComplete, onEdit, onDelete, onD
 
             {/* 操作按钮 */}
             <div className="flex items-center space-x-2">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onDecompose(task)
-                }}
-                className="text-purple-600 hover:text-purple-800 text-sm font-medium"
-                title="将任务拆解为多个子任务"
-              >
-                拆解任务
-              </button>
+              {decomposeEnabled && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onDecompose(task)
+                  }}
+                  className="text-purple-600 hover:text-purple-800 text-sm font-medium"
+                  title="将任务拆解为多个子任务"
+                >
+                  拆解任务
+                </button>
+              )}
               <button
                 onClick={(e) => {
                   e.stopPropagation()
