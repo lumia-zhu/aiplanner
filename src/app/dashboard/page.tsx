@@ -502,31 +502,7 @@ export default function DashboardPage() {
     }
   }
   
-  const handleStuckHelp = () => {
-    // 生成求助提示
-    const helpPrompt = `我在使用任务管理系统时遇到了困难，需要您的帮助。
-
-当前情况：
-- 我有 ${displayTasks.length} 个任务
-- 其中 ${displayTasks.filter(t => !t.completed).length} 个待完成
-- 过期任务：${displayTasks.filter(t => !t.completed && t.deadline_datetime && new Date(t.deadline_datetime) < new Date()).length} 个
-
-我可能需要帮助的方面：
-1. 如何更好地安排任务优先级？
-2. 如何制定合理的时间计划？
-3. 如何处理过期或紧急的任务？
-4. 如何提高任务执行效率？
-5. 如何使用系统的各种功能？
-
-请根据我的情况给出具体的建议和指导。`
-
-    // 设置聊天消息并关闭任务识别模式
-    setIsTaskRecognitionMode(false)
-    setChatMessage(helpPrompt)
-    
-    // 提示用户
-    alert('AI助手已准备好帮助您！求助信息已填入右侧聊天框，请点击发送获取专业建议。')
-  }
+  // 已移除 handleStuckHelp（对应按钮已删除）
 
   const handleTasksImported = (importedTasks: Task[]) => {
     // 将导入的任务添加到当前任务列表
