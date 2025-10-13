@@ -1630,17 +1630,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                   </svg>
                   排列优先级
                 </button>
-                <button
-                  onClick={handleStuckHelp}
-                  className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
-                  style={{ backgroundColor: '#4ECDC4' }}
-                  title="获取AI帮助，解决遇到的困难"
-                >
-                  <svg className="w-4 h-4 fill-current flex-shrink-0" viewBox="0 0 20 20">
-                    <path d="M2 3a1 1 0 011-1h1a1 1 0 010 2H3a1 1 0 01-1-1zM3 7a1 1 0 000 2h1a1 1 0 100-2H3zM3 11a1 1 0 100 2h1a1 1 0 100-2H3zM4 15a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zM6 7a1 1 0 011-1h7a1 1 0 110 2H7a1 1 0 01-1-1zM6 11a1 1 0 011-1h7a1 1 0 110 2H7a1 1 0 01-1-1zM6 15a1 1 0 011-1h7a1 1 0 110 2H7a1 1 0 01-1-1z"/>
-                  </svg>
-                  卡住啦
-                </button>
+                {/* 移除“卡住啦”按钮 */}
                 <button
                   ref={importButtonRef}
                   onClick={handleShowImport}
