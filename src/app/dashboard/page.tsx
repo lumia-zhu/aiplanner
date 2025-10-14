@@ -21,6 +21,7 @@ import { doubaoService, type ChatMessage } from '@/lib/doubaoService'
 import { compressImage, fileToBase64, isFileSizeExceeded, formatFileSize } from '@/utils/imageUtils'
 import { saveChatMessage, getChatMessages, clearChatMessages } from '@/lib/chatMessages'
 import { useAIWorkflow } from '@/hooks/useAIWorkflow'
+import { useRealWorkflow } from '@/hooks/useRealWorkflow'
 
 // 任务识别相关类型
 interface RecognizedTask {
@@ -115,7 +116,10 @@ export default function DashboardPage() {
     return false
   })
 
-  // AI 工作流 Hook
+  // AI 工作流 Hook - 切换到真实工作流
+  // 使用环境变量决定使用 Mock 还是真实工作流
+  const useWorkflow = process.env.NEXT_PUBLIC_DOUBAO_API_KEY ? useRealWorkflow : useAIWorkflow
+  
   const {
     status: workflowStatus,
     progress: workflowProgress,
@@ -126,10 +130,59 @@ export default function DashboardPage() {
     pauseWorkflow,
     resumeWorkflow,
     stopWorkflow,
-    acceptSuggestion,
-    rejectSuggestion,
+    acceptSuggestion: originalAcceptSuggestion,
+    rejectSuggestion: originalRejectSuggestion,
     clearSuggestions,
-  } = useAIWorkflow()
+  } = useWorkflow()
+
+  // 处理接受建议
+  const handleAcceptSuggestion = useCallback(async (chipId: string) => {
+    const suggestion = workflowSuggestions.find(s => s.id === chipId)
+    if (!suggestion) return
+
+    console.log('✅ 接受建议:', suggestion)
+
+    // 根据建议类型执行相应操作
+    switch (suggestion.action) {
+      case 'add_subtask':
+        // TODO: 添加子任务到对应的主任务
+        alert(`✅ 已添加子任务: ${suggestion.text}`)
+        break
+      
+      case 'update_time':
+        // TODO: 更新任务的预估时间
+        alert(`⏱️ 已更新时间: ${suggestion.text}`)
+        break
+      
+      case 'set_priority':
+        // TODO: 设置任务优先级
+        alert(`🎯 已设置优先级: ${suggestion.text}`)
+        break
+      
+      case 'add_checklist':
+        // TODO: 添加检查清单项
+        alert(`✅ 已添加检查项: ${suggestion.text}`)
+        break
+      
+      case 'clarify':
+        // TODO: 显示澄清问题对话框
+        alert(`❓ 澄清问题: ${suggestion.text}`)
+        break
+      
+      default:
+        alert(`💡 已接受建议: ${suggestion.text}`)
+    }
+
+    // 从列表中移除
+    originalAcceptSuggestion(chipId)
+  }, [workflowSuggestions, originalAcceptSuggestion])
+
+  // 处理拒绝建议
+  const handleRejectSuggestion = useCallback((chipId: string) => {
+    const suggestion = workflowSuggestions.find(s => s.id === chipId)
+    console.log('❌ 拒绝建议:', suggestion)
+    originalRejectSuggestion(chipId)
+  }, [workflowSuggestions, originalRejectSuggestion])
 
   const enableAdvancedTools = useCallback(() => {
     setAdvancedToolsEnabled(true)
@@ -1882,7 +1935,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
 
           {/* AI完善计划按钮 - 在所有任务下方 */}
           {displayTasks.length > 0 && (
-            <div className="mt-6 flex justify-center">
+            <div className="mt-6 flex flex-col items-center gap-3">
               <button
                 onClick={async () => {
                   // 解锁高级功能并展开侧边栏
@@ -1908,6 +1961,28 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                   <span>✨ 写好任务了，AI帮忙完善计划</span>
                 )}
               </button>
+              
+              {/* 工作流错误提示 */}
+              {workflowError && (
+                <div className="max-w-md px-4 py-3 bg-red-50 border border-red-200 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <span className="text-red-500 text-lg">⚠️</span>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-red-800">工作流执行失败</p>
+                      <p className="text-xs text-red-600 mt-1">{workflowError}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* 工作流模式提示 */}
+              <div className="text-xs text-gray-500">
+                {process.env.NEXT_PUBLIC_DOUBAO_API_KEY ? (
+                  <span className="text-green-600">🟢 真实 AI 模式</span>
+                ) : (
+                  <span className="text-yellow-600">🟡 Mock 演示模式</span>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -1949,8 +2024,8 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
               setIsTaskRecognitionMode={setIsTaskRecognitionMode}
               workflowProgress={workflowProgress}
               suggestions={workflowSuggestions}
-              onAcceptSuggestion={acceptSuggestion}
-              onRejectSuggestion={rejectSuggestion}
+              onAcceptSuggestion={handleAcceptSuggestion}
+              onRejectSuggestion={handleRejectSuggestion}
               recognizedTasks={recognizedTasks}
               showTaskPreview={showTaskPreview}
               setShowTaskPreview={setShowTaskPreview}
