@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
       
       console.error('获取iCal数据失败:', status, statusText, lastError?.message)
       
-      let errorMessage = `无法获取iCal数据: ${status} ${statusText}`
+      const errorMessage = `无法获取iCal数据: ${status} ${statusText}`
       let details = '请检查iCal链接是否正确'
       
       if (status === 401) {

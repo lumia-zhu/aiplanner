@@ -17,3 +17,4 @@ FROM pg_tables
 WHERE schemaname = 'public' 
 AND tablename = 'chat_messages';
 
+
