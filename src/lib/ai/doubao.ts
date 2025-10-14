@@ -74,6 +74,8 @@ export class DoubaoAdapter extends BaseModelAdapter {
           })),
           temperature: mergedOptions.temperature,
           max_tokens: mergedOptions.maxTokens,
+          // 关闭深度思考以提升响应速度
+          thinking: { type: 'disabled' },
         }),
       })
 
@@ -138,6 +140,8 @@ export class DoubaoAdapter extends BaseModelAdapter {
           })),
           temperature: mergedOptions.temperature || 0.3,
           max_tokens: mergedOptions.maxTokens,
+          // 关闭深度思考以提升响应速度
+          thinking: { type: 'disabled' },
           // 使用豆包的 response_format: json_schema 强约束输出
           response_format: {
             type: 'json_schema',
