@@ -4,6 +4,7 @@ import React, { memo, useRef } from 'react'
 import { doubaoService, type ChatMessage } from '@/lib/doubaoService'
 import SuggestionChips from '@/components/SuggestionChips'
 import WorkflowProgress from '@/components/WorkflowProgress'
+import ActionRecommendations from '@/components/ActionRecommendations'
 import type { SuggestionChip } from '@/types/workflow'
 import type { WorkflowProgress as IWorkflowProgress } from '@/hooks/useAIWorkflow'
 
@@ -48,6 +49,19 @@ interface ChatSidebarProps {
   onAcceptSuggestion?: (chipId: string) => void
   onRejectSuggestion?: (chipId: string) => void
   
+  // 推荐操作标签(新增)
+  recommendations?: Array<{
+    type: 'clarify' | 'decompose' | 'estimate' | 'prioritize' | 'checklist';
+    label: string;
+    icon: string;
+    taskIds: string[];
+    count: number;
+    description: string;
+  }>
+  onActionClick?: (type: string, taskIds: string[]) => void
+  isExecuting?: boolean
+  executingAction?: string | null
+  
   // 事件处理函数
   handleSendMessage: () => void
   handleClearChat: () => void
@@ -88,6 +102,11 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   suggestions = [],
   onAcceptSuggestion,
   onRejectSuggestion,
+  // 推荐标签
+  recommendations,
+  onActionClick,
+  isExecuting,
+  executingAction,
   handleSendMessage,
   handleClearChat,
   handleDragEnter,
@@ -417,6 +436,16 @@ const ChatSidebar = memo<ChatSidebarProps>(({
               </button>
             </div>
           </div>
+        )}
+
+        {/* AI 推荐操作标签（在输入框上方，左对齐） */}
+        {recommendations && recommendations.length > 0 && (
+          <ActionRecommendations
+            recommendations={recommendations}
+            onActionClick={onActionClick || (() => {})}
+            isExecuting={isExecuting}
+            executingType={executingAction || undefined}
+          />
         )}
 
         <div className="flex items-stretch gap-2">

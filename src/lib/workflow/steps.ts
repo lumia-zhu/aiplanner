@@ -30,7 +30,7 @@ export type StepExecutor = (
 ) => Promise<StepExecutionResult>;
 
 /**
- * 步骤 1: 分析任务复杂度
+ * 步骤 1: 分析任务复杂度（新版：为所有任务生成推荐）
  */
 export const analyzeTaskComplexity: StepExecutor = async (context, toolRegistry, aiService, input) => {
   console.log('📊 开始分析任务复杂度...');
@@ -44,61 +44,148 @@ export const analyzeTaskComplexity: StepExecutor = async (context, toolRegistry,
       };
     }
 
-    // 使用 AI 分析任务复杂度
-    const prompt = `请分析以下任务的复杂度:
+    // 使用 AI 逐个分析每个任务
+    const taskAnalysis: Array<{
+      taskId: string;
+      taskTitle: string;
+      needsClarification: boolean;
+      needsDecomposition: boolean;
+      needsEstimation: boolean;
+      complexity: TaskComplexity;
+    }> = [];
 
-任务列表:
-${tasks.map((t, i) => `${i + 1}. ${t.title}${t.description ? `\n   描述: ${t.description}` : ''}`).join('\n')}
+    for (const task of tasks) {
+      const prompt = `请分析以下任务:
 
-请评估:
-1. 整体复杂度(simple/medium/complex)
-2. 是否需要拆解
-3. 是否需要澄清`;
+任务: ${task.title}
+${task.description ? `描述: ${task.description}` : '(无描述)'}
 
-    const resultText = await aiService.generateText(
-      prompt,
-      {
-        modelName: 'doubao-seed-1-6-vision-250815',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.3,
+请评估并回答:
+1. 任务描述是否清晰明确？(回答"清晰"或"模糊")
+2. 任务是否需要拆解为子任务？(回答"需要"或"不需要")
+3. 任务复杂度？(回答"简单"、"中等"或"复杂")`;
+
+      const resultText = await aiService.generateText(
+        prompt,
+        {
+          modelName: 'doubao-seed-1-6-vision-250815',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.3,
+        }
+      );
+
+      if (!resultText || typeof resultText !== 'string') {
+        continue; // 如果分析失败，跳过该任务
       }
-    );
 
-    if (!resultText || typeof resultText !== 'string') {
-      return { success: false, error: '分析失败' };
+      // 解析结果
+      const text = resultText.toLowerCase();
+      
+      let complexity: TaskComplexity = 'medium';
+      if (text.includes('简单') || text.includes('simple')) {
+        complexity = 'simple';
+      } else if (text.includes('复杂') || text.includes('complex')) {
+        complexity = 'complex';
+      }
+
+      const needsClarification = text.includes('模糊') || text.includes('不清晰') || text.includes('unclear') || !task.description;
+      const needsDecomposition = text.includes('拆解') || text.includes('需要拆') || text.includes('decompose');
+      const needsEstimation = !task.duration || complexity !== 'simple';
+
+      taskAnalysis.push({
+        taskId: task.id || `task-${Date.now()}`,
+        taskTitle: task.title,
+        needsClarification,
+        needsDecomposition,
+        needsEstimation,
+        complexity,
+      });
     }
 
-    // 简单解析结果
-    const text = resultText.toLowerCase();
-    let complexity: TaskComplexity = 'medium';
-    if (text.includes('simple') || text.includes('简单')) {
-      complexity = 'simple';
-    } else if (text.includes('complex') || text.includes('复杂')) {
-      complexity = 'complex';
+    // 生成推荐操作列表
+    const recommendations = [];
+
+    // 澄清推荐
+    const clarifyTaskIds = taskAnalysis.filter(t => t.needsClarification).map(t => t.taskId);
+    if (clarifyTaskIds.length > 0) {
+      recommendations.push({
+        type: 'clarify' as const,
+        label: '澄清任务',
+        icon: '🔍',
+        taskIds: clarifyTaskIds,
+        count: clarifyTaskIds.length,
+        description: `${clarifyTaskIds.length} 个任务描述不够清晰`,
+      });
     }
 
-    const needsDecomposition = text.includes('拆解') || text.includes('decompose');
-    const needsClarification = text.includes('澄清') || text.includes('clarify');
+    // 拆解推荐
+    const decomposeTaskIds = taskAnalysis.filter(t => t.needsDecomposition).map(t => t.taskId);
+    if (decomposeTaskIds.length > 0) {
+      recommendations.push({
+        type: 'decompose' as const,
+        label: '拆解任务',
+        icon: '🔨',
+        taskIds: decomposeTaskIds,
+        count: decomposeTaskIds.length,
+        description: `${decomposeTaskIds.length} 个任务可以拆解`,
+      });
+    }
 
-    // 保存分析结果
-    context.setAnalysis({
-      complexity,
-      needsDecomposition,
-      needsClarification,
-      estimatedTotalMinutes: 0,
-      reasoning: resultText,
+    // 时间估算推荐
+    const estimateTaskIds = taskAnalysis.filter(t => t.needsEstimation).map(t => t.taskId);
+    if (estimateTaskIds.length > 0) {
+      recommendations.push({
+        type: 'estimate' as const,
+        label: '估算时间',
+        icon: '⏱️',
+        taskIds: estimateTaskIds,
+        count: estimateTaskIds.length,
+        description: `${estimateTaskIds.length} 个任务需要估算时间`,
+      });
+    }
+
+    // 优先级推荐（总是需要）
+    recommendations.push({
+      type: 'prioritize' as const,
+      label: '优先级建议',
+      icon: '🎯',
+      taskIds: tasks.map(t => t.id || `task-${Date.now()}`),
+      count: tasks.length,
+      description: `为 ${tasks.length} 个任务推荐优先级`,
     });
 
-    console.log(`✅ 任务复杂度: ${complexity}`);
+    // 检查清单推荐（可选）
+    recommendations.push({
+      type: 'checklist' as const,
+      label: '检查清单',
+      icon: '✅',
+      taskIds: tasks.map(t => t.id || `task-${Date.now()}`),
+      count: tasks.length,
+      description: `生成任务执行检查清单`,
+    });
 
-    // 根据复杂度决定下一阶段
-    if (needsClarification) {
-      return { success: true, nextPhase: 'clarifying' };
-    } else if (needsDecomposition) {
-      return { success: true, nextPhase: 'decomposing' };
-    } else {
-      return { success: true, nextPhase: 'estimating' };
-    }
+    // 将推荐保存到上下文
+    context.updateContext({ recommendations });
+
+    console.log(`✅ 分析完成，生成 ${recommendations.length} 个推荐操作`);
+
+    // 保留旧的分析结果结构（兼容性）
+    const overallComplexity = taskAnalysis.some(t => t.complexity === 'complex') ? 'complex' :
+      taskAnalysis.some(t => t.complexity === 'medium') ? 'medium' : 'simple';
+    
+    context.setAnalysis({
+      complexity: overallComplexity,
+      needsDecomposition: decomposeTaskIds.length > 0,
+      needsClarification: clarifyTaskIds.length > 0,
+      estimatedTotalMinutes: 0,
+      reasoning: `分析了 ${tasks.length} 个任务`,
+    });
+
+    // 不自动进入下一阶段，返回推荐列表
+    return {
+      success: true,
+      data: { recommendations, taskAnalysis },
+    };
   } catch (error) {
     return {
       success: false,

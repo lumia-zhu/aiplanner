@@ -339,5 +339,124 @@ export class WorkflowOrchestrator {
       context: this.contextManager.getSummary(),
     };
   }
+
+  /**
+   * 仅执行分析阶段，返回推荐操作列表
+   * @param options - 执行选项
+   * @returns 分析结果和推荐操作
+   */
+  async analyzeOnly(options: WorkflowExecutionOptions): Promise<{
+    success: boolean;
+    recommendations?: Array<{
+      type: 'clarify' | 'decompose' | 'estimate' | 'prioritize' | 'checklist';
+      label: string;
+      icon: string;
+      taskIds: string[];
+      count: number;
+      description: string;
+    }>;
+    error?: string;
+  }> {
+    try {
+      console.log('🔍 执行任务分析...');
+
+      // 初始化上下文
+      this.contextManager.updateContext({
+        userId: options.userId,
+        tasks: options.tasks,
+        currentPhase: 'analyzing',
+      });
+
+      // 执行分析阶段
+      const result = await this.executePhase('analyzing');
+
+      if (!result.success) {
+        return { success: false, error: result.error };
+      }
+
+      // 从上下文获取推荐（分析步骤会设置）
+      const recommendations = this.contextManager.getContext().recommendations || [];
+
+      console.log(`✅ 分析完成，生成 ${recommendations.length} 个推荐操作`);
+
+      return {
+        success: true,
+        recommendations,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  /**
+   * 执行单个操作（澄清、拆解、估时等）
+   * @param actionType - 操作类型
+   * @param taskIds - 要处理的任务 ID 列表
+   * @returns 执行结果
+   */
+  async executeAction(
+    actionType: 'clarify' | 'decompose' | 'estimate' | 'prioritize' | 'checklist',
+    taskIds?: string[]
+  ): Promise<{
+    success: boolean;
+    data?: any;
+    error?: string;
+  }> {
+    try {
+      const tasks = this.contextManager.getTasks();
+      const targetTasks = taskIds 
+        ? tasks.filter(t => taskIds.includes(t.id))
+        : tasks;
+
+      if (targetTasks.length === 0) {
+        return { success: false, error: '没有找到要处理的任务' };
+      }
+
+      console.log(`🎯 执行操作: ${actionType}，处理 ${targetTasks.length} 个任务`);
+
+      const tool = this.toolRegistry.getTool(actionType as any);
+      if (!tool) {
+        return { success: false, error: `工具 ${actionType} 未找到` };
+      }
+
+      // 批量执行工具
+      const results = [];
+      for (const task of targetTasks) {
+        const result = await tool.execute(
+          {
+            taskTitle: task.title,
+            taskDescription: task.description,
+            ...(actionType === 'prioritize' ? { tasks: targetTasks } : {}),
+          },
+          {
+            userId: this.contextManager.getContext().userId,
+            sessionId: this.contextManager.getContext().sessionId,
+            timestamp: Date.now(),
+          }
+        );
+
+        if (result.success && result.data) {
+          results.push({
+            taskId: task.id,
+            taskTitle: task.title,
+            ...result.data,
+          });
+        }
+      }
+
+      return {
+        success: true,
+        data: results,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
 }
 

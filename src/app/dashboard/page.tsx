@@ -22,6 +22,8 @@ import { compressImage, fileToBase64, isFileSizeExceeded, formatFileSize } from 
 import { saveChatMessage, getChatMessages, clearChatMessages } from '@/lib/chatMessages'
 import { useAIWorkflow } from '@/hooks/useAIWorkflow'
 import { useRealWorkflow } from '@/hooks/useRealWorkflow'
+import { useRecommendationWorkflow } from '@/hooks/useRecommendationWorkflow'
+import ActionRecommendations from '@/components/ActionRecommendations'
 
 // 任务识别相关类型
 interface RecognizedTask {
@@ -135,6 +137,18 @@ export default function DashboardPage() {
     clearSuggestions,
   } = useWorkflow()
 
+  // 新的推荐工作流 Hook（用于 Badge 标签模式）
+  const {
+    status: recommendationStatus,
+    recommendations,
+    executingAction,
+    error: recommendationError,
+    executionResult,
+    analyze: analyzeTasksForRecommendations,
+    executeAction: executeRecommendedAction,
+    reset: resetRecommendations,
+  } = useRecommendationWorkflow()
+
   // 处理接受建议
   const handleAcceptSuggestion = useCallback(async (chipId: string) => {
     const suggestion = workflowSuggestions.find(s => s.id === chipId)
@@ -142,35 +156,25 @@ export default function DashboardPage() {
 
     console.log('✅ 接受建议:', suggestion)
 
-    // 根据建议类型执行相应操作
-    switch (suggestion.action) {
-      case 'add_subtask':
-        // TODO: 添加子任务到对应的主任务
-        alert(`✅ 已添加子任务: ${suggestion.text}`)
-        break
-      
-      case 'update_time':
-        // TODO: 更新任务的预估时间
-        alert(`⏱️ 已更新时间: ${suggestion.text}`)
-        break
-      
-      case 'set_priority':
-        // TODO: 设置任务优先级
-        alert(`🎯 已设置优先级: ${suggestion.text}`)
-        break
-      
-      case 'add_checklist':
-        // TODO: 添加检查清单项
-        alert(`✅ 已添加检查项: ${suggestion.text}`)
-        break
-      
+    // 根据建议类型执行相应操作（按 ToolType 分类）
+    switch (suggestion.type) {
       case 'clarify':
-        // TODO: 显示澄清问题对话框
-        alert(`❓ 澄清问题: ${suggestion.text}`)
+        alert(`❓ 澄清问题: ${suggestion.label}`)
         break
-      
+      case 'decompose':
+        alert(`✅ 已添加子任务建议: ${suggestion.label}`)
+        break
+      case 'estimate_time':
+        alert(`⏱️ 已更新时间估建议: ${suggestion.label}`)
+        break
+      case 'prioritize':
+        alert(`🎯 已设置优先级建议: ${suggestion.label}`)
+        break
+      case 'add_checklist':
+        alert(`✅ 已添加检查清单建议: ${suggestion.label}`)
+        break
       default:
-        alert(`💡 已接受建议: ${suggestion.text}`)
+        alert(`💡 已接受建议: ${suggestion.label}`)
     }
 
     // 从列表中移除
@@ -1940,19 +1944,19 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                 onClick={async () => {
                   // 解锁高级功能并展开侧边栏
                   enableAdvancedTools()
-                  console.log('✨ 开始 AI 完善计划...')
+                  console.log('✨ 开始 AI 分析任务...')
                   
-                  // 启动工作流
+                  // 使用新的推荐工作流：只分析，不自动执行
                   if (user && displayTasks.length > 0) {
-                    await startWorkflow(displayTasks, user.id)
+                    await analyzeTasksForRecommendations(displayTasks, user.id)
                   }
                 }}
-                disabled={workflowStatus === 'running'}
+                disabled={recommendationStatus === 'analyzing'}
                 className={`inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-50 to-blue-50 hover:from-purple-100 hover:to-blue-100 border-2 border-purple-200 hover:border-purple-300 text-purple-700 rounded-xl transition-all font-medium shadow-sm hover:shadow-md ${
-                  workflowStatus === 'running' ? 'opacity-50 cursor-not-allowed' : ''
+                  recommendationStatus === 'analyzing' ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
-                {workflowStatus === 'running' ? (
+                {recommendationStatus === 'analyzing' ? (
                   <>
                     <div className="w-4 h-4 border-2 border-purple-300 border-t-purple-700 rounded-full animate-spin" />
                     <span>AI 正在分析...</span>
@@ -1963,13 +1967,13 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
               </button>
               
               {/* 工作流错误提示 */}
-              {workflowError && (
+              {(workflowError || recommendationError) && (
                 <div className="max-w-md px-4 py-3 bg-red-50 border border-red-200 rounded-lg">
                   <div className="flex items-start gap-2">
                     <span className="text-red-500 text-lg">⚠️</span>
                     <div className="flex-1">
-                      <p className="text-sm font-medium text-red-800">工作流执行失败</p>
-                      <p className="text-xs text-red-600 mt-1">{workflowError}</p>
+                      <p className="text-sm font-medium text-red-800">AI 分析失败</p>
+                      <p className="text-xs text-red-600 mt-1">{workflowError || recommendationError}</p>
                     </div>
                   </div>
                 </div>
@@ -2029,6 +2033,15 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
               recognizedTasks={recognizedTasks}
               showTaskPreview={showTaskPreview}
               setShowTaskPreview={setShowTaskPreview}
+              recommendations={recommendations}
+              onActionClick={async (type, ids) => {
+                await executeRecommendedAction(type, ids)
+                if (user && displayTasks.length > 0) {
+                  await analyzeTasksForRecommendations(displayTasks, user.id)
+                }
+              }}
+              isExecuting={recommendationStatus === "executing"}
+              executingAction={executingAction}
               handleSendMessage={handleSendMessage}
               handleClearChat={handleClearChat}
               handleDragEnter={handleDragEnter}

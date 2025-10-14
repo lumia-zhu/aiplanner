@@ -177,6 +177,16 @@ export interface WorkflowContext {
   /** 建议晶片列表 */
   chips: SuggestionChip[]
   
+  /** 推荐操作列表（新增：用于Badge标签） */
+  recommendations?: Array<{
+    type: 'clarify' | 'decompose' | 'estimate' | 'prioritize' | 'checklist';
+    label: string;
+    icon: string;
+    taskIds: string[];
+    count: number;
+    description: string;
+  }>
+  
   /** 是否正在加载 */
   isLoading: boolean
   
