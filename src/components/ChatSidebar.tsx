@@ -2,6 +2,10 @@
 
 import React, { memo, useRef } from 'react'
 import { doubaoService, type ChatMessage } from '@/lib/doubaoService'
+import SuggestionChips from '@/components/SuggestionChips'
+import WorkflowProgress from '@/components/WorkflowProgress'
+import type { SuggestionChip } from '@/types/workflow'
+import type { WorkflowProgress as IWorkflowProgress } from '@/hooks/useAIWorkflow'
 
 // 任务识别相关类型
 interface RecognizedTask {
@@ -37,6 +41,12 @@ interface ChatSidebarProps {
   recognizedTasks: RecognizedTask[]
   showTaskPreview: boolean
   setShowTaskPreview: (show: boolean) => void
+  
+  // AI 工作流相关状态(新增)
+  workflowProgress?: IWorkflowProgress | null
+  suggestions?: SuggestionChip[]
+  onAcceptSuggestion?: (chipId: string) => void
+  onRejectSuggestion?: (chipId: string) => void
   
   // 事件处理函数
   handleSendMessage: () => void
@@ -74,6 +84,10 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   recognizedTasks,
   showTaskPreview,
   setShowTaskPreview,
+  workflowProgress,
+  suggestions = [],
+  onAcceptSuggestion,
+  onRejectSuggestion,
   handleSendMessage,
   handleClearChat,
   handleDragEnter,
@@ -250,6 +264,35 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                   {streamingMessage}
                   <span className="inline-block w-2 h-4 bg-blue-500 ml-1 animate-pulse"></span>
                 </p>
+              </div>
+            </div>
+          )}
+          
+          {/* AI 工作流进度 */}
+          {workflowProgress && (
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center flex-shrink-0">
+                <span className="text-white text-sm font-medium">🔄</span>
+              </div>
+              <div className="bg-white rounded-lg px-3 py-2 shadow-sm flex-1">
+                <WorkflowProgress progress={workflowProgress} showDetails={true} />
+              </div>
+            </div>
+          )}
+          
+          {/* AI 建议芯片 */}
+          {suggestions.length > 0 && onAcceptSuggestion && onRejectSuggestion && (
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center flex-shrink-0">
+                <span className="text-white text-sm font-medium">💡</span>
+              </div>
+              <div className="flex-1">
+                <SuggestionChips
+                  chips={suggestions}
+                  onAccept={onAcceptSuggestion}
+                  onReject={onRejectSuggestion}
+                  disabled={isSending}
+                />
               </div>
             </div>
           )}

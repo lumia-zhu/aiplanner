@@ -20,7 +20,6 @@ import { taskOperations } from '@/utils/taskUtils'
 import { doubaoService, type ChatMessage } from '@/lib/doubaoService'
 import { compressImage, fileToBase64, isFileSizeExceeded, formatFileSize } from '@/utils/imageUtils'
 import { saveChatMessage, getChatMessages, clearChatMessages } from '@/lib/chatMessages'
-import { useAIWorkflow } from '@/hooks/useAIWorkflow'
 
 // 任务识别相关类型
 interface RecognizedTask {
@@ -114,22 +113,6 @@ export default function DashboardPage() {
     }
     return false
   })
-
-  // AI 工作流 Hook
-  const {
-    status: workflowStatus,
-    progress: workflowProgress,
-    suggestions: workflowSuggestions,
-    streamingMessage: workflowStreamingMessage,
-    error: workflowError,
-    startWorkflow,
-    pauseWorkflow,
-    resumeWorkflow,
-    stopWorkflow,
-    acceptSuggestion,
-    rejectSuggestion,
-    clearSuggestions,
-  } = useAIWorkflow()
 
   const enableAdvancedTools = useCallback(() => {
     setAdvancedToolsEnabled(true)
@@ -1884,29 +1867,14 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
           {displayTasks.length > 0 && (
             <div className="mt-6 flex justify-center">
               <button
-                onClick={async () => {
+                onClick={() => {
                   // 解锁高级功能并展开侧边栏
                   enableAdvancedTools()
-                  console.log('✨ 开始 AI 完善计划...')
-                  
-                  // 启动工作流
-                  if (user && displayTasks.length > 0) {
-                    await startWorkflow(displayTasks, user.id)
-                  }
+                  console.log('写好任务了，开启高级功能')
                 }}
-                disabled={workflowStatus === 'running'}
-                className={`inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-50 to-blue-50 hover:from-purple-100 hover:to-blue-100 border-2 border-purple-200 hover:border-purple-300 text-purple-700 rounded-xl transition-all font-medium shadow-sm hover:shadow-md ${
-                  workflowStatus === 'running' ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
+                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-50 to-blue-50 hover:from-purple-100 hover:to-blue-100 border-2 border-purple-200 hover:border-purple-300 text-purple-700 rounded-xl transition-all font-medium shadow-sm hover:shadow-md"
               >
-                {workflowStatus === 'running' ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-purple-300 border-t-purple-700 rounded-full animate-spin" />
-                    <span>AI 正在分析...</span>
-                  </>
-                ) : (
-                  <span>✨ 写好任务了，AI帮忙完善计划</span>
-                )}
+                <span>✨ 写好任务了，AI帮忙完善计划</span>
               </button>
             </div>
           )}
@@ -1947,10 +1915,6 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
               isImageProcessing={isImageProcessing}
               isTaskRecognitionMode={isTaskRecognitionMode}
               setIsTaskRecognitionMode={setIsTaskRecognitionMode}
-              workflowProgress={workflowProgress}
-              suggestions={workflowSuggestions}
-              onAcceptSuggestion={acceptSuggestion}
-              onRejectSuggestion={rejectSuggestion}
               recognizedTasks={recognizedTasks}
               showTaskPreview={showTaskPreview}
               setShowTaskPreview={setShowTaskPreview}
