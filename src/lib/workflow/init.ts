@@ -25,10 +25,14 @@ export function initializeWorkflow(): WorkflowOrchestrator {
 
   // 1. 创建 AI 服务
   const aiService = new AIService({
-    defaultModel: 'primary',
-    fallbackModel: undefined,
-    cacheEnabled: true,
-    cacheTTL: 5 * 60 * 1000, // 5分钟
+    selectionConfig: {
+      primaryModel: 'primary',  // 主模型名称
+      fallbackStrategy: 'none',
+      maxRetries: 3,
+      timeout: 30000,
+    },
+    enableCache: true,
+    cacheExpiry: 5 * 60 * 1000, // 5分钟
   });
 
   // 2. 获取 API 配置
