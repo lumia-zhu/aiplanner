@@ -81,29 +81,47 @@ export class PrioritizeTasksTool extends AITool<PrioritizeTasksInput, Prioritize
       // 构建 Prompt
       const prompt = this.buildPrompt(input);
 
-      // 调用 AI 服务生成结构化输出
+      // Prioritize JSON Schema
+      const jsonSchema = {
+        $schema: 'http://json-schema.org/draft-07/schema#',
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          prioritizedTasks: {
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                taskId: { type: 'string' },
+                priority: { type: 'string' },
+                urgency: { type: 'number' },
+                importance: { type: 'number' },
+                reasoning: { type: 'string' },
+                suggestedOrder: { type: 'number' }
+              },
+              required: ['taskId','priority','urgency','importance']
+            }
+          },
+          overallStrategy: { type: 'string' },
+          keyInsights: { type: 'array', items: { type: 'string' } }
+        },
+        required: ['prioritizedTasks','overallStrategy']
+      }
+
       const result = await this.aiService.generateObject(
         prompt,
-        PrioritizeResultSchema,
+        jsonSchema,
         {
           modelName: context.modelConfig?.modelName || 'doubao-seed-1-6-vision-250815',
           messages: [{ role: 'user', content: prompt }],
-          temperature: 0.5,
+          temperature: 0.3,
         }
       );
 
-      if (!result.success || !result.data) {
-        return {
-          success: false,
-          error: result.error || '优先级排序失败',
-          executionTime: 0,
-          toolType: 'prioritize',
-        };
-      }
-
       // 转换为输出格式
       const output: PrioritizeTasksOutput = {
-        prioritizedTasks: result.data.prioritizedTasks.map((task) => ({
+        prioritizedTasks: result.prioritizedTasks.map((task: any) => ({
           taskId: task.taskId,
           priority: task.priority,
           urgency: task.urgency,
@@ -111,8 +129,8 @@ export class PrioritizeTasksTool extends AITool<PrioritizeTasksInput, Prioritize
           reasoning: task.reasoning,
           suggestedOrder: task.suggestedOrder,
         })),
-        overallStrategy: result.data.overallStrategy,
-        keyInsights: result.data.keyInsights,
+        overallStrategy: result.overallStrategy,
+        keyInsights: result.keyInsights,
       };
 
       return {

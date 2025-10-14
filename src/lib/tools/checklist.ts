@@ -77,29 +77,47 @@ export class ChecklistTool extends AITool<ChecklistInput, ChecklistOutput> {
       // 构建 Prompt
       const prompt = this.buildPrompt(input);
 
-      // 调用 AI 服务生成结构化输出
+      // Checklist JSON Schema
+      const jsonSchema = {
+        $schema: 'http://json-schema.org/draft-07/schema#',
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          items: {
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                item: { type: 'string' },
+                category: { type: 'string', enum: ['preparation','execution','validation','completion'] },
+                mandatory: { type: 'boolean' },
+                description: { type: 'string' },
+                tips: { type: 'array', items: { type: 'string' } },
+              },
+              required: ['item','category','mandatory']
+            }
+          },
+          overallGuidance: { type: 'string' },
+          commonPitfalls: { type: 'array', items: { type: 'string' } },
+          successCriteria: { type: 'array', items: { type: 'string' } }
+        },
+        required: ['items','overallGuidance','successCriteria']
+      }
+
       const result = await this.aiService.generateObject(
         prompt,
-        ChecklistResultSchema,
+        jsonSchema,
         {
           modelName: context.modelConfig?.modelName || 'doubao-seed-1-6-vision-250815',
           messages: [{ role: 'user', content: prompt }],
-          temperature: 0.6,
+          temperature: 0.3,
         }
       );
 
-      if (!result.success || !result.data) {
-        return {
-          success: false,
-          error: result.error || '检查清单生成失败',
-          executionTime: 0,
-          toolType: 'checklist',
-        };
-      }
-
       // 转换为输出格式
       const output: ChecklistOutput = {
-        items: result.data.items.map((item, index) => ({
+        items: result.items.map((item: any, index: number) => ({
           id: `checklist-${Date.now()}-${index}`,
           item: item.item,
           category: item.category,
@@ -108,9 +126,9 @@ export class ChecklistTool extends AITool<ChecklistInput, ChecklistOutput> {
           tips: item.tips || [],
           checked: false,
         })),
-        overallGuidance: result.data.overallGuidance,
-        commonPitfalls: result.data.commonPitfalls,
-        successCriteria: result.data.successCriteria,
+        overallGuidance: result.overallGuidance,
+        commonPitfalls: result.commonPitfalls,
+        successCriteria: result.successCriteria,
       };
 
       return {

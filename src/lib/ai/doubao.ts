@@ -120,7 +120,10 @@ export class DoubaoAdapter extends BaseModelAdapter {
         return m
       })
       
-      // 直接使用 fetch 调用豆包 API，使用 response_format 参数
+      // 直接使用 fetch 调用豆包 API，使用 json_schema 格式强约束输出结构
+      // 这里使用调用方传入的 schema（应为 JSON Schema 对象）
+      const jsonSchema = schema || { type: 'object' }
+
       const response = await fetch(`${this.config.baseURL}/chat/completions`, {
         method: 'POST',
         headers: {
@@ -135,9 +138,13 @@ export class DoubaoAdapter extends BaseModelAdapter {
           })),
           temperature: mergedOptions.temperature || 0.3,
           max_tokens: mergedOptions.maxTokens,
-          // 使用豆包的 response_format 参数实现 JSON 输出
+          // 使用豆包的 response_format: json_schema 强约束输出
           response_format: {
-            type: 'json_object'
+            type: 'json_schema',
+            json_schema: {
+              name: 'StructuredResult',
+              schema: jsonSchema
+            }
           }
         }),
       })

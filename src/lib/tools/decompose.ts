@@ -81,29 +81,47 @@ export class DecomposeTaskTool extends AITool<DecomposeTaskInput, DecomposeTaskO
       // 构建 Prompt
       const prompt = this.buildPrompt(input);
 
-      // 调用 AI 服务生成结构化输出
+      // Decompose JSON Schema
+      const jsonSchema = {
+        $schema: 'http://json-schema.org/draft-07/schema#',
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          subtasks: {
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                title: { type: 'string' },
+                description: { type: 'string' },
+                estimatedMinutes: { type: 'number' },
+                priority: { type: 'string' },
+                dependencies: { type: 'array', items: { type: 'string' } },
+              },
+              required: ['title','estimatedMinutes','priority']
+            }
+          },
+          reasoning: { type: 'string' },
+          totalEstimatedMinutes: { type: 'number' },
+          complexity: { type: 'string' }
+        },
+        required: ['subtasks','reasoning','totalEstimatedMinutes','complexity']
+      }
+
       const result = await this.aiService.generateObject(
         prompt,
-        DecomposeResultSchema,
+        jsonSchema,
         {
           modelName: context.modelConfig?.modelName || 'doubao-seed-1-6-vision-250815',
           messages: [{ role: 'user', content: prompt }],
-          temperature: 0.7,
+          temperature: 0.3,
         }
       );
 
-      if (!result.success || !result.data) {
-        return {
-          success: false,
-          error: result.error || '任务拆解失败',
-          executionTime: 0,
-          toolType: 'decompose',
-        };
-      }
-
       // 转换为输出格式
       const output: DecomposeTaskOutput = {
-        subtasks: result.data.subtasks.map((subtask, index) => ({
+        subtasks: result.subtasks.map((subtask: any, index: number) => ({
           id: `subtask-${Date.now()}-${index}`,
           title: subtask.title,
           description: subtask.description,
@@ -112,9 +130,9 @@ export class DecomposeTaskTool extends AITool<DecomposeTaskInput, DecomposeTaskO
           dependencies: subtask.dependencies || [],
           order: index,
         })),
-        reasoning: result.data.reasoning,
-        totalEstimatedMinutes: result.data.totalEstimatedMinutes,
-        complexity: result.data.complexity,
+        reasoning: result.reasoning,
+        totalEstimatedMinutes: result.totalEstimatedMinutes,
+        complexity: result.complexity,
       };
 
       return {

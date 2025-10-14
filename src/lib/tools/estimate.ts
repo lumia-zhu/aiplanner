@@ -69,35 +69,42 @@ export class EstimateTimeTool extends AITool<EstimateTimeInput, EstimateTimeOutp
       // 构建 Prompt
       const prompt = this.buildPrompt(input);
 
-      // 调用 AI 服务生成结构化输出
+      // Estimate JSON Schema
+      const jsonSchema = {
+        $schema: 'http://json-schema.org/draft-07/schema#',
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          estimatedMinutes: { type: 'number' },
+          minMinutes: { type: 'number' },
+          maxMinutes: { type: 'number' },
+          confidence: { type: 'string' },
+          reasoning: { type: 'string' },
+          assumptions: { type: 'array', items: { type: 'string' } },
+          risks: { type: 'array', items: { type: 'string' } },
+        },
+        required: ['estimatedMinutes','minMinutes','maxMinutes','confidence','reasoning']
+      }
+
       const result = await this.aiService.generateObject(
         prompt,
-        EstimateResultSchema,
+        jsonSchema,
         {
           modelName: context.modelConfig?.modelName || 'doubao-seed-1-6-vision-250815',
           messages: [{ role: 'user', content: prompt }],
-          temperature: 0.5,
+          temperature: 0.3,
         }
       );
 
-      if (!result.success || !result.data) {
-        return {
-          success: false,
-          error: result.error || '时间估算失败',
-          executionTime: 0,
-          toolType: 'estimate',
-        };
-      }
-
       // 转换为输出格式
       const output: EstimateTimeOutput = {
-        estimatedMinutes: result.data.estimatedMinutes,
-        minMinutes: result.data.minMinutes,
-        maxMinutes: result.data.maxMinutes,
-        confidence: result.data.confidence,
-        reasoning: result.data.reasoning,
-        assumptions: result.data.assumptions,
-        risks: result.data.risks || [],
+        estimatedMinutes: result.estimatedMinutes,
+        minMinutes: result.minMinutes,
+        maxMinutes: result.maxMinutes,
+        confidence: result.confidence,
+        reasoning: result.reasoning,
+        assumptions: result.assumptions,
+        risks: result.risks || [],
       };
 
       return {

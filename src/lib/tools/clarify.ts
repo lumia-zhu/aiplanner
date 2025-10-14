@@ -77,21 +77,54 @@ export class ClarifyTaskTool extends AITool<ClarifyTaskInput, ClarifyTaskOutput>
       // 构建 Prompt
       const prompt = this.buildPrompt(input);
 
-      // 调用 AI 服务生成结构化输出
+      // 将 Zod Schema 转为 JSON Schema（手写以确保与豆包兼容）
+      const jsonSchema = {
+        $schema: 'http://json-schema.org/draft-07/schema#',
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          questions: {
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                question: { type: 'string' },
+                category: { type: 'string', enum: ['goal','scope','resource','constraint','quality','other'] },
+                importance: { type: 'string', enum: ['critical','important','nice-to-have'] },
+                reasoning: { type: 'string' },
+                suggestedAnswers: { type: 'array', items: { type: 'string' } }
+              },
+              required: ['question','category','importance','reasoning']
+            }
+          },
+          ambiguities: { type: 'array', items: { type: 'string' } },
+          recommendations: { type: 'array', items: { type: 'string' } },
+          summary: { type: 'string' }
+        },
+        required: ['questions','ambiguities','recommendations','summary']
+      }
+
+      // 调用 AI 服务生成结构化输出（json_schema 模式）
       const result = await this.aiService.generateObject(
         prompt,
-        ClarifyResultSchema,
+        jsonSchema,
         {
           modelName: context.modelConfig?.modelName || 'doubao-seed-1-6-vision-250815',
           messages: [{ role: 'user', content: prompt }],
-          temperature: 0.7,
+          temperature: 0.3,
         }
       );
 
-      if (!result.success || !result.data) {
+      // 调试：打印豆包返回的结果
+      console.log('🔍 豆包返回的澄清结果:', JSON.stringify(result, null, 2));
+
+      // 检查返回结果的结构
+      if (!result || !result.questions) {
+        console.error('❌ 豆包返回的结果格式不正确:', result);
         return {
           success: false,
-          error: result.error || '任务澄清失败',
+          error: `豆包返回格式错误: ${JSON.stringify(result)}`,
           executionTime: 0,
           toolType: 'clarify',
         };
@@ -99,7 +132,7 @@ export class ClarifyTaskTool extends AITool<ClarifyTaskInput, ClarifyTaskOutput>
 
       // 转换为输出格式
       const output: ClarifyTaskOutput = {
-        questions: result.data.questions.map((q, index) => ({
+        questions: result.questions.map((q: any, index: number) => ({
           id: `question-${Date.now()}-${index}`,
           question: q.question,
           category: q.category,
@@ -107,9 +140,9 @@ export class ClarifyTaskTool extends AITool<ClarifyTaskInput, ClarifyTaskOutput>
           reasoning: q.reasoning,
           suggestedAnswers: q.suggestedAnswers || [],
         })),
-        ambiguities: result.data.ambiguities,
-        recommendations: result.data.recommendations,
-        summary: result.data.summary,
+        ambiguities: result.ambiguities,
+        recommendations: result.recommendations,
+        summary: result.summary,
       };
 
       return {
