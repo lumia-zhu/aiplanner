@@ -20,7 +20,7 @@ import { BaseModelAdapter, buildMessages, mergeOptions } from './adapter'
  * 豆包使用 OpenAI 兼容的 API，因此可以使用 @ai-sdk/openai
  */
 export class DoubaoAdapter extends BaseModelAdapter {
-  readonly name = 'doubao'
+  readonly name = 'doubao-seed-1-6-vision-250815'
   readonly config: ModelConfig
   
   private provider: ReturnType<typeof createOpenAI>
@@ -29,17 +29,21 @@ export class DoubaoAdapter extends BaseModelAdapter {
     super()
     this.config = config
     
-    // 创建 OpenAI 兼容的 provider
+    // 直接使用豆包的完整 URL，不使用 Vercel AI SDK 的自动路径拼接
+    // 这样可以确保与对话功能使用相同的端点
     this.provider = createOpenAI({
       apiKey: config.apiKey,
       baseURL: config.baseURL || 'https://ark.cn-beijing.volces.com/api/v3',
+      // 不使用 compatibility 选项，避免 SDK 改变请求路径
     })
     
     console.log(`✅ 豆包适配器初始化成功: ${config.modelId}`)
+    console.log(`🔧 DoubaoAdapter baseURL: ${config.baseURL || 'https://ark.cn-beijing.volces.com/api/v3'}`)
   }
   
   /**
    * 生成文本（非流式）
+   * 直接使用 fetch 调用豆包 API，避免 Vercel AI SDK 的兼容性问题
    */
   async generateText(
     prompt: string,
@@ -55,16 +59,31 @@ export class DoubaoAdapter extends BaseModelAdapter {
         maxTokens: mergedOptions.maxTokens
       })
       
-      const { text } = await generateText({
-        model: this.provider(this.config.modelId),
-        messages: messages.map(m => ({
-          role: m.role,
-          content: m.content
-        })),
-        temperature: mergedOptions.temperature,
-        maxTokens: mergedOptions.maxTokens,
-        maxRetries: mergedOptions.maxRetries || 3,
+      // 直接使用 fetch 调用豆包 API（与对话功能一致）
+      const response = await fetch(`${this.config.baseURL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.config.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: this.config.modelId,
+          messages: messages.map(m => ({
+            role: m.role,
+            content: m.content
+          })),
+          temperature: mergedOptions.temperature,
+          max_tokens: mergedOptions.maxTokens,
+        }),
       })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`豆包 API 错误 (${response.status}): ${errorText}`)
+      }
+
+      const data = await response.json()
+      const text = data.choices?.[0]?.message?.content || ''
       
       console.log('✅ 豆包文本生成完成，长度:', text.length)
       return text
@@ -73,6 +92,7 @@ export class DoubaoAdapter extends BaseModelAdapter {
   
   /**
    * 生成结构化对象（带 JSON Schema 验证）
+   * 使用豆包的 response_format 参数实现结构化输出
    */
   async generateObject<T>(
     prompt: string,
@@ -88,20 +108,57 @@ export class DoubaoAdapter extends BaseModelAdapter {
         hasSchema: !!schema
       })
       
-      const { object } = await generateObject({
-        model: this.provider(this.config.modelId),
-        schema: schema,
-        messages: messages.map(m => ({
-          role: m.role,
-          content: m.content
-        })),
-        temperature: mergedOptions.temperature || 0.3, // 结构化输出使用更低的温度
-        maxTokens: mergedOptions.maxTokens,
-        maxRetries: mergedOptions.maxRetries || 3,
+      // 豆包要求：使用 response_format 时，messages 必须包含 'json' 这个词
+      // 在最后一条消息末尾添加 JSON 格式说明
+      const messagesWithJsonHint = messages.map((m, index) => {
+        if (index === messages.length - 1 && m.role === 'user') {
+          return {
+            role: m.role,
+            content: m.content + '\n\n请以 JSON 格式返回结果。'
+          }
+        }
+        return m
       })
       
-      console.log('✅ 豆包对象生成完成')
-      return object as T
+      // 直接使用 fetch 调用豆包 API，使用 response_format 参数
+      const response = await fetch(`${this.config.baseURL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.config.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: this.config.modelId,
+          messages: messagesWithJsonHint.map(m => ({
+            role: m.role,
+            content: m.content
+          })),
+          temperature: mergedOptions.temperature || 0.3,
+          max_tokens: mergedOptions.maxTokens,
+          // 使用豆包的 response_format 参数实现 JSON 输出
+          response_format: {
+            type: 'json_object'
+          }
+        }),
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`豆包 API 错误 (${response.status}): ${errorText}`)
+      }
+
+      const data = await response.json()
+      const content = data.choices?.[0]?.message?.content || '{}'
+      
+      // 解析 JSON 响应
+      try {
+        const object = JSON.parse(content)
+        console.log('✅ 豆包对象生成完成')
+        return object as T
+      } catch (parseError) {
+        console.error('❌ JSON 解析失败:', content)
+        throw new Error(`JSON 解析失败: ${parseError}`)
+      }
     })
   }
   

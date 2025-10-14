@@ -78,12 +78,15 @@ export class ChecklistTool extends AITool<ChecklistInput, ChecklistOutput> {
       const prompt = this.buildPrompt(input);
 
       // 调用 AI 服务生成结构化输出
-      const result = await this.aiService.generateObject({
-        model: context.modelConfig?.modelName || 'primary',
-        messages: [{ role: 'user', content: prompt }],
-        schema: ChecklistResultSchema,
-        temperature: 0.6,
-      });
+      const result = await this.aiService.generateObject(
+        prompt,
+        ChecklistResultSchema,
+        {
+          modelName: context.modelConfig?.modelName || 'doubao-seed-1-6-vision-250815',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.6,
+        }
+      );
 
       if (!result.success || !result.data) {
         return {

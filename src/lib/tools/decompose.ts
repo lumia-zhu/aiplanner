@@ -82,12 +82,15 @@ export class DecomposeTaskTool extends AITool<DecomposeTaskInput, DecomposeTaskO
       const prompt = this.buildPrompt(input);
 
       // 调用 AI 服务生成结构化输出
-      const result = await this.aiService.generateObject({
-        model: context.modelConfig?.modelName || 'primary',
-        messages: [{ role: 'user', content: prompt }],
-        schema: DecomposeResultSchema,
-        temperature: 0.7,
-      });
+      const result = await this.aiService.generateObject(
+        prompt,
+        DecomposeResultSchema,
+        {
+          modelName: context.modelConfig?.modelName || 'doubao-seed-1-6-vision-250815',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.7,
+        }
+      );
 
       if (!result.success || !result.data) {
         return {

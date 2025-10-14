@@ -55,21 +55,21 @@ ${tasks.map((t, i) => `${i + 1}. ${t.title}${t.description ? `\n   描述: ${t.d
 2. 是否需要拆解
 3. 是否需要澄清`;
 
-    const result = await aiService.generateText({
-      model: 'primary',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.3,
-    });
+    const resultText = await aiService.generateText(
+      prompt,
+      {
+        modelName: 'doubao-seed-1-6-vision-250815',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.3,
+      }
+    );
 
-    if (!result.success || !result.data) {
-      return {
-        success: false,
-        error: '分析失败',
-      };
+    if (!resultText || typeof resultText !== 'string') {
+      return { success: false, error: '分析失败' };
     }
 
     // 简单解析结果
-    const text = result.data.toLowerCase();
+    const text = resultText.toLowerCase();
     let complexity: TaskComplexity = 'medium';
     if (text.includes('simple') || text.includes('简单')) {
       complexity = 'simple';
@@ -86,7 +86,7 @@ ${tasks.map((t, i) => `${i + 1}. ${t.title}${t.description ? `\n   描述: ${t.d
       needsDecomposition,
       needsClarification,
       estimatedTotalMinutes: 0,
-      reasoning: result.data,
+      reasoning: resultText,
     });
 
     console.log(`✅ 任务复杂度: ${complexity}`);

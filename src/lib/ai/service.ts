@@ -95,8 +95,9 @@ export class AIService {
   
   constructor(config?: Partial<AIServiceConfig>) {
     this.adapters = config?.adapters || new Map()
+    // 默认使用豆包模型
     this.selectionConfig = config?.selectionConfig || {
-      primaryModel: 'doubao',
+      primaryModel: 'doubao-seed-1-6-vision-250815',  // 和对话使用相同的模型
       fallbackStrategy: 'none',
       maxRetries: 3,
       timeout: 30000 // 30 秒
@@ -343,7 +344,7 @@ export function createAIService(doubaoApiKey: string): AIService {
     cacheExpiry: 5 * 60 * 1000, // 5 分钟
     enableLogging: true,
     selectionConfig: {
-      primaryModel: 'doubao',
+      primaryModel: 'doubao-seed-1-6-vision-250815',
       fallbackStrategy: 'none',
       maxRetries: 3,
       timeout: 30000

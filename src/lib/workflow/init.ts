@@ -23,10 +23,15 @@ export function initializeWorkflow(): WorkflowOrchestrator {
 
   console.log('🔧 初始化 AI 工作流系统...');
 
-  // 1. 创建 AI 服务
+  // 1. 模型配置 (使用和对话相同的模型)
+  const modelName = 'doubao-seed-1-6-vision-250815';
+  const apiKey = process.env.NEXT_PUBLIC_DOUBAO_API_KEY || '';
+  const baseURL = 'https://ark.cn-beijing.volces.com/api/v3';
+
+  // 2. 创建 AI 服务
   const aiService = new AIService({
     selectionConfig: {
-      primaryModel: 'primary',  // 主模型名称
+      primaryModel: modelName,  // 使用豆包模型名称
       fallbackStrategy: 'none',
       maxRetries: 3,
       timeout: 30000,
@@ -35,31 +40,29 @@ export function initializeWorkflow(): WorkflowOrchestrator {
     cacheExpiry: 5 * 60 * 1000, // 5分钟
   });
 
-  // 2. 获取 API 配置
-  const apiKey = process.env.NEXT_PUBLIC_DOUBAO_API_KEY || '';
-  const baseURL = process.env.NEXT_PUBLIC_DOUBAO_BASE_URL || 'https://ark.cn-beijing.volces.com/api/v3';
-
+  // 3. 验证配置
   if (!apiKey) {
     console.warn('⚠️ 未配置 DOUBAO_API_KEY,将使用 Mock 模式');
   } else {
     console.log('✅ 豆包 API 配置已加载');
+    console.log(`📌 使用模型: ${modelName}`);
   }
 
-  // 3. 创建并注册豆包适配器
-  const doubaoAdapter = createDoubaoAdapter({
-    modelName: 'doubao-pro-32k',
-    apiKey,
-    baseURL,
-  });
+  // 4. 创建并注册豆包适配器
+  const doubaoAdapter = createDoubaoAdapter(apiKey, modelName);
 
-  aiService.registerAdapter('primary', doubaoAdapter);
-  console.log('✅ 豆包适配器已注册');
+  // 使用适配器自带的 name 进行注册（需与 primaryModel 一致）
+  aiService.registerAdapter(doubaoAdapter);
+  
+  // 保险起见，显式设置主模型（如果未注册会抛错，便于早发现问题）
+  aiService.setPrimaryModel(modelName);
+  console.log(`✅ 豆包适配器已注册: ${modelName}`);
 
-  // 4. 初始化所有工具
+  // 5. 初始化所有工具
   initializeTools(aiService);
   console.log('✅ 所有工具已初始化');
 
-  // 5. 创建工作流编排器
+  // 6. 创建工作流编排器
   workflowInstance = createWorkflowOrchestrator(
     globalToolRegistry,
     aiService,

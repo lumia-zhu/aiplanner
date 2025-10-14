@@ -70,12 +70,15 @@ export class EstimateTimeTool extends AITool<EstimateTimeInput, EstimateTimeOutp
       const prompt = this.buildPrompt(input);
 
       // 调用 AI 服务生成结构化输出
-      const result = await this.aiService.generateObject({
-        model: context.modelConfig?.modelName || 'primary',
-        messages: [{ role: 'user', content: prompt }],
-        schema: EstimateResultSchema,
-        temperature: 0.5,
-      });
+      const result = await this.aiService.generateObject(
+        prompt,
+        EstimateResultSchema,
+        {
+          modelName: context.modelConfig?.modelName || 'doubao-seed-1-6-vision-250815',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.5,
+        }
+      );
 
       if (!result.success || !result.data) {
         return {
