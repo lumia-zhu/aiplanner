@@ -103,6 +103,7 @@ export default function DashboardPage() {
   const [showProfileModal, setShowProfileModal] = useState(false)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [showProfileSaveSuccess, setShowProfileSaveSuccess] = useState(false)
+  const [isFirstTimeUser, setIsFirstTimeUser] = useState(false) // 是否首次登录用户
   
   // 动画相关状态
   const [animationOrigin, setAnimationOrigin] = useState<{ x: number; y: number } | null>(null)
@@ -188,6 +189,12 @@ export default function DashboardPage() {
     try {
       const profile = await getUserProfile(userId)
       setUserProfile(profile)
+      
+      // 如果用户没有个人资料,标记为首次用户并自动打开弹窗
+      if (!profile) {
+        setIsFirstTimeUser(true)
+        setShowProfileModal(true)
+      }
     } catch (error) {
       console.error('加载用户个人资料失败:', error)
     }
@@ -202,6 +209,11 @@ export default function DashboardPage() {
       if (result.success && result.data) {
         setUserProfile(result.data)
         console.log('✅ 个人资料保存成功')
+        
+        // 如果是首次用户,取消首次标记
+        if (isFirstTimeUser) {
+          setIsFirstTimeUser(false)
+        }
         
         // 显示成功通知
         setShowProfileSaveSuccess(true)
