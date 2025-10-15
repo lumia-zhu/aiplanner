@@ -1742,7 +1742,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                 <button
                   ref={newTaskButtonRef}
                   onClick={handleShowTaskForm}
-                  className="hidden text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
+                  className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
                   style={{ backgroundColor: '#4A90E2' }}
                 >
                   <span className="text-white text-lg font-bold flex-shrink-0 w-4 h-4 flex items-center justify-center">+</span>
@@ -1788,12 +1788,12 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
           </div>
         )}
 
-        {/* 快速添加任务 */}
-        <QuickAddTask 
+        {/* 暂时注释掉快速添加任务组件 */}
+        {/* <QuickAddTask 
           selectedDate={selectedDate}
           onTaskCreate={handleQuickAddTask}
           onBatchUndo={handleBatchUndo}
-        />
+        /> */}
 
         {/* 任务列表 */}
         <div className="space-y-4">
