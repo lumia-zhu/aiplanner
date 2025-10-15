@@ -1713,7 +1713,8 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
             </p>
           </div>
           <div className="flex items-center space-x-3">
-                {advancedToolsEnabled && (
+                {/* 暂时隐藏排列优先级按钮 */}
+                {/* advancedToolsEnabled && (
                 <button
                   onClick={() => setShowMatrix(true)}
                   className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
@@ -1725,7 +1726,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                   </svg>
                   排列优先级
                 </button>
-                )}
+                ) */}
                 {/* 移除“卡住啦”按钮 */}
                 <button
                   ref={importButtonRef}
@@ -1870,7 +1871,8 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                 onClick={() => {
                   // 解锁高级功能并展开侧边栏
                   enableAdvancedTools()
-                  console.log('写好任务了，开启高级功能')
+                  setIsChatSidebarOpen(true) // 展开右侧聊天侧边栏
+                  console.log('写好任务了，开启高级功能并展开侧边栏')
                 }}
                 className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-50 to-blue-50 hover:from-purple-100 hover:to-blue-100 border-2 border-purple-200 hover:border-purple-300 text-purple-700 rounded-xl transition-all font-medium shadow-sm hover:shadow-md"
               >

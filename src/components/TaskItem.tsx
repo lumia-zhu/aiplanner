@@ -174,7 +174,8 @@ export default function TaskItem({ task, onToggleComplete, onEdit, onDelete, onD
 
             {/* 操作按钮 */}
             <div className="flex items-center space-x-2">
-              {decomposeEnabled && (
+              {/* 暂时隐藏拆解任务按钮 */}
+              {/* decomposeEnabled && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
@@ -185,7 +186,7 @@ export default function TaskItem({ task, onToggleComplete, onEdit, onDelete, onD
                 >
                   拆解任务
                 </button>
-              )}
+              ) */}
               <button
                 onClick={(e) => {
                   e.stopPropagation()
