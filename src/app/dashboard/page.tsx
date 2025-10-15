@@ -20,6 +20,9 @@ import { taskOperations } from '@/utils/taskUtils'
 import { doubaoService, type ChatMessage } from '@/lib/doubaoService'
 import { compressImage, fileToBase64, isFileSizeExceeded, formatFileSize } from '@/utils/imageUtils'
 import { saveChatMessage, getChatMessages, clearChatMessages } from '@/lib/chatMessages'
+import UserProfileModal from '@/components/UserProfileModal'
+import { getUserProfile, upsertUserProfile } from '@/lib/userProfile'
+import type { UserProfile, UserProfileInput } from '@/types'
 
 // 任务识别相关类型
 interface RecognizedTask {
@@ -96,6 +99,11 @@ export default function DashboardPage() {
   // 艾森豪威尔矩阵状态
   const [showMatrix, setShowMatrix] = useState(false)
   
+  // 用户个人资料状态
+  const [showProfileModal, setShowProfileModal] = useState(false)
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+  const [showProfileSaveSuccess, setShowProfileSaveSuccess] = useState(false)
+  
   // 动画相关状态
   const [animationOrigin, setAnimationOrigin] = useState<{ x: number; y: number } | null>(null)
   
@@ -170,8 +178,46 @@ export default function DashboardPage() {
     } else {
       setUser(currentUser)
       loadTasks(currentUser.id)
+      // 加载用户个人资料
+      loadUserProfile(currentUser.id)
     }
   }, [router])
+  
+  // 加载用户个人资料
+  const loadUserProfile = async (userId: string) => {
+    try {
+      const profile = await getUserProfile(userId)
+      setUserProfile(profile)
+    } catch (error) {
+      console.error('加载用户个人资料失败:', error)
+    }
+  }
+  
+  // 保存用户个人资料
+  const handleSaveProfile = async (profileData: UserProfileInput) => {
+    if (!user) return
+    
+    try {
+      const result = await upsertUserProfile(user.id, profileData)
+      if (result.success && result.data) {
+        setUserProfile(result.data)
+        console.log('✅ 个人资料保存成功')
+        
+        // 显示成功通知
+        setShowProfileSaveSuccess(true)
+        
+        // 3秒后自动隐藏通知
+        setTimeout(() => {
+          setShowProfileSaveSuccess(false)
+        }, 3000)
+      } else {
+        throw new Error(result.error || '保存失败')
+      }
+    } catch (error) {
+      console.error('❌ 保存个人资料失败:', error)
+      throw error
+    }
+  }
 
   // 监听日期变化，自动加载该日期的对话记录
   useEffect(() => {
@@ -1318,6 +1364,22 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
               <span className="text-gray-700">
                 欢迎，<span className="font-medium">{user.username}</span>
               </span>
+              
+              {/* 个人资料图标按钮 */}
+              <button
+                onClick={() => setShowProfileModal(true)}
+                className="relative p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all group"
+                title="个人资料设置"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                {/* 如果有个人资料，显示小圆点提示 */}
+                {userProfile && (
+                  <span className="absolute top-1 right-1 w-2 h-2 bg-green-500 rounded-full border border-white"></span>
+                )}
+              </button>
+              
               <button
                 onClick={handleLogout}
                 className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors"
@@ -2119,6 +2181,29 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
           onClose={() => setShowMatrix(false)}
           onSave={handleMatrixSave}
         />
+      )}
+
+      {/* 用户个人资料弹窗 */}
+      {user && (
+        <UserProfileModal
+          isOpen={showProfileModal}
+          onClose={() => setShowProfileModal(false)}
+          userId={user.id}
+          initialProfile={userProfile}
+          onSave={handleSaveProfile}
+        />
+      )}
+
+      {/* 个人资料保存成功通知 */}
+      {showProfileSaveSuccess && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-slide-down">
+          <div className="bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3">
+            <svg className="w-6 h-6 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+            </svg>
+            <span className="font-medium text-base">个人资料保存成功!</span>
+          </div>
+        </div>
       )}
     </div>
   )
