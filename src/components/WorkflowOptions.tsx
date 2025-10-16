@@ -67,30 +67,17 @@ export default function WorkflowOptions({ onSelect, disabled = false }: Workflow
             
             {/* 文本内容 */}
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <span className={`
-                  text-xs font-semibold px-2 py-0.5 rounded-full
-                  ${option.id === 'A' 
-                    ? 'bg-blue-200 text-blue-800' 
-                    : option.id === 'B' 
-                      ? 'bg-purple-200 text-purple-800' 
-                      : 'bg-green-200 text-green-800'
-                  }
-                `}>
-                  选项{option.id}
-                </span>
-                <h3 className={`
-                  text-sm font-semibold
-                  ${option.id === 'A' 
-                    ? 'text-blue-900' 
-                    : option.id === 'B' 
-                      ? 'text-purple-900' 
-                      : 'text-green-900'
-                  }
-                `}>
-                  {option.label}
-                </h3>
-              </div>
+              <h3 className={`
+                text-sm font-semibold mb-1
+                ${option.id === 'A' 
+                  ? 'text-blue-900' 
+                  : option.id === 'B' 
+                    ? 'text-purple-900' 
+                    : 'text-green-900'
+                }
+              `}>
+                {option.label}
+              </h3>
               <p className="text-xs text-gray-600 leading-relaxed">
                 {option.description}
               </p>
