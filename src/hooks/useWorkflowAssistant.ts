@@ -25,12 +25,15 @@ interface UseWorkflowAssistantReturn {
   isAnalyzing: boolean
   selectedFeeling: PrioritySortFeeling | null
   selectedAction: SingleTaskAction | null
+  selectedTaskForDecompose: Task | null
   
   // 方法
   startWorkflow: () => Promise<void>
   selectOption: (optionId: 'A' | 'B' | 'C') => void
   selectFeeling: (feeling: PrioritySortFeeling) => void
   selectAction: (action: SingleTaskAction) => void
+  selectTaskForDecompose: (task: Task | null) => void
+  clearSelectedTask: () => void  // 静默清空选中任务，不发送消息
   resetWorkflow: () => void
 }
 
@@ -50,6 +53,7 @@ export function useWorkflowAssistant({
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [selectedFeeling, setSelectedFeeling] = useState<PrioritySortFeeling | null>(null)
   const [selectedAction, setSelectedAction] = useState<SingleTaskAction | null>(null)
+  const [selectedTaskForDecompose, setSelectedTaskForDecompose] = useState<Task | null>(null)
   
   // 用于取消正在进行的流式输出
   const cancelStreamRef = useRef<(() => void) | null>(null)
@@ -309,7 +313,6 @@ ${recommendation.reason}
     
     // 选择了操作选项 clarify/decompose/estimate
     setSelectedAction(action)
-    setWorkflowMode('single-task')
     
     const actionMap = {
       clarify: { 
@@ -336,8 +339,53 @@ ${recommendation.reason}
       }
     ])
     
-    streamAIMessage(`✅ 好的!我会帮你进行${selected.label}。\n\n**功能开发中...**\n\n敬请期待! 🚀`)
+    // 如果是任务拆解，进入任务选择模式
+    if (action === 'decompose') {
+      setWorkflowMode('task-selection')
+      streamAIMessage('好的！我来帮你拆解任务。\n\n请选择你想要拆解的任务：')
+    } else {
+      // 其他功能暂未开发
+      setWorkflowMode('single-task')
+      streamAIMessage(`✅ 好的!我会帮你进行${selected.label}。\n\n**功能开发中...**\n\n敬请期待! 🚀`)
+    }
   }, [setChatMessages, streamAIMessage])
+
+  /**
+   * 用户选择要拆解的任务
+   */
+  const selectTaskForDecompose = useCallback((task: Task | null) => {
+    if (task === null) {
+      // 返回上一级（返回到操作选择）
+      setWorkflowMode('single-task-action')
+      setSelectedTaskForDecompose(null)
+      setChatMessages(prev => [
+        ...prev,
+        {
+          role: 'user',
+          content: [{ type: 'text', text: '↩️ 返回上一级' }]
+        }
+      ])
+      streamAIMessage('好的,已返回上一级。请重新选择操作:')
+    } else {
+      // 选择了任务，设置状态，触发拆解弹窗
+      setSelectedTaskForDecompose(task)
+      setChatMessages(prev => [
+        ...prev,
+        {
+          role: 'user',
+          content: [{ type: 'text', text: `📌 ${task.title}` }]
+        }
+      ])
+      streamAIMessage('好的！正在为你打开任务拆解工具... 🔧')
+    }
+  }, [setChatMessages, streamAIMessage])
+
+  /**
+   * 静默清空选中任务（不发送消息）
+   */
+  const clearSelectedTask = useCallback(() => {
+    setSelectedTaskForDecompose(null)
+  }, [])
 
   /**
    * 重置工作流状态
@@ -348,6 +396,7 @@ ${recommendation.reason}
     setIsAnalyzing(false)
     setSelectedFeeling(null)
     setSelectedAction(null)
+    setSelectedTaskForDecompose(null)
   }, [])
 
   return {
@@ -356,10 +405,13 @@ ${recommendation.reason}
     isAnalyzing,
     selectedFeeling,
     selectedAction,
+    selectedTaskForDecompose,
     startWorkflow,
     selectOption,
     selectFeeling,
     selectAction,
+    selectTaskForDecompose,
+    clearSelectedTask,
     resetWorkflow
   }
 }

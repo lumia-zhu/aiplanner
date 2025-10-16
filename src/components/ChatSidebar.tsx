@@ -6,6 +6,7 @@ import type { Task, WorkflowMode, PrioritySortFeeling, SingleTaskAction } from '
 import WorkflowOptions from './WorkflowOptions'
 import FeelingOptions from './FeelingOptions'
 import SingleTaskActionOptions from './SingleTaskActionOptions'
+import TaskSelectionOptions from './TaskSelectionOptions'
 
 // 任务识别相关类型
 interface RecognizedTask {
@@ -48,6 +49,7 @@ interface ChatSidebarProps {
   onWorkflowOptionSelect?: (optionId: 'A' | 'B' | 'C') => void
   onFeelingSelect?: (feeling: PrioritySortFeeling) => void
   onActionSelect?: (action: SingleTaskAction) => void
+  onTaskSelect?: (task: Task | null) => void
   isWorkflowAnalyzing?: boolean
   
   // 事件处理函数
@@ -91,6 +93,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   onWorkflowOptionSelect,
   onFeelingSelect,
   onActionSelect,
+  onTaskSelect,
   isWorkflowAnalyzing,
   handleSendMessage,
   handleClearChat,
@@ -399,6 +402,20 @@ const ChatSidebar = memo<ChatSidebarProps>(({
             {/* 感觉选项按钮 */}
             <FeelingOptions 
               onSelect={onFeelingSelect}
+              disabled={isSending}
+            />
+          </div>
+        </div>
+      )}
+      
+      {/* 任务选择区域 - 选择要拆解的任务 */}
+      {workflowMode === 'task-selection' && onTaskSelect && currentTasks && (
+        <div className="border-t border-gray-200 bg-gradient-to-b from-gray-50 to-white flex-shrink-0">
+          <div className="p-4">
+            {/* 任务选择组件 */}
+            <TaskSelectionOptions 
+              tasks={currentTasks}
+              onSelect={onTaskSelect}
               disabled={isSending}
             />
           </div>

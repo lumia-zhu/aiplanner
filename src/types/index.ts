@@ -273,6 +273,7 @@ export type WorkflowMode =
   | 'initial'            // 初始状态:展示任务列表和推荐
   | 'single-task'        // 完善单个任务模式
   | 'single-task-action' // 选择单个任务操作
+  | 'task-selection'     // 选择要拆解的任务
   | 'priority-sort'      // 优先级排序模式(总入口)
   | 'priority-feeling'   // 询问感觉阶段
   | 'priority-matrix'    // 显示矩阵阶段

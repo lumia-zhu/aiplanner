@@ -118,10 +118,13 @@ export default function DashboardPage() {
     isAnalyzing: isWorkflowAnalyzing,
     selectedFeeling,
     selectedAction,
+    selectedTaskForDecompose,
     startWorkflow,
     selectOption: selectWorkflowOption,
     selectFeeling,
     selectAction,
+    selectTaskForDecompose,
+    clearSelectedTask,
     resetWorkflow
   } = useWorkflowAssistant({
     tasks,
@@ -154,6 +157,19 @@ export default function DashboardPage() {
       return () => clearTimeout(timer)
     }
   }, [workflowMode, selectedFeeling])
+  
+  // 监听任务选择,自动打开任务拆解弹窗
+  useEffect(() => {
+    if (selectedTaskForDecompose) {
+      // 延迟打开拆解弹窗,让用户先看到AI消息
+      const timer = setTimeout(() => {
+        setDecomposingTask(selectedTaskForDecompose)
+        setShowDecompositionModal(true)
+      }, 500)
+
+      return () => clearTimeout(timer)
+    }
+  }, [selectedTaskForDecompose])
   
   // 动画相关状态
   const [animationOrigin, setAnimationOrigin] = useState<{ x: number; y: number } | null>(null)
@@ -594,6 +610,21 @@ export default function DashboardPage() {
         // 关闭弹窗
         setShowDecompositionModal(false)
         setDecomposingTask(null)
+        
+        // 清空工作流中的选中任务，并发送AI确认消息
+        if (selectedTaskForDecompose) {
+          clearSelectedTask() // 静默清空选中状态
+          setChatMessages(prev => [
+            ...prev,
+            {
+              role: 'assistant',
+              content: [{ 
+                type: 'text', 
+                text: `✅ 太棒了！任务《${decomposingTask.title}》已成功拆解为 ${createdCount} 个子任务！\n\n你可以继续选择其他任务拆解，或者返回上一级选择其他操作。` 
+              }]
+            }
+          ])
+        }
       }
     } catch (error) {
       console.error('创建子任务异常:', error)
@@ -2143,6 +2174,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
               onWorkflowOptionSelect={selectWorkflowOption}
               onFeelingSelect={selectFeeling}
               onActionSelect={selectAction}
+              onTaskSelect={selectTaskForDecompose}
               isWorkflowAnalyzing={isWorkflowAnalyzing}
               handleSendMessage={handleSendMessage}
               handleClearChat={handleClearChat}
