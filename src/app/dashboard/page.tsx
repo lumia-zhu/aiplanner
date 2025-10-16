@@ -23,6 +23,7 @@ import { saveChatMessage, getChatMessages, clearChatMessages } from '@/lib/chatM
 import UserProfileModal from '@/components/UserProfileModal'
 import { getUserProfile, upsertUserProfile, addCustomTaskTag } from '@/lib/userProfile'
 import type { UserProfile, UserProfileInput } from '@/types'
+import { useWorkflowAssistant } from '@/hooks/useWorkflowAssistant'
 
 // 任务识别相关类型
 interface RecognizedTask {
@@ -104,6 +105,20 @@ export default function DashboardPage() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [showProfileSaveSuccess, setShowProfileSaveSuccess] = useState(false)
   const [isFirstTimeUser, setIsFirstTimeUser] = useState(false) // 是否首次登录用户
+  
+  // 工作流辅助Hook
+  const {
+    workflowMode,
+    aiRecommendation,
+    isAnalyzing: isWorkflowAnalyzing,
+    startWorkflow,
+    selectOption: selectWorkflowOption,
+    resetWorkflow
+  } = useWorkflowAssistant({
+    tasks,
+    userProfile,
+    setChatMessages
+  })
   
   // 动画相关状态
   const [animationOrigin, setAnimationOrigin] = useState<{ x: number; y: number } | null>(null)
@@ -1965,15 +1980,27 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
           {displayTasks.length > 0 && (
             <div className="mt-6 flex justify-center">
               <button
-                onClick={() => {
+                onClick={async () => {
                   // 解锁高级功能并展开侧边栏
                   enableAdvancedTools()
                   setIsChatSidebarOpen(true) // 展开右侧聊天侧边栏
-                  console.log('下一步，AI辅助完善计划')
+                  
+                  // 启动工作流分析
+                  await startWorkflow()
                 }}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-50 to-blue-50 hover:from-purple-100 hover:to-blue-100 border-2 border-purple-200 hover:border-purple-300 text-purple-700 rounded-xl transition-all font-medium shadow-sm hover:shadow-md"
+                disabled={isWorkflowAnalyzing}
+                className={`inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-50 to-blue-50 hover:from-purple-100 hover:to-blue-100 border-2 border-purple-200 hover:border-purple-300 text-purple-700 rounded-xl transition-all font-medium shadow-sm hover:shadow-md ${
+                  isWorkflowAnalyzing ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
               >
-                <span>✨ 下一步，AI辅助完善计划</span>
+                {isWorkflowAnalyzing ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-purple-700 border-t-transparent rounded-full animate-spin"></div>
+                    <span>分析中...</span>
+                  </>
+                ) : (
+                  <span>✨ 下一步，AI辅助完善计划</span>
+                )}
               </button>
             </div>
           )}
@@ -2017,6 +2044,10 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
               recognizedTasks={recognizedTasks}
               showTaskPreview={showTaskPreview}
               setShowTaskPreview={setShowTaskPreview}
+              workflowMode={workflowMode}
+              currentTasks={tasks}
+              onWorkflowOptionSelect={selectWorkflowOption}
+              isWorkflowAnalyzing={isWorkflowAnalyzing}
               handleSendMessage={handleSendMessage}
               handleClearChat={handleClearChat}
               handleDragEnter={handleDragEnter}

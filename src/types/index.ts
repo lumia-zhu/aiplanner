@@ -261,3 +261,35 @@ export function getTaskTags(task: Task): string[] {
 export function hasTaskTags(task: Task): boolean {
   return (task.tags?.length ?? 0) > 0
 }
+
+// ============================================
+// AI工作流辅助相关类型
+// ============================================
+
+/**
+ * AI辅助完善计划的流程阶段
+ */
+export type WorkflowMode = 
+  | 'initial'        // 初始状态:展示任务列表和推荐
+  | 'single-task'    // 完善单个任务模式
+  | 'priority-sort'  // 优先级排序模式
+  | 'ended'          // 已结束
+
+/**
+ * AI推荐类型
+ */
+export interface AIRecommendation {
+  mode: 'single-task' | 'priority-sort'  // 推荐的模式
+  reason: string                          // 推荐理由
+  confidence: 'high' | 'medium' | 'low'   // 推荐置信度
+}
+
+/**
+ * 工作流选项配置
+ */
+export interface WorkflowOption {
+  id: 'A' | 'B' | 'C'      // 选项ID
+  label: string             // 选项标签
+  description: string       // 选项描述
+  icon: string              // 选项图标(emoji)
+}
