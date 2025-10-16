@@ -3,16 +3,19 @@
  * 负责管理AI辅助完善计划的状态和逻辑
  */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import type { Task, UserProfile, WorkflowMode, AIRecommendation, PrioritySortFeeling, SingleTaskAction } from '@/types'
 import type { ChatMessage } from '@/lib/doubaoService'
 import { analyzeTasksForWorkflow, getTodayTasks, generateDetailedTaskSummary } from '@/lib/workflowAnalyzer'
 import { getMatrixTypeByFeeling, getMatrixConfig } from '@/types'
+import { streamText } from '@/utils/streamText'
 
 interface UseWorkflowAssistantProps {
   tasks: Task[]
   userProfile: UserProfile | null
   setChatMessages: (messages: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => void
+  setStreamingMessage: (message: string | ((prev: string) => string)) => void
+  setIsSending: (sending: boolean) => void
 }
 
 interface UseWorkflowAssistantReturn {
@@ -37,7 +40,9 @@ interface UseWorkflowAssistantReturn {
 export function useWorkflowAssistant({
   tasks,
   userProfile,
-  setChatMessages
+  setChatMessages,
+  setStreamingMessage,
+  setIsSending
 }: UseWorkflowAssistantProps): UseWorkflowAssistantReturn {
   
   const [workflowMode, setWorkflowMode] = useState<WorkflowMode>('initial')
@@ -45,6 +50,46 @@ export function useWorkflowAssistant({
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [selectedFeeling, setSelectedFeeling] = useState<PrioritySortFeeling | null>(null)
   const [selectedAction, setSelectedAction] = useState<SingleTaskAction | null>(null)
+  
+  // 用于取消正在进行的流式输出
+  const cancelStreamRef = useRef<(() => void) | null>(null)
+  
+  /**
+   * 辅助函数: 流式显示AI消息
+   */
+  const streamAIMessage = useCallback((text: string) => {
+    // 先取消之前的流式输出(如果有)
+    if (cancelStreamRef.current) {
+      cancelStreamRef.current()
+    }
+    
+    setStreamingMessage('')
+    setIsSending(true)
+    
+    const cancel = streamText({
+      text,
+      onChunk: (chunk) => {
+        setStreamingMessage(prev => prev + chunk)
+      },
+      onComplete: () => {
+        // 流式输出完成,添加到消息列表
+        setChatMessages(prev => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: [{ type: 'text', text }]
+          }
+        ])
+        setStreamingMessage('')
+        setIsSending(false)
+        cancelStreamRef.current = null
+      },
+      chunkSize: 2,
+      delay: 30
+    })
+    
+    cancelStreamRef.current = cancel
+  }, [setChatMessages, setStreamingMessage, setIsSending])
 
   /**
    * 开始工作流: 分析任务并生成推荐
@@ -86,40 +131,18 @@ ${recommendation.reason}
 
 请选择你想做什么:`
       
-      // 添加到聊天消息
-      setChatMessages(prev => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: [
-            {
-              type: 'text',
-              text: aiMessage
-            }
-          ]
-        }
-      ])
+      // 使用流式输出显示消息
+      streamAIMessage(aiMessage)
       
     } catch (error) {
       console.error('工作流分析失败:', error)
       
-      // 添加错误消息
-      setChatMessages(prev => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: [
-            {
-              type: 'text',
-              text: '❌ 抱歉,分析任务时出现了问题。请稍后再试。'
-            }
-          ]
-        }
-      ])
+      // 使用流式输出显示错误消息
+      streamAIMessage('❌ 抱歉,分析任务时出现了问题。请稍后再试。')
     } finally {
       setIsAnalyzing(false)
     }
-  }, [tasks, userProfile, setChatMessages])
+  }, [tasks, userProfile, setChatMessages, streamAIMessage])
 
   /**
    * 用户选择选项
@@ -129,22 +152,17 @@ ${recommendation.reason}
       // 选择完善单个任务 - 进入操作选择阶段
       setWorkflowMode('single-task-action')
       
+      // 先添加用户消息
       setChatMessages(prev => [
         ...prev,
         {
           role: 'user',
-          content: [{ type: 'text', text: '🔍 选项A: 完善单个任务' }]
-        },
-        {
-          role: 'assistant',
-          content: [
-            {
-              type: 'text',
-              text: '好的!我可以帮你做以下操作:\n\n请选择你想对任务进行什么操作:'
-            }
-          ]
+          content: [{ type: 'text', text: '🔍 完善单个任务' }]
         }
       ])
+      
+      // 然后流式显示AI回复
+      streamAIMessage('好的!我可以帮你做以下操作:\n\n请选择你想对任务进行什么操作:')
       
     } else if (optionId === 'B') {
       // 选择优先级排序 - 进入询问感觉阶段
@@ -154,18 +172,11 @@ ${recommendation.reason}
         ...prev,
         {
           role: 'user',
-          content: [{ type: 'text', text: '📊 选项B: 对所有任务做优先级排序' }]
-        },
-        {
-          role: 'assistant',
-          content: [
-            {
-              type: 'text',
-              text: '好的!在开始排序之前,我想了解一下:\n\n你现在主要的感觉是什么? 这将帮助我推荐最适合你的排序方法:'
-            }
-          ]
+          content: [{ type: 'text', text: '📊 对所有任务做优先级排序' }]
         }
       ])
+      
+      streamAIMessage('好的!在开始排序之前,我想了解一下:\n\n你现在主要的感觉是什么? 这将帮助我推荐最适合你的排序方法:')
       
     } else if (optionId === 'C') {
       // 结束AI辅助
@@ -175,20 +186,13 @@ ${recommendation.reason}
         ...prev,
         {
           role: 'user',
-          content: [{ type: 'text', text: '✅ 选项C: 结束AI辅助' }]
-        },
-        {
-          role: 'assistant',
-          content: [
-            {
-              type: 'text',
-              text: '👋 好的!AI辅助已结束。\n\n如果需要帮助,随时点击"下一步,AI辅助完善计划"按钮即可。祝你高效完成任务! 💪'
-            }
-          ]
+          content: [{ type: 'text', text: '✅ 结束AI辅助' }]
         }
       ])
+      
+      streamAIMessage('👋 好的!AI辅助已结束。\n\n如果需要帮助,随时点击"下一步,AI辅助完善计划"按钮即可。祝你高效完成任务! 💪')
     }
-  }, [setChatMessages])
+  }, [setChatMessages, streamAIMessage])
 
   /**
    * 用户选择感觉选项
@@ -203,15 +207,9 @@ ${recommendation.reason}
         {
           role: 'user',
           content: [{ type: 'text', text: '↩️ 返回上一级' }]
-        },
-        {
-          role: 'assistant',
-          content: [{
-            type: 'text',
-            text: '好的,已返回上一级。请重新选择你想做什么:'
-          }]
         }
       ])
+      streamAIMessage('好的,已返回上一级。请重新选择你想做什么:')
       return
     }
     
@@ -284,16 +282,11 @@ ${recommendation.reason}
       {
         role: 'user',
         content: [{ type: 'text', text: `${selected.emoji} ${selected.label}` }]
-      },
-      {
-        role: 'assistant',
-        content: [{
-          type: 'text',
-          text: guideMessage
-        }]
       }
     ])
-  }, [setChatMessages])
+    
+    streamAIMessage(guideMessage)
+  }, [setChatMessages, streamAIMessage])
 
   /**
    * 用户选择单个任务操作
@@ -308,15 +301,9 @@ ${recommendation.reason}
         {
           role: 'user',
           content: [{ type: 'text', text: '↩️ 返回上一级' }]
-        },
-        {
-          role: 'assistant',
-          content: [{
-            type: 'text',
-            text: '好的,已返回上一级。请重新选择你想做什么:'
-          }]
         }
       ])
+      streamAIMessage('好的,已返回上一级。请重新选择你想做什么:')
       return
     }
     
@@ -346,16 +333,11 @@ ${recommendation.reason}
       {
         role: 'user',
         content: [{ type: 'text', text: `${selected.emoji} ${selected.label}` }]
-      },
-      {
-        role: 'assistant',
-        content: [{
-          type: 'text',
-          text: `✅ 好的!我会帮你进行${selected.label}。\n\n**功能开发中...**\n\n敬请期待! 🚀`
-        }]
       }
     ])
-  }, [setChatMessages])
+    
+    streamAIMessage(`✅ 好的!我会帮你进行${selected.label}。\n\n**功能开发中...**\n\n敬请期待! 🚀`)
+  }, [setChatMessages, streamAIMessage])
 
   /**
    * 重置工作流状态

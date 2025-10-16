@@ -126,7 +126,9 @@ export default function DashboardPage() {
   } = useWorkflowAssistant({
     tasks,
     userProfile,
-    setChatMessages
+    setChatMessages,
+    setStreamingMessage,
+    setIsSending
   })
   
   // 监听工作流状态,自动打开对应矩阵

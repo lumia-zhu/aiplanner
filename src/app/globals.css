@@ -139,3 +139,19 @@ body {
 .animate-slide-down {
   animation: slide-down 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* 消息淡入上移动画 */
+@keyframes message-appear {
+  0% {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.message-animate {
+  animation: message-appear 0.4s ease-out;
+}

@@ -40,3 +40,5 @@ COMMENT ON COLUMN chat_messages.chat_date IS '对话所属日期，用于按天�
 COMMENT ON COLUMN chat_messages.role IS '消息角色：user(用户) 或 assistant(AI助手)';
 COMMENT ON COLUMN chat_messages.content IS '消息内容，JSONB格式，支持存储文本、图片等多种内容类型';
 
+
+

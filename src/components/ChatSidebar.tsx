@@ -106,6 +106,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   handlePaste,
   chatScrollRef
 }) => {
+  
   return (
     <>
 
