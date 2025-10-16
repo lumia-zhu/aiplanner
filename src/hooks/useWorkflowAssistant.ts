@@ -4,7 +4,7 @@
  */
 
 import { useState, useCallback } from 'react'
-import type { Task, UserProfile, WorkflowMode, AIRecommendation, ChatMessage } from '@/types'
+import type { Task, UserProfile, WorkflowMode, AIRecommendation, ChatMessage, PrioritySortFeeling } from '@/types'
 import { analyzeTasksForWorkflow, getTodayTasks, generateDetailedTaskSummary } from '@/lib/workflowAnalyzer'
 
 interface UseWorkflowAssistantProps {
@@ -18,10 +18,12 @@ interface UseWorkflowAssistantReturn {
   workflowMode: WorkflowMode
   aiRecommendation: AIRecommendation | null
   isAnalyzing: boolean
+  selectedFeeling: PrioritySortFeeling | null
   
   // 方法
   startWorkflow: () => Promise<void>
   selectOption: (optionId: 'A' | 'B' | 'C') => void
+  selectFeeling: (feeling: PrioritySortFeeling) => void
   resetWorkflow: () => void
 }
 
@@ -37,6 +39,7 @@ export function useWorkflowAssistant({
   const [workflowMode, setWorkflowMode] = useState<WorkflowMode>('initial')
   const [aiRecommendation, setAIRecommendation] = useState<AIRecommendation | null>(null)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [selectedFeeling, setSelectedFeeling] = useState<PrioritySortFeeling | null>(null)
 
   /**
    * 开始工作流: 分析任务并生成推荐
@@ -139,8 +142,8 @@ ${recommendation.reason}
       ])
       
     } else if (optionId === 'B') {
-      // 选择优先级排序
-      setWorkflowMode('priority-sort')
+      // 选择优先级排序 - 进入询问感觉阶段
+      setWorkflowMode('priority-feeling')
       
       setChatMessages(prev => [
         ...prev,
@@ -153,7 +156,7 @@ ${recommendation.reason}
           content: [
             {
               type: 'text',
-              text: '✅ 好的!我会帮你排列任务优先级。\n\n**功能开发中...**\n\n此功能将包括:\n• 🔥 艾森豪威尔矩阵(紧急/重要)\n• 💪 努力/影响矩阵\n• 😊 趣味/刺激矩阵\n\n敬请期待! 🚀'
+              text: '好的!在开始排序之前,我想了解一下:\n\n你现在主要的感觉是什么? 这将帮助我推荐最适合你的排序方法:'
             }
           ]
         }
@@ -183,20 +186,87 @@ ${recommendation.reason}
   }, [setChatMessages])
 
   /**
+   * 用户选择感觉选项
+   */
+  const selectFeeling = useCallback((feeling: PrioritySortFeeling) => {
+    if (feeling === 'back') {
+      // 返回初始状态
+      setWorkflowMode('initial')
+      setChatMessages(prev => [
+        ...prev,
+        {
+          role: 'user',
+          content: [{ type: 'text', text: '↩️ 返回上一级' }]
+        },
+        {
+          role: 'assistant',
+          content: [{
+            type: 'text',
+            text: '好的,已返回上一级。请重新选择你想做什么:'
+          }]
+        }
+      ])
+      return
+    }
+    
+    // 选择了感觉选项A/B/C
+    setSelectedFeeling(feeling)
+    setWorkflowMode('priority-matrix')
+    
+    const feelingMap = {
+      urgent: { 
+        emoji: '🔥',
+        label: '截止日期临近', 
+        matrix: '艾森豪威尔矩阵(紧急/重要)' 
+      },
+      overwhelmed: { 
+        emoji: '🤔',
+        label: '任务太多太乱', 
+        matrix: '努力/影响矩阵' 
+      },
+      blank: { 
+        emoji: '😫',
+        label: '大脑一片空白', 
+        matrix: '趣味/刺激矩阵' 
+      }
+    }
+    
+    const selected = feelingMap[feeling]
+    
+    setChatMessages(prev => [
+      ...prev,
+      {
+        role: 'user',
+        content: [{ type: 'text', text: `${selected.emoji} ${selected.label}` }]
+      },
+      {
+        role: 'assistant',
+        content: [{
+          type: 'text',
+          text: `✅ 明白了!\n\n功能开发中...\n\n我会为你调出${selected.matrix},帮你排列任务优先级。\n\n敬请期待! 🚀`
+        }]
+      }
+    ])
+  }, [setChatMessages])
+
+  /**
    * 重置工作流状态
    */
   const resetWorkflow = useCallback(() => {
     setWorkflowMode('initial')
     setAIRecommendation(null)
     setIsAnalyzing(false)
+    setSelectedFeeling(null)
   }, [])
 
   return {
     workflowMode,
     aiRecommendation,
     isAnalyzing,
+    selectedFeeling,
     startWorkflow,
     selectOption,
+    selectFeeling,
     resetWorkflow
   }
 }

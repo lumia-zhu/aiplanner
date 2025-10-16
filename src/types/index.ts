@@ -270,10 +270,12 @@ export function hasTaskTags(task: Task): boolean {
  * AI辅助完善计划的流程阶段
  */
 export type WorkflowMode = 
-  | 'initial'        // 初始状态:展示任务列表和推荐
-  | 'single-task'    // 完善单个任务模式
-  | 'priority-sort'  // 优先级排序模式
-  | 'ended'          // 已结束
+  | 'initial'          // 初始状态:展示任务列表和推荐
+  | 'single-task'      // 完善单个任务模式
+  | 'priority-sort'    // 优先级排序模式(总入口)
+  | 'priority-feeling' // 询问感觉阶段
+  | 'priority-matrix'  // 显示矩阵阶段
+  | 'ended'            // 已结束
 
 /**
  * AI推荐类型
@@ -292,4 +294,19 @@ export interface WorkflowOption {
   label: string             // 选项标签
   description: string       // 选项描述
   icon: string              // 选项图标(emoji)
+}
+
+/**
+ * 优先级排序的感觉选项类型
+ */
+export type PrioritySortFeeling = 'urgent' | 'overwhelmed' | 'blank' | 'back'
+
+/**
+ * 感觉选项配置
+ */
+export interface FeelingOption {
+  id: PrioritySortFeeling  // 选项ID
+  emoji: string             // 选项Emoji
+  label: string             // 选项标签
+  description: string       // 选项描述
 }
