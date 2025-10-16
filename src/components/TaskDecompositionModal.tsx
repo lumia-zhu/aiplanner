@@ -4,6 +4,23 @@ import React, { useState, useEffect } from 'react'
 import type { Task, SubtaskSuggestion } from '@/types'
 import { doubaoService } from '@/lib/doubaoService'
 import { parseDecompositionResponse, validateSubtaskSuggestions } from '@/utils/taskDecomposition'
+import { 
+  DndContext, 
+  closestCenter, 
+  KeyboardSensor, 
+  PointerSensor, 
+  useSensor, 
+  useSensors,
+  DragEndEvent
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 interface TaskDecompositionModalProps {
   isOpen: boolean
@@ -23,6 +40,14 @@ export default function TaskDecompositionModal({
   const [isEditing, setIsEditing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [streamingMessage, setStreamingMessage] = useState('')
+
+  // 拖拽传感器配置
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
 
   // 生成子任务建议
   const generateSubtasks = async () => {
@@ -119,6 +144,26 @@ export default function TaskDecompositionModal({
     setSubtaskSuggestions(prev => [...prev, newSubtask])
   }
 
+  // 处理拖拽结束
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (over && active.id !== over.id) {
+      setSubtaskSuggestions((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id)
+        const newIndex = items.findIndex((item) => item.id === over.id)
+
+        const newItems = arrayMove(items, oldIndex, newIndex)
+        
+        // 更新 order 字段以反映新的顺序
+        return newItems.map((item, index) => ({
+          ...item,
+          order: index + 1
+        }))
+      })
+    }
+  }
+
   // 确认选择的子任务
   const handleConfirm = () => {
     const selectedSubtasks = subtaskSuggestions.filter(task => task.is_selected)
@@ -153,11 +198,11 @@ export default function TaskDecompositionModal({
         </div>
 
         {/* 父任务信息 */}
-        <div className="p-4 bg-gray-50 border-b">
-          <h3 className="font-medium text-gray-900 mb-1">原任务</h3>
-          <p className="text-gray-700 font-medium">{parentTask.title}</p>
+        <div className="px-4 py-3 bg-gray-50 border-b">
+          <h3 className="text-sm font-medium text-gray-700 mb-1">原任务</h3>
+          <p className="text-gray-900 font-medium">{parentTask.title}</p>
           {parentTask.description && (
-            <p className="text-gray-600 text-sm mt-1">{parentTask.description}</p>
+            <p className="text-gray-600 text-sm mt-0.5">{parentTask.description}</p>
           )}
         </div>
 
@@ -196,103 +241,54 @@ export default function TaskDecompositionModal({
 
           {/* 子任务列表 */}
           {isEditing && subtaskSuggestions.length > 0 && (
-            <div className="space-y-4">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-medium text-gray-900">
-                  子任务建议 ({subtaskSuggestions.filter(t => t.is_selected).length} 个已选择)
-                </h3>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center mb-3">
+                <div>
+                  <h3 className="text-base font-medium text-gray-900">
+                    子任务建议 ({subtaskSuggestions.filter(t => t.is_selected).length} 个已选择)
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    💡 提示：拖动左侧 <span className="inline-flex align-middle text-gray-400">⋮⋮</span> 可调整子任务顺序
+                  </p>
+                </div>
                 <div className="flex gap-2">
                   <button
                     onClick={addSubtask}
-                    className="px-3 py-1 text-sm bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors"
+                    className="px-3 py-1.5 text-sm bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors"
                   >
                     + 添加子任务
                   </button>
                   <button
                     onClick={generateSubtasks}
-                    className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
+                    className="px-3 py-1.5 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
                   >
                     🔄 重新生成
                   </button>
                 </div>
               </div>
 
-              {subtaskSuggestions.map((subtask, index) => (
-                <div
-                  key={subtask.id}
-                  className={`border rounded-lg p-4 transition-all ${
-                    subtask.is_selected 
-                      ? 'border-blue-300 bg-blue-50' 
-                      : 'border-gray-200 bg-gray-50'
-                  }`}
+              <DndContext 
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext 
+                  items={subtaskSuggestions.map(s => s.id)}
+                  strategy={verticalListSortingStrategy}
                 >
-                  <div className="flex items-start gap-3">
-                    {/* 选择框 */}
-                    <input
-                      type="checkbox"
-                      checked={subtask.is_selected}
-                      onChange={(e) => updateSubtask(index, { is_selected: e.target.checked })}
-                      className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                    />
-
-                    <div className="flex-1 space-y-3">
-                      {/* 标题输入 */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          任务标题 *
-                        </label>
-                        <input
-                          type="text"
-                          value={subtask.title}
-                          onChange={(e) => updateSubtask(index, { title: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
-                          placeholder="输入子任务标题..."
-                        />
-                      </div>
-
-                      {/* 描述输入已移除，界面更简洁 */}
-
-                      {/* 预估时长 */}
-                      <div className="flex gap-4">
-                        <div className="flex-1">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            预估时长
-                          </label>
-                          <input
-                            type="text"
-                            value={subtask.estimated_duration || ''}
-                            onChange={(e) => updateSubtask(index, { estimated_duration: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
-                            placeholder="如：2小时、30分钟"
-                          />
-                        </div>
-
-                        <div className="flex-shrink-0 flex items-end">
-                          <button
-                            onClick={() => removeSubtask(index)}
-                            className="px-3 py-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md transition-colors"
-                            title="删除此子任务"
-                          >
-                            🗑️
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* 排序 */}
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <span>执行顺序：</span>
-                        <input
-                          type="number"
-                          min="1"
-                          value={subtask.order}
-                          onChange={(e) => updateSubtask(index, { order: parseInt(e.target.value) || 1 })}
-                          className="w-16 px-2 py-1 border border-gray-300 rounded text-center text-gray-900"
-                        />
-                      </div>
-                    </div>
+                  <div className="space-y-3">
+                    {subtaskSuggestions.map((subtask, index) => (
+                      <SortableSubtaskItem
+                        key={subtask.id}
+                        subtask={subtask}
+                        index={index}
+                        updateSubtask={updateSubtask}
+                        removeSubtask={removeSubtask}
+                      />
+                    ))}
                   </div>
-                </div>
-              ))}
+                </SortableContext>
+              </DndContext>
             </div>
           )}
         </div>
@@ -320,6 +316,99 @@ export default function TaskDecompositionModal({
             </div>
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+// 可拖拽的子任务项组件
+interface SortableSubtaskItemProps {
+  subtask: SubtaskSuggestion
+  index: number
+  updateSubtask: (index: number, updates: Partial<SubtaskSuggestion>) => void
+  removeSubtask: (index: number) => void
+}
+
+function SortableSubtaskItem({ subtask, index, updateSubtask, removeSubtask }: SortableSubtaskItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: subtask.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`border rounded-lg p-3 transition-all ${
+        subtask.is_selected 
+          ? 'border-blue-300 bg-blue-50' 
+          : 'border-gray-200 bg-gray-50'
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        {/* 拖拽手柄 */}
+        <div 
+          {...attributes} 
+          {...listeners}
+          className="flex-shrink-0 cursor-grab active:cursor-grabbing mt-1 text-gray-400 hover:text-gray-600"
+          title="拖拽排序"
+        >
+          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M9 3h2v2H9V3zm0 4h2v2H9V7zm0 4h2v2H9v-2zm0 4h2v2H9v-2zm0 4h2v2H9v-2zm4-16h2v2h-2V3zm0 4h2v2h-2V7zm0 4h2v2h-2v-2zm0 4h2v2h-2v-2zm0 4h2v2h-2v-2z"/>
+          </svg>
+        </div>
+
+        {/* 选择框 */}
+        <input
+          type="checkbox"
+          checked={subtask.is_selected}
+          onChange={(e) => updateSubtask(index, { is_selected: e.target.checked })}
+          className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+        />
+
+        <div className="flex-1 space-y-2">
+          {/* 任务标题和删除按钮 */}
+          <div className="flex gap-2 items-end">
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                任务标题 *
+              </label>
+              <input
+                type="text"
+                value={subtask.title}
+                onChange={(e) => updateSubtask(index, { title: e.target.value })}
+                className="w-full px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-400 text-sm"
+                placeholder="输入子任务标题..."
+              />
+            </div>
+
+            {/* 顺序显示（只读） */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-gray-500">顺序</span>
+              <div className="w-12 px-2 py-1.5 border border-gray-200 bg-gray-50 rounded text-center text-gray-700 text-sm">
+                {subtask.order}
+              </div>
+            </div>
+
+            <button
+              onClick={() => removeSubtask(index)}
+              className="px-2 py-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md transition-colors"
+              title="删除此子任务"
+            >
+              🗑️
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )

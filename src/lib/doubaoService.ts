@@ -265,23 +265,21 @@ class DoubaoService {
 
 重要要求：
 1. 必须严格按照JSON格式返回，不要添加任何解释文字
-2. 子任务标题要简洁明了，控制在10字以内，直接说明要做什么
-3. 预估执行时长使用简单格式（如"30分钟"、"1小时"、"半天"）
-4. 子任务应该按照逻辑顺序排列
-5. JSON格式必须严格正确，所有字符串必须用双引号包围
+2. 子任务标题要简洁明了，控制在15字以内，直接说明要做什么
+3. 子任务应该按照逻辑顺序排列
+4. JSON格式必须严格正确，所有字符串必须用双引号包围
 
 返回格式：
 {
   "subtasks": [
     {
       "title": "具体的子任务标题",
-      "estimated_duration": "时长",
       "order": 1
     }
   ]
 }
 
-注意：只需要title、estimated_duration和order三个字段，不需要description。`
+注意：只需要title和order两个字段，不需要description或时间估计。`
 
       // 构建用户消息
       const userMessage = `请将以下任务拆解为具体的子任务：
@@ -289,7 +287,7 @@ class DoubaoService {
 任务标题：${taskTitle}
 ${taskDescription ? `任务描述：${taskDescription}` : ''}
 
-请分析这个任务，并将其拆解为3-5个具体可执行的子任务。每个子任务都应该有明确的完成标准和合理的时间预估。`
+请分析这个任务，并将其拆解为3-5个具体可执行的子任务。每个子任务都应该有明确的完成标准。`
 
       const messages: ChatMessage[] = [
         {
@@ -311,7 +309,7 @@ ${taskDescription ? `任务描述：${taskDescription}` : ''}
           role: 'assistant',
           content: [{
             type: 'text',
-            text: '{"subtasks":[{"title":"确定演讲主题和大纲","estimated_duration":"2小时","order":1},{"title":"收集整理相关资料","estimated_duration":"4小时","order":2},{"title":"制作演讲PPT","estimated_duration":"3小时","order":3},{"title":"练习演讲内容","estimated_duration":"2小时","order":4},{"title":"准备问答环节","estimated_duration":"1小时","order":5}]}'
+            text: '{"subtasks":[{"title":"确定演讲主题和大纲","order":1},{"title":"收集整理相关资料","order":2},{"title":"制作演讲PPT","order":3},{"title":"练习演讲内容","order":4},{"title":"准备问答环节","order":5}]}'
           }]
         },
         {

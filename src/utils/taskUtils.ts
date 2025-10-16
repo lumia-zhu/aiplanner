@@ -49,9 +49,24 @@ export const taskOperations = {
     return sortTasks(updated)
   },
   
-  // 删除任务
+  // 删除任务（支持删除子任务）
   removeTask: (tasks: Task[], taskId: string): Task[] => {
-    return tasks.filter(task => task.id !== taskId)
+    return tasks
+      .filter(task => task.id !== taskId) // 删除顶层任务
+      .map(task => {
+        // 如果任务有子任务，也从子任务中删除
+        if (task.subtasks && task.subtasks.length > 0) {
+          const filteredSubtasks = task.subtasks.filter(subtask => subtask.id !== taskId)
+          // 只有当子任务数组发生变化时才返回新对象
+          if (filteredSubtasks.length !== task.subtasks.length) {
+            return {
+              ...task,
+              subtasks: filteredSubtasks
+            }
+          }
+        }
+        return task
+      })
   },
   
   // 切换完成状态（支持嵌套子任务和父子联动）
