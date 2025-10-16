@@ -45,3 +45,5 @@
 -- 删除用户个人资料
 -- DELETE FROM user_profiles WHERE user_id = 'your-user-id-here';
 
+
+

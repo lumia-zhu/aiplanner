@@ -45,3 +45,5 @@ CREATE TRIGGER trigger_update_user_profiles_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION update_user_profiles_updated_at();
 
+
+

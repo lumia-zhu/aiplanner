@@ -100,3 +100,5 @@ ON CONFLICT (user_id) DO NOTHING;
 -- 清理测试数据 (可选)
 -- DELETE FROM user_profiles WHERE user_id = 'your-user-id-here';
 
+
+

@@ -1946,11 +1946,11 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                   // 解锁高级功能并展开侧边栏
                   enableAdvancedTools()
                   setIsChatSidebarOpen(true) // 展开右侧聊天侧边栏
-                  console.log('写好任务了，开启高级功能并展开侧边栏')
+                  console.log('下一步，AI辅助完善计划')
                 }}
                 className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-50 to-blue-50 hover:from-purple-100 hover:to-blue-100 border-2 border-purple-200 hover:border-purple-300 text-purple-700 rounded-xl transition-all font-medium shadow-sm hover:shadow-md"
               >
-                <span>✨ 写好任务了，AI帮忙完善计划</span>
+                <span>✨ 下一步，AI辅助完善计划</span>
               </button>
             </div>
           )}

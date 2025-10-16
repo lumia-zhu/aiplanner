@@ -18,3 +18,5 @@ WHERE schemaname = 'public'
 AND tablename = 'chat_messages';
 
 
+
+

@@ -132,3 +132,5 @@ CREATE TRIGGER
 - 标签功能 (challenges, workplaces) 暂时预留为空数组
 - 下一步将创建 TypeScript 类型定义和数据库操作函数
 
+
+
