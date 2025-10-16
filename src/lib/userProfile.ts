@@ -57,6 +57,7 @@ export async function createUserProfile(
       grade: profileInput.grade || null,
       challenges: profileInput.challenges || [],
       workplaces: profileInput.workplaces || [],
+      custom_task_tags: profileInput.custom_task_tags || [],
     }
     
     const { data, error } = await supabase
@@ -108,6 +109,9 @@ export async function updateUserProfile(
     if (profileInput.workplaces !== undefined) {
       updateData.workplaces = profileInput.workplaces
     }
+    if (profileInput.custom_task_tags !== undefined) {
+      updateData.custom_task_tags = profileInput.custom_task_tags
+    }
     
     const { data, error } = await supabase
       .from('user_profiles')
@@ -151,6 +155,7 @@ export async function upsertUserProfile(
       grade: profileInput.grade || null,
       challenges: profileInput.challenges || [],
       workplaces: profileInput.workplaces || [],
+      custom_task_tags: profileInput.custom_task_tags || [],
     }
     
     const { data, error } = await supabase
@@ -207,5 +212,194 @@ export async function deleteUserProfile(
   }
 }
 
+// ============================================
+// 任务标签池管理功能
+// ============================================
 
+/**
+ * 获取用户的自定义任务标签池
+ * @param userId 用户ID
+ * @returns 自定义标签数组
+ */
+export async function getUserCustomTaskTags(userId: string): Promise<string[]> {
+  try {
+    const profile = await getUserProfile(userId)
+    return profile?.custom_task_tags ?? []
+  } catch (error) {
+    console.error('获取用户自定义标签失败:', error)
+    return []
+  }
+}
+
+/**
+ * 添加自定义任务标签到用户标签池
+ * 会自动去重,不会添加重复标签
+ * @param userId 用户ID
+ * @param tag 要添加的标签
+ * @returns 更新后的标签数组
+ */
+export async function addCustomTaskTag(
+  userId: string,
+  tag: string
+): Promise<{ success: boolean; tags?: string[]; error?: string }> {
+  try {
+    const supabase = createClient()
+    
+    // 获取当前标签池
+    const currentTags = await getUserCustomTaskTags(userId)
+    
+    // 检查是否已存在
+    if (currentTags.includes(tag)) {
+      return { success: true, tags: currentTags }
+    }
+    
+    // 添加新标签(去重)
+    const updatedTags = Array.from(new Set([...currentTags, tag]))
+    
+    // 更新数据库
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .update({ custom_task_tags: updatedTags })
+      .eq('user_id', userId)
+      .select('custom_task_tags')
+      .single()
+    
+    if (error) {
+      console.error('添加自定义标签失败:', error)
+      return { success: false, error: error.message }
+    }
+    
+    return { 
+      success: true, 
+      tags: data?.custom_task_tags ?? updatedTags 
+    }
+  } catch (error) {
+    console.error('添加自定义标签异常:', error)
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : '未知错误' 
+    }
+  }
+}
+
+/**
+ * 批量添加自定义任务标签到用户标签池
+ * @param userId 用户ID
+ * @param tags 要添加的标签数组
+ * @returns 更新后的标签数组
+ */
+export async function addCustomTaskTags(
+  userId: string,
+  tags: string[]
+): Promise<{ success: boolean; tags?: string[]; error?: string }> {
+  try {
+    const supabase = createClient()
+    
+    // 获取当前标签池
+    const currentTags = await getUserCustomTaskTags(userId)
+    
+    // 合并并去重
+    const updatedTags = Array.from(new Set([...currentTags, ...tags]))
+    
+    // 更新数据库
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .update({ custom_task_tags: updatedTags })
+      .eq('user_id', userId)
+      .select('custom_task_tags')
+      .single()
+    
+    if (error) {
+      console.error('批量添加自定义标签失败:', error)
+      return { success: false, error: error.message }
+    }
+    
+    return { 
+      success: true, 
+      tags: data?.custom_task_tags ?? updatedTags 
+    }
+  } catch (error) {
+    console.error('批量添加自定义标签异常:', error)
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : '未知错误' 
+    }
+  }
+}
+
+/**
+ * 从用户标签池中删除自定义任务标签
+ * @param userId 用户ID
+ * @param tag 要删除的标签
+ * @returns 更新后的标签数组
+ */
+export async function removeCustomTaskTag(
+  userId: string,
+  tag: string
+): Promise<{ success: boolean; tags?: string[]; error?: string }> {
+  try {
+    const supabase = createClient()
+    
+    // 获取当前标签池
+    const currentTags = await getUserCustomTaskTags(userId)
+    
+    // 过滤掉要删除的标签
+    const updatedTags = currentTags.filter(t => t !== tag)
+    
+    // 更新数据库
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .update({ custom_task_tags: updatedTags })
+      .eq('user_id', userId)
+      .select('custom_task_tags')
+      .single()
+    
+    if (error) {
+      console.error('删除自定义标签失败:', error)
+      return { success: false, error: error.message }
+    }
+    
+    return { 
+      success: true, 
+      tags: data?.custom_task_tags ?? updatedTags 
+    }
+  } catch (error) {
+    console.error('删除自定义标签异常:', error)
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : '未知错误' 
+    }
+  }
+}
+
+/**
+ * 清空用户的自定义任务标签池
+ * @param userId 用户ID
+ * @returns 是否成功
+ */
+export async function clearCustomTaskTags(
+  userId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = createClient()
+    
+    const { error } = await supabase
+      .from('user_profiles')
+      .update({ custom_task_tags: [] })
+      .eq('user_id', userId)
+    
+    if (error) {
+      console.error('清空自定义标签失败:', error)
+      return { success: false, error: error.message }
+    }
+    
+    return { success: true }
+  } catch (error) {
+    console.error('清空自定义标签异常:', error)
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : '未知错误' 
+    }
+  }
+}
 

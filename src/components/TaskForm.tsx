@@ -1,26 +1,31 @@
 import { useState, useEffect } from 'react'
 import type { Task } from '@/types'
+import TaskTagSelector from './TaskTagSelector'
 
 export interface TaskFormProps {
   task?: Task // 如果提供了task，则为编辑模式
   defaultDate?: Date // 默认截止日期
+  customTags?: string[] // 用户的自定义标签池
   onSubmit: (taskData: {
     title: string
     description?: string
     deadline_time?: string
     priority: 'low' | 'medium' | 'high'
+    tags?: string[] // ⭐ 新增: 任务标签
   }) => Promise<void>
   onCancel: () => void
+  onAddCustomTag?: (tag: string) => void // 添加新标签到用户标签池
   isLoading?: boolean
   animationOrigin?: { x: number; y: number } | null
 }
 
-export default function TaskForm({ task, defaultDate, onSubmit, onCancel, isLoading, animationOrigin }: TaskFormProps) {
+export default function TaskForm({ task, defaultDate, customTags = [], onSubmit, onCancel, onAddCustomTag, isLoading, animationOrigin }: TaskFormProps) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [deadlineDate, setDeadlineDate] = useState('')
   const [deadlineTime, setDeadlineTime] = useState('')
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium')
+  const [tags, setTags] = useState<string[]>([]) // ⭐ 新增: 标签状态
   const [error, setError] = useState('')
 
   // 初始化表单数据
@@ -29,6 +34,7 @@ export default function TaskForm({ task, defaultDate, onSubmit, onCancel, isLoad
       // 编辑模式：使用任务的现有数据
       setTitle(task.title)
       setDescription(task.description || '')
+      setTags(task.tags || []) // ⭐ 新增: 初始化标签
       
       if (task.deadline_datetime) {
         const date = new Date(task.deadline_datetime)
@@ -81,7 +87,8 @@ export default function TaskForm({ task, defaultDate, onSubmit, onCancel, isLoad
         title: title.trim(),
         description: description.trim() || undefined,
         deadline_time: deadlineDateTime,
-        priority
+        priority,
+        tags: tags.length > 0 ? tags : undefined // ⭐ 新增: 提交标签
       })
     } catch (err) {
       setError('保存失败，请重试')
@@ -193,6 +200,14 @@ export default function TaskForm({ task, defaultDate, onSubmit, onCancel, isLoad
               <option value="high">高优先级</option>
             </select>
           </div>
+
+          {/* ⭐ 任务标签选择器 */}
+          <TaskTagSelector
+            selectedTags={tags}
+            customTags={customTags}
+            onTagsChange={setTags}
+            onAddCustomTag={onAddCustomTag}
+          />
 
           {error && (
             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded text-sm">

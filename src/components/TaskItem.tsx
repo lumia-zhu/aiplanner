@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import type { Task } from '@/types'
 import { isTaskOverdue } from '@/lib/tasks'
+import { hasTaskTags } from '@/types'
 import SubtaskList from './SubtaskList'
+import TaskTagBadge from './TaskTagBadge'
 
 interface TaskItemProps {
   task: Task
@@ -154,6 +156,15 @@ export default function TaskItem({ task, onToggleComplete, onEdit, onDelete, onD
               </span>
             )}
           </div>
+
+          {/* ⭐ 任务标签显示 */}
+          {hasTaskTags(task) && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {task.tags!.map((tag) => (
+                <TaskTagBadge key={tag} tag={tag} size="sm" />
+              ))}
+            </div>
+          )}
 
           {task.description && (
             <p className={`mt-1 text-sm ${

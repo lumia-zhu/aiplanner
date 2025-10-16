@@ -21,7 +21,7 @@ import { doubaoService, type ChatMessage } from '@/lib/doubaoService'
 import { compressImage, fileToBase64, isFileSizeExceeded, formatFileSize } from '@/utils/imageUtils'
 import { saveChatMessage, getChatMessages, clearChatMessages } from '@/lib/chatMessages'
 import UserProfileModal from '@/components/UserProfileModal'
-import { getUserProfile, upsertUserProfile } from '@/lib/userProfile'
+import { getUserProfile, upsertUserProfile, addCustomTaskTag } from '@/lib/userProfile'
 import type { UserProfile, UserProfileInput } from '@/types'
 
 // 任务识别相关类型
@@ -231,6 +231,27 @@ export default function DashboardPage() {
     }
   }
 
+  // ⭐ 新增: 添加自定义任务标签到用户标签池
+  const handleAddCustomTag = async (tag: string) => {
+    if (!user) return
+    
+    try {
+      const result = await addCustomTaskTag(user.id, tag)
+      if (result.success && result.tags) {
+        // 更新本地用户资料中的标签池
+        if (userProfile) {
+          setUserProfile({
+            ...userProfile,
+            custom_task_tags: result.tags
+          })
+        }
+        console.log('✅ 添加自定义标签成功:', tag)
+      }
+    } catch (error) {
+      console.error('添加自定义标签失败:', error)
+    }
+  }
+
   // 监听日期变化，自动加载该日期的对话记录
   useEffect(() => {
     if (user) {
@@ -263,6 +284,7 @@ export default function DashboardPage() {
     description?: string
     deadline_time?: string
     priority: 'low' | 'medium' | 'high'
+    tags?: string[] // ⭐ 新增
   }) => {
     if (!user) return
     
@@ -292,6 +314,7 @@ export default function DashboardPage() {
     description?: string
     deadline_time?: string
     priority: 'low' | 'medium' | 'high'
+    tags?: string[] // ⭐ 新增
   }) => {
     if (!editingTask) return
     
@@ -2155,8 +2178,10 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
       {showTaskForm && (
         <TaskForm
           defaultDate={selectedDate}
+          customTags={userProfile?.custom_task_tags || []}
           onSubmit={handleCreateTask}
           onCancel={() => setShowTaskForm(false)}
+          onAddCustomTag={handleAddCustomTag}
           isLoading={isFormLoading}
           animationOrigin={animationOrigin}
         />
@@ -2166,8 +2191,10 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
         <TaskForm
           task={editingTask}
           defaultDate={selectedDate}
+          customTags={userProfile?.custom_task_tags || []}
           onSubmit={handleUpdateTask}
           onCancel={() => setEditingTask(null)}
+          onAddCustomTag={handleAddCustomTag}
           isLoading={isFormLoading}
           animationOrigin={animationOrigin}
         />

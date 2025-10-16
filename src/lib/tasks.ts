@@ -59,6 +59,7 @@ export async function createTask(
     parent_id?: string
     estimated_duration?: string
     subtask_order?: number
+    tags?: string[] // ⭐ 新增: 任务标签
   }
 ): Promise<{ task?: Task; error?: string }> {
   try {
@@ -102,6 +103,7 @@ export async function createTask(
           deadline_datetime: deadlineDateTime,
           priority: taskData.priority,
           completed: false,
+          tags: taskData.tags || [], // ⭐ 新增: 保存标签
           parent_id: taskData.parent_id || null,
           estimated_duration: taskData.estimated_duration || null,
           subtask_order: taskData.subtask_order || 0,
@@ -130,6 +132,7 @@ export async function updateTask(
     deadline_time?: string
     priority?: 'low' | 'medium' | 'high'
     completed?: boolean
+    tags?: string[] // ⭐ 新增: 任务标签
   }
 ): Promise<{ task?: Task; error?: string }> {
   try {
@@ -170,6 +173,11 @@ export async function updateTask(
       }
       // 删除原始的 deadline_time 字段，因为数据库中没有这个字段
       delete updateData.deadline_time
+    }
+    
+    // ⭐ 新增: 处理标签更新
+    if (updates.tags !== undefined) {
+      updateData.tags = updates.tags || []
     }
     
     const { data, error } = await supabase
