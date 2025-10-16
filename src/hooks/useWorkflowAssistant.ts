@@ -4,7 +4,7 @@
  */
 
 import { useState, useCallback } from 'react'
-import type { Task, UserProfile, WorkflowMode, AIRecommendation, PrioritySortFeeling } from '@/types'
+import type { Task, UserProfile, WorkflowMode, AIRecommendation, PrioritySortFeeling, SingleTaskAction } from '@/types'
 import type { ChatMessage } from '@/lib/doubaoService'
 import { analyzeTasksForWorkflow, getTodayTasks, generateDetailedTaskSummary } from '@/lib/workflowAnalyzer'
 import { getMatrixTypeByFeeling, getMatrixConfig } from '@/types'
@@ -21,11 +21,13 @@ interface UseWorkflowAssistantReturn {
   aiRecommendation: AIRecommendation | null
   isAnalyzing: boolean
   selectedFeeling: PrioritySortFeeling | null
+  selectedAction: SingleTaskAction | null
   
   // 方法
   startWorkflow: () => Promise<void>
   selectOption: (optionId: 'A' | 'B' | 'C') => void
   selectFeeling: (feeling: PrioritySortFeeling) => void
+  selectAction: (action: SingleTaskAction) => void
   resetWorkflow: () => void
 }
 
@@ -42,6 +44,7 @@ export function useWorkflowAssistant({
   const [aiRecommendation, setAIRecommendation] = useState<AIRecommendation | null>(null)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [selectedFeeling, setSelectedFeeling] = useState<PrioritySortFeeling | null>(null)
+  const [selectedAction, setSelectedAction] = useState<SingleTaskAction | null>(null)
 
   /**
    * 开始工作流: 分析任务并生成推荐
@@ -123,8 +126,8 @@ ${recommendation.reason}
    */
   const selectOption = useCallback((optionId: 'A' | 'B' | 'C') => {
     if (optionId === 'A') {
-      // 选择完善单个任务
-      setWorkflowMode('single-task')
+      // 选择完善单个任务 - 进入操作选择阶段
+      setWorkflowMode('single-task-action')
       
       setChatMessages(prev => [
         ...prev,
@@ -137,7 +140,7 @@ ${recommendation.reason}
           content: [
             {
               type: 'text',
-              text: '✅ 好的!我会帮你逐个完善任务。\n\n**功能开发中...**\n\n此功能将包括:\n• 📝 澄清任务细节\n• 🔨 拆解复杂任务\n• ⏱️ 估计执行时间\n\n敬请期待! 🚀'
+              text: '好的!我可以帮你做以下操作:\n\n请选择你想对任务进行什么操作:'
             }
           ]
         }
@@ -293,6 +296,68 @@ ${recommendation.reason}
   }, [setChatMessages])
 
   /**
+   * 用户选择单个任务操作
+   */
+  const selectAction = useCallback((action: SingleTaskAction) => {
+    if (action === 'back') {
+      // 返回初始状态
+      setWorkflowMode('initial')
+      setSelectedAction(null)
+      setChatMessages(prev => [
+        ...prev,
+        {
+          role: 'user',
+          content: [{ type: 'text', text: '↩️ 返回上一级' }]
+        },
+        {
+          role: 'assistant',
+          content: [{
+            type: 'text',
+            text: '好的,已返回上一级。请重新选择你想做什么:'
+          }]
+        }
+      ])
+      return
+    }
+    
+    // 选择了操作选项 clarify/decompose/estimate
+    setSelectedAction(action)
+    setWorkflowMode('single-task')
+    
+    const actionMap = {
+      clarify: { 
+        emoji: '📝',
+        label: '任务澄清'
+      },
+      decompose: { 
+        emoji: '🔨',
+        label: '任务拆解'
+      },
+      estimate: { 
+        emoji: '⏱️',
+        label: '任务时间估计'
+      }
+    }
+    
+    const selected = actionMap[action]
+    
+    setChatMessages(prev => [
+      ...prev,
+      {
+        role: 'user',
+        content: [{ type: 'text', text: `${selected.emoji} ${selected.label}` }]
+      },
+      {
+        role: 'assistant',
+        content: [{
+          type: 'text',
+          text: `✅ 好的!我会帮你进行${selected.label}。\n\n**功能开发中...**\n\n敬请期待! 🚀`
+        }]
+      }
+    ])
+  }, [setChatMessages])
+
+  /**
    * 重置工作流状态
    */
   const resetWorkflow = useCallback(() => {
@@ -300,6 +365,7 @@ ${recommendation.reason}
     setAIRecommendation(null)
     setIsAnalyzing(false)
     setSelectedFeeling(null)
+    setSelectedAction(null)
   }, [])
 
   return {
@@ -307,9 +373,11 @@ ${recommendation.reason}
     aiRecommendation,
     isAnalyzing,
     selectedFeeling,
+    selectedAction,
     startWorkflow,
     selectOption,
     selectFeeling,
+    selectAction,
     resetWorkflow
   }
 }

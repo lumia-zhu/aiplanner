@@ -2,9 +2,10 @@
 
 import React, { memo, useRef } from 'react'
 import { doubaoService, type ChatMessage } from '@/lib/doubaoService'
-import type { Task, WorkflowMode, PrioritySortFeeling } from '@/types'
+import type { Task, WorkflowMode, PrioritySortFeeling, SingleTaskAction } from '@/types'
 import WorkflowOptions from './WorkflowOptions'
 import FeelingOptions from './FeelingOptions'
+import SingleTaskActionOptions from './SingleTaskActionOptions'
 
 // 任务识别相关类型
 interface RecognizedTask {
@@ -46,6 +47,7 @@ interface ChatSidebarProps {
   currentTasks?: Task[]
   onWorkflowOptionSelect?: (optionId: 'A' | 'B' | 'C') => void
   onFeelingSelect?: (feeling: PrioritySortFeeling) => void
+  onActionSelect?: (action: SingleTaskAction) => void
   isWorkflowAnalyzing?: boolean
   
   // 事件处理函数
@@ -88,6 +90,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   currentTasks,
   onWorkflowOptionSelect,
   onFeelingSelect,
+  onActionSelect,
   isWorkflowAnalyzing,
   handleSendMessage,
   handleClearChat,
@@ -370,6 +373,19 @@ const ChatSidebar = memo<ChatSidebarProps>(({
             <WorkflowOptions 
               onSelect={onWorkflowOptionSelect}
               disabled={isWorkflowAnalyzing || isSending}
+            />
+          </div>
+        </div>
+      )}
+      
+      {/* 单个任务操作选项区域 */}
+      {workflowMode === 'single-task-action' && onActionSelect && (
+        <div className="border-t border-gray-200 bg-gradient-to-b from-gray-50 to-white flex-shrink-0">
+          <div className="p-4">
+            {/* 操作选项按钮 */}
+            <SingleTaskActionOptions 
+              onSelect={onActionSelect}
+              disabled={isSending}
             />
           </div>
         </div>

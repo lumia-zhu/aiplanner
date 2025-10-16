@@ -117,9 +117,11 @@ export default function DashboardPage() {
     aiRecommendation,
     isAnalyzing: isWorkflowAnalyzing,
     selectedFeeling,
+    selectedAction,
     startWorkflow,
     selectOption: selectWorkflowOption,
     selectFeeling,
+    selectAction,
     resetWorkflow
   } = useWorkflowAssistant({
     tasks,
@@ -2138,6 +2140,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
               currentTasks={tasks}
               onWorkflowOptionSelect={selectWorkflowOption}
               onFeelingSelect={selectFeeling}
+              onActionSelect={selectAction}
               isWorkflowAnalyzing={isWorkflowAnalyzing}
               handleSendMessage={handleSendMessage}
               handleClearChat={handleClearChat}
