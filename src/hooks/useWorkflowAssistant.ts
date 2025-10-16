@@ -5,7 +5,7 @@
 
 import { useState, useCallback } from 'react'
 import type { Task, UserProfile, WorkflowMode, AIRecommendation, ChatMessage } from '@/types'
-import { analyzeTasksForWorkflow, generateTaskSummary } from '@/lib/workflowAnalyzer'
+import { analyzeTasksForWorkflow, getTodayTasks, generateDetailedTaskSummary } from '@/lib/workflowAnalyzer'
 
 interface UseWorkflowAssistantProps {
   tasks: Task[]
@@ -46,27 +46,35 @@ export function useWorkflowAssistant({
       setIsAnalyzing(true)
       setWorkflowMode('initial')
       
+      // 获取今天的任务
+      const todayTasks = getTodayTasks(tasks)
+      
       // 调用分析服务
       const recommendation = await analyzeTasksForWorkflow(tasks, userProfile)
       setAIRecommendation(recommendation)
       
-      // 生成任务摘要
-      const taskSummary = generateTaskSummary(tasks)
+      // 生成详细任务摘要(包含任务列表)
+      const detailedSummary = generateDetailedTaskSummary(todayTasks)
       
       // 生成置信度显示
       const confidenceEmoji = 
         recommendation.confidence === 'high' ? '⭐⭐⭐' :
         recommendation.confidence === 'medium' ? '⭐⭐' : '⭐'
+      const confidenceText = 
+        recommendation.confidence === 'high' ? '高' : 
+        recommendation.confidence === 'medium' ? '中' : '低'
       
       // 构建AI消息
-      const aiMessage = `📋 **任务分析完成**
+      const aiMessage = `📋 今天的任务分析
 
-${taskSummary}
+${detailedSummary}
 
-**💡 我的建议:**
+---
+
+💡 我的建议:
 ${recommendation.reason}
 
-**推荐置信度:** ${confidenceEmoji} (${recommendation.confidence === 'high' ? '高' : recommendation.confidence === 'medium' ? '中' : '低'})
+---
 
 请选择你想做什么:`
       
