@@ -183,16 +183,32 @@ function removeOldPriorityTag(description: string | undefined): string {
 }
 
 // 辅助函数：添加新的优先级标记
-function addPriorityTag(description: string | undefined, quadrant: QuadrantId): string {
+function addPriorityTag(
+  description: string | undefined, 
+  quadrant: QuadrantId,
+  config: MatrixConfig
+): string {
   // 未分类的任务不添加标记
   if (quadrant === 'unclassified') {
     return removeOldPriorityTag(description)
   }
   
   const cleanDescription = removeOldPriorityTag(description)
-  const tag = QUADRANTS[quadrant as keyof typeof QUADRANTS]?.tag
   
-  if (!tag) return cleanDescription
+  // 从 config 动态获取象限配置
+  const quadrantConfig = config.quadrants[quadrant as 'q1' | 'q2' | 'q3' | 'q4']
+  
+  // 象限图标映射
+  const iconMap = {
+    q1: '🔴',
+    q2: '🟢', 
+    q3: '🟡',
+    q4: '⚪'
+  }
+  
+  // 动态生成标签
+  const icon = iconMap[quadrant as keyof typeof iconMap] || '📍'
+  const tag = `【${config.title}】${quadrantConfig.label} ${icon}`
   
   if (cleanDescription) {
     return `${cleanDescription}\n\n${tag}`
@@ -338,7 +354,7 @@ export default function PriorityMatrix({ tasks, config, onClose, onSave }: Props
     // 遍历所有象限（包括未分类）
     for (const [quadrant, tasks] of Object.entries(tasksByQuadrant)) {
       tasks.forEach(task => {
-        const newDescription = addPriorityTag(task.description, quadrant as QuadrantId)
+        const newDescription = addPriorityTag(task.description, quadrant as QuadrantId, config)
         
         // 只有 description 发生变化的任务才需要更新
         if (newDescription !== (task.description || '')) {
