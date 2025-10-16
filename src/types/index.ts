@@ -310,3 +310,180 @@ export interface FeelingOption {
   label: string             // 选项标签
   description: string       // 选项描述
 }
+
+// ============================================
+// 优先级矩阵相关类型
+// ============================================
+
+/**
+ * 矩阵类型
+ */
+export type MatrixType = 
+  | 'eisenhower'        // 艾森豪威尔矩阵 (紧急/重要)
+  | 'effort-impact'     // 努力/影响矩阵
+  | 'fun-stimulation'   // 趣味/刺激矩阵
+
+/**
+ * 矩阵象限配置
+ */
+export interface QuadrantConfig {
+  label: string       // 象限标签
+  color: string       // 象限颜色(hex)
+  description: string // 象限描述
+}
+
+/**
+ * 矩阵配置接口
+ */
+export interface MatrixConfig {
+  type: MatrixType                           // 矩阵类型
+  title: string                              // 矩阵标题
+  xAxis: { min: string; max: string }        // 横轴标签
+  yAxis: { min: string; max: string }        // 纵轴标签
+  quadrants: {                               // 四个象限配置
+    q1: QuadrantConfig  // 右上象限
+    q2: QuadrantConfig  // 左上象限
+    q3: QuadrantConfig  // 左下象限
+    q4: QuadrantConfig  // 右下象限
+  }
+}
+
+/**
+ * 矩阵显示状态
+ */
+export interface MatrixState {
+  isOpen: boolean           // 是否打开
+  type: MatrixType | null   // 当前矩阵类型
+  config: MatrixConfig | null  // 当前矩阵配置
+}
+
+// ============================================
+// 矩阵配置常量
+// ============================================
+
+/**
+ * 艾森豪威尔矩阵配置 (紧急/重要)
+ */
+export const EISENHOWER_MATRIX_CONFIG: MatrixConfig = {
+  type: 'eisenhower',
+  title: '艾森豪威尔矩阵',
+  xAxis: { min: '不紧急', max: '紧急' },
+  yAxis: { min: '不重要', max: '重要' },
+  quadrants: {
+    q1: {
+      label: '重要且紧急',
+      color: '#EF4444',  // 红色
+      description: '必须马上做'
+    },
+    q2: {
+      label: '重要不紧急',
+      color: '#3B82F6',  // 蓝色
+      description: '应该计划做'
+    },
+    q3: {
+      label: '不重要但紧急',
+      color: '#F59E0B',  // 橙色
+      description: '可以委托做'
+    },
+    q4: {
+      label: '不重要不紧急',
+      color: '#10B981',  // 绿色
+      description: '有空再做'
+    }
+  }
+}
+
+/**
+ * 努力/影响矩阵配置
+ */
+export const EFFORT_IMPACT_MATRIX_CONFIG: MatrixConfig = {
+  type: 'effort-impact',
+  title: '努力/影响矩阵',
+  xAxis: { min: 'Low Effort', max: 'High Effort' },
+  yAxis: { min: 'Low Impact', max: 'High Impact' },
+  quadrants: {
+    q1: {
+      label: 'High Impact, High Effort',
+      color: '#EF4444',  // 红色
+      description: '重大项目 - 需要规划'
+    },
+    q2: {
+      label: 'High Impact, Low Effort',
+      color: '#3B82F6',  // 蓝色
+      description: '快速胜利 - 优先做'
+    },
+    q3: {
+      label: 'Low Impact, High Effort',
+      color: '#6B7280',  // 灰色
+      description: '费力不讨好 - 避免'
+    },
+    q4: {
+      label: 'Low Impact, Low Effort',
+      color: '#10B981',  // 绿色
+      description: '填充任务 - 有空做'
+    }
+  }
+}
+
+/**
+ * 趣味/刺激矩阵配置
+ */
+export const FUN_STIMULATION_MATRIX_CONFIG: MatrixConfig = {
+  type: 'fun-stimulation',
+  title: '趣味/刺激矩阵',
+  xAxis: { min: 'Not Fun', max: 'Fun' },
+  yAxis: { min: 'Not Stimulating', max: 'Stimulating' },
+  quadrants: {
+    q1: {
+      label: 'Stimulating & Fun',
+      color: '#8B5CF6',  // 紫色
+      description: '充满动力 - 尽情享受'
+    },
+    q2: {
+      label: 'Stimulating, Not Fun',
+      color: '#EF4444',  // 红色
+      description: '挑战任务 - 短时冲刺'
+    },
+    q3: {
+      label: 'Not Stimulating, Not Fun',
+      color: '#6B7280',  // 灰色
+      description: '枯燥任务 - 批量处理'
+    },
+    q4: {
+      label: 'Fun, Not Stimulating',
+      color: '#10B981',  // 绿色
+      description: '放松任务 - 疲惫时做'
+    }
+  }
+}
+
+/**
+ * 根据矩阵类型获取对应配置
+ * @param type 矩阵类型
+ * @returns 矩阵配置
+ */
+export function getMatrixConfig(type: MatrixType): MatrixConfig {
+  switch (type) {
+    case 'eisenhower':
+      return EISENHOWER_MATRIX_CONFIG
+    case 'effort-impact':
+      return EFFORT_IMPACT_MATRIX_CONFIG
+    case 'fun-stimulation':
+      return FUN_STIMULATION_MATRIX_CONFIG
+  }
+}
+
+/**
+ * 根据感觉类型映射到对应的矩阵类型
+ * @param feeling 感觉类型
+ * @returns 矩阵类型 (如果是'back'则返回null)
+ */
+export function getMatrixTypeByFeeling(feeling: PrioritySortFeeling): MatrixType | null {
+  const map: Record<PrioritySortFeeling, MatrixType | null> = {
+    'urgent': 'eisenhower',
+    'overwhelmed': 'effort-impact',
+    'blank': 'fun-stimulation',
+    'back': null
+  }
+  return map[feeling]
+}

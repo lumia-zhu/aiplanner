@@ -4,8 +4,10 @@
  */
 
 import { useState, useCallback } from 'react'
-import type { Task, UserProfile, WorkflowMode, AIRecommendation, ChatMessage, PrioritySortFeeling } from '@/types'
+import type { Task, UserProfile, WorkflowMode, AIRecommendation, PrioritySortFeeling } from '@/types'
+import type { ChatMessage } from '@/lib/doubaoService'
 import { analyzeTasksForWorkflow, getTodayTasks, generateDetailedTaskSummary } from '@/lib/workflowAnalyzer'
+import { getMatrixTypeByFeeling, getMatrixConfig } from '@/types'
 
 interface UseWorkflowAssistantProps {
   tasks: Task[]
@@ -192,6 +194,7 @@ ${recommendation.reason}
     if (feeling === 'back') {
       // 返回初始状态
       setWorkflowMode('initial')
+      setSelectedFeeling(null)
       setChatMessages(prev => [
         ...prev,
         {
@@ -213,25 +216,65 @@ ${recommendation.reason}
     setSelectedFeeling(feeling)
     setWorkflowMode('priority-matrix')
     
+    // 获取对应的矩阵类型和配置
+    const matrixType = getMatrixTypeByFeeling(feeling)
+    
+    if (!matrixType) return
+    
+    const config = getMatrixConfig(matrixType)
+    
+    // 感觉选项映射
     const feelingMap = {
       urgent: { 
         emoji: '🔥',
-        label: '截止日期临近', 
-        matrix: '艾森豪威尔矩阵(紧急/重要)' 
+        label: '截止日期临近'
       },
       overwhelmed: { 
         emoji: '🤔',
-        label: '任务太多太乱', 
-        matrix: '努力/影响矩阵' 
+        label: '任务太多太乱'
       },
       blank: { 
         emoji: '😫',
-        label: '大脑一片空白', 
-        matrix: '趣味/刺激矩阵' 
+        label: '大脑一片空白'
       }
     }
     
     const selected = feelingMap[feeling]
+    
+    // 根据不同类型生成不同的引导消息
+    let guideMessage = ''
+    
+    if (feeling === 'urgent') {
+      guideMessage = `好的!我们来用【${config.title}】快速分类今天的任务~
+
+这个矩阵会帮你把任务分成四个象限:
+📍 ${config.quadrants.q1.label}: ${config.quadrants.q1.description}
+📍 ${config.quadrants.q2.label}: ${config.quadrants.q2.description}
+📍 ${config.quadrants.q3.label}: ${config.quadrants.q3.description}
+📍 ${config.quadrants.q4.label}: ${config.quadrants.q4.description}
+
+请在弹出的矩阵中拖拽任务进行分类吧! 👇`
+    } else if (feeling === 'overwhelmed') {
+      guideMessage = `好的!我们来用【${config.title}】找到"高回报"的任务~
+
+这个矩阵会帮你识别:
+🎯 ${config.quadrants.q2.label}: ${config.quadrants.q2.description} - 这些是最值得做的!
+💎 ${config.quadrants.q1.label}: ${config.quadrants.q1.description}
+⚠️ ${config.quadrants.q3.label}: ${config.quadrants.q3.description}
+✅ ${config.quadrants.q4.label}: ${config.quadrants.q4.description}
+
+请在弹出的矩阵中拖拽任务进行分类吧! 👇`
+    } else if (feeling === 'blank') {
+      guideMessage = `好的!我们来用【${config.title}】找到你想做的任务~
+
+这个矩阵会帮你发现:
+🌟 ${config.quadrants.q1.label}: ${config.quadrants.q1.description}
+⚡ ${config.quadrants.q2.label}: ${config.quadrants.q2.description}
+😴 ${config.quadrants.q3.label}: ${config.quadrants.q3.description}
+😊 ${config.quadrants.q4.label}: ${config.quadrants.q4.description}
+
+请在弹出的矩阵中拖拽任务进行分类吧! 👇`
+    }
     
     setChatMessages(prev => [
       ...prev,
@@ -243,7 +286,7 @@ ${recommendation.reason}
         role: 'assistant',
         content: [{
           type: 'text',
-          text: `✅ 明白了!\n\n功能开发中...\n\n我会为你调出${selected.matrix},帮你排列任务优先级。\n\n敬请期待! 🚀`
+          text: guideMessage
         }]
       }
     ])

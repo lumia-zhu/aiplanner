@@ -15,14 +15,15 @@ import CalendarView from '@/components/CalendarView'
 import ChatSidebar from '@/components/ChatSidebar'
 import TaskDecompositionModal from '@/components/TaskDecompositionModal'
 import QuickAddTask from '@/components/QuickAddTask'
-import EisenhowerMatrix from '@/components/EisenhowerMatrix'
+import PriorityMatrix from '@/components/PriorityMatrix'
 import { taskOperations } from '@/utils/taskUtils'
 import { doubaoService, type ChatMessage } from '@/lib/doubaoService'
 import { compressImage, fileToBase64, isFileSizeExceeded, formatFileSize } from '@/utils/imageUtils'
 import { saveChatMessage, getChatMessages, clearChatMessages } from '@/lib/chatMessages'
 import UserProfileModal from '@/components/UserProfileModal'
 import { getUserProfile, upsertUserProfile, addCustomTaskTag } from '@/lib/userProfile'
-import type { UserProfile, UserProfileInput } from '@/types'
+import type { UserProfile, UserProfileInput, MatrixState } from '@/types'
+import { getMatrixTypeByFeeling, getMatrixConfig } from '@/types'
 import { useWorkflowAssistant } from '@/hooks/useWorkflowAssistant'
 
 // 任务识别相关类型
@@ -97,8 +98,12 @@ export default function DashboardPage() {
   const [showDecompositionModal, setShowDecompositionModal] = useState(false)
   const [decomposingTask, setDecomposingTask] = useState<Task | null>(null)
   
-  // 艾森豪威尔矩阵状态
-  const [showMatrix, setShowMatrix] = useState(false)
+  // 优先级矩阵状态
+  const [matrixState, setMatrixState] = useState<MatrixState>({
+    isOpen: false,
+    type: null,
+    config: null
+  })
   
   // 用户个人资料状态
   const [showProfileModal, setShowProfileModal] = useState(false)
@@ -121,6 +126,30 @@ export default function DashboardPage() {
     userProfile,
     setChatMessages
   })
+  
+  // 监听工作流状态,自动打开对应矩阵
+  useEffect(() => {
+    if (workflowMode === 'priority-matrix' && selectedFeeling) {
+      // 获取矩阵类型
+      const matrixType = getMatrixTypeByFeeling(selectedFeeling)
+      
+      if (!matrixType) return
+
+      // 获取矩阵配置
+      const config = getMatrixConfig(matrixType)
+
+      // 延迟打开,让用户先看到AI引导消息
+      const timer = setTimeout(() => {
+        setMatrixState({
+          isOpen: true,
+          type: matrixType,
+          config: config
+        })
+      }, 800)
+
+      return () => clearTimeout(timer)
+    }
+  }, [workflowMode, selectedFeeling])
   
   // 动画相关状态
   const [animationOrigin, setAnimationOrigin] = useState<{ x: number; y: number } | null>(null)
@@ -632,7 +661,7 @@ export default function DashboardPage() {
     }
   }
 
-  // 艾森豪威尔矩阵保存处理
+  // 优先级矩阵保存处理
   const handleMatrixSave = async (updatedTasks: { id: string; description: string }[]) => {
     if (!user) return
     
@@ -650,7 +679,66 @@ export default function DashboardPage() {
       await loadTasks(user.id)
       
       // 关闭模态框
-      setShowMatrix(false)
+      setMatrixState({
+        isOpen: false,
+        type: null,
+        config: null
+      })
+      
+      // 发送AI完成消息
+      if (workflowMode === 'priority-matrix' && matrixState.config) {
+        const config = matrixState.config
+        
+        let completionMessage = ''
+        
+        if (matrixState.type === 'eisenhower') {
+          completionMessage = `✅ 太棒了!已完成优先级分类!
+
+你的任务已经按照【重要性】和【紧急性】进行了分类,现在你可以:
+1️⃣ 优先处理 ${config.quadrants.q1.label} 的任务
+2️⃣ 合理安排 ${config.quadrants.q2.label} 的任务
+3️⃣ 考虑委托 ${config.quadrants.q3.label} 的任务
+4️⃣ 减少或延后 ${config.quadrants.q4.label} 的任务
+
+加油! 💪`
+        } else if (matrixState.type === 'effort-impact') {
+          completionMessage = `✅ 太棒了!已完成任务分类!
+
+你的任务已经按照【努力程度】和【影响力】进行了分类:
+🎯 优先做 ${config.quadrants.q2.label} - 这些是快速胜利!
+💎 然后规划 ${config.quadrants.q1.label}
+⚠️ 尽量避免 ${config.quadrants.q3.label}
+✅ 有空做 ${config.quadrants.q4.label}
+
+聪明地工作! 🧠`
+        } else if (matrixState.type === 'fun-stimulation') {
+          completionMessage = `✅ 太棒了!已完成任务分类!
+
+你的任务已经按照【趣味性】和【刺激性】进行了分类:
+🌟 尽情享受 ${config.quadrants.q1.label}
+⚡ 短时冲刺 ${config.quadrants.q2.label}
+😊 疲惫时做 ${config.quadrants.q4.label}
+😴 批量处理 ${config.quadrants.q3.label}
+
+找到适合自己状态的任务吧! 🎯`
+        }
+        
+        setChatMessages(prev => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: [
+              {
+                type: 'text',
+                text: completionMessage
+              }
+            ]
+          }
+        ])
+        
+        // 重置工作流状态
+        resetWorkflow()
+      }
       
       alert('✅ 任务优先级分类已保存！')
     } catch (error) {
@@ -2247,11 +2335,35 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
         />
       )}
 
-      {/* 艾森豪威尔矩阵 */}
-      {showMatrix && (
-        <EisenhowerMatrix
+      {/* 优先级矩阵 */}
+      {matrixState.isOpen && matrixState.config && (
+        <PriorityMatrix
           tasks={displayTasks}
-          onClose={() => setShowMatrix(false)}
+          config={matrixState.config}
+          onClose={() => {
+            setMatrixState({
+              isOpen: false,
+              type: null,
+              config: null
+            })
+            
+            // 如果是从工作流打开的,也重置工作流
+            if (workflowMode === 'priority-matrix') {
+              setChatMessages(prev => [
+                ...prev,
+                {
+                  role: 'assistant',
+                  content: [
+                    {
+                      type: 'text',
+                      text: '好的,已取消分类。如果需要的话随时可以重新开始哦! 😊'
+                    }
+                  ]
+                }
+              ])
+              resetWorkflow()
+            }
+          }}
           onSave={handleMatrixSave}
         />
       )}
