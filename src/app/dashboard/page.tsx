@@ -283,7 +283,7 @@ export default function DashboardPage() {
     title: string
     description?: string
     deadline_time?: string
-    priority: 'low' | 'medium' | 'high'
+    priority?: 'low' | 'medium' | 'high' // ⭐ 修改: 优先级可选
     tags?: string[] // ⭐ 新增
   }) => {
     if (!user) return
@@ -313,7 +313,7 @@ export default function DashboardPage() {
     title: string
     description?: string
     deadline_time?: string
-    priority: 'low' | 'medium' | 'high'
+    priority?: 'low' | 'medium' | 'high' // ⭐ 修改: 优先级可选
     tags?: string[] // ⭐ 新增
   }) => {
     if (!editingTask) return

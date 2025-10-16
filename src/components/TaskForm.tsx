@@ -10,7 +10,7 @@ export interface TaskFormProps {
     title: string
     description?: string
     deadline_time?: string
-    priority: 'low' | 'medium' | 'high'
+    priority?: 'low' | 'medium' | 'high' // ⭐ 修改: 优先级可选
     tags?: string[] // ⭐ 新增: 任务标签
   }) => Promise<void>
   onCancel: () => void
@@ -24,7 +24,7 @@ export default function TaskForm({ task, defaultDate, customTags = [], onSubmit,
   const [description, setDescription] = useState('')
   const [deadlineDate, setDeadlineDate] = useState('')
   const [deadlineTime, setDeadlineTime] = useState('')
-  const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium')
+  const [priority, setPriority] = useState<'low' | 'medium' | 'high' | ''>('') // ⭐ 修改: 默认为空
   const [tags, setTags] = useState<string[]>([]) // ⭐ 新增: 标签状态
   const [error, setError] = useState('')
 
@@ -52,7 +52,7 @@ export default function TaskForm({ task, defaultDate, customTags = [], onSubmit,
         setDeadlineTime('')
       }
       
-      setPriority(task.priority)
+      setPriority(task.priority || '') // ⭐ 修改: 如果没有优先级则设为空
     } else if (defaultDate) {
       // 新建模式：使用默认日期
       const year = defaultDate.getFullYear()
@@ -87,7 +87,7 @@ export default function TaskForm({ task, defaultDate, customTags = [], onSubmit,
         title: title.trim(),
         description: description.trim() || undefined,
         deadline_time: deadlineDateTime,
-        priority,
+        priority: priority || undefined, // ⭐ 修改: 只在有优先级时提交
         tags: tags.length > 0 ? tags : undefined // ⭐ 新增: 提交标签
       })
     } catch (err) {
@@ -129,7 +129,7 @@ export default function TaskForm({ task, defaultDate, customTags = [], onSubmit,
           {/* 任务描述 */}
           <div>
             <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
-              任务描述
+              任务描述 (可选)
             </label>
             <textarea
               id="description"
@@ -137,7 +137,7 @@ export default function TaskForm({ task, defaultDate, customTags = [], onSubmit,
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-[#3f3f3f]"
-              placeholder="输入任务描述（可选）"
+              placeholder="输入任务描述"
               disabled={isLoading}
             />
           </div>
@@ -145,7 +145,7 @@ export default function TaskForm({ task, defaultDate, customTags = [], onSubmit,
           {/* 截止日期和时间 */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              截止时间
+              截止时间 (可选)
             </label>
             <div className="grid grid-cols-2 gap-3">
               {/* 日期选择 */}
@@ -186,15 +186,16 @@ export default function TaskForm({ task, defaultDate, customTags = [], onSubmit,
           {/* 优先级 */}
           <div>
             <label htmlFor="priority" className="block text-sm font-medium text-gray-700 mb-1">
-              优先级
+              优先级 (可选)
             </label>
             <select
               id="priority"
               value={priority}
-              onChange={(e) => setPriority(e.target.value as 'low' | 'medium' | 'high')}
+              onChange={(e) => setPriority(e.target.value as 'low' | 'medium' | 'high' | '')}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-[#3f3f3f]"
               disabled={isLoading}
             >
+              <option value="">不设置优先级</option>
               <option value="low">低优先级</option>
               <option value="medium">中优先级</option>
               <option value="high">高优先级</option>
