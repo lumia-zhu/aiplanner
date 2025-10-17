@@ -346,10 +346,38 @@ ${recommendation.reason}
       }
     ])
     
-    // 如果是任务拆解，进入任务选择模式
+    // 如果是任务拆解或任务澄清，进入任务选择模式
     if (action === 'decompose') {
       setWorkflowMode('task-selection')
       streamAIMessage('好的！我来帮你拆解任务。\n\n请选择你想要拆解的任务：')
+    } else if (action === 'clarify') {
+      // 为“任务澄清”给出建议与原因，再进入任务选择
+      const todayTasks = getTodayTasks(tasks)
+      const candidates: { title: string; reason: string }[] = []
+      for (const t of todayTasks) {
+        if (!t.description || t.description.trim().length < 6) {
+          candidates.push({ title: t.title, reason: '没有描述或描述过于简短' })
+          continue
+        }
+        if (t.title.length > 28 || /[?？]/.test(t.title)) {
+          candidates.push({ title: t.title, reason: '标题过长/含不确定性，需要明确产出与范围' })
+          continue
+        }
+        if (t.tags?.includes('difficult')) {
+          candidates.push({ title: t.title, reason: '被标记为“困难”，建议先澄清目标与步骤' })
+          continue
+        }
+      }
+      const top = candidates.slice(0, 3)
+      const suggestion = top.length > 0
+        ? `好的！在开始澄清之前，我建议优先澄清以下任务：\n\n${top
+            .map((c, i) => `${i + 1}. ${c.title} —— 原因：${c.reason}`)
+            .join('\n')}
+\n\n请选择你想要澄清的任务：`
+        : '好的！请选择你想要澄清的任务：'
+
+      setWorkflowMode('task-selection')
+      streamAIMessage(suggestion)
     } else {
       // 其他功能暂未开发
       setWorkflowMode('single-task')
@@ -376,28 +404,28 @@ ${recommendation.reason}
       ])
       streamAIMessage('好的,已返回上一级。请重新选择操作:')
     } else {
-      // 选择了任务，生成问题并切换到输入模式
-      setSelectedTaskForDecompose(task)
-      
-      // 生成问题
-      const questions = generateContextQuestions(task)
-      setContextQuestions(questions)
-      
-      // 切换到等待输入模式
-      setWorkflowMode('task-context-input')
-      
-      // 发送用户选择的消息
+      // 选择了任务
       setChatMessages(prev => [
         ...prev,
-        {
-          role: 'user',
-          content: [{ type: 'text', text: `📌 ${task.title}` }]
-        }
+        { role: 'user', content: [{ type: 'text', text: `📌 ${task.title}` }] }
       ])
-      
-      // AI发送问题
-      const questionMessage = formatQuestionsMessage(task, questions)
-      streamAIMessage(questionMessage)
+
+      if (selectedAction === 'decompose') {
+        // 拆解路径：生成问题并进入上下文输入模式
+        setSelectedTaskForDecompose(task)
+        const questions = generateContextQuestions(task)
+        setContextQuestions(questions)
+        setWorkflowMode('task-context-input')
+        const questionMessage = formatQuestionsMessage(task, questions)
+        streamAIMessage(questionMessage)
+      } else if (selectedAction === 'clarify') {
+        // 澄清路径：暂不实现后续功能，仅提示并返回上一层
+        streamAIMessage('收到！我会在后续为该任务提供澄清引导与模板。')
+        setSelectedTaskForDecompose(null)
+        setTaskContextInput('')
+        setContextQuestions([])
+        setWorkflowMode('single-task-action')
+      }
     }
   }, [setChatMessages, streamAIMessage])
 
