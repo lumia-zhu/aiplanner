@@ -2,11 +2,12 @@
 
 import React, { memo, useRef } from 'react'
 import { doubaoService, type ChatMessage } from '@/lib/doubaoService'
-import type { Task, WorkflowMode, PrioritySortFeeling, SingleTaskAction } from '@/types'
+import type { Task, WorkflowMode, PrioritySortFeeling, SingleTaskAction, SubtaskSuggestion } from '@/types'
 import WorkflowOptions from './WorkflowOptions'
 import FeelingOptions from './FeelingOptions'
 import SingleTaskActionOptions from './SingleTaskActionOptions'
 import TaskSelectionOptions from './TaskSelectionOptions'
+import TaskDecompositionCard from './TaskDecompositionCard'
 
 // 任务识别相关类型
 interface RecognizedTask {
@@ -53,6 +54,10 @@ interface ChatSidebarProps {
   onContextSubmit?: (context: string) => void
   isWorkflowAnalyzing?: boolean
   
+  // 任务拆解相关回调
+  onDecompositionConfirm?: (parentTask: Task, subtasks: SubtaskSuggestion[]) => void
+  onDecompositionCancel?: (parentTask: Task) => void
+  
   // 事件处理函数
   handleSendMessage: () => void
   handleClearChat: () => void
@@ -97,6 +102,8 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   onTaskSelect,
   onContextSubmit,
   isWorkflowAnalyzing,
+  onDecompositionConfirm,
+  onDecompositionCancel,
   handleSendMessage,
   handleClearChat,
   handleDragEnter,
@@ -236,6 +243,28 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                             style={{ maxHeight: '150px' }}
                           />
                           <p className="text-xs text-gray-500 mt-1">📸 已上传图片</p>
+                        </div>
+                      )}
+                      {content.type === 'interactive' && content.interactive && (
+                        <div className="mt-2">
+                          {/* 任务拆解交互式卡片 */}
+                          {content.interactive.type === 'task-decomposition' && (
+                            <TaskDecompositionCard
+                              parentTask={content.interactive.data.parentTask}
+                              suggestions={content.interactive.data.suggestions}
+                              isActive={content.interactive.isActive !== false}
+                              onConfirm={(subtasks) => {
+                                if (onDecompositionConfirm) {
+                                  onDecompositionConfirm(content.interactive!.data.parentTask, subtasks)
+                                }
+                              }}
+                              onCancel={() => {
+                                if (onDecompositionCancel) {
+                                  onDecompositionCancel(content.interactive!.data.parentTask)
+                                }
+                              }}
+                            />
+                          )}
                         </div>
                       )}
                     </div>

@@ -6,14 +6,29 @@ const DOUBAO_CONFIG = {
   model: 'doubao-seed-1-6-vision-250815',
 }
 
+// 交互式消息类型
+export type InteractiveMessageType = 
+  | 'task-decomposition'  // 任务拆解
+  | 'workflow-options'    // 工作流选项
+  | 'feeling-options'     // 感受选项
+  | 'action-options'      // 动作选项
+
+// 交互式消息数据接口
+export interface InteractiveMessage {
+  type: InteractiveMessageType
+  data: any  // 根据type不同，data结构不同
+  isActive?: boolean  // 是否可交互（默认true，确认后变为false）
+}
+
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system'
   content: Array<{
-    type: 'text' | 'image_url'
+    type: 'text' | 'image_url' | 'interactive'  // ⭐ 新增 'interactive'
     text?: string
     image_url?: {
       url: string
     }
+    interactive?: InteractiveMessage  // ⭐ 新增交互式消息
   }>
 }
 
@@ -369,8 +384,22 @@ ${userContext}
         return await this.handleStreamResponse(response, onStream)
       } else {
         const data = await response.json()
-        const message = data.choices?.[0]?.message?.content?.[0]?.text || ''
-        console.log('📝 任务拆解响应:', message.substring(0, 200) + '...')
+        // 兼容不同返回结构：content 可能是字符串，或数组[{type:'text', text: '...'}]
+        const aiContent = data?.choices?.[0]?.message?.content
+        let message = ''
+        if (typeof aiContent === 'string') {
+          message = aiContent
+        } else if (Array.isArray(aiContent)) {
+          // 拼接所有文本片段
+          message = aiContent
+            .map((part: any) => (typeof part === 'string' ? part : (part?.text ?? '')))
+            .join('')
+        }
+        console.log('📝 任务拆解响应(原始):', JSON.stringify(aiContent)?.slice(0, 300) + '...')
+        console.log('📝 任务拆解响应(提取文本):', message?.slice(0, 200) + '...')
+        if (!message || message.trim().length === 0) {
+          return { success: false, error: '模型未返回可用文本内容' }
+        }
         return { success: true, message }
       }
 
@@ -387,4 +416,4 @@ ${userContext}
 
 // 导出单例
 export const doubaoService = new DoubaoService()
-export type { ChatMessage, ChatResponse }
+export type { ChatMessage, ChatResponse, InteractiveMessage, InteractiveMessageType }

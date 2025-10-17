@@ -161,18 +161,13 @@ export default function DashboardPage() {
     }
   }, [workflowMode, selectedFeeling])
   
-  // 监听任务选择,自动打开任务拆解弹窗
+  // 监听任务选择,发送任务拆解交互式消息
   useEffect(() => {
-    // 只有在 single-task 模式且有选中任务时才打开modal
+    // 只有在 single-task 模式且有选中任务时才触发拆解
     // (即用户已提交context或跳过了context输入)
     if (selectedTaskForDecompose && workflowMode === 'single-task') {
-      // 延迟打开拆解弹窗,让用户先看到AI消息
-      const timer = setTimeout(() => {
-        setDecomposingTask(selectedTaskForDecompose)
-        setShowDecompositionModal(true)
-      }, 500)
-
-      return () => clearTimeout(timer)
+      // 调用AI生成子任务建议，并发送交互式消息到聊天流
+      handleGenerateDecomposition(selectedTaskForDecompose)
     }
   }, [selectedTaskForDecompose, workflowMode])
   
@@ -572,6 +567,117 @@ export default function DashboardPage() {
     }
   }
 
+  // 生成任务拆解建议并发送交互式消息
+  const handleGenerateDecomposition = async (task: Task) => {
+    try {
+      console.log('🤖 开始生成任务拆解建议:', task.title)
+      
+      // 调用AI生成子任务建议（非流式）
+      const result = await doubaoService.decomposeTask(
+        task.title,
+        task.description,
+        taskContextInput, // 用户提供的上下文
+        undefined // 不使用流式输出
+      )
+      
+      if (!result.success || !result.message) {
+        console.error('AI拆解失败:', result.error)
+        setChatMessages(prev => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: [{
+              type: 'text',
+              text: `❌ 抱歉，任务拆解失败：${result.error || '未知错误'}`
+            }]
+          }
+        ])
+        return
+      }
+      
+      // 解析AI返回的JSON
+      let subtaskSuggestions: SubtaskSuggestion[] = []
+      try {
+        const jsonMatch = result.message.match(/\[[\s\S]*\]/)
+        if (jsonMatch) {
+          const parsedData = JSON.parse(jsonMatch[0])
+          subtaskSuggestions = parsedData.map((item: any, index: number) => ({
+            id: `suggestion-${Date.now()}-${index}`,
+            title: item.title || item.name || '',
+            order: index + 1,
+            is_selected: true
+          }))
+        }
+      } catch (parseError) {
+        console.error('解析AI响应失败:', parseError)
+        setChatMessages(prev => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: [{
+              type: 'text',
+              text: `❌ 抱歉，AI返回的数据格式有误，无法解析任务拆解建议。`
+            }]
+          }
+        ])
+        return
+      }
+      
+      if (subtaskSuggestions.length === 0) {
+        setChatMessages(prev => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: [{
+              type: 'text',
+              text: `抱歉，我无法为这个任务生成子任务建议。你可以手动添加子任务。`
+            }]
+          }
+        ])
+        return
+      }
+      
+      // 发送交互式消息到聊天流
+      setChatMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'text',
+              text: `好的！我为你拆解了任务「${task.title}」：`
+            },
+            {
+              type: 'interactive',
+              interactive: {
+                type: 'task-decomposition',
+                data: {
+                  parentTask: task,
+                  suggestions: subtaskSuggestions
+                },
+                isActive: true
+              }
+            }
+          ]
+        }
+      ])
+      
+      console.log('✅ 交互式拆解消息已发送')
+    } catch (error) {
+      console.error('生成拆解建议异常:', error)
+      setChatMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: [{
+            type: 'text',
+            text: `❌ 抱歉，发生了意外错误：${error instanceof Error ? error.message : '未知错误'}`
+          }]
+        }
+      ])
+    }
+  }
+
   // 处理子任务确认创建
   const handleSubtasksConfirm = async (selectedSubtasks: SubtaskSuggestion[]) => {
     if (!user || !decomposingTask) {
@@ -788,6 +894,135 @@ export default function DashboardPage() {
   }
   
   // 已移除 handleStuckHelp（对应按钮已删除）
+  
+  // 处理交互式卡片的确认操作
+  const handleDecompositionConfirm = async (parentTask: Task, subtasks: SubtaskSuggestion[]) => {
+    if (!user) return
+    
+    try {
+      console.log('✅ 用户确认任务拆解，开始创建子任务')
+      
+      // 创建子任务
+      const result = await createSubtasks(parentTask.id, user.id, subtasks)
+      
+      if (result.error) {
+        console.error('创建子任务失败:', result.error)
+        setChatMessages(prev => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: [{
+              type: 'text',
+              text: `❌ 抱歉，创建子任务失败：${result.error}`
+            }]
+          }
+        ])
+        return
+      }
+      
+      // 更新任务列表
+      setTasks(prevTasks => 
+        prevTasks.map(task => 
+          task.id === parentTask.id 
+            ? { 
+                ...task, 
+                subtasks: result.tasks || [],
+                is_expanded: true
+              }
+            : task
+        )
+      )
+      
+      // 将交互式卡片标记为不可操作（isActive: false）
+      setChatMessages(prev => 
+        prev.map(msg => ({
+          ...msg,
+          content: msg.content.map(content => 
+            content.type === 'interactive' && 
+            content.interactive?.type === 'task-decomposition' &&
+            content.interactive.data.parentTask.id === parentTask.id
+              ? {
+                  ...content,
+                  interactive: {
+                    ...content.interactive,
+                    isActive: false
+                  }
+                }
+              : content
+          )
+        }))
+      )
+      
+      // 发送确认消息
+      setChatMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: [{
+            type: 'text',
+            text: `✅ 太棒了！已成功为「${parentTask.title}」添加 ${subtasks.length} 个子任务！`
+          }]
+        }
+      ])
+      
+      // 清空工作流中的选中任务
+      clearSelectedTask()
+      
+      console.log('🎉 子任务创建完成')
+    } catch (error) {
+      console.error('创建子任务异常:', error)
+      setChatMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: [{
+            type: 'text',
+            text: `❌ 抱歉，发生了意外错误：${error instanceof Error ? error.message : '未知错误'}`
+          }]
+        }
+      ])
+    }
+  }
+  
+  // 处理交互式卡片的取消操作
+  const handleDecompositionCancel = (parentTask: Task) => {
+    console.log('❌ 用户取消任务拆解')
+    
+    // 将交互式卡片标记为不可操作
+    setChatMessages(prev => 
+      prev.map(msg => ({
+        ...msg,
+        content: msg.content.map(content => 
+          content.type === 'interactive' && 
+          content.interactive?.type === 'task-decomposition' &&
+          content.interactive.data.parentTask.id === parentTask.id
+            ? {
+                ...content,
+                interactive: {
+                  ...content.interactive,
+                  isActive: false
+                }
+              }
+            : content
+        )
+      }))
+    )
+    
+    // 发送取消消息
+    setChatMessages(prev => [
+      ...prev,
+      {
+        role: 'assistant',
+        content: [{
+          type: 'text',
+          text: `好的，已取消对「${parentTask.title}」的拆解。如果需要的话，随时可以重新尝试哦！`
+        }]
+      }
+    ])
+    
+    // 清空工作流中的选中任务
+    clearSelectedTask()
+  }
 
   const handleTasksImported = (importedTasks: Task[]) => {
     // 将导入的任务添加到当前任务列表
@@ -2182,6 +2417,8 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
               onTaskSelect={selectTaskForDecompose}
               onContextSubmit={submitTaskContext}
               isWorkflowAnalyzing={isWorkflowAnalyzing}
+              onDecompositionConfirm={handleDecompositionConfirm}
+              onDecompositionCancel={handleDecompositionCancel}
               handleSendMessage={handleSendMessage}
               handleClearChat={handleClearChat}
               handleDragEnter={handleDragEnter}
