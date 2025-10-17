@@ -427,7 +427,7 @@ ${recommendation.reason}
         setWorkflowMode('single-task-action')
       }
     }
-  }, [setChatMessages, streamAIMessage])
+  }, [setChatMessages, streamAIMessage, selectedAction])
 
   /**
    * 提交任务上下文
