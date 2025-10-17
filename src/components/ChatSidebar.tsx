@@ -186,9 +186,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
           {chatMessages.length === 0 ? (
             /* 欢迎消息 */
             <div className="flex items-start gap-3">
-              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
-                <span className="text-white text-sm font-medium">AI</span>
-              </div>
+              <img src="/ai-avatar.svg" alt="AI" className="w-8 h-8 rounded-full flex-shrink-0" />
               <div className="bg-white rounded-lg px-3 py-2 shadow-sm flex-1">
                 <p className="text-sm" style={{ color: '#3f3f3f' }}>
                   你好！我是AI助手，可以帮你管理任务、分析图片。{!doubaoService.hasApiKey() ? '请先配置API Key。' : '你可以直接粘贴图片(Ctrl+V)或拖拽图片到这里，有什么可以帮助你的吗？'}
@@ -199,13 +197,11 @@ const ChatSidebar = memo<ChatSidebarProps>(({
             /* 聊天消息 */
             chatMessages.map((message, index) => (
               <div key={index} className={`flex items-start gap-3 ${message.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                  message.role === 'user' ? 'bg-green-500' : 'bg-blue-500'
-                }`}>
-                  <span className="text-white text-sm font-medium">
-                    {message.role === 'user' ? '我' : 'AI'}
-                  </span>
-                </div>
+                {message.role === 'user' ? (
+                  <img src="/user-avatar.svg" alt="我" className="w-8 h-8 rounded-full flex-shrink-0" />
+                ) : (
+                  <img src="/ai-avatar.svg" alt="AI" className="w-8 h-8 rounded-full flex-shrink-0" />
+                )}
                 <div className={`rounded-lg px-3 py-2 shadow-sm max-w-[80%] ${
                   message.role === 'user' ? 'bg-green-100' : 'bg-white'
                 }`}>
@@ -277,9 +273,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
           {/* 流式输出和发送中指示器 */}
           {isSending && !streamingMessage && (
             <div className="flex items-start gap-3">
-              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
-                <span className="text-white text-sm font-medium">AI</span>
-              </div>
+              <img src="/ai-avatar.svg" alt="AI" className="w-8 h-8 rounded-full flex-shrink-0" />
               <div className="bg-white rounded-lg px-3 py-2 shadow-sm max-w-[80%]">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
@@ -295,9 +289,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
           
           {streamingMessage && !isTaskRecognitionMode && (
             <div className="flex items-start gap-3">
-              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
-                <span className="text-white text-sm font-medium">AI</span>
-              </div>
+              <img src="/ai-avatar.svg" alt="AI" className="w-8 h-8 rounded-full flex-shrink-0" />
               <div className="bg-white rounded-lg px-3 py-2 shadow-sm max-w-[80%]">
                 <p className="text-sm whitespace-pre-wrap" style={{ color: '#3f3f3f' }}>
                   {streamingMessage}
