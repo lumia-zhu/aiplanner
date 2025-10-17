@@ -4,12 +4,14 @@
  */
 
 import { useState, useCallback, useRef } from 'react'
-import type { Task, UserProfile, WorkflowMode, AIRecommendation, PrioritySortFeeling, SingleTaskAction } from '@/types'
+import type { Task, UserProfile, WorkflowMode, AIRecommendation, PrioritySortFeeling, SingleTaskAction, ClarificationQuestion, StructuredContext } from '@/types'
 import type { ChatMessage } from '@/lib/doubaoService'
 import { analyzeTasksForWorkflow, getTodayTasks, generateDetailedTaskSummary } from '@/lib/workflowAnalyzer'
 import { getMatrixTypeByFeeling, getMatrixConfig } from '@/types'
 import { streamText } from '@/utils/streamText'
 import { generateContextQuestions, formatQuestionsMessage } from '@/lib/contextQuestions'
+import { generateClarificationQuestions, formatClarificationQuestionsMessage, recommendTasksForClarification, formatRecommendationsMessage } from '@/lib/clarificationQuestions'
+import { doubaoService } from '@/lib/doubaoService'
 
 interface UseWorkflowAssistantProps {
   tasks: Task[]
@@ -27,8 +29,14 @@ interface UseWorkflowAssistantReturn {
   selectedFeeling: PrioritySortFeeling | null
   selectedAction: SingleTaskAction | null
   selectedTaskForDecompose: Task | null
-  taskContextInput: string  // 用户输入的任务上下文
-  contextQuestions: string[]  // 当前任务的问题列表
+  taskContextInput: string  // 用户输入的任务上下文（拆解用）
+  contextQuestions: string[]  // 当前任务的问题列表（拆解用）
+  
+  // 任务澄清相关状态
+  clarificationQuestions: ClarificationQuestion[]  // 澄清问题列表
+  clarificationAnswer: string  // 用户的澄清回答
+  structuredContext: StructuredContext | null  // AI提取的结构化上下文
+  aiClarificationSummary: string  // AI生成的理解总结
   
   // 方法
   startWorkflow: () => Promise<void>
@@ -36,9 +44,15 @@ interface UseWorkflowAssistantReturn {
   selectFeeling: (feeling: PrioritySortFeeling) => void
   selectAction: (action: SingleTaskAction) => void
   selectTaskForDecompose: (task: Task | null) => void
-  submitTaskContext: (contextInput: string) => void  // 提交任务上下文
+  submitTaskContext: (contextInput: string) => void  // 提交任务上下文（拆解用）
   clearSelectedTask: () => void  // 静默清空选中任务，不发送消息
   goBackToSingleTaskAction: () => void // 静默返回到单任务操作选择
+  
+  // 任务澄清相关方法
+  submitClarificationAnswer: (answer: string) => Promise<void>  // 提交澄清回答
+  confirmClarification: () => void  // 确认澄清结果
+  rejectClarification: () => void  // 重新澄清
+  
   resetWorkflow: () => void
 }
 
@@ -59,8 +73,14 @@ export function useWorkflowAssistant({
   const [selectedFeeling, setSelectedFeeling] = useState<PrioritySortFeeling | null>(null)
   const [selectedAction, setSelectedAction] = useState<SingleTaskAction | null>(null)
   const [selectedTaskForDecompose, setSelectedTaskForDecompose] = useState<Task | null>(null)
-  const [taskContextInput, setTaskContextInput] = useState<string>('')  // 用户输入的任务上下文
-  const [contextQuestions, setContextQuestions] = useState<string[]>([])  // 当前任务的问题列表
+  const [taskContextInput, setTaskContextInput] = useState<string>('')  // 用户输入的任务上下文（拆解用）
+  const [contextQuestions, setContextQuestions] = useState<string[]>([])  // 当前任务的问题列表（拆解用）
+  
+  // 任务澄清相关状态
+  const [clarificationQuestions, setClarificationQuestions] = useState<ClarificationQuestion[]>([])
+  const [clarificationAnswer, setClarificationAnswer] = useState<string>('')
+  const [structuredContext, setStructuredContext] = useState<StructuredContext | null>(null)
+  const [aiClarificationSummary, setAIClarificationSummary] = useState<string>('')
   
   // 用于取消正在进行的流式输出
   const cancelStreamRef = useRef<(() => void) | null>(null)
@@ -351,33 +371,13 @@ ${recommendation.reason}
       setWorkflowMode('task-selection')
       streamAIMessage('好的！我来帮你拆解任务。\n\n请选择你想要拆解的任务：')
     } else if (action === 'clarify') {
-      // 为“任务澄清”给出建议与原因，再进入任务选择
+      // 为"任务澄清"给出建议与原因，使用新的推荐系统
       const todayTasks = getTodayTasks(tasks)
-      const candidates: { title: string; reason: string }[] = []
-      for (const t of todayTasks) {
-        if (!t.description || t.description.trim().length < 6) {
-          candidates.push({ title: t.title, reason: '没有描述或描述过于简短' })
-          continue
-        }
-        if (t.title.length > 28 || /[?？]/.test(t.title)) {
-          candidates.push({ title: t.title, reason: '标题过长/含不确定性，需要明确产出与范围' })
-          continue
-        }
-        if (t.tags?.includes('difficult')) {
-          candidates.push({ title: t.title, reason: '被标记为“困难”，建议先澄清目标与步骤' })
-          continue
-        }
-      }
-      const top = candidates.slice(0, 3)
-      const suggestion = top.length > 0
-        ? `好的！在开始澄清之前，我建议优先澄清以下任务：\n\n${top
-            .map((c, i) => `${i + 1}. ${c.title} —— 原因：${c.reason}`)
-            .join('\n')}
-\n\n请选择你想要澄清的任务：`
-        : '好的！请选择你想要澄清的任务：'
-
+      const recommendations = recommendTasksForClarification(todayTasks)
+      const recommendationMessage = formatRecommendationsMessage(recommendations)
+      
       setWorkflowMode('task-selection')
-      streamAIMessage(suggestion)
+      streamAIMessage(recommendationMessage)
     } else {
       // 其他功能暂未开发
       setWorkflowMode('single-task')
@@ -419,12 +419,13 @@ ${recommendation.reason}
         const questionMessage = formatQuestionsMessage(task, questions)
         streamAIMessage(questionMessage)
       } else if (selectedAction === 'clarify') {
-        // 澄清路径：暂不实现后续功能，仅提示并返回上一层
-        streamAIMessage('收到！我会在后续为该任务提供澄清引导与模板。')
-        setSelectedTaskForDecompose(null)
-        setTaskContextInput('')
-        setContextQuestions([])
-        setWorkflowMode('single-task-action')
+        // 澄清路径：生成澄清问题并进入澄清输入模式
+        setSelectedTaskForDecompose(task)
+        const questions = generateClarificationQuestions(task)
+        setClarificationQuestions(questions)
+        setWorkflowMode('task-clarification-input')
+        const questionMessage = formatClarificationQuestionsMessage(task, questions)
+        streamAIMessage(questionMessage)
       }
     }
   }, [setChatMessages, streamAIMessage, selectedAction])
@@ -462,7 +463,128 @@ ${recommendation.reason}
     setSelectedTaskForDecompose(null)
     setTaskContextInput('')
     setContextQuestions([])
+    setClarificationQuestions([])
+    setClarificationAnswer('')
+    setStructuredContext(null)
+    setAIClarificationSummary('')
   }, [])
+
+  /**
+   * 提交澄清回答
+   */
+  const submitClarificationAnswer = useCallback(async (answer: string) => {
+    if (!selectedTaskForDecompose) return
+    
+    setClarificationAnswer(answer)
+    
+    // 显示用户消息
+    setChatMessages(prev => [
+      ...prev,
+      { role: 'user', content: [{ type: 'text', text: answer }] }
+    ])
+    
+    // 调用AI服务进行结构化整合
+    setIsSending(true)
+    
+    try {
+      const result = await doubaoService.clarifyTask(
+        selectedTaskForDecompose.title,
+        selectedTaskForDecompose.description,
+        clarificationQuestions,
+        answer
+      )
+      
+      setIsSending(false)
+      
+      if (result.success && result.structured_context && result.summary) {
+        // 保存结构化上下文和总结
+        setStructuredContext(result.structured_context)
+        setAIClarificationSummary(result.summary)
+        
+        // 流式显示AI的理解总结
+        streamAIMessage(result.summary)
+        
+        // 注意：不在这里自动切换状态，等待用户确认或修正
+      } else {
+        // AI调用失败，显示错误
+        streamAIMessage(`❌ 抱歉，处理你的回答时遇到了问题：${result.error || '未知错误'}\n\n请尝试重新描述。`)
+        // 重置澄清状态，允许用户重新回答
+        setClarificationAnswer('')
+        setStructuredContext(null)
+        setAIClarificationSummary('')
+      }
+    } catch (error) {
+      console.error('提交澄清回答失败:', error)
+      setIsSending(false)
+      streamAIMessage('❌ 处理失败，请稍后重试。')
+      setClarificationAnswer('')
+      setStructuredContext(null)
+      setAIClarificationSummary('')
+    }
+  }, [selectedTaskForDecompose, clarificationQuestions, setChatMessages, streamAIMessage, setIsSending])
+
+  /**
+   * 确认澄清结果
+   * 注意：实际的任务更新需要在Dashboard中调用 appendStructuredContextToTask
+   */
+  const confirmClarification = useCallback(() => {
+    if (!selectedTaskForDecompose || !structuredContext) return
+    
+    // 显示用户确认消息
+    setChatMessages(prev => [
+      ...prev,
+      { role: 'user', content: [{ type: 'text', text: '✅ 确认，就是这样' }] }
+    ])
+    
+    // 根据是否有时间信息调整提示
+    let successMessage = '太好了！我已经理解了你的任务。'
+    
+    if (structuredContext.deadline_datetime && structuredContext.deadline_confidence) {
+      const deadline = new Date(structuredContext.deadline_datetime)
+      const deadlineStr = deadline.toLocaleString('zh-CN', {
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        weekday: 'short'
+      })
+      
+      successMessage += `\n\n⏰ 我已将任务截止时间设置为：${deadlineStr}`
+      
+      if (structuredContext.deadline_confidence === 'medium') {
+        successMessage += '\n（如有偏差请在任务列表中手动调整）'
+      }
+    }
+    
+    successMessage += '\n\n你可以继续对这个任务进行拆解，或者选择其他操作。'
+    
+    streamAIMessage(successMessage)
+    
+    // 清空澄清状态，返回操作选择
+    setClarificationQuestions([])
+    setClarificationAnswer('')
+    setStructuredContext(null)
+    setAIClarificationSummary('')
+    setWorkflowMode('single-task-action')
+  }, [selectedTaskForDecompose, structuredContext, setChatMessages, streamAIMessage])
+
+  /**
+   * 重新澄清
+   */
+  const rejectClarification = useCallback(() => {
+    // 显示用户拒绝消息
+    setChatMessages(prev => [
+      ...prev,
+      { role: 'user', content: [{ type: 'text', text: '✏️ 重新描述' }] }
+    ])
+    
+    // 清空当前澄清结果，回到输入状态
+    setClarificationAnswer('')
+    setStructuredContext(null)
+    setAIClarificationSummary('')
+    
+    streamAIMessage('好的，请重新回答刚才的问题，我会更仔细地理解你的意思。')
+  }, [setChatMessages, streamAIMessage])
 
   /**
    * 重置工作流状态
@@ -476,9 +598,14 @@ ${recommendation.reason}
     setSelectedTaskForDecompose(null)
     setTaskContextInput('')
     setContextQuestions([])
+    setClarificationQuestions([])
+    setClarificationAnswer('')
+    setStructuredContext(null)
+    setAIClarificationSummary('')
   }, [])
 
   return {
+    // 状态
     workflowMode,
     aiRecommendation,
     isAnalyzing,
@@ -487,6 +614,14 @@ ${recommendation.reason}
     selectedTaskForDecompose,
     taskContextInput,
     contextQuestions,
+    
+    // 澄清相关状态
+    clarificationQuestions,
+    clarificationAnswer,
+    structuredContext,
+    aiClarificationSummary,
+    
+    // 方法
     startWorkflow,
     selectOption,
     selectFeeling,
@@ -495,6 +630,12 @@ ${recommendation.reason}
     submitTaskContext,
     clearSelectedTask,
     goBackToSingleTaskAction,
+    
+    // 澄清相关方法
+    submitClarificationAnswer,
+    confirmClarification,
+    rejectClarification,
+    
     resetWorkflow
   }
 }

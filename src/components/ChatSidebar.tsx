@@ -8,6 +8,7 @@ import FeelingOptions from './FeelingOptions'
 import SingleTaskActionOptions from './SingleTaskActionOptions'
 import TaskSelectionOptions from './TaskSelectionOptions'
 import TaskDecompositionCard from './TaskDecompositionCard'
+import ClarificationConfirmOptions from './ClarificationConfirmOptions'
 
 // 任务识别相关类型
 interface RecognizedTask {
@@ -58,6 +59,12 @@ interface ChatSidebarProps {
   onDecompositionConfirm?: (parentTask: Task, subtasks: SubtaskSuggestion[]) => void
   onDecompositionCancel?: (parentTask: Task) => void
   
+  // 任务澄清相关回调
+  onClarificationSubmit?: (answer: string) => void
+  onClarificationConfirm?: () => void
+  onClarificationReject?: () => void
+  hasStructuredContext?: boolean  // 是否有结构化上下文（用于显示确认/修正按钮）
+  
   // 事件处理函数
   handleSendMessage: () => void
   handleClearChat: () => void
@@ -104,6 +111,10 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   isWorkflowAnalyzing,
   onDecompositionConfirm,
   onDecompositionCancel,
+  onClarificationSubmit,
+  onClarificationConfirm,
+  onClarificationReject,
+  hasStructuredContext,
   handleSendMessage,
   handleClearChat,
   handleDragEnter,
@@ -417,6 +428,19 @@ const ChatSidebar = memo<ChatSidebarProps>(({
           </div>
         </div>
       )}
+
+      {/* 澄清确认/修正按钮 */}
+      {hasStructuredContext && onClarificationConfirm && onClarificationReject && (
+        <div className="border-t border-gray-200 bg-gradient-to-b from-purple-50 to-white flex-shrink-0">
+          <div className="p-4">
+            <ClarificationConfirmOptions
+              onConfirm={onClarificationConfirm}
+              onReject={onClarificationReject}
+              disabled={isSending}
+            />
+          </div>
+        </div>
+      )}
       
       {/* 感觉选项区域 - 询问感觉阶段 */}
       {workflowMode === 'priority-feeling' && onFeelingSelect && (
@@ -512,9 +536,15 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                 e.preventDefault()
                 // 根据模式处理发送
                 if (workflowMode === 'task-context-input' && onContextSubmit) {
-                  // 提交任务上下文
+                  // 提交任务拆解上下文
                   if (chatMessage.trim()) {
                     onContextSubmit(chatMessage.trim())
+                    setChatMessage('')
+                  }
+                } else if (workflowMode === 'task-clarification-input' && onClarificationSubmit) {
+                  // 提交澄清回答
+                  if (chatMessage.trim()) {
+                    onClarificationSubmit(chatMessage.trim())
                     setChatMessage('')
                   }
                 } else {
@@ -526,16 +556,20 @@ const ChatSidebar = memo<ChatSidebarProps>(({
             placeholder={
               workflowMode === 'task-context-input'
                 ? "请描述任务的背景信息..."
-                : isTaskRecognitionMode 
-                  ? "描述任务内容或上传包含任务的图片..." 
-                  : doubaoService.hasApiKey() ? "输入消息或粘贴图片(Ctrl+V)..." : "请先配置API Key"
+                : workflowMode === 'task-clarification-input'
+                  ? "请回答上面的问题..."
+                  : isTaskRecognitionMode 
+                    ? "描述任务内容或上传包含任务的图片..." 
+                    : doubaoService.hasApiKey() ? "输入消息或粘贴图片(Ctrl+V)..." : "请先配置API Key"
             }
             className={`flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent text-sm transition-all duration-200 resize-none text-gray-900 placeholder-gray-500 h-10 ${
               workflowMode === 'task-context-input'
                 ? 'border-blue-300 focus:ring-blue-500 bg-blue-50'
-                : isTaskRecognitionMode 
-                  ? 'border-green-300 focus:ring-green-500 bg-green-50' 
-                  : 'border-gray-300 focus:ring-blue-500 bg-white'
+                : workflowMode === 'task-clarification-input'
+                  ? 'border-purple-300 focus:ring-purple-500 bg-purple-50'
+                  : isTaskRecognitionMode 
+                    ? 'border-green-300 focus:ring-green-500 bg-green-50' 
+                    : 'border-gray-300 focus:ring-blue-500 bg-white'
             }`}
             rows={1}
             style={{ 
@@ -544,7 +578,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
               maxHeight: '40px',
               verticalAlign: 'top'
             }}
-            disabled={(!doubaoService.hasApiKey() || isSending) && workflowMode !== 'task-context-input'}
+            disabled={(!doubaoService.hasApiKey() || isSending) && workflowMode !== 'task-context-input' && workflowMode !== 'task-clarification-input'}
           />
 
           {/* 语音按钮 */}
@@ -562,9 +596,15 @@ const ChatSidebar = memo<ChatSidebarProps>(({
             onClick={() => {
               // 根据模式处理发送
               if (workflowMode === 'task-context-input' && onContextSubmit) {
-                // 提交任务上下文
+                // 提交任务拆解上下文
                 if (chatMessage.trim()) {
                   onContextSubmit(chatMessage.trim())
+                  setChatMessage('')
+                }
+              } else if (workflowMode === 'task-clarification-input' && onClarificationSubmit) {
+                // 提交澄清回答
+                if (chatMessage.trim()) {
+                  onClarificationSubmit(chatMessage.trim())
                   setChatMessage('')
                 }
               } else {
@@ -579,9 +619,13 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                 ? (!chatMessage.trim() || isSending
                     ? 'bg-gray-300 text-gray-500 border-gray-300 cursor-not-allowed'
                     : 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700')
-                : ((!chatMessage.trim() && !selectedImage) || !doubaoService.hasApiKey() || isSending
-                    ? 'bg-gray-300 text-gray-500 border-gray-300 cursor-not-allowed'
-                    : 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700')
+                : workflowMode === 'task-clarification-input'
+                  ? (!chatMessage.trim() || isSending
+                      ? 'bg-gray-300 text-gray-500 border-gray-300 cursor-not-allowed'
+                      : 'bg-purple-600 text-white border-purple-600 hover:bg-purple-700')
+                  : ((!chatMessage.trim() && !selectedImage) || !doubaoService.hasApiKey() || isSending
+                      ? 'bg-gray-300 text-gray-500 border-gray-300 cursor-not-allowed'
+                      : 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700')
             }`}
           >
             {isSending ? (
@@ -594,7 +638,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                 </svg>
-                <span>{workflowMode === 'task-context-input' ? '提交' : '发送'}</span>
+                <span>{workflowMode === 'task-context-input' || workflowMode === 'task-clarification-input' ? '提交' : '发送'}</span>
               </>
             )}
           </div>

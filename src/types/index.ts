@@ -270,15 +270,16 @@ export function hasTaskTags(task: Task): boolean {
  * AI辅助完善计划的流程阶段
  */
 export type WorkflowMode = 
-  | 'initial'            // 初始状态:展示任务列表和推荐
-  | 'single-task'        // 完善单个任务模式
-  | 'single-task-action' // 选择单个任务操作
-  | 'task-selection'     // 选择要拆解的任务
-  | 'task-context-input' // 等待用户输入任务上下文（拆解前收集背景信息）
-  | 'priority-sort'      // 优先级排序模式(总入口)
-  | 'priority-feeling'   // 询问感觉阶段
-  | 'priority-matrix'    // 显示矩阵阶段
-  | 'ended'              // 已结束
+  | 'initial'                    // 初始状态:展示任务列表和推荐
+  | 'single-task'                // 完善单个任务模式
+  | 'single-task-action'         // 选择单个任务操作
+  | 'task-selection'             // 选择要拆解的任务
+  | 'task-context-input'         // 等待用户输入任务上下文（拆解前收集背景信息）
+  | 'task-clarification-input'   // 等待用户回答任务澄清问题
+  | 'priority-sort'              // 优先级排序模式(总入口)
+  | 'priority-feeling'           // 询问感觉阶段
+  | 'priority-matrix'            // 显示矩阵阶段
+  | 'ended'                      // 已结束
 
 /**
  * AI推荐类型
@@ -327,6 +328,44 @@ export interface SingleTaskActionOption {
   emoji: string         // 操作Emoji
   label: string         // 操作标签
   description: string   // 操作描述
+}
+
+// ============================================
+// 任务澄清相关类型
+// ============================================
+
+/**
+ * 任务澄清的六个维度
+ */
+export type ClarificationDimension = 
+  | 'intent'      // 🎯 意图澄清：区分目标与产出形式
+  | 'structure'   // 🧱 任务结构：引导拆解任务
+  | 'timeline'    // ⏰ 时间约束：补充时间上下文
+  | 'dependency'  // 🔗 依赖关系：识别外部依赖
+  | 'obstacle'    // 💡 动机/难点：识别潜在障碍
+  | 'priority'    // ⚖️ 优先/资源：准备优先级判断
+
+/**
+ * 澄清问题接口
+ */
+export interface ClarificationQuestion {
+  dimension: ClarificationDimension  // 所属维度
+  question: string                   // 问题文本
+  purpose: string                    // 问题目的
+}
+
+/**
+ * 结构化任务上下文（AI提取后的结果）
+ */
+export interface StructuredContext {
+  timeline?: string                // 时间相关的自然语言描述（如"明天下午"）
+  deadline_datetime?: string       // ISO 8601格式的截止时间（如"2025-01-15T14:00:00"）
+  deadline_confidence?: 'high' | 'medium' | 'low'  // 时间解析的置信度
+  dependencies?: string[]          // 外部依赖列表（需要他人提供的资源、信息等）
+  expected_output?: string         // 期望的产出形式
+  difficulty?: string              // 预期的困难点或障碍
+  mood?: string                    // 用户对任务的情绪感受
+  priority_reason?: string         // 优先级理由
 }
 
 // ============================================

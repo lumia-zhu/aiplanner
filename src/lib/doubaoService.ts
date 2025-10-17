@@ -6,6 +6,62 @@ const DOUBAO_CONFIG = {
   model: 'doubao-seed-1-6-vision-250815',
 }
 
+// 任务澄清的JSON Schema定义（用于结构化输出）
+const TASK_CLARIFICATION_SCHEMA = {
+  type: "object",
+  properties: {
+    structured_context: {
+      type: "object",
+      properties: {
+        timeline: {
+          type: "string",
+          description: "时间相关的自然语言描述，如果没有则填写空字符串"
+        },
+        deadline_datetime: {
+          type: "string",
+          description: "ISO 8601格式的截止时间，如 2025-01-15T14:00:00，如果没有则填写空字符串"
+        },
+        deadline_confidence: {
+          type: "string",
+          enum: ["high", "medium", "low", ""],
+          description: "时间解析的置信度：high(明确日期时间)/medium(相对时间)/low(模糊时间)/空字符串(无时间)"
+        },
+        dependencies: {
+          type: "array",
+          items: { type: "string" },
+          description: "外部依赖列表，如果没有则为空数组"
+        },
+        expected_output: {
+          type: "string",
+          description: "期望的产出形式，如果没有则填写空字符串"
+        },
+        difficulty: {
+          type: "string",
+          description: "预期的困难点或障碍，如果没有则填写空字符串"
+        },
+        mood: {
+          type: "string",
+          description: "用户对任务的情绪感受，如果没有则填写空字符串"
+        },
+        priority_reason: {
+          type: "string",
+          description: "优先级理由，如果没有则填写空字符串"
+        }
+      },
+      required: ["timeline", "deadline_datetime", "deadline_confidence", 
+                 "dependencies", "expected_output", "difficulty", 
+                 "mood", "priority_reason"],
+      additionalProperties: false
+    },
+    summary: {
+      type: "string",
+      description: "一句话总结，以'我理解的任务是这样的：'开头"
+    }
+  },
+  required: ["structured_context", "summary"],
+  additionalProperties: false
+}
+
 // 交互式消息类型
 export type InteractiveMessageType = 
   | 'task-decomposition'  // 任务拆解
@@ -409,6 +465,255 @@ ${userContext}
       return { 
         success: false, 
         error: `任务拆解失败: ${errorMessage}` 
+      }
+    }
+  }
+
+  // 任务澄清专用服务 - 将用户回答转换为结构化上下文
+  async clarifyTask(
+    taskTitle: string,
+    taskDescription: string | undefined,
+    questions: Array<{ dimension: string; question: string; purpose: string }>,
+    userAnswer: string
+  ): Promise<{
+    success: boolean
+    structured_context?: {
+      timeline?: string
+      deadline_datetime?: string
+      deadline_confidence?: 'high' | 'medium' | 'low'
+      dependencies?: string[]
+      expected_output?: string
+      difficulty?: string
+      mood?: string
+      priority_reason?: string
+    }
+    summary?: string
+    error?: string
+  }> {
+    const apiKey = this.getApiKey()
+    if (!apiKey) {
+      return { success: false, error: '请在环境变量中配置 NEXT_PUBLIC_DOUBAO_API_KEY' }
+    }
+
+    try {
+      // 获取当前时间作为参考
+      const currentDate = new Date()
+      const currentDateStr = currentDate.toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        weekday: 'long',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+      const currentISO = currentDate.toISOString()
+      
+      // 构建任务澄清专用的系统提示词
+      const systemPrompt = `你是一位专业的任务管理助手。用户刚刚回答了关于任务的澄清问题，你需要将用户的自然语言回答整合为结构化的任务上下文。
+
+⏰ 当前时间参考：${currentDateStr}（ISO格式：${currentISO}）
+
+重要要求：
+1. 仔细分析用户的回答，提取相关信息
+2. **特别注意时间信息的提取和转换**：
+   - 如果用户提到了具体时间（如"明天下午3点"、"下周一早上"、"1月20日"），必须转换为ISO 8601格式
+   - 转换规则：
+     * "今天" → 使用当天日期
+     * "明天" → 当天+1天
+     * "后天" → 当天+2天
+     * "下周X" → 计算到下周对应的星期几
+     * "X月Y日" → 使用当前年份（如果该日期已过则为明年）+ 指定月日
+     * 时间默认值：早上→09:00，中午→12:00，下午→14:00，晚上→19:00
+     * 如果未指定具体时间点，使用23:59
+   - 同时保留原始自然语言描述在timeline字段
+   - 设置置信度：
+     * "high": 明确的日期+时间点（如"1月15日下午3点"）
+     * "medium": 相对日期（如"明天下午"）
+     * "low": 时间模糊（如"这周"、"月底前"）
+     * "": 用户完全没提时间
+3. 如果用户未提及某个字段，该字段设置为空字符串""
+4. 生成一句话总结，以"我理解的任务是这样的："开头，不超过100字
+
+输出格式说明：
+- timeline: 字符串，保留用户的原始时间表达，没有则为空字符串""
+- deadline_datetime: 字符串，ISO 8601格式（如"2025-01-15T14:00:00"），没有则为空字符串""
+- deadline_confidence: 字符串，只能是"high"/"medium"/"low"或空字符串""
+- dependencies: 数组，如["依赖1", "依赖2"]，没有则为空数组[]
+- 其他字段: 字符串，没有则为空字符串""
+- summary: 必须是字符串，不能为空`
+
+      // 构建问题列表文本
+      const questionList = questions
+        .map((q, i) => `${i + 1}. ${q.question} (目的：${q.purpose})`)
+        .join('\n')
+
+      // 构建用户消息
+      const userMessage = `任务信息：
+- 标题：${taskTitle}
+- 描述：${taskDescription || '无'}
+
+我向用户提出了以下澄清问题：
+${questionList}
+
+用户的回答：
+${userAnswer}
+
+请分析用户的回答，提取结构化信息，并生成一句话总结。`
+
+      const messages: ChatMessage[] = [
+        {
+          role: 'system',
+          content: [{
+            type: 'text',
+            text: systemPrompt
+          }]
+        },
+        // 添加示例对话
+        {
+          role: 'user',
+          content: [{
+            type: 'text',
+            text: `任务信息：
+- 标题：准备课程PPT
+- 描述：下周要讲的内容
+
+我向用户提出了以下澄清问题：
+1. 你准备这个PPT的主要目的是什么？ (目的：区分目标与产出形式)
+2. 有没有需要别人提供的信息或文件？ (目的：识别外部依赖)
+3. 相比其他任务，这个任务的重要程度如何？ (目的：准备优先级判断)
+
+用户的回答：
+这是给学生上课用的，主要是讲解新概念。需要从导师那里拿到最新的研究数据。这个任务比较重要，因为下周就要上课了，但是我现在有点焦虑，担心数据来不及。
+
+请分析用户的回答，提取结构化信息，并生成一句话总结。`
+          }]
+        },
+        {
+          role: 'assistant',
+          content: [{
+            type: 'text',
+            text: `{"structured_context":{"timeline":"下周上课前完成","dependencies":["导师提供的最新研究数据"],"expected_output":"用于课堂讲解的PPT，需要包含新概念和研究数据","difficulty":"数据获取的时效性，担心导师数据来不及提供","mood":"有点焦虑","priority_reason":"下周就要上课，时间紧迫且对学生影响大"},"summary":"我理解的任务是这样的：你需要在下周上课前制作一份讲解新概念的课程PPT，其中需要用到导师提供的最新研究数据。这个任务比较重要且紧迫，你目前有点焦虑，主要担心数据能否及时获取。"}`
+          }]
+        },
+        {
+          role: 'user',
+          content: [{
+            type: 'text',
+            text: userMessage
+          }]
+        }
+      ]
+
+      // 准备请求体 - 使用结构化输出
+      const requestBody = {
+        model: DOUBAO_CONFIG.model,
+        messages: messages,
+        stream: false,
+        temperature: 0.7,
+        thinking: {
+          type: "disabled"  // 关闭深度思考以提高响应速度
+        },
+        response_format: {   // 使用结构化输出
+          type: "json_schema",
+          json_schema: {
+            name: "task_clarification",
+            strict: true,
+            schema: TASK_CLARIFICATION_SCHEMA
+          }
+        }
+      }
+
+      console.log('📝 调用任务澄清API（结构化输出）...')
+
+      // 调用豆包 API
+      const response = await fetch(DOUBAO_CONFIG.endpoint, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody)
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('任务澄清 API 错误响应:', errorText)
+        return { success: false, error: `API 调用失败 (${response.status})` }
+      }
+
+      // 处理响应
+      const data = await response.json()
+      const aiContent = data?.choices?.[0]?.message?.content
+      
+      let messageText = ''
+      if (typeof aiContent === 'string') {
+        messageText = aiContent
+      } else if (Array.isArray(aiContent)) {
+        messageText = aiContent
+          .map((part: any) => (typeof part === 'string' ? part : (part?.text ?? '')))
+          .join('')
+      }
+
+      console.log('📝 任务澄清响应(结构化):', messageText?.slice(0, 200) + '...')
+
+      if (!messageText || messageText.trim().length === 0) {
+        return { success: false, error: '模型未返回可用文本内容' }
+      }
+
+      // 解析 JSON - 由于使用了 json_schema，返回应该是纯净的JSON
+      try {
+        const parsed = JSON.parse(messageText)
+        
+        if (!parsed.structured_context || !parsed.summary) {
+          console.error('JSON结构不完整:', parsed)
+          return { success: false, error: 'AI返回的数据结构不完整' }
+        }
+
+        // 将空字符串转换为undefined（便于后续处理）
+        const context = parsed.structured_context
+        const normalizedContext = {
+          timeline: context.timeline || undefined,
+          deadline_datetime: context.deadline_datetime || undefined,
+          deadline_confidence: context.deadline_confidence || undefined,
+          dependencies: (context.dependencies && context.dependencies.length > 0) ? context.dependencies : undefined,
+          expected_output: context.expected_output || undefined,
+          difficulty: context.difficulty || undefined,
+          mood: context.mood || undefined,
+          priority_reason: context.priority_reason || undefined,
+        }
+        
+        // 验证 deadline_datetime 格式（如果存在）
+        if (normalizedContext.deadline_datetime) {
+          const deadline = new Date(normalizedContext.deadline_datetime)
+          if (isNaN(deadline.getTime())) {
+            console.warn('deadline_datetime 格式无效，将忽略:', 
+                         normalizedContext.deadline_datetime)
+            normalizedContext.deadline_datetime = undefined
+            normalizedContext.deadline_confidence = undefined
+          } else {
+            console.log('✅ 解析到截止时间:', 
+                       normalizedContext.deadline_datetime,
+                       '置信度:', 
+                       normalizedContext.deadline_confidence)
+          }
+        }
+
+        return {
+          success: true,
+          structured_context: normalizedContext,
+          summary: parsed.summary
+        }
+      } catch (parseError) {
+        console.error('JSON解析失败:', messageText, parseError)
+        return { success: false, error: '无法解析AI返回的结构化数据' }
+      }
+
+    } catch (error: unknown) {
+      console.error('任务澄清请求失败:', error)
+      const errorMessage = error instanceof Error ? error.message : '未知错误'
+      return { 
+        success: false, 
+        error: `任务澄清失败: ${errorMessage}` 
       }
     }
   }

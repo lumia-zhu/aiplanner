@@ -121,6 +121,12 @@ export default function DashboardPage() {
     selectedTaskForDecompose,
     taskContextInput,
     contextQuestions,
+    // 澄清相关状态
+    clarificationQuestions,
+    clarificationAnswer,
+    structuredContext,
+    aiClarificationSummary,
+    // 方法
     startWorkflow,
     selectOption: selectWorkflowOption,
     selectFeeling,
@@ -129,6 +135,10 @@ export default function DashboardPage() {
     submitTaskContext,
     clearSelectedTask,
     goBackToSingleTaskAction,
+    // 澄清相关方法
+    submitClarificationAnswer,
+    confirmClarification,
+    rejectClarification,
     resetWorkflow
   } = useWorkflowAssistant({
     tasks,
@@ -985,6 +995,68 @@ export default function DashboardPage() {
   }
   
   // 处理交互式卡片的取消操作
+  /**
+   * 处理澄清确认 - 更新任务描述
+   */
+  const handleClarificationConfirm = async () => {
+    if (!user || !selectedTaskForDecompose || !structuredContext) return
+    
+    try {
+      console.log('✅ 用户确认澄清结果，开始更新任务描述')
+      
+      // 导入appendStructuredContextToTask函数
+      const { appendStructuredContextToTask } = await import('@/lib/tasks')
+      
+      // 更新任务描述
+      const result = await appendStructuredContextToTask(
+        user.id,
+        selectedTaskForDecompose.id,
+        structuredContext
+      )
+      
+      if (!result.success || !result.task) {
+        console.error('更新任务描述失败:', result.error)
+        setChatMessages(prev => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: [{
+              type: 'text',
+              text: `❌ 抱歉，更新任务描述失败：${result.error || '未知错误'}`
+            }]
+          }
+        ])
+        return
+      }
+      
+      // 更新本地任务列表
+      setTasks(prevTasks => 
+        prevTasks.map(task => 
+          task.id === selectedTaskForDecompose.id 
+            ? result.task! 
+            : task
+        )
+      )
+      
+      console.log('✅ 任务描述已更新')
+      
+      // 调用原始的确认方法（清空状态，返回操作选择）
+      confirmClarification()
+    } catch (error) {
+      console.error('更新任务描述异常:', error)
+      setChatMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: [{
+            type: 'text',
+            text: '❌ 更新任务描述失败，请稍后重试。'
+          }]
+        }
+      ])
+    }
+  }
+
   const handleDecompositionCancel = (parentTask: Task) => {
     console.log('❌ 用户取消任务拆解')
     
@@ -2418,6 +2490,10 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
               isWorkflowAnalyzing={isWorkflowAnalyzing}
               onDecompositionConfirm={handleDecompositionConfirm}
               onDecompositionCancel={handleDecompositionCancel}
+              onClarificationSubmit={submitClarificationAnswer}
+              onClarificationConfirm={handleClarificationConfirm}
+              onClarificationReject={rejectClarification}
+              hasStructuredContext={!!structuredContext}
               handleSendMessage={handleSendMessage}
               handleClearChat={handleClearChat}
               handleDragEnter={handleDragEnter}

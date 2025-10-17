@@ -613,3 +613,120 @@ export async function promoteSubtasksToTasks(
     return { error: `提升子任务失败: ${error instanceof Error ? error.message : '未知错误'}` }
   }
 }
+
+// 将结构化上下文追加到任务描述中
+export async function appendStructuredContextToTask(
+  userId: string,
+  taskId: string,
+  structuredContext: {
+    timeline?: string
+    deadline_datetime?: string
+    deadline_confidence?: 'high' | 'medium' | 'low'
+    dependencies?: string[]
+    expected_output?: string
+    difficulty?: string
+    mood?: string
+    priority_reason?: string
+  }
+): Promise<{ success: boolean; task?: Task; error?: string }> {
+  try {
+    const supabase = createClient()
+    
+    // 1. 获取当前任务
+    const { data: currentTask, error: fetchError } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('id', taskId)
+      .eq('user_id', userId)
+      .single()
+    
+    if (fetchError || !currentTask) {
+      return { success: false, error: '任务不存在或无权访问' }
+    }
+    
+    // 2. 格式化结构化上下文为markdown标签
+    const contextLines: string[] = []
+    
+    if (structuredContext.timeline) {
+      contextLines.push(`- ⏰ 时间：${structuredContext.timeline}`)
+    }
+    
+    if (structuredContext.dependencies && structuredContext.dependencies.length > 0) {
+      contextLines.push(`- 🔗 依赖：${structuredContext.dependencies.join('、')}`)
+    }
+    
+    if (structuredContext.expected_output) {
+      contextLines.push(`- 🎯 产出：${structuredContext.expected_output}`)
+    }
+    
+    if (structuredContext.difficulty) {
+      contextLines.push(`- 💡 难点：${structuredContext.difficulty}`)
+    }
+    
+    if (structuredContext.mood) {
+      contextLines.push(`- 🎭 情绪：${structuredContext.mood}`)
+    }
+    
+    if (structuredContext.priority_reason) {
+      contextLines.push(`- ⚖️ 优先级：${structuredContext.priority_reason}`)
+    }
+    
+    // 如果没有任何上下文信息，直接返回
+    if (contextLines.length === 0) {
+      return { success: true, task: currentTask }
+    }
+    
+    // 3. 构建完整的上下文标签
+    const contextTag = `
+---
+📋 任务上下文（AI澄清）
+${contextLines.join('\n')}
+---`
+    
+    // 4. 将上下文追加到现有描述中
+    const currentDescription = currentTask.description || ''
+    const updatedDescription = currentDescription
+      ? `${currentDescription}\n${contextTag}`
+      : contextTag.trim()
+    
+    // 5. 构建更新数据对象
+    const updateData: any = {
+      description: updatedDescription,
+      updated_at: new Date().toISOString()
+    }
+    
+    // 如果有明确的截止时间且置信度不是low，同时更新deadline字段
+    if (structuredContext.deadline_datetime && 
+        structuredContext.deadline_confidence && 
+        structuredContext.deadline_confidence !== 'low') {
+      updateData.deadline_datetime = structuredContext.deadline_datetime
+      console.log('✅ 同时更新任务截止时间:', 
+                  structuredContext.deadline_datetime, 
+                  '置信度:', 
+                  structuredContext.deadline_confidence)
+    }
+    
+    // 6. 更新任务
+    const { data: updatedTask, error: updateError } = await supabase
+      .from('tasks')
+      .update(updateData)
+      .eq('id', taskId)
+      .eq('user_id', userId)
+      .select()
+      .single()
+    
+    if (updateError) {
+      console.error('更新任务描述失败:', updateError)
+      return { success: false, error: '更新任务失败' }
+    }
+    
+    console.log('✅ 任务上下文已追加:', taskId)
+    return { success: true, task: updatedTask }
+  } catch (error) {
+    console.error('追加任务上下文异常:', error)
+    return { 
+      success: false, 
+      error: `追加上下文失败: ${error instanceof Error ? error.message : '未知错误'}` 
+    }
+  }
+}
