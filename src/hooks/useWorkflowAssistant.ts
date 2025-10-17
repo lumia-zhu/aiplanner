@@ -38,6 +38,7 @@ interface UseWorkflowAssistantReturn {
   selectTaskForDecompose: (task: Task | null) => void
   submitTaskContext: (contextInput: string) => void  // 提交任务上下文
   clearSelectedTask: () => void  // 静默清空选中任务，不发送消息
+  goBackToSingleTaskAction: () => void // 静默返回到单任务操作选择
   resetWorkflow: () => void
 }
 
@@ -404,18 +405,17 @@ ${recommendation.reason}
    * 提交任务上下文
    */
   const submitTaskContext = useCallback((contextInput: string) => {
-    if (!contextInput.trim()) {
-      // 如果用户没输入，直接进入拆解
-      streamAIMessage('好的！正在为你打开任务拆解工具... 🔧')
-    } else {
-      // 保存用户输入
+    // 保存用户输入（允许为空）
+    if (contextInput.trim()) {
       setTaskContextInput(contextInput)
-      
-      // AI确认收到
-      streamAIMessage(`明白了！我会根据你提供的信息来拆解任务。\n\n正在为你打开任务拆解工具... 🔧`)
+      // 仅保留确认语，不再提示“正在为你打开任务拆解工具...”
+      streamAIMessage('明白了！我会根据你提供的信息来拆解任务。')
+    } else {
+      setTaskContextInput('')
+      // 用户未提供额外上下文，静默进入下一步
     }
-    
-    // 切换到单任务模式，dashboard会监听到并打开modal
+
+    // 切换到单任务模式，dashboard 会监听并触发拆解
     setWorkflowMode('single-task')
   }, [streamAIMessage])
 
@@ -423,6 +423,14 @@ ${recommendation.reason}
    * 静默清空选中任务（不发送消息）
    */
   const clearSelectedTask = useCallback(() => {
+    setSelectedTaskForDecompose(null)
+    setTaskContextInput('')
+    setContextQuestions([])
+  }, [])
+
+  // 静默返回到操作选择层级
+  const goBackToSingleTaskAction = useCallback(() => {
+    setWorkflowMode('single-task-action')
     setSelectedTaskForDecompose(null)
     setTaskContextInput('')
     setContextQuestions([])
@@ -458,6 +466,7 @@ ${recommendation.reason}
     selectTaskForDecompose,
     submitTaskContext,
     clearSelectedTask,
+    goBackToSingleTaskAction,
     resetWorkflow
   }
 }

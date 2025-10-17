@@ -128,6 +128,7 @@ export default function DashboardPage() {
     selectTaskForDecompose,
     submitTaskContext,
     clearSelectedTask,
+    goBackToSingleTaskAction,
     resetWorkflow
   } = useWorkflowAssistant({
     tasks,
@@ -953,7 +954,7 @@ export default function DashboardPage() {
         }))
       )
       
-      // 发送确认消息
+      // 发送确认消息，并返回到操作选择层级
       setChatMessages(prev => [
         ...prev,
         {
@@ -964,9 +965,8 @@ export default function DashboardPage() {
           }]
         }
       ])
-      
-      // 清空工作流中的选中任务
-      clearSelectedTask()
+      // 返回上一层（澄清/拆解/估计/返回）
+      goBackToSingleTaskAction()
       
       console.log('🎉 子任务创建完成')
     } catch (error) {
@@ -1008,20 +1008,19 @@ export default function DashboardPage() {
       }))
     )
     
-    // 发送取消消息
+    // 发送取消消息，并返回上一层
     setChatMessages(prev => [
       ...prev,
       {
         role: 'assistant',
         content: [{
           type: 'text',
-          text: `好的，已取消对「${parentTask.title}」的拆解。如果需要的话，随时可以重新尝试哦！`
+          text: `好的，已取消对「${parentTask.title}」的拆解。`
         }]
       }
     ])
-    
-    // 清空工作流中的选中任务
-    clearSelectedTask()
+    // 返回上一层（澄清/拆解/估计/返回）
+    goBackToSingleTaskAction()
   }
 
   const handleTasksImported = (importedTasks: Task[]) => {
