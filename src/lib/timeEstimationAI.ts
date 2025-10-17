@@ -125,22 +125,26 @@ export async function generateReflectionQuestion(params: {
 
 你的任务是：
 1. 基于用户的历史行为模式和当前任务特征
-2. 生成3个简短的反思性问题（每个问题1句话）
+2. 生成恰好3个简短的反思性问题（必须是3个独立的问题）
 3. 帮助用户从不同角度重新审视自己的时间估计
 
 **反思问题的原则：**
 - 使用苏格拉底式提问，引导而不是说教
-- 3个问题应从不同维度：隐藏步骤、意外情况、依赖资源等
-- 结合用户的历史估算偏差（如果有）
+- 必须是3个独立的问题，从不同维度切入：
+  维度1：隐藏步骤和前置工作
+  维度2：意外情况和阻塞风险
+  维度3：依赖资源和后续工作
+- 每个问题简短（不超过25字）
 - 语气友好、鼓励性
-- 每个问题1句话，每句不超过30字
 
-**输出格式：**
-用换行分隔的3个问题，每行一个问题，不要序号，不要其他说明。
+**严格的输出格式要求：**
+必须输出恰好3行，每行一个问题，以"• "开头。
+不要有任何其他文字、解释或说明。
+
 例如：
-这个任务是否包含了准备和收尾工作的时间？
-如果遇到技术问题或需要查资料，会多花多久？
-有没有需要等待他人回复或审批的环节？`
+• 这个任务包含准备和收尾工作的时间吗？
+• 如果遇到技术问题需要查资料，会多花多久？
+• 有没有需要等待他人回复的环节？`
 
   const userMessage = `**任务信息：**
 - 标题：${task.title}
@@ -174,9 +178,12 @@ ${formatMinutes(initialEstimate)}
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userMessage }
         ],
+        stream: false,
         temperature: 0.7,
-        max_tokens: 150,
-        enable_thinking: false, // 禁用深度思考，加快响应
+        max_tokens: 100,  // 减少token数量，3个问题足够了
+        thinking: {
+          type: "disabled"  // 关闭深度思考以提高响应速度
+        }
       }),
     })
 
@@ -254,7 +261,8 @@ function getRuleBasedReflection(
     questions.push('任务完成后的检查和收尾工作需要多久？')
   }
   
-  return questions.join('\n')
+  // 用项目符号格式化，让3个问题更清晰
+  return questions.map(q => `• ${q}`).join('\n')
 }
 
 /**
