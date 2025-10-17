@@ -174,10 +174,17 @@ interface Props {
 function removeOldPriorityTag(description: string | undefined): string {
   if (!description) return ''
   
-  // 移除所有【优先级】开头的行
+  // 移除所有带【】的矩阵标记行（包括旧格式）
   return description
     .split('\n')
-    .filter(line => !line.trim().startsWith('【优先级】'))
+    .filter(line => {
+      const trimmed = line.trim()
+      // 移除所有以【开头的行（包括【优先级】、【艾森豪威尔矩阵】等）
+      if (trimmed.startsWith('【')) return false
+      // 移除包含矩阵分类信息的行（以象限名称开头 + "+"的行）
+      if (trimmed.match(/^(重要且紧急|重要不紧急|不重要但紧急|不重要不紧急|High Impact|Low Impact|Stimulating|Fun|Not)\s*[\+\+]/)) return false
+      return true
+    })
     .join('\n')
     .trim()
 }
@@ -198,17 +205,8 @@ function addPriorityTag(
   // 从 config 动态获取象限配置
   const quadrantConfig = config.quadrants[quadrant as 'q1' | 'q2' | 'q3' | 'q4']
   
-  // 象限图标映射
-  const iconMap = {
-    q1: '🔴',
-    q2: '🟢', 
-    q3: '🟡',
-    q4: '⚪'
-  }
-  
-  // 动态生成标签
-  const icon = iconMap[quadrant as keyof typeof iconMap] || '📍'
-  const tag = `【${config.title}】${quadrantConfig.label} ${icon}`
+  // ⭐ 简化标签：只显示"象限名称 + 处理建议"，不显示矩阵类型和彩色图标
+  const tag = `${quadrantConfig.label} + ${quadrantConfig.description}`
   
   if (cleanDescription) {
     return `${cleanDescription}\n\n${tag}`

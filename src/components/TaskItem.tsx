@@ -170,7 +170,7 @@ export default function TaskItem({ task, onToggleComplete, onEdit, onDelete, onD
           {/* ⭐ 时间估算显示 */}
           {task.estimated_duration && (
             <div className="mt-2">
-              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-900">
                 ⏱️ {formatEncodedDuration(task.estimated_duration)}
               </span>
             </div>

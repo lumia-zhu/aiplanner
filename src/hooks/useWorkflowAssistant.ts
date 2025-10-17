@@ -52,11 +52,15 @@ interface UseWorkflowAssistantReturn {
   selectAction: (action: SingleTaskAction) => void
   selectTaskForDecompose: (task: Task | null) => void
   submitTaskContext: (contextInput: string) => void  // 提交任务上下文（拆解用）
+  skipTaskContext: () => void  // ⭐ 跳过任务上下文输入，使用默认上下文继续拆解
+  cancelTaskContext: () => void  // ⭐ 取消任务拆解，返回上一级
   clearSelectedTask: () => void  // 静默清空选中任务，不发送消息
   goBackToSingleTaskAction: () => void // 静默返回到单任务操作选择
   
   // 任务澄清相关方法
   submitClarificationAnswer: (answer: string) => Promise<void>  // 提交澄清回答
+  skipClarificationAnswer: () => void  // ⭐ 跳过澄清问题，返回上一级
+  cancelClarificationAnswer: () => void  // ⭐ 取消任务澄清，返回上一级
   confirmClarification: () => void  // 确认澄清结果
   rejectClarification: () => void  // 重新澄清
   
@@ -468,7 +472,7 @@ ${recommendation.reason}
     // 保存用户输入（允许为空）
     if (contextInput.trim()) {
       setTaskContextInput(contextInput)
-      // 仅保留确认语，不再提示“正在为你打开任务拆解工具...”
+      // 仅保留确认语，不再提示"正在为你打开任务拆解工具..."
       streamAIMessage('明白了！我会根据你提供的信息来拆解任务。')
     } else {
       setTaskContextInput('')
@@ -477,6 +481,35 @@ ${recommendation.reason}
 
     // 切换到单任务模式，dashboard 会监听并触发拆解
     setWorkflowMode('single-task')
+  }, [streamAIMessage])
+
+  /**
+   * ⭐ 跳过任务上下文输入，使用默认上下文继续拆解
+   */
+  const skipTaskContext = useCallback(() => {
+    // 清空用户输入
+    setTaskContextInput('')
+    
+    // 显示AI消息
+    streamAIMessage('好的，我们直接开始拆解任务，无需额外背景信息。')
+    
+    // 继续拆解流程
+    setWorkflowMode('single-task')
+  }, [streamAIMessage])
+
+  /**
+   * ⭐ 取消任务拆解，返回上一级
+   */
+  const cancelTaskContext = useCallback(() => {
+    // 清空输入和选中的任务
+    setTaskContextInput('')
+    setSelectedTaskForDecompose(null)
+    
+    // 显示AI消息
+    streamAIMessage('已取消任务拆解，回到上一级选择。')
+    
+    // 返回到单任务操作选择
+    setWorkflowMode('single-task-action')
   }, [streamAIMessage])
 
   /**
@@ -616,6 +649,41 @@ ${recommendation.reason}
     
     streamAIMessage('好的，请重新回答刚才的问题，我会更仔细地理解你的意思。')
   }, [setChatMessages, streamAIMessage])
+
+  /**
+   * ⭐ 跳过澄清问题，返回上一级
+   */
+  const skipClarificationAnswer = useCallback(() => {
+    // 清空澄清状态
+    setClarificationQuestions([])
+    setClarificationAnswer('')
+    setStructuredContext(null)
+    setAIClarificationSummary('')
+    
+    // 显示AI消息
+    streamAIMessage('好的，我们暂时跳过这些问题。')
+    
+    // 返回到单任务操作选择
+    setWorkflowMode('single-task-action')
+  }, [streamAIMessage])
+
+  /**
+   * ⭐ 取消任务澄清，返回上一级
+   */
+  const cancelClarificationAnswer = useCallback(() => {
+    // 清空澄清状态和选中的任务
+    setClarificationQuestions([])
+    setClarificationAnswer('')
+    setStructuredContext(null)
+    setAIClarificationSummary('')
+    setSelectedTaskForDecompose(null)
+    
+    // 显示AI消息
+    streamAIMessage('已取消任务澄清，回到上一级选择。')
+    
+    // 返回到单任务操作选择
+    setWorkflowMode('single-task-action')
+  }, [streamAIMessage])
 
   // ============================================
   // ⭐ 时间估算相关方法
@@ -803,11 +871,15 @@ ${recommendation.reason}
     selectAction,
     selectTaskForDecompose,
     submitTaskContext,
+    skipTaskContext,  // ⭐ 新增
+    cancelTaskContext,  // ⭐ 新增
     clearSelectedTask,
     goBackToSingleTaskAction,
     
     // 澄清相关方法
     submitClarificationAnswer,
+    skipClarificationAnswer,  // ⭐ 新增
+    cancelClarificationAnswer,  // ⭐ 新增
     confirmClarification,
     rejectClarification,
     

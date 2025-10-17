@@ -63,9 +63,15 @@ interface ChatSidebarProps {
   
   // 任务澄清相关回调
   onClarificationSubmit?: (answer: string) => void
+  onClarificationSkip?: () => void  // ⭐ 跳过澄清问题
+  onClarificationCancel?: () => void  // ⭐ 取消任务澄清
   onClarificationConfirm?: () => void
   onClarificationReject?: () => void
   hasStructuredContext?: boolean  // 是否有结构化上下文（用于显示确认/修正按钮）
+  
+  // 任务拆解上下文相关回调
+  onContextSkip?: () => void  // ⭐ 跳过任务上下文输入
+  onContextCancel?: () => void  // ⭐ 取消任务拆解
   
   // ⭐ 时间估算相关回调
   onEstimationSubmit?: (minutes: number) => void
@@ -121,9 +127,13 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   onDecompositionConfirm,
   onDecompositionCancel,
   onClarificationSubmit,
+  onClarificationSkip,  // ⭐ 新增
+  onClarificationCancel,  // ⭐ 新增
   onClarificationConfirm,
   onClarificationReject,
   hasStructuredContext,
+  onContextSkip,  // ⭐ 新增
+  onContextCancel,  // ⭐ 新增
   onEstimationSubmit,
   onEstimationResubmit,
   onEstimationConfirm,
@@ -148,22 +158,22 @@ const ChatSidebar = memo<ChatSidebarProps>(({
     <>
 
       {/* 侧边栏容器 */}
-      <aside 
+    <aside 
         className={`bg-white border border-gray-200 rounded-lg flex flex-col h-full flex-shrink-0 transition-all duration-300 ease-in-out ${
           isOpen ? 'w-[520px] opacity-100' : 'w-0 opacity-0 border-0'
         } overflow-hidden`}
-        onDragEnter={handleDragEnter}
-        onDragLeave={handleDragLeave}
-        onDragOver={handleDragOver}
-        onDrop={handleDrop}
-      >
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
 
       {/* 展开状态的完整内容 */}
       {isOpen && (
         <>
-          {/* 聊天头部 */}
-          <div className="p-4 border-b border-gray-100 flex-shrink-0">
-            <div className="flex items-center justify-between">
+      {/* 聊天头部 */}
+      <div className="p-4 border-b border-gray-100 flex-shrink-0">
+        <div className="flex items-center justify-between">
               {/* 折叠按钮 */}
               <button
                 onClick={onToggle}
@@ -176,12 +186,12 @@ const ChatSidebar = memo<ChatSidebarProps>(({
               </button>
               
               <div className="flex items-center gap-2 flex-1 ml-2">
-                <div className={`w-2 h-2 rounded-full ${doubaoService.hasApiKey() ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
-                <span className="text-sm font-medium" style={{ color: '#3f3f3f' }}>
-                  AI 助手 {!doubaoService.hasApiKey() && '(需要配置API Key)'}
-                </span>
-              </div>
-              {chatMessages.length > 0 && (
+            <div className={`w-2 h-2 rounded-full ${doubaoService.hasApiKey() ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+            <span className="text-sm font-medium" style={{ color: '#3f3f3f' }}>
+              AI 助手 {!doubaoService.hasApiKey() && '(需要配置API Key)'}
+            </span>
+          </div>
+          {chatMessages.length > 0 && (
             <button
               onClick={handleClearChat}
               className="text-xs text-gray-500 hover:text-red-600 underline"
@@ -249,20 +259,20 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                               )}
                             </div>
                           ) : (
-                            <p className="text-sm whitespace-pre-wrap" style={{ color: '#3f3f3f' }}>
-                              {content.text}
-                            </p>
+                        <p className="text-sm whitespace-pre-wrap" style={{ color: '#3f3f3f' }}>
+                          {content.text}
+                        </p>
                           )}
                         </div>
                       )}
                       {content.type === 'image_url' && content.image_url && (
                         <div className="mt-2">
-                          <img 
-                            src={content.image_url.url} 
-                            alt="上传的图片" 
+                        <img 
+                          src={content.image_url.url} 
+                          alt="上传的图片" 
                             className="max-w-full h-auto rounded border border-gray-200"
-                            style={{ maxHeight: '150px' }}
-                          />
+                          style={{ maxHeight: '150px' }}
+                        />
                           <p className="text-xs text-gray-500 mt-1">📸 已上传图片</p>
                         </div>
                       )}
@@ -526,30 +536,30 @@ const ChatSidebar = memo<ChatSidebarProps>(({
       {/* 输入区域 */}
       <div className="p-4 border-t border-gray-100 flex-shrink-0">
         {/* 显示选中的图片 */}
-        {selectedImage && (
+              {selectedImage && (
           <div className="mb-3 p-2 bg-blue-50 rounded-lg border border-blue-200">
             <div className="flex items-center gap-2">
-              <img 
-                src={URL.createObjectURL(selectedImage)} 
-                alt="待发送的图片" 
-                className="w-12 h-12 object-cover rounded"
-              />
+                    <img 
+                      src={URL.createObjectURL(selectedImage)} 
+                      alt="待发送的图片" 
+                      className="w-12 h-12 object-cover rounded"
+                    />
               <div className="flex-1">
                 <p className="text-sm text-blue-800 font-medium">{selectedImage.name}</p>
                 <p className="text-xs text-blue-600">
                   {(selectedImage.size / 1024 / 1024).toFixed(2)} MB
                 </p>
               </div>
-              <button
-                onClick={() => setSelectedImage(null)}
+                    <button
+                      onClick={() => setSelectedImage(null)}
                 className="text-blue-600 hover:text-blue-800 p-1"
-              >
+                    >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
-              </button>
-            </div>
-          </div>
+                    </button>
+                  </div>
+                </div>
         )}
 
         <div className="flex items-stretch gap-2">
@@ -618,9 +628,9 @@ const ChatSidebar = memo<ChatSidebarProps>(({
             }
             className={`flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent text-sm transition-all duration-200 resize-none text-gray-900 placeholder-gray-500 h-10 ${
               workflowMode === 'task-context-input'
-                ? 'border-blue-300 focus:ring-blue-500 bg-blue-50'
+                ? 'border-blue-500 focus:ring-blue-500 bg-blue-50 ring-4 ring-blue-300/50 shadow-lg animate-pulse'
                 : workflowMode === 'task-clarification-input'
-                  ? 'border-purple-300 focus:ring-purple-500 bg-purple-50'
+                  ? 'border-purple-500 focus:ring-purple-500 bg-purple-50 ring-4 ring-purple-300/50 shadow-lg animate-pulse'
                   : isTaskRecognitionMode 
                     ? 'border-green-300 focus:ring-green-500 bg-green-50' 
                     : 'border-gray-300 focus:ring-blue-500 bg-white'
@@ -697,6 +707,43 @@ const ChatSidebar = memo<ChatSidebarProps>(({
             )}
           </div>
         </div>
+
+        {/* ⭐ 任务拆解上下文：跳过/取消按钮 */}
+        {workflowMode === 'task-context-input' && (onContextSkip || onContextCancel) && (
+          <div className="px-4 py-3 flex gap-3 bg-blue-50/30 border-t border-blue-200">
+            {onContextSkip && (
+              <button
+                onClick={onContextSkip}
+                disabled={isSending}
+                className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-600 bg-gray-100 border border-gray-200 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                跳过
+              </button>
+            )}
+            {onContextCancel && (
+              <button
+                onClick={onContextCancel}
+                disabled={isSending}
+                className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-red-500 border border-red-500 rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                取消
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* ⭐ 任务澄清：取消按钮 */}
+        {workflowMode === 'task-clarification-input' && onClarificationCancel && (
+          <div className="px-4 py-3 flex justify-center bg-purple-50/30 border-t border-purple-200">
+            <button
+              onClick={onClarificationCancel}
+              disabled={isSending}
+              className="px-6 py-2.5 text-sm font-medium text-white bg-red-500 border border-red-500 rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              取消
+            </button>
+          </div>
+        )}
         
         {/* 任务识别开关 */}
         <div className="mt-3 pt-3 border-t border-gray-100">

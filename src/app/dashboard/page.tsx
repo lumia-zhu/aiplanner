@@ -138,10 +138,14 @@ export default function DashboardPage() {
     selectAction,
     selectTaskForDecompose,
     submitTaskContext,
+    skipTaskContext,  // ⭐ 新增
+    cancelTaskContext,  // ⭐ 新增
     clearSelectedTask,
     goBackToSingleTaskAction,
     // 澄清相关方法
     submitClarificationAnswer,
+    skipClarificationAnswer,  // ⭐ 新增
+    cancelClarificationAnswer,  // ⭐ 新增
     confirmClarification,
     rejectClarification,
     // ⭐ 时间估算相关方法
@@ -2565,10 +2569,14 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
               onActionSelect={selectAction}
               onTaskSelect={selectTaskForDecompose}
               onContextSubmit={submitTaskContext}
+              onContextSkip={skipTaskContext}  // ⭐ 新增
+              onContextCancel={cancelTaskContext}  // ⭐ 新增
               isWorkflowAnalyzing={isWorkflowAnalyzing}
               onDecompositionConfirm={handleDecompositionConfirm}
               onDecompositionCancel={handleDecompositionCancel}
               onClarificationSubmit={submitClarificationAnswer}
+              onClarificationSkip={skipClarificationAnswer}  // ⭐ 新增
+              onClarificationCancel={cancelClarificationAnswer}  // ⭐ 新增
               onClarificationConfirm={handleClarificationConfirm}
               onClarificationReject={rejectClarification}
               hasStructuredContext={!!structuredContext}
