@@ -136,10 +136,21 @@ export async function updateTask(
   }
 ): Promise<{ task?: Task; error?: string }> {
   try {
+    console.log('🔍 updateTask 被调用:', { taskId, updates })
+    
     const supabase = createClient()
     
     // 准备更新数据
     const updateData: any = { ...updates }
+    
+    // ⭐ 关键修复: 处理空字符串的description
+    // 如果description是空字符串，将其转换为null以清空数据库字段
+    if ('description' in updateData && updateData.description === '') {
+      updateData.description = null
+      console.log('📝 将空description转换为null')
+    }
+    
+    console.log('📝 初始 updateData:', updateData)
     
     // 如果更新了截止时间，需要转换为完整的日期时间
     if (updates.deadline_time !== undefined) {
@@ -180,6 +191,8 @@ export async function updateTask(
       updateData.tags = updates.tags || []
     }
     
+    console.log('💾 最终发送到数据库的 updateData:', updateData)
+    
     const { data, error } = await supabase
       .from('tasks')
       .update(updateData)
@@ -187,10 +200,14 @@ export async function updateTask(
       .select()
       .single()
     
+    console.log('📦 数据库返回结果:', { data, error })
+    
     if (error) {
+      console.error('❌ 数据库更新失败:', error)
       return { error: error.message }
     }
     
+    console.log('✅ updateTask 成功:', data)
     return { task: data }
   } catch (error) {
     return { error: '更新任务失败' }

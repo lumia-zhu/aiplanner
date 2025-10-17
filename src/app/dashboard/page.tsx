@@ -395,17 +395,36 @@ export default function DashboardPage() {
   }) => {
     if (!editingTask) return
     
+    console.log('🔧 开始更新任务:', editingTask.id, taskData)
+    
     setIsFormLoading(true)
     setError('')
     
     try {
       const result = await updateTask(editingTask.id, taskData)
       
+      console.log('📥 更新任务结果:', result)
+      
       if (result.error) {
+        console.error('❌ 更新任务失败:', result.error)
         setError(result.error)
       } else if (result.task) {
+        console.log('✅ 任务更新成功，更新本地状态')
+        console.log('📦 返回的任务数据:', result.task)
+        
         // 直接更新任务列表中的对应项，避免重新加载
-        setTasks(prevTasks => taskOperations.updateTask(prevTasks, result.task!))
+        setTasks(prevTasks => {
+          console.log('🔍 更新前的任务列表数量:', prevTasks.length)
+          const oldTask = prevTasks.find(t => t.id === result.task!.id)
+          console.log('🔍 旧任务数据:', oldTask)
+          
+          const updatedTasks = taskOperations.updateTask(prevTasks, result.task!)
+          console.log('🔍 更新后的任务列表数量:', updatedTasks.length)
+          const newTask = updatedTasks.find(t => t.id === result.task!.id)
+          console.log('🔍 新任务数据:', newTask)
+          
+          return updatedTasks
+        })
         setEditingTask(null)
       }
     } catch (error) {
@@ -499,7 +518,19 @@ export default function DashboardPage() {
     }
   }, [tasks])
 
-  const handleEditTask = (task: Task, buttonElement?: HTMLElement) => {
+  const handleEditTask = useCallback((task: Task, buttonElement?: HTMLElement) => {
+    console.log('📝 准备编辑任务，传入的task:', task)
+    
+    // ⭐ 关键修复：从最新的tasks状态中查找任务，而不是直接使用传入的task对象
+    // 这样可以确保编辑时使用的是最新的数据
+    const latestTask = tasks.find(t => t.id === task.id)
+    if (!latestTask) {
+      console.error('❌ 未找到任务:', task.id)
+      return
+    }
+    
+    console.log('✅ 使用最新的任务数据:', latestTask)
+    
     // 计算编辑按钮位置作为动画起点（相对于视口）
     if (buttonElement) {
       const rect = buttonElement.getBoundingClientRect()
@@ -511,8 +542,8 @@ export default function DashboardPage() {
         y: centerY
       })
     }
-    setEditingTask(task)
-  }
+    setEditingTask(latestTask)
+  }, [tasks])
 
   const handleDecomposeTask = (task: Task) => {
     // 打开任务拆解弹窗

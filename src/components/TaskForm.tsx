@@ -85,7 +85,9 @@ export default function TaskForm({ task, defaultDate, customTags = [], onSubmit,
     try {
       await onSubmit({
         title: title.trim(),
-        description: description.trim() || undefined,
+        // ⭐ 关键修复: 总是提交description字段，即使是空字符串
+        // 这样才能清空description
+        description: description.trim(),
         deadline_time: deadlineDateTime,
         priority: priority || undefined, // ⭐ 修改: 只在有优先级时提交
         tags: tags.length > 0 ? tags : undefined // ⭐ 新增: 提交标签
