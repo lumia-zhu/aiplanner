@@ -112,6 +112,12 @@ export default function DashboardPage() {
   const [showProfileSaveSuccess, setShowProfileSaveSuccess] = useState(false)
   const [isFirstTimeUser, setIsFirstTimeUser] = useState(false) // 是否首次登录用户
   
+  // ⭐ 工作流结束时关闭侧边栏
+  const handleWorkflowEnd = useCallback(() => {
+    setIsChatSidebarOpen(false)
+    localStorage.setItem('chatSidebarOpen', 'false')
+  }, [])
+  
   // 工作流辅助Hook
   const {
     workflowMode,
@@ -160,7 +166,8 @@ export default function DashboardPage() {
     userProfile,
     setChatMessages,
     setStreamingMessage,
-    setIsSending
+    setIsSending,
+    onWorkflowEnd: handleWorkflowEnd  // ⭐ 传入关闭侧边栏的回调
   })
   
   // 监听工作流状态,自动打开对应矩阵

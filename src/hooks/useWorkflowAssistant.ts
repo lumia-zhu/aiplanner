@@ -21,6 +21,7 @@ interface UseWorkflowAssistantProps {
   setChatMessages: (messages: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => void
   setStreamingMessage: (message: string | ((prev: string) => string)) => void
   setIsSending: (sending: boolean) => void
+  onWorkflowEnd?: () => void  // ⭐ 新增：工作流结束时的回调
 }
 
 interface UseWorkflowAssistantReturn {
@@ -82,7 +83,8 @@ export function useWorkflowAssistant({
   userProfile,
   setChatMessages,
   setStreamingMessage,
-  setIsSending
+  setIsSending,
+  onWorkflowEnd
 }: UseWorkflowAssistantProps): UseWorkflowAssistantReturn {
   
   const [workflowMode, setWorkflowMode] = useState<WorkflowMode>('initial')
@@ -244,7 +246,15 @@ ${recommendation.reason}
         }
       ])
       
-      streamAIMessage('👋 好的!AI辅助已结束。\n\n如果需要帮助,随时点击"下一步,AI辅助完善计划"按钮即可。祝你高效完成任务! 💪')
+      const message = '👋 好的!AI辅助已结束。\n\n如果需要帮助,随时点击"下一步,AI辅助完善计划"按钮即可。祝你高效完成任务! 💪'
+      streamAIMessage(message)
+      
+      // ⭐ 等待消息显示完成后1秒，关闭侧边栏
+      const messageLength = message.length
+      const streamDuration = messageLength * 20 // 假设每个字符20ms
+      setTimeout(() => {
+        onWorkflowEnd?.()
+      }, streamDuration + 1000) // 流式输出完成 + 1秒延迟
     }
   }, [setChatMessages, streamAIMessage])
 
