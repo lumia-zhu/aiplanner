@@ -261,3 +261,95 @@ ${suggestionList}
 选择一个任务，我会问你几个问题来帮你更好地理解它。`
 }
 
+// ============================================
+// 辅助函数：获取推荐时间估计任务
+// ============================================
+
+/**
+ * 从任务列表中推荐需要时间估计的任务
+ * @param tasks 所有任务
+ * @returns 推荐的任务和理由
+ */
+export function recommendTasksForTimeEstimation(tasks: Task[]): Array<{
+  task: Task
+  reason: string
+}> {
+  const recommendations: Array<{ task: Task; reason: string }> = []
+
+  tasks.forEach(task => {
+    // 跳过已完成的任务
+    if (task.completed) return
+
+    // 跳过子任务（只推荐顶级任务）
+    if (task.parent_id) return
+
+    const reasons: string[] = []
+
+    // 检查1：没有预估时长
+    if (!task.estimated_duration) {
+      reasons.push('缺少时间预估')
+    }
+
+    // 检查2：标记为困难（通常需要更准确的时间估计）
+    if (task.tags?.includes('difficult')) {
+      reasons.push('困难任务需要准确估时')
+    }
+
+    // 检查3：有多个子任务的父任务
+    if (task.subtasks && task.subtasks.length > 0) {
+      reasons.push(`包含${task.subtasks.length}个子任务`)
+    }
+
+    // 检查4：标题很长或描述复杂（可能任务复杂）
+    if (task.title.length > 20 || (task.description?.length || 0) > 100) {
+      reasons.push('任务较复杂')
+    }
+
+    // 检查5：有明确截止时间但没有时间估计（需要规划）
+    if (task.deadline_datetime && !task.estimated_duration) {
+      reasons.push('有截止时间需要规划')
+    }
+
+    // 如果有任何理由，添加到推荐列表
+    if (reasons.length > 0) {
+      recommendations.push({
+        task,
+        reason: reasons.join('、')
+      })
+    }
+  })
+
+  // 按理由数量排序（理由越多越推荐）
+  recommendations.sort((a, b) => {
+    const aReasonCount = a.reason.split('、').length
+    const bReasonCount = b.reason.split('、').length
+    return bReasonCount - aReasonCount
+  })
+
+  return recommendations
+}
+
+/**
+ * 格式化推荐时间估计任务列表为消息文本
+ * @param recommendations 推荐列表
+ * @returns 格式化后的消息文本
+ */
+export function formatTimeEstimationRecommendationsMessage(
+  recommendations: Array<{ task: Task; reason: string }>
+): string {
+  if (recommendations.length === 0) {
+    return '你的任务都已经有时间预估了！👍\n\n不过如果你想重新评估某个任务的时间，也可以在下方选择。'
+  }
+
+  const topRecommendations = recommendations.slice(0, 3)
+  const suggestionList = topRecommendations
+    .map((rec, i) => `${i + 1}. **${rec.task.title}** - ${rec.reason}`)
+    .join('\n')
+
+  return `根据你的任务情况，我建议优先估算以下任务的时间：
+
+${suggestionList}
+
+选择一个任务，我会帮你评估它需要多长时间。`
+}
+

@@ -10,7 +10,7 @@ import { analyzeTasksForWorkflow, getTodayTasks, generateDetailedTaskSummary } f
 import { getMatrixTypeByFeeling, getMatrixConfig } from '@/types'
 import { streamText } from '@/utils/streamText'
 import { generateContextQuestions, formatQuestionsMessage } from '@/lib/contextQuestions'
-import { generateClarificationQuestions, formatClarificationQuestionsMessage, recommendTasksForClarification, formatRecommendationsMessage } from '@/lib/clarificationQuestions'
+import { generateClarificationQuestions, formatClarificationQuestionsMessage, recommendTasksForClarification, formatRecommendationsMessage, recommendTasksForTimeEstimation, formatTimeEstimationRecommendationsMessage } from '@/lib/clarificationQuestions'
 import { doubaoService } from '@/lib/doubaoService'
 
 interface UseWorkflowAssistantProps {
@@ -366,12 +366,12 @@ ${recommendation.reason}
       }
     ])
     
-    // 如果是任务拆解或任务澄清，进入任务选择模式
+    // 如果是任务拆解、任务澄清或时间估计，进入任务选择模式
     if (action === 'decompose') {
       setWorkflowMode('task-selection')
       streamAIMessage('好的！我来帮你拆解任务。\n\n请选择你想要拆解的任务：')
     } else if (action === 'clarify') {
-      // 为"任务澄清"给出建议与原因，使用新的推荐系统
+      // 为"任务澄清"给出建议与原因
       const todayTasks = getTodayTasks(tasks)
       const recommendations = recommendTasksForClarification(todayTasks)
       const recommendationMessage = formatRecommendationsMessage(recommendations)
@@ -379,9 +379,13 @@ ${recommendation.reason}
       setWorkflowMode('task-selection')
       streamAIMessage(recommendationMessage)
     } else if (action === 'estimate') {
-      // ⭐ 修复: 任务时间估计功能，不要触发任务拆解
-      // 保持在 single-task-action 模式，只显示"开发中"消息
-      streamAIMessage(`✅ 好的!我会帮你进行${selected.label}。\n\n**功能开发中...**\n\n敬请期待! 🚀`)
+      // ⭐ 新增: 任务时间估计功能，也进入任务选择流程
+      const todayTasks = getTodayTasks(tasks)
+      const recommendations = recommendTasksForTimeEstimation(todayTasks)
+      const recommendationMessage = formatTimeEstimationRecommendationsMessage(recommendations)
+      
+      setWorkflowMode('task-selection')
+      streamAIMessage(recommendationMessage)
     } else {
       // 其他未知功能
       streamAIMessage(`✅ 好的!我会帮你进行${selected.label}。\n\n**功能开发中...**\n\n敬请期待! 🚀`)
@@ -429,6 +433,11 @@ ${recommendation.reason}
         setWorkflowMode('task-clarification-input')
         const questionMessage = formatClarificationQuestionsMessage(task, questions)
         streamAIMessage(questionMessage)
+      } else if (selectedAction === 'estimate') {
+        // ⭐ 新增: 时间估计路径，暂时只显示"功能开发中"
+        setSelectedTaskForDecompose(task)
+        setWorkflowMode('single-task-action') // 返回操作选择层级
+        streamAIMessage(`✅ 好的！我会帮你估算「${task.title}」的时间。\n\n**功能开发中...**\n\n敬请期待! 🚀`)
       }
     }
   }, [setChatMessages, streamAIMessage, selectedAction])
