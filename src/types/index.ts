@@ -166,7 +166,7 @@ export const TASK_TAG_CONFIG = {
   TAG_REGEX: /^[\u4e00-\u9fa5a-zA-Z0-9]+$/,  // 只允许中文、字母、数字
 } as const
 
-// 标签颜色配置
+// 标签颜色配置 - ADHD友好设计：统一灰色调，无图标，降低视觉干扰
 export const TASK_TAG_COLORS: Record<string, {
   bg: string
   text: string
@@ -174,35 +174,35 @@ export const TASK_TAG_COLORS: Record<string, {
   icon: string
 }> = {
   easy: {
-    bg: 'bg-green-100',
-    text: 'text-green-700',
-    border: 'border-green-300',
-    icon: '✅'
+    bg: 'bg-gray-100',
+    text: 'text-gray-600',
+    border: 'border-gray-300',
+    icon: '' // 移除图标
   },
   difficult: {
-    bg: 'bg-red-100',
-    text: 'text-red-700',
-    border: 'border-red-300',
-    icon: '🔥'
+    bg: 'bg-gray-100',
+    text: 'text-gray-600',
+    border: 'border-gray-300',
+    icon: '' // 移除图标
   },
   important: {
-    bg: 'bg-orange-100',
-    text: 'text-orange-700',
-    border: 'border-orange-300',
-    icon: '⭐'
+    bg: 'bg-gray-100',
+    text: 'text-gray-600',
+    border: 'border-gray-300',
+    icon: '' // 移除图标
   },
   urgent: {
-    bg: 'bg-yellow-100',
-    text: 'text-yellow-700',
-    border: 'border-yellow-300',
-    icon: '⚡'
+    bg: 'bg-gray-100',
+    text: 'text-gray-600',
+    border: 'border-gray-300',
+    icon: '' // 移除图标
   },
   // 自定义标签默认样式
   default: {
-    bg: 'bg-purple-100',
-    text: 'text-purple-700',
-    border: 'border-purple-300',
-    icon: '🏷️'
+    bg: 'bg-gray-100',
+    text: 'text-gray-600',
+    border: 'border-gray-300',
+    icon: '' // 移除图标
   }
 }
 

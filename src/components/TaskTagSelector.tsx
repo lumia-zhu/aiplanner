@@ -112,7 +112,6 @@ export default function TaskTagSelector({
           }
         `}
       >
-        <span>{colorConfig.icon}</span>
         <span>{label}</span>
         {isSelected && <span className="ml-0.5">✓</span>}
       </button>
@@ -196,7 +195,6 @@ export default function TaskTagSelector({
                     ${colorConfig.bg} ${colorConfig.text} ${colorConfig.border}
                   `}
                 >
-                  <span>{colorConfig.icon}</span>
                   <span>{label}</span>
                   <button
                     type="button"

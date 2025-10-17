@@ -42,3 +42,5 @@ COMMENT ON COLUMN chat_messages.content IS '消息内容，JSONB格式，支持�
 
 
 
+
+

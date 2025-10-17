@@ -88,9 +88,9 @@ export default function TaskItem({ task, onToggleComplete, onEdit, onDelete, onD
   }
 
   return (
-    <div className={`bg-white rounded-lg shadow-sm border p-4 transition-all duration-200 ${
-      isOverdue ? 'border-red-300 bg-red-50' : 'border-gray-200'
-    } ${task.completed ? 'opacity-60' : ''} ${
+    <div className={`bg-white rounded-lg shadow-sm border border-gray-200 p-4 transition-all duration-200 ${
+      task.completed ? 'opacity-60' : ''
+    } ${
       isDragging ? 'shadow-2xl scale-105 z-50 bg-blue-50 border-blue-300' : 'hover:shadow-md'
     }`}>
       <div className="flex items-start space-x-3">

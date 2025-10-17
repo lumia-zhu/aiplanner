@@ -417,7 +417,7 @@ export default function PriorityMatrix({ tasks, config, onClose, onSave }: Props
           {/* 内容区域 */}
           <div className="flex-1 overflow-hidden flex flex-col p-6 gap-4">
             {/* 待分类任务区域 */}
-            <DroppableZone id="unclassified" className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+            <DroppableZone id="unclassified" className="bg-blue-50 border border-transparent rounded-lg p-4">
               <h3 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
                 <span>📋</span>
                 <span>待分类任务</span>
@@ -448,15 +448,13 @@ export default function PriorityMatrix({ tasks, config, onClose, onSave }: Props
               <DroppableZone
                 id="q2"
                 style={{ 
-                  backgroundColor: `${config.quadrants.q2.color}15`,
-                  borderColor: config.quadrants.q2.color 
+                  backgroundColor: `${config.quadrants.q2.color}15`
                 }}
-                className="border-2 rounded-lg p-4 flex flex-col"
+                className="border border-transparent rounded-lg p-4 flex flex-col"
               >
                 <div className="flex items-center justify-between mb-3">
                   <div>
-                    <h3 className="font-semibold flex items-center gap-2" style={{ color: config.quadrants.q2.color }}>
-                      <span>{QUADRANTS.q2.icon}</span>
+                    <h3 className="font-semibold flex items-center gap-2 text-gray-800">
                       <span>{config.quadrants.q2.label}</span>
                     </h3>
                     <p className="text-xs text-gray-500 mt-1">{config.quadrants.q2.description}</p>
@@ -485,15 +483,13 @@ export default function PriorityMatrix({ tasks, config, onClose, onSave }: Props
               <DroppableZone
                 id="q1"
                 style={{ 
-                  backgroundColor: `${config.quadrants.q1.color}15`,
-                  borderColor: config.quadrants.q1.color 
+                  backgroundColor: `${config.quadrants.q1.color}15`
                 }}
-                className="border-2 rounded-lg p-4 flex flex-col"
+                className="border border-transparent rounded-lg p-4 flex flex-col"
               >
                 <div className="flex items-center justify-between mb-3">
                   <div>
-                    <h3 className="font-semibold flex items-center gap-2" style={{ color: config.quadrants.q1.color }}>
-                      <span>{QUADRANTS.q1.icon}</span>
+                    <h3 className="font-semibold flex items-center gap-2 text-gray-800">
                       <span>{config.quadrants.q1.label}</span>
                     </h3>
                     <p className="text-xs text-gray-500 mt-1">{config.quadrants.q1.description}</p>
@@ -522,15 +518,13 @@ export default function PriorityMatrix({ tasks, config, onClose, onSave }: Props
               <DroppableZone
                 id="q4"
                 style={{ 
-                  backgroundColor: `${config.quadrants.q4.color}15`,
-                  borderColor: config.quadrants.q4.color 
+                  backgroundColor: `${config.quadrants.q4.color}15`
                 }}
-                className="border-2 rounded-lg p-4 flex flex-col"
+                className="border border-transparent rounded-lg p-4 flex flex-col"
               >
                 <div className="flex items-center justify-between mb-3">
                   <div>
-                    <h3 className="font-semibold flex items-center gap-2" style={{ color: config.quadrants.q4.color }}>
-                      <span>{QUADRANTS.q4.icon}</span>
+                    <h3 className="font-semibold flex items-center gap-2 text-gray-800">
                       <span>{config.quadrants.q4.label}</span>
                     </h3>
                     <p className="text-xs text-gray-500 mt-1">{config.quadrants.q4.description}</p>
@@ -559,15 +553,13 @@ export default function PriorityMatrix({ tasks, config, onClose, onSave }: Props
               <DroppableZone
                 id="q3"
                 style={{ 
-                  backgroundColor: `${config.quadrants.q3.color}15`,
-                  borderColor: config.quadrants.q3.color 
+                  backgroundColor: `${config.quadrants.q3.color}15`
                 }}
-                className="border-2 rounded-lg p-4 flex flex-col"
+                className="border border-transparent rounded-lg p-4 flex flex-col"
               >
                 <div className="flex items-center justify-between mb-3">
                   <div>
-                    <h3 className="font-semibold flex items-center gap-2" style={{ color: config.quadrants.q3.color }}>
-                      <span>{QUADRANTS.q3.icon}</span>
+                    <h3 className="font-semibold flex items-center gap-2 text-gray-800">
                       <span>{config.quadrants.q3.label}</span>
                     </h3>
                     <p className="text-xs text-gray-500 mt-1">{config.quadrants.q3.description}</p>

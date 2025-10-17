@@ -118,7 +118,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
       {/* 侧边栏容器 */}
       <aside 
         className={`bg-white border border-gray-200 rounded-lg flex flex-col h-full flex-shrink-0 transition-all duration-300 ease-in-out ${
-          isOpen ? 'w-[450px] opacity-100' : 'w-0 opacity-0 border-0'
+          isOpen ? 'w-[520px] opacity-100' : 'w-0 opacity-0 border-0'
         } overflow-hidden`}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}

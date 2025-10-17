@@ -17,7 +17,7 @@ interface TaskTagBadgeProps {
 export default function TaskTagBadge({
   tag,
   size = 'sm',
-  showIcon = true,
+  showIcon = false, // 默认不显示图标，降低视觉干扰
   onClick,
   className = '',
 }: TaskTagBadgeProps) {
