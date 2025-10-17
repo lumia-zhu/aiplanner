@@ -10,10 +10,14 @@ import { analyzeTasksForWorkflow, getTodayTasks, generateDetailedTaskSummary } f
 import { getMatrixTypeByFeeling, getMatrixConfig } from '@/types'
 import { streamText } from '@/utils/streamText'
 import { generateContextQuestions, formatQuestionsMessage } from '@/lib/contextQuestions'
+import { generateDecompositionQuestionsWithFallback } from '@/lib/decompositionAI'
+import { getGuidanceMessage } from '@/lib/guidanceService'
+import type { GuidanceScenario } from '@/lib/guidanceService'
 import { generateClarificationQuestions, formatClarificationQuestionsMessage, recommendTasksForClarification, formatRecommendationsMessage, recommendTasksForTimeEstimation, formatTimeEstimationRecommendationsMessage } from '@/lib/clarificationQuestions'
 import { doubaoService } from '@/lib/doubaoService'
 import { generateReflectionQuestion, buildUserProfile } from '@/lib/timeEstimationAI'
 import { formatMinutes, calculateBuffer, encodeEstimatedDuration } from '@/utils/timeEstimation'
+import { generateClarificationQuestionsWithFallback } from '@/lib/clarificationAI'
 
 interface UseWorkflowAssistantProps {
   tasks: Task[]
@@ -428,7 +432,7 @@ ${recommendation.reason}
   /**
    * 用户选择要拆解的任务
    */
-  const selectTaskForDecompose = useCallback((task: Task | null) => {
+  const selectTaskForDecompose = useCallback(async (task: Task | null) => {
     if (task === null) {
       // 返回上一级（返回到操作选择）
       setWorkflowMode('single-task-action')
@@ -451,21 +455,75 @@ ${recommendation.reason}
       ])
 
       if (selectedAction === 'decompose') {
-        // 拆解路径：生成问题并进入上下文输入模式
+        // ⭐ 拆解路径：使用AI动态生成拆解问题
         setSelectedTaskForDecompose(task)
-        const questions = generateContextQuestions(task)
-        setContextQuestions(questions)
-        setWorkflowMode('task-context-input')
-        const questionMessage = formatQuestionsMessage(task, questions)
-        streamAIMessage(questionMessage)
+        
+        // 显示加载动画
+        setIsSending(true)
+        streamAIMessage('正在分析任务，生成拆解引导问题...')
+        
+        try {
+          // 调用AI生成问题（带降级方案）
+          const result = await generateDecompositionQuestionsWithFallback(task)
+          
+          // 清空加载消息，显示问题
+          setStreamingMessage('')
+          setIsSending(false)
+          
+          // 保存问题到状态
+          setContextQuestions(result.questions)
+          
+          // 进入上下文输入模式
+          setWorkflowMode('task-context-input')
+          
+          // 显示问题消息
+          streamAIMessage(result.message)
+          
+        } catch (error) {
+          // 如果连降级方案都失败了（极端情况）
+          console.error('拆解问题生成完全失败:', error)
+          setIsSending(false)
+          streamAIMessage('抱歉，问题生成失败了。请稍后再试，或者选择其他操作。')
+          setWorkflowMode('single-task-action')
+        }
       } else if (selectedAction === 'clarify') {
-        // 澄清路径：生成澄清问题并进入澄清输入模式
+        // ⭐ 澄清路径：使用AI动态生成澄清问题
         setSelectedTaskForDecompose(task)
-        const questions = generateClarificationQuestions(task)
-        setClarificationQuestions(questions)
-        setWorkflowMode('task-clarification-input')
-        const questionMessage = formatClarificationQuestionsMessage(task, questions)
-        streamAIMessage(questionMessage)
+        
+        // 显示加载动画
+        setIsSending(true)
+        streamAIMessage('正在分析任务，生成问题...')
+        
+        try {
+          // 调用AI生成问题（带降级方案）
+          const result = await generateClarificationQuestionsWithFallback(task)
+          
+          // 清空加载消息，显示问题
+          setStreamingMessage('')
+          setIsSending(false)
+          
+          // 保存问题到状态（注意：现在questions是string[]而不是ClarificationQuestion[]）
+          // 为了兼容后续流程，我们需要转换格式
+          const clarificationQuestions: ClarificationQuestion[] = result.questions.map((q) => ({
+            dimension: 'dynamic',
+            question: q,
+            purpose: 'AI动态生成的问题'
+          }))
+          setClarificationQuestions(clarificationQuestions)
+          
+          // 进入澄清输入模式
+          setWorkflowMode('task-clarification-input')
+          
+          // 显示问题消息
+          streamAIMessage(result.message)
+          
+        } catch (error) {
+          // 如果连降级方案都失败了（极端情况）
+          console.error('问题生成完全失败:', error)
+          setIsSending(false)
+          streamAIMessage('抱歉，问题生成失败了。请稍后再试，或者选择其他操作。')
+          setWorkflowMode('single-task-action')
+        }
       } else if (selectedAction === 'estimate') {
         // ⭐ 时间估算路径：进入时间输入模式
         setEstimationTask(task)
@@ -473,7 +531,7 @@ ${recommendation.reason}
         streamAIMessage(`好的！我们来估算「${task.title}」需要多久。\n\n请选择或输入你的时间估计：`)
       }
     }
-  }, [setChatMessages, streamAIMessage, selectedAction])
+  }, [setChatMessages, streamAIMessage, selectedAction, setIsSending, setStreamingMessage])
 
   /**
    * 提交任务上下文
@@ -511,16 +569,24 @@ ${recommendation.reason}
    * ⭐ 取消任务拆解，返回上一级
    */
   const cancelTaskContext = useCallback(() => {
-    // 清空输入和选中的任务
+    // 清空输入
     setTaskContextInput('')
+    
+    // ⭐ 生成智能引导消息
+    const guidanceMessage = getGuidanceMessage('action-cancelled-decompose', {
+      currentTask: selectedTaskForDecompose || undefined,
+      allTasks: tasks
+    })
+    
+    // 清空选中的任务
     setSelectedTaskForDecompose(null)
     
-    // 显示AI消息
-    streamAIMessage('已取消任务拆解，回到上一级选择。')
+    // 显示智能引导消息
+    streamAIMessage(guidanceMessage)
     
     // 返回到单任务操作选择
     setWorkflowMode('single-task-action')
-  }, [streamAIMessage])
+  }, [streamAIMessage, selectedTaskForDecompose, tasks])
 
   /**
    * 静默清空选中任务（不发送消息）
@@ -610,7 +676,7 @@ ${recommendation.reason}
       { role: 'user', content: [{ type: 'text', text: '✅ 确认，就是这样' }] }
     ])
     
-    // 根据是否有时间信息调整提示
+    // ⭐ 生成智能引导消息
     let successMessage = '太好了！我已经理解了你的任务。'
     
     if (structuredContext.deadline_datetime && structuredContext.deadline_confidence) {
@@ -630,7 +696,13 @@ ${recommendation.reason}
       }
     }
     
-    successMessage += '\n\n你可以继续对这个任务进行拆解，或者选择其他操作。'
+    // ⭐ 添加智能引导
+    const guidanceMessage = getGuidanceMessage('action-completed-clarify', {
+      currentTask: selectedTaskForDecompose,
+      allTasks: tasks
+    })
+    
+    successMessage += '\n\n' + guidanceMessage
     
     streamAIMessage(successMessage)
     
@@ -640,7 +712,7 @@ ${recommendation.reason}
     setStructuredContext(null)
     setAIClarificationSummary('')
     setWorkflowMode('single-task-action')
-  }, [selectedTaskForDecompose, structuredContext, setChatMessages, streamAIMessage])
+  }, [selectedTaskForDecompose, structuredContext, setChatMessages, streamAIMessage, tasks])
 
   /**
    * 重新澄清
@@ -681,6 +753,12 @@ ${recommendation.reason}
    * ⭐ 取消任务澄清，返回上一级
    */
   const cancelClarificationAnswer = useCallback(() => {
+    // ⭐ 生成智能引导消息（在清空状态前）
+    const guidanceMessage = getGuidanceMessage('action-cancelled-clarify', {
+      currentTask: selectedTaskForDecompose || undefined,
+      allTasks: tasks
+    })
+    
     // 清空澄清状态和选中的任务
     setClarificationQuestions([])
     setClarificationAnswer('')
@@ -688,12 +766,12 @@ ${recommendation.reason}
     setAIClarificationSummary('')
     setSelectedTaskForDecompose(null)
     
-    // 显示AI消息
-    streamAIMessage('已取消任务澄清，回到上一级选择。')
+    // 显示智能引导消息
+    streamAIMessage(guidanceMessage)
     
     // 返回到单任务操作选择
     setWorkflowMode('single-task-action')
-  }, [streamAIMessage])
+  }, [streamAIMessage, selectedTaskForDecompose, tasks])
 
   // ============================================
   // ⭐ 时间估算相关方法
@@ -799,27 +877,39 @@ ${recommendation.reason}
       { role: 'user', content: [{ type: 'text', text: withBuffer ? '✅ 加上缓冲时间' : '⏱️ 就这个时间' }] }
     ])
     
-    streamAIMessage(`✅ 已记录！任务「${estimationTask.title}」的预估时长为：${displayText}`)
+    // ⭐ 生成智能引导消息
+    const guidanceMessage = getGuidanceMessage('action-completed-estimate', {
+      currentTask: estimationTask,
+      allTasks: tasks
+    })
+    
+    streamAIMessage(`✅ 已记录！任务「${estimationTask.title}」的预估时长为：${displayText}\n\n${guidanceMessage}`)
     
     // 清空估算状态，返回操作选择层级
     clearEstimationState()
     goBackToSingleTaskAction()
-  }, [estimationTask, estimationInitial, setChatMessages, streamAIMessage])
+  }, [estimationTask, estimationInitial, setChatMessages, streamAIMessage, tasks])
   
   /**
    * 取消估算，返回上一级
    */
   const cancelEstimation = useCallback(() => {
+    // ⭐ 生成智能引导消息（在清空状态前获取任务信息）
+    const guidanceMessage = getGuidanceMessage('action-cancelled-estimate', {
+      currentTask: estimationTask || undefined,
+      allTasks: tasks
+    })
+    
     clearEstimationState()
     goBackToSingleTaskAction()
     
     // 显示取消消息
     setChatMessages(prev => [
       ...prev,
-      { role: 'user', content: [{ type: 'text', text: '← 重新估算' }] }
+      { role: 'user', content: [{ type: 'text', text: '← 取消' }] }
     ])
-    streamAIMessage('好的，已取消。请重新选择操作：')
-  }, [setChatMessages, streamAIMessage])
+    streamAIMessage(guidanceMessage)
+  }, [setChatMessages, streamAIMessage, estimationTask, tasks])
   
   /**
    * 清空估算状态（内部辅助方法）

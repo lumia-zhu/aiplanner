@@ -41,7 +41,8 @@ export function formatQuestionsMessage(task: Task, questions: string[]): string 
 
 ${questions.map((q, i) => `${i + 1}. ${q}`).join('\n\n')}
 
-💡 请在下方输入框中回答这些问题（可以自由描述，不需要严格按问题序号）`
+💡 请在下方输入框中回答这些问题，也可以提供其他任何你知道的信息（可以自由描述，不需要严格按问题序号）`
 }
+
 
 

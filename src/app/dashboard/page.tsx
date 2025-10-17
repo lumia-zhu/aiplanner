@@ -23,6 +23,7 @@ import { encodeEstimatedDuration } from '@/utils/timeEstimation'
 import { saveChatMessage, getChatMessages, clearChatMessages } from '@/lib/chatMessages'
 import UserProfileModal from '@/components/UserProfileModal'
 import { getUserProfile, upsertUserProfile, addCustomTaskTag } from '@/lib/userProfile'
+import { getGuidanceMessage } from '@/lib/guidanceService'
 import type { UserProfile, UserProfileInput, MatrixState } from '@/types'
 import { getMatrixTypeByFeeling, getMatrixConfig } from '@/types'
 import { useWorkflowAssistant } from '@/hooks/useWorkflowAssistant'
@@ -778,9 +779,25 @@ export default function DashboardPage() {
           )
         )
         
-        // 显示成功消息
+        // ⭐ 生成智能引导消息
         const createdCount = selectedSubtasks.filter(t => t.is_selected).length
-        alert(`✅ 成功创建了 ${createdCount} 个子任务！`)
+        const updatedTask = tasks.find(t => t.id === decomposingTask.id)
+        const guidanceMessage = getGuidanceMessage('action-completed-decompose', {
+          currentTask: updatedTask || decomposingTask,
+          allTasks: tasks
+        })
+        
+        // 显示成功消息和引导
+        setChatMessages(prev => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: [{
+              type: 'text',
+              text: `✅ 成功创建了${createdCount}个子任务！\n\n${guidanceMessage}`
+            }]
+          }
+        ])
         
         // 关闭弹窗
         setShowDecompositionModal(false)
@@ -1052,7 +1069,15 @@ export default function DashboardPage() {
    * 处理澄清确认 - 更新任务描述
    */
   const handleClarificationConfirm = async () => {
-    if (!user || !selectedTaskForDecompose || !structuredContext) return
+    console.log('🔍 handleClarificationConfirm 被调用')
+    console.log('  user:', user)
+    console.log('  selectedTaskForDecompose:', selectedTaskForDecompose)
+    console.log('  structuredContext:', structuredContext)
+    
+    if (!user || !selectedTaskForDecompose || !structuredContext) {
+      console.warn('❌ 缺少必要参数，提前返回')
+      return
+    }
     
     try {
       console.log('✅ 用户确认澄清结果，开始更新任务描述')

@@ -171,7 +171,7 @@ export function formatClarificationQuestionsMessage(
 
 ${questionList}
 
-💡 请在下方输入框中回答这些问题（可以自由描述，不需要严格按问题序号）`
+💡 请在下方输入框中回答这些问题，也可以提供其他任何你知道的信息（可以自由描述，不需要严格按问题序号）`
 }
 
 // ============================================
@@ -198,27 +198,53 @@ export function recommendTasksForClarification(tasks: Task[]): Array<{
 
     const reasons: string[] = []
 
-    // 检查1：没有描述
+    // ⭐ 检查1：没有描述
     if (!task.description || task.description.trim().length === 0) {
       reasons.push('缺少描述')
     }
 
-    // 检查2：标题很长（可能不够清晰）
+    // ⭐ 检查2：描述很短（少于20字）
+    if (task.description && task.description.trim().length > 0 && task.description.trim().length < 20) {
+      reasons.push('描述较简略')
+    }
+
+    // ⭐ 检查3：没有截止时间
+    if (!task.deadline_datetime) {
+      reasons.push('未设置截止时间')
+    }
+
+    // ⭐ 检查4：没有预估时长
+    if (!task.estimated_duration) {
+      reasons.push('未估算时间')
+    }
+
+    // ⭐ 检查5：没有优先级标签（important/urgent/normal等）
+    const hasPriorityTag = task.tags?.some(tag => 
+      ['important', 'urgent', 'normal', 'low'].includes(tag)
+    )
+    if (!hasPriorityTag) {
+      reasons.push('未标记优先级')
+    }
+
+    // ⭐ 检查6：标题很长（可能不够清晰）
     if (task.title.length > 20) {
-      reasons.push('标题较长，可能需要澄清')
+      reasons.push('标题较长')
     }
 
-    // 检查3：标记为困难
+    // ⭐ 检查7：标记为困难任务
     if (task.tags?.includes('difficult')) {
-      reasons.push('标记为困难任务')
+      reasons.push('困难任务需要详细规划')
     }
 
-    // 检查4：描述很短但标记为重要
-    if (task.tags?.includes('important') && (task.description?.length || 0) < 30) {
-      reasons.push('重要任务但描述较简略')
+    // ⭐ 检查8：标记为重要但信息不完整
+    if (task.tags?.includes('important')) {
+      if (!task.deadline_datetime || !task.estimated_duration) {
+        reasons.push('重要任务信息不完整')
+      }
     }
 
-    // 如果有任何理由，添加到推荐列表
+    // ⭐ 改进：几乎所有任务都会有理由，但按"缺失信息数量"排序优先级
+    // 至少有1个理由就推荐
     if (reasons.length > 0) {
       recommendations.push({
         task,
@@ -227,7 +253,7 @@ export function recommendTasksForClarification(tasks: Task[]): Array<{
     }
   })
 
-  // 按理由数量排序（理由越多越推荐）
+  // 按理由数量排序（理由越多 = 缺失信息越多 = 越需要澄清）
   recommendations.sort((a, b) => {
     const aReasonCount = a.reason.split('、').length
     const bReasonCount = b.reason.split('、').length
@@ -246,7 +272,7 @@ export function formatRecommendationsMessage(
   recommendations: Array<{ task: Task; reason: string }>
 ): string {
   if (recommendations.length === 0) {
-    return '你的任务都比较清晰，暂时没有特别需要澄清的。\n\n不过如果你想对某个任务有更深入的理解，也可以选择下方的任务进行澄清。'
+    return '选择一个任务，我会问你几个问题来帮你更好地理解它。'
   }
 
   const topRecommendations = recommendations.slice(0, 3)
@@ -338,7 +364,7 @@ export function formatTimeEstimationRecommendationsMessage(
   recommendations: Array<{ task: Task; reason: string }>
 ): string {
   if (recommendations.length === 0) {
-    return '你的任务都已经有时间预估了！👍\n\n不过如果你想重新评估某个任务的时间，也可以在下方选择。'
+    return '选择一个任务，我会帮你评估它需要多长时间。'
   }
 
   const topRecommendations = recommendations.slice(0, 3)

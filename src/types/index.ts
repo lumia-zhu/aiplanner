@@ -338,7 +338,7 @@ export interface SingleTaskActionOption {
 // ============================================
 
 /**
- * 任务澄清的六个维度
+ * 任务澄清的维度
  */
 export type ClarificationDimension = 
   | 'intent'      // 🎯 意图澄清：区分目标与产出形式
@@ -347,6 +347,7 @@ export type ClarificationDimension =
   | 'dependency'  // 🔗 依赖关系：识别外部依赖
   | 'obstacle'    // 💡 动机/难点：识别潜在障碍
   | 'priority'    // ⚖️ 优先/资源：准备优先级判断
+  | 'dynamic'     // 🤖 AI动态生成：根据任务内容动态生成的问题
 
 /**
  * 澄清问题接口

@@ -697,7 +697,6 @@ export async function appendStructuredContextToTask(
     // 3. 构建完整的上下文标签
     const contextTag = `
 ---
-📋 任务上下文（AI澄清）
 ${contextLines.join('\n')}
 ---`
     
