@@ -78,10 +78,10 @@ export default function DashboardPage() {
   const [isChatLoading, setIsChatLoading] = useState(false) // 加载对话记录的状态
   const chatScrollRef = useRef<HTMLDivElement | null>(null)
   
-  // 侧边栏展开/收起状态（从localStorage读取，默认收起）
+  // ⭐ 侧边栏展开/收起状态（刷新页面保持状态，但登录时默认关闭）
   const [isChatSidebarOpen, setIsChatSidebarOpen] = useState(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('chatSidebarOpen')
+      const saved = sessionStorage.getItem('chatSidebarOpen')
       return saved !== null ? JSON.parse(saved) : false
     }
     return false
@@ -116,7 +116,9 @@ export default function DashboardPage() {
   // ⭐ 工作流结束时关闭侧边栏
   const handleWorkflowEnd = useCallback(() => {
     setIsChatSidebarOpen(false)
-    localStorage.setItem('chatSidebarOpen', 'false')
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('chatSidebarOpen', 'false')
+    }
   }, [])
   
   // 工作流辅助Hook
@@ -231,7 +233,7 @@ export default function DashboardPage() {
     // 同时展开AI侧边栏
     setIsChatSidebarOpen(true)
     if (typeof window !== 'undefined') {
-      localStorage.setItem('chatSidebarOpen', 'true')
+      sessionStorage.setItem('chatSidebarOpen', 'true')
     }
   }, [])
 
@@ -1818,7 +1820,9 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
   const toggleChatSidebar = useCallback(() => {
     setIsChatSidebarOpen((prev: boolean) => {
       const newValue = !prev
-      localStorage.setItem('chatSidebarOpen', JSON.stringify(newValue))
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('chatSidebarOpen', JSON.stringify(newValue))
+      }
       return newValue
     })
   }, [])

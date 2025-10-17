@@ -238,9 +238,11 @@ export function generateRuleBasedGuidance(
         message += `\n\n💡 建议：给每个子任务估算时间，整体规划会更清晰。`
       }
       
-      const incompleteTasks = allTasks.filter(t => !t.completed && !t.parent_id)
-      if (incompleteTasks.length > 1) {
-        message += `\n\n你还有${incompleteTasks.length - 1}个任务待处理，要继续完善吗？`
+      // ⭐ 统计今天的未完成任务（而不是所有任务）
+      const todayStats = analyzeTodayTasks(allTasks)
+      const todayIncompleteTasks = todayStats.total - todayStats.completed
+      if (todayIncompleteTasks > 1) {
+        message += `\n\n你今天还有${todayIncompleteTasks - 1}个任务待处理，要继续完善吗？`
       }
       
       return message
@@ -263,9 +265,11 @@ export function generateRuleBasedGuidance(
       }
       // 如果都差不多完善了，提示可以排列优先级或继续其他任务
       else {
-        const incompleteTasks = allTasks.filter(t => !t.completed && !t.parent_id)
-        if (incompleteTasks.length > 1) {
-          message += `\n\n👍 任务规划得不错！你还有${incompleteTasks.length - 1}个任务，可以排列一下优先级。`
+        // ⭐ 统计今天的未完成任务（而不是所有任务）
+        const todayStats = analyzeTodayTasks(allTasks)
+        const todayIncompleteTasks = todayStats.total - todayStats.completed
+        if (todayIncompleteTasks > 1) {
+          message += `\n\n👍 任务规划得不错！你今天还有${todayIncompleteTasks - 1}个任务，可以排列一下优先级。`
         }
       }
       
