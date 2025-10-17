@@ -54,16 +54,20 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center px-4">
       <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8">
+        {/* 应用标题和介绍 */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            注册
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            📋 任务管理器
           </h1>
-          <p className="text-gray-600">
+          <p className="text-gray-600 text-sm mb-6">
+            简洁高效的任务管理应用
+          </p>
+          <p className="text-base text-gray-600">
             创建您的账户，开始管理任务
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
               用户名
@@ -131,12 +135,6 @@ export default function RegisterPage() {
               立即登录
             </Link>
           </p>
-        </div>
-
-        <div className="mt-4 text-center">
-          <Link href="/" className="text-sm text-gray-500 hover:text-gray-700">
-            ← 返回首页
-          </Link>
         </div>
       </div>
     </div>

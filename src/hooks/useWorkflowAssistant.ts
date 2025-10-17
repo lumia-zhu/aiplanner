@@ -9,6 +9,7 @@ import type { ChatMessage } from '@/lib/doubaoService'
 import { analyzeTasksForWorkflow, getTodayTasks, generateDetailedTaskSummary } from '@/lib/workflowAnalyzer'
 import { getMatrixTypeByFeeling, getMatrixConfig } from '@/types'
 import { streamText } from '@/utils/streamText'
+import { generateContextQuestions, formatQuestionsMessage } from '@/lib/contextQuestions'
 
 interface UseWorkflowAssistantProps {
   tasks: Task[]
@@ -26,6 +27,8 @@ interface UseWorkflowAssistantReturn {
   selectedFeeling: PrioritySortFeeling | null
   selectedAction: SingleTaskAction | null
   selectedTaskForDecompose: Task | null
+  taskContextInput: string  // 用户输入的任务上下文
+  contextQuestions: string[]  // 当前任务的问题列表
   
   // 方法
   startWorkflow: () => Promise<void>
@@ -33,6 +36,7 @@ interface UseWorkflowAssistantReturn {
   selectFeeling: (feeling: PrioritySortFeeling) => void
   selectAction: (action: SingleTaskAction) => void
   selectTaskForDecompose: (task: Task | null) => void
+  submitTaskContext: (contextInput: string) => void  // 提交任务上下文
   clearSelectedTask: () => void  // 静默清空选中任务，不发送消息
   resetWorkflow: () => void
 }
@@ -54,6 +58,8 @@ export function useWorkflowAssistant({
   const [selectedFeeling, setSelectedFeeling] = useState<PrioritySortFeeling | null>(null)
   const [selectedAction, setSelectedAction] = useState<SingleTaskAction | null>(null)
   const [selectedTaskForDecompose, setSelectedTaskForDecompose] = useState<Task | null>(null)
+  const [taskContextInput, setTaskContextInput] = useState<string>('')  // 用户输入的任务上下文
+  const [contextQuestions, setContextQuestions] = useState<string[]>([])  // 当前任务的问题列表
   
   // 用于取消正在进行的流式输出
   const cancelStreamRef = useRef<(() => void) | null>(null)
@@ -358,6 +364,8 @@ ${recommendation.reason}
       // 返回上一级（返回到操作选择）
       setWorkflowMode('single-task-action')
       setSelectedTaskForDecompose(null)
+      setTaskContextInput('')
+      setContextQuestions([])
       setChatMessages(prev => [
         ...prev,
         {
@@ -367,8 +375,17 @@ ${recommendation.reason}
       ])
       streamAIMessage('好的,已返回上一级。请重新选择操作:')
     } else {
-      // 选择了任务，设置状态，触发拆解弹窗
+      // 选择了任务，生成问题并切换到输入模式
       setSelectedTaskForDecompose(task)
+      
+      // 生成问题
+      const questions = generateContextQuestions(task)
+      setContextQuestions(questions)
+      
+      // 切换到等待输入模式
+      setWorkflowMode('task-context-input')
+      
+      // 发送用户选择的消息
       setChatMessages(prev => [
         ...prev,
         {
@@ -376,15 +393,39 @@ ${recommendation.reason}
           content: [{ type: 'text', text: `📌 ${task.title}` }]
         }
       ])
-      streamAIMessage('好的！正在为你打开任务拆解工具... 🔧')
+      
+      // AI发送问题
+      const questionMessage = formatQuestionsMessage(task, questions)
+      streamAIMessage(questionMessage)
     }
   }, [setChatMessages, streamAIMessage])
+
+  /**
+   * 提交任务上下文
+   */
+  const submitTaskContext = useCallback((contextInput: string) => {
+    if (!contextInput.trim()) {
+      // 如果用户没输入，直接进入拆解
+      streamAIMessage('好的！正在为你打开任务拆解工具... 🔧')
+    } else {
+      // 保存用户输入
+      setTaskContextInput(contextInput)
+      
+      // AI确认收到
+      streamAIMessage(`明白了！我会根据你提供的信息来拆解任务。\n\n正在为你打开任务拆解工具... 🔧`)
+    }
+    
+    // 切换到单任务模式，dashboard会监听到并打开modal
+    setWorkflowMode('single-task')
+  }, [streamAIMessage])
 
   /**
    * 静默清空选中任务（不发送消息）
    */
   const clearSelectedTask = useCallback(() => {
     setSelectedTaskForDecompose(null)
+    setTaskContextInput('')
+    setContextQuestions([])
   }, [])
 
   /**
@@ -397,6 +438,8 @@ ${recommendation.reason}
     setSelectedFeeling(null)
     setSelectedAction(null)
     setSelectedTaskForDecompose(null)
+    setTaskContextInput('')
+    setContextQuestions([])
   }, [])
 
   return {
@@ -406,11 +449,14 @@ ${recommendation.reason}
     selectedFeeling,
     selectedAction,
     selectedTaskForDecompose,
+    taskContextInput,
+    contextQuestions,
     startWorkflow,
     selectOption,
     selectFeeling,
     selectAction,
     selectTaskForDecompose,
+    submitTaskContext,
     clearSelectedTask,
     resetWorkflow
   }

@@ -50,6 +50,7 @@ interface ChatSidebarProps {
   onFeelingSelect?: (feeling: PrioritySortFeeling) => void
   onActionSelect?: (action: SingleTaskAction) => void
   onTaskSelect?: (task: Task | null) => void
+  onContextSubmit?: (context: string) => void
   isWorkflowAnalyzing?: boolean
   
   // 事件处理函数
@@ -94,6 +95,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   onFeelingSelect,
   onActionSelect,
   onTaskSelect,
+  onContextSubmit,
   isWorkflowAnalyzing,
   handleSendMessage,
   handleClearChat,
@@ -487,18 +489,32 @@ const ChatSidebar = memo<ChatSidebarProps>(({
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
-                handleSendMessage()
+                // 根据模式处理发送
+                if (workflowMode === 'task-context-input' && onContextSubmit) {
+                  // 提交任务上下文
+                  if (chatMessage.trim()) {
+                    onContextSubmit(chatMessage.trim())
+                    setChatMessage('')
+                  }
+                } else {
+                  handleSendMessage()
+                }
               }
             }}
             onPaste={handlePaste}
-            placeholder={isTaskRecognitionMode 
-              ? "描述任务内容或上传包含任务的图片..." 
-              : doubaoService.hasApiKey() ? "输入消息或粘贴图片(Ctrl+V)..." : "请先配置API Key"
+            placeholder={
+              workflowMode === 'task-context-input'
+                ? "请描述任务的背景信息..."
+                : isTaskRecognitionMode 
+                  ? "描述任务内容或上传包含任务的图片..." 
+                  : doubaoService.hasApiKey() ? "输入消息或粘贴图片(Ctrl+V)..." : "请先配置API Key"
             }
             className={`flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent text-sm transition-all duration-200 resize-none text-gray-900 placeholder-gray-500 h-10 ${
-              isTaskRecognitionMode 
-                ? 'border-green-300 focus:ring-green-500 bg-green-50' 
-                : 'border-gray-300 focus:ring-blue-500 bg-white'
+              workflowMode === 'task-context-input'
+                ? 'border-blue-300 focus:ring-blue-500 bg-blue-50'
+                : isTaskRecognitionMode 
+                  ? 'border-green-300 focus:ring-green-500 bg-green-50' 
+                  : 'border-gray-300 focus:ring-blue-500 bg-white'
             }`}
             rows={1}
             style={{ 
@@ -507,7 +523,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
               maxHeight: '40px',
               verticalAlign: 'top'
             }}
-            disabled={!doubaoService.hasApiKey() || isSending}
+            disabled={(!doubaoService.hasApiKey() || isSending) && workflowMode !== 'task-context-input'}
           />
 
           {/* 语音按钮 */}
@@ -522,11 +538,29 @@ const ChatSidebar = memo<ChatSidebarProps>(({
 
           {/* 发送按钮 */}
           <div
-            onClick={(!chatMessage.trim() && !selectedImage) || !doubaoService.hasApiKey() || isSending ? undefined : handleSendMessage}
+            onClick={() => {
+              // 根据模式处理发送
+              if (workflowMode === 'task-context-input' && onContextSubmit) {
+                // 提交任务上下文
+                if (chatMessage.trim()) {
+                  onContextSubmit(chatMessage.trim())
+                  setChatMessage('')
+                }
+              } else {
+                // 普通消息发送
+                if ((chatMessage.trim() || selectedImage) && doubaoService.hasApiKey() && !isSending) {
+                  handleSendMessage()
+                }
+              }
+            }}
             className={`h-10 px-4 rounded-lg transition-colors text-sm font-medium flex items-center gap-1.5 border cursor-pointer ${
-              (!chatMessage.trim() && !selectedImage) || !doubaoService.hasApiKey() || isSending
-                ? 'bg-gray-300 text-gray-500 border-gray-300 cursor-not-allowed'
-                : 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
+              workflowMode === 'task-context-input'
+                ? (!chatMessage.trim() || isSending
+                    ? 'bg-gray-300 text-gray-500 border-gray-300 cursor-not-allowed'
+                    : 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700')
+                : ((!chatMessage.trim() && !selectedImage) || !doubaoService.hasApiKey() || isSending
+                    ? 'bg-gray-300 text-gray-500 border-gray-300 cursor-not-allowed'
+                    : 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700')
             }`}
           >
             {isSending ? (
@@ -539,7 +573,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                 </svg>
-                <span>发送</span>
+                <span>{workflowMode === 'task-context-input' ? '提交' : '发送'}</span>
               </>
             )}
           </div>

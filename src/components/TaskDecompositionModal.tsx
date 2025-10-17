@@ -26,6 +26,7 @@ interface TaskDecompositionModalProps {
   isOpen: boolean
   onClose: () => void
   parentTask: Task
+  userContext?: string  // 用户提供的任务上下文信息
   onConfirm: (selectedSubtasks: SubtaskSuggestion[]) => void
 }
 
@@ -33,6 +34,7 @@ export default function TaskDecompositionModal({
   isOpen,
   onClose,
   parentTask,
+  userContext,
   onConfirm
 }: TaskDecompositionModalProps) {
   const [subtaskSuggestions, setSubtaskSuggestions] = useState<SubtaskSuggestion[]>([])
@@ -64,6 +66,7 @@ export default function TaskDecompositionModal({
       const response = await doubaoService.decomposeTask(
         parentTask.title,
         parentTask.description,
+        userContext,  // 传递用户上下文
         (chunk: string) => {
           setStreamingMessage(prev => prev + chunk)
         }

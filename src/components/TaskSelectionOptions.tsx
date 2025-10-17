@@ -61,14 +61,14 @@ export default function TaskSelectionOptions({ tasks, onSelect, disabled = false
               onClick={() => !disabled && onSelect(task)}
               disabled={disabled}
               className={`
-                w-full text-left p-4 rounded-lg border-2 transition-all
+                w-full text-left p-3 rounded-lg border-2 transition-all
                 ${disabled 
                   ? 'bg-gray-100 border-gray-200 cursor-not-allowed opacity-50' 
                   : 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 hover:border-blue-400 hover:shadow-md'
                 }
               `}
             >
-              <div className="flex items-start gap-3">
+              <div className="flex items-start gap-2.5">
                 {/* 任务内容 */}
                 <div className="flex-1 min-w-0">
                   {/* 任务标题 */}
@@ -93,8 +93,8 @@ export default function TaskSelectionOptions({ tasks, onSelect, disabled = false
 
                 {/* 箭头指示 */}
                 {!disabled && (
-                  <div className="flex-shrink-0 text-gray-400 mt-1">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="flex-shrink-0 text-gray-400 mt-0.5">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                   </div>
@@ -111,33 +111,33 @@ export default function TaskSelectionOptions({ tasks, onSelect, disabled = false
         onClick={() => !disabled && onSelect(null)}
         disabled={disabled}
         className={`
-          w-full text-left p-4 rounded-lg border-2 transition-all
+          w-full text-left p-3 rounded-lg border-2 transition-all
           ${disabled 
             ? 'bg-gray-100 border-gray-200 cursor-not-allowed opacity-50' 
             : 'bg-gradient-to-r from-gray-50 to-slate-50 border-gray-300 hover:border-gray-400 hover:shadow-md'
           }
         `}
       >
-        <div className="flex items-start gap-3">
+        <div className="flex items-start gap-2.5">
           {/* 返回图标 */}
-          <div className="flex-shrink-0 text-2xl mt-0.5">
+          <div className="flex-shrink-0 text-xl mt-0.5">
             ↩️
           </div>
           
           {/* 文本内容 */}
           <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-semibold mb-1 text-gray-900">
+            <h3 className="text-sm font-semibold mb-0.5 text-gray-900">
               返回上一级
             </h3>
-            <p className="text-xs text-gray-600 leading-relaxed">
+            <p className="text-xs text-gray-600 leading-snug">
               回到操作选择
             </p>
           </div>
 
           {/* 箭头指示 */}
           {!disabled && (
-            <div className="flex-shrink-0 text-gray-400 mt-1">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="flex-shrink-0 text-gray-400 mt-0.5">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </div>

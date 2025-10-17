@@ -252,6 +252,7 @@ class DoubaoService {
   async decomposeTask(
     taskTitle: string,
     taskDescription?: string,
+    userContext?: string,  // 用户提供的任务上下文
     onStream?: (chunk: string) => void
   ): Promise<ChatResponse> {
     const apiKey = this.getApiKey()
@@ -286,6 +287,12 @@ class DoubaoService {
 
 任务标题：${taskTitle}
 ${taskDescription ? `任务描述：${taskDescription}` : ''}
+
+${userContext ? `📋 用户补充信息：
+${userContext}
+
+请特别考虑用户提供的背景信息，确保子任务符合实际情境。
+` : ''}
 
 请分析这个任务，并将其拆解为3-5个具体可执行的子任务。每个子任务都应该有明确的完成标准。`
 

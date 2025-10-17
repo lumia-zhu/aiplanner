@@ -48,7 +48,7 @@ export default function WorkflowOptions({ onSelect, disabled = false }: Workflow
           onClick={() => !disabled && onSelect(option.id)}
           disabled={disabled}
           className={`
-            w-full text-left p-4 rounded-lg border-2 transition-all
+            w-full text-left p-3 rounded-lg border-2 transition-all
             ${disabled 
               ? 'bg-gray-100 border-gray-200 cursor-not-allowed opacity-50' 
               : option.id === 'A'
@@ -59,16 +59,16 @@ export default function WorkflowOptions({ onSelect, disabled = false }: Workflow
             }
           `}
         >
-          <div className="flex items-start gap-3">
+          <div className="flex items-start gap-2.5">
             {/* 图标 */}
-            <div className="flex-shrink-0 text-2xl mt-0.5">
+            <div className="flex-shrink-0 text-xl mt-0.5">
               {option.icon}
             </div>
             
             {/* 文本内容 */}
             <div className="flex-1 min-w-0">
               <h3 className={`
-                text-sm font-semibold mb-1
+                text-sm font-semibold mb-0.5
                 ${option.id === 'A' 
                   ? 'text-blue-900' 
                   : option.id === 'B' 
@@ -78,15 +78,15 @@ export default function WorkflowOptions({ onSelect, disabled = false }: Workflow
               `}>
                 {option.label}
               </h3>
-              <p className="text-xs text-gray-600 leading-relaxed">
+              <p className="text-xs text-gray-600 leading-snug">
                 {option.description}
               </p>
             </div>
 
             {/* 箭头指示 */}
             {!disabled && (
-              <div className="flex-shrink-0 text-gray-400 mt-1">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="flex-shrink-0 text-gray-400 mt-0.5">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </div>

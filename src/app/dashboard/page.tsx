@@ -119,11 +119,14 @@ export default function DashboardPage() {
     selectedFeeling,
     selectedAction,
     selectedTaskForDecompose,
+    taskContextInput,
+    contextQuestions,
     startWorkflow,
     selectOption: selectWorkflowOption,
     selectFeeling,
     selectAction,
     selectTaskForDecompose,
+    submitTaskContext,
     clearSelectedTask,
     resetWorkflow
   } = useWorkflowAssistant({
@@ -160,7 +163,9 @@ export default function DashboardPage() {
   
   // 监听任务选择,自动打开任务拆解弹窗
   useEffect(() => {
-    if (selectedTaskForDecompose) {
+    // 只有在 single-task 模式且有选中任务时才打开modal
+    // (即用户已提交context或跳过了context输入)
+    if (selectedTaskForDecompose && workflowMode === 'single-task') {
       // 延迟打开拆解弹窗,让用户先看到AI消息
       const timer = setTimeout(() => {
         setDecomposingTask(selectedTaskForDecompose)
@@ -169,7 +174,7 @@ export default function DashboardPage() {
 
       return () => clearTimeout(timer)
     }
-  }, [selectedTaskForDecompose])
+  }, [selectedTaskForDecompose, workflowMode])
   
   // 动画相关状态
   const [animationOrigin, setAnimationOrigin] = useState<{ x: number; y: number } | null>(null)
@@ -2175,6 +2180,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
               onFeelingSelect={selectFeeling}
               onActionSelect={selectAction}
               onTaskSelect={selectTaskForDecompose}
+              onContextSubmit={submitTaskContext}
               isWorkflowAnalyzing={isWorkflowAnalyzing}
               handleSendMessage={handleSendMessage}
               handleClearChat={handleClearChat}
@@ -2368,6 +2374,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
             setDecomposingTask(null)
           }}
           parentTask={decomposingTask}
+          userContext={taskContextInput}
           onConfirm={handleSubtasksConfirm}
         />
       )}
