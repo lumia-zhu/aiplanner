@@ -378,9 +378,12 @@ ${recommendation.reason}
       
       setWorkflowMode('task-selection')
       streamAIMessage(recommendationMessage)
+    } else if (action === 'estimate') {
+      // ⭐ 修复: 任务时间估计功能，不要触发任务拆解
+      // 保持在 single-task-action 模式，只显示"开发中"消息
+      streamAIMessage(`✅ 好的!我会帮你进行${selected.label}。\n\n**功能开发中...**\n\n敬请期待! 🚀`)
     } else {
-      // 其他功能暂未开发
-      setWorkflowMode('single-task')
+      // 其他未知功能
       streamAIMessage(`✅ 好的!我会帮你进行${selected.label}。\n\n**功能开发中...**\n\n敬请期待! 🚀`)
     }
   }, [setChatMessages, streamAIMessage])
