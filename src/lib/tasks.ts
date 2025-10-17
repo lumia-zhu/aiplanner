@@ -716,9 +716,23 @@ ${contextLines.join('\n')}
     if (structuredContext.deadline_datetime && 
         structuredContext.deadline_confidence && 
         structuredContext.deadline_confidence !== 'low') {
-      updateData.deadline_datetime = structuredContext.deadline_datetime
+      
+      // ⭐ 关键修复: AI返回的时间格式（如"2025-01-17T13:00:00"）需要正确处理时区
+      // 直接使用会被当作本地时间，但可能在显示时出现偏差
+      // 这里确保时间被正确解析并保存为UTC格式
+      let deadlineToSave = structuredContext.deadline_datetime
+      
+      // 如果AI返回的时间不包含时区信息（没有'Z'或'+08:00'），需要手动处理
+      if (!deadlineToSave.includes('Z') && !deadlineToSave.includes('+') && !deadlineToSave.includes('-', 10)) {
+        // 将其视为本地时间，转换为ISO格式（UTC）
+        const localDate = new Date(deadlineToSave)
+        deadlineToSave = localDate.toISOString()
+        console.log('🔄 时区转换:', structuredContext.deadline_datetime, '→', deadlineToSave)
+      }
+      
+      updateData.deadline_datetime = deadlineToSave
       console.log('✅ 同时更新任务截止时间:', 
-                  structuredContext.deadline_datetime, 
+                  deadlineToSave, 
                   '置信度:', 
                   structuredContext.deadline_confidence)
     }
