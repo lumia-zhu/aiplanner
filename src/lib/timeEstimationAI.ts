@@ -125,18 +125,22 @@ export async function generateReflectionQuestion(params: {
 
 你的任务是：
 1. 基于用户的历史行为模式和当前任务特征
-2. 生成一个简短（1-2句话）的反思性问题
-3. 帮助用户重新审视自己的时间估计
+2. 生成3个简短的反思性问题（每个问题1句话）
+3. 帮助用户从不同角度重新审视自己的时间估计
 
 **反思问题的原则：**
 - 使用苏格拉底式提问，引导而不是说教
+- 3个问题应从不同维度：隐藏步骤、意外情况、依赖资源等
 - 结合用户的历史估算偏差（如果有）
-- 关注任务的隐藏复杂度（如依赖、不确定性）
 - 语气友好、鼓励性
-- 1-2句话，不超过50字
+- 每个问题1句话，每句不超过30字
 
 **输出格式：**
-只返回反思问题文本，不要加任何额外说明。`
+用换行分隔的3个问题，每行一个问题，不要序号，不要其他说明。
+例如：
+这个任务是否包含了准备和收尾工作的时间？
+如果遇到技术问题或需要查资料，会多花多久？
+有没有需要等待他人回复或审批的环节？`
 
   const userMessage = `**任务信息：**
 - 标题：${task.title}
@@ -206,46 +210,51 @@ ${formatMinutes(initialEstimate)}
 
 /**
  * 规则基础的反思问题生成（降级方案）
+ * 返回3个反思问题
  */
 function getRuleBasedReflection(
   task: Task,
   features: TaskFeatures,
   initialEstimate: number
 ): string {
-  // 根据任务特征和估计时间，选择合适的反思问题
+  const questions: string[] = []
   
-  // 1. 如果任务标记为困难，但估计时间很短
+  // 第1个问题：基于任务特征
   if (features.isDifficult && initialEstimate < 60) {
-    return '这个任务被标记为"困难"，你确定半小时左右就能完成吗？有没有什么隐藏的复杂环节？'
+    questions.push('这个任务被标记为"困难"，半小时够吗？')
+  } else if (features.isUrgent && initialEstimate < 45) {
+    questions.push('紧急任务常有意外，考虑打断和切换成本了吗？')
+  } else if (!features.hasDescription && initialEstimate > 90) {
+    questions.push('任务描述不详细，是否充分了解要做什么？')
+  } else if (features.estimatedComplexity === 'high') {
+    questions.push('复杂任务常有意外细节，考虑调试和返工时间了吗？')
+  } else if (initialEstimate > 180) {
+    questions.push('任务较长，考虑中途休息和查资料的时间了吗？')
+  } else if (initialEstimate < 30) {
+    questions.push('快速任务也需要准备和切换，确定这个估计吗？')
+  } else {
+    questions.push('这个任务有没有隐藏的步骤或前置工作？')
   }
   
-  // 2. 如果任务很紧急，且时间较短
-  if (features.isUrgent && initialEstimate < 45) {
-    return '紧急任务往往会有意外情况，你的估计是否考虑了可能的打断和切换成本？'
+  // 第2个问题：关于意外和阻塞
+  if (features.hasDeadline && features.isUrgent) {
+    questions.push('如果遇到技术难点或需要请教他人，会多花多久？')
+  } else if (features.isDifficult) {
+    questions.push('遇到卡点时，调试和解决问题需要多少时间？')
+  } else {
+    questions.push('如果需要查资料或学习新知识，会额外花多久？')
   }
   
-  // 3. 如果任务没有描述，且估计时间较长
-  if (!features.hasDescription && initialEstimate > 90) {
-    return '这个任务没有详细描述，你是否已经充分了解了需要做什么？会不会低估了前期准备时间？'
+  // 第3个问题：关于依赖和资源
+  if (features.hasDescription && task.description!.length > 50) {
+    questions.push('有没有需要等待他人反馈或审批的环节？')
+  } else if (features.isImportant) {
+    questions.push('需要准备哪些资料或工具？这部分时间考虑了吗？')
+  } else {
+    questions.push('任务完成后的检查和收尾工作需要多久？')
   }
   
-  // 4. 如果任务复杂度高
-  if (features.estimatedComplexity === 'high') {
-    return '对于复杂任务，通常会有一些意想不到的细节。你的估计是否考虑了调试、测试或返工的时间？'
-  }
-  
-  // 5. 如果估计时间很长（超过3小时）
-  if (initialEstimate > 180) {
-    return '这个任务比较长，你是否考虑过中途可能需要休息、查资料，或者遇到卡点？'
-  }
-  
-  // 6. 如果估计时间很短（小于30分钟）
-  if (initialEstimate < 30) {
-    return '快速任务也可能因为准备工作或上下文切换花费更多时间，你确定这个估计吗？'
-  }
-  
-  // 7. 默认通用反思
-  return '再想一想，这个任务是否有一些隐藏的步骤或依赖？实际执行时可能会遇到什么意外？'
+  return questions.join('\n')
 }
 
 /**

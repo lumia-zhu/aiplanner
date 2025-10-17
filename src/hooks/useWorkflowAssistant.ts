@@ -667,8 +667,8 @@ ${recommendation.reason}
       setWorkflowMode('task-estimation-reflection')
     } catch (error) {
       console.error('❌ 生成反思问题失败:', error)
-      // 降级：使用规则反思
-      const message = `再想一想，这个任务是否有一些隐藏的步骤或依赖？实际执行时可能会遇到什么意外？\n\n请重新考虑后，确认或修改你的时间估计：`
+      // 降级：使用规则反思（3个问题）
+      const message = `再想一想这几个问题：\n\n这个任务有没有隐藏的步骤或前置工作？\n如果需要查资料或学习新知识，会额外花多久？\n任务完成后的检查和收尾工作需要多久？\n\n请重新考虑后，确认或修改你的时间估计：`
       
       streamAIMessage(message)
       setWorkflowMode('task-estimation-reflection')
