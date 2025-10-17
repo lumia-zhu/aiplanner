@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { registerUser, saveUserToStorage } from '@/lib/auth'
+import { registerUser } from '@/lib/auth'
 
 export default function RegisterPage() {
   const [username, setUsername] = useState('')
@@ -43,12 +43,12 @@ export default function RegisterPage() {
     
     if (result.error) {
       setError(result.error)
+      setIsLoading(false)
     } else if (result.user) {
-      saveUserToStorage(result.user)
-      router.push('/dashboard') // 注册成功后跳转到仪表板
+      // 注册成功，跳转到登录页（不自动登录）
+      alert('✅ 注册成功！请使用您的账号登录。')
+      router.push('/auth/login')
     }
-    
-    setIsLoading(false)
   }
 
   return (
