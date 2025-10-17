@@ -12,6 +12,8 @@ import { streamText } from '@/utils/streamText'
 import { generateContextQuestions, formatQuestionsMessage } from '@/lib/contextQuestions'
 import { generateClarificationQuestions, formatClarificationQuestionsMessage, recommendTasksForClarification, formatRecommendationsMessage, recommendTasksForTimeEstimation, formatTimeEstimationRecommendationsMessage } from '@/lib/clarificationQuestions'
 import { doubaoService } from '@/lib/doubaoService'
+import { generateReflectionQuestion, buildUserProfile } from '@/lib/timeEstimationAI'
+import { formatMinutes, calculateBuffer, encodeEstimatedDuration } from '@/utils/timeEstimation'
 
 interface UseWorkflowAssistantProps {
   tasks: Task[]
@@ -38,6 +40,11 @@ interface UseWorkflowAssistantReturn {
   structuredContext: StructuredContext | null  // AI提取的结构化上下文
   aiClarificationSummary: string  // AI生成的理解总结
   
+  // ⭐ 时间估算相关状态
+  estimationTask: Task | null  // 正在估算的任务
+  estimationInitial: number | null  // 用户的初始估计（分钟）
+  estimationReflection: string  // AI的反思问题
+  
   // 方法
   startWorkflow: () => Promise<void>
   selectOption: (optionId: 'A' | 'B' | 'C') => void
@@ -52,6 +59,13 @@ interface UseWorkflowAssistantReturn {
   submitClarificationAnswer: (answer: string) => Promise<void>  // 提交澄清回答
   confirmClarification: () => void  // 确认澄清结果
   rejectClarification: () => void  // 重新澄清
+  
+  // ⭐ 时间估算相关方法
+  selectTaskForEstimation: (task: Task) => void  // 选择要估算的任务
+  submitInitialEstimation: (minutes: number) => Promise<void>  // 提交初始时间估计
+  resubmitEstimation: (minutes: number) => Promise<void>  // 重新提交时间估计（反思后）
+  confirmEstimation: (withBuffer: boolean) => void  // 确认最终估计（是否含buffer）
+  cancelEstimation: () => void  // 取消估算，返回上一级
   
   resetWorkflow: () => void
 }
@@ -81,6 +95,11 @@ export function useWorkflowAssistant({
   const [clarificationAnswer, setClarificationAnswer] = useState<string>('')
   const [structuredContext, setStructuredContext] = useState<StructuredContext | null>(null)
   const [aiClarificationSummary, setAIClarificationSummary] = useState<string>('')
+  
+  // ⭐ 时间估算相关状态
+  const [estimationTask, setEstimationTask] = useState<Task | null>(null)           // 正在估算的任务
+  const [estimationInitial, setEstimationInitial] = useState<number | null>(null)    // 用户的初始估计（分钟）
+  const [estimationReflection, setEstimationReflection] = useState<string>('')      // AI的反思问题
   
   // 用于取消正在进行的流式输出
   const cancelStreamRef = useRef<(() => void) | null>(null)
@@ -434,10 +453,10 @@ ${recommendation.reason}
         const questionMessage = formatClarificationQuestionsMessage(task, questions)
         streamAIMessage(questionMessage)
       } else if (selectedAction === 'estimate') {
-        // ⭐ 新增: 时间估计路径，暂时只显示"功能开发中"
-        setSelectedTaskForDecompose(task)
-        setWorkflowMode('single-task-action') // 返回操作选择层级
-        streamAIMessage(`✅ 好的！我会帮你估算「${task.title}」的时间。\n\n**功能开发中...**\n\n敬请期待! 🚀`)
+        // ⭐ 时间估算路径：进入时间输入模式
+        setEstimationTask(task)
+        setWorkflowMode('task-estimation-input')
+        streamAIMessage(`好的！我们来估算「${task.title}」需要多久。\n\n请选择或输入你的时间估计：`)
       }
     }
   }, [setChatMessages, streamAIMessage, selectedAction])
@@ -598,6 +617,140 @@ ${recommendation.reason}
     streamAIMessage('好的，请重新回答刚才的问题，我会更仔细地理解你的意思。')
   }, [setChatMessages, streamAIMessage])
 
+  // ============================================
+  // ⭐ 时间估算相关方法
+  // ============================================
+  
+  /**
+   * 选择要估算时间的任务（由selectTaskForDecompose调用）
+   */
+  const selectTaskForEstimation = useCallback((task: Task) => {
+    setEstimationTask(task)
+    setWorkflowMode('task-estimation-input')
+    streamAIMessage(`好的！我们来估算「${task.title}」需要多久。\n\n请选择或输入你的时间估计：`)
+  }, [streamAIMessage])
+  
+  /**
+   * 提交初始时间估计
+   */
+  const submitInitialEstimation = useCallback(async (minutes: number) => {
+    if (!estimationTask) return
+    
+    setEstimationInitial(minutes)
+    
+    // 显示用户输入
+    setChatMessages(prev => [
+      ...prev,
+      { role: 'user', content: [{ type: 'text', text: `${minutes}分钟` }] }
+    ])
+    
+    // 显示加载状态
+    setIsSending(true)
+    setStreamingMessage('正在思考...')
+    
+    // 调用AI生成个性化反思问题
+    try {
+      // 构建估算专用的用户画像（因为全局UserProfile不包含估算相关字段）
+      const userProfileData = buildUserProfile(tasks)
+      const reflection = await generateReflectionQuestion({
+        task: estimationTask,
+        userProfile: userProfileData,
+        initialEstimate: minutes
+      })
+      
+      setEstimationReflection(reflection)
+      
+      // 显示反思问题，让用户重新考虑
+      const message = `${reflection}\n\n请重新考虑后，确认或修改你的时间估计：`
+      
+      streamAIMessage(message)
+      setWorkflowMode('task-estimation-reflection')
+    } catch (error) {
+      console.error('❌ 生成反思问题失败:', error)
+      // 降级：使用规则反思
+      const message = `再想一想，这个任务是否有一些隐藏的步骤或依赖？实际执行时可能会遇到什么意外？\n\n请重新考虑后，确认或修改你的时间估计：`
+      
+      streamAIMessage(message)
+      setWorkflowMode('task-estimation-reflection')
+    }
+  }, [estimationTask, tasks, setChatMessages, setStreamingMessage, setIsSending, streamAIMessage])
+  
+  /**
+   * ⭐ 用户重新提交时间估计（反思后）
+   */
+  const resubmitEstimation = useCallback(async (minutes: number) => {
+    if (!estimationTask) return
+    
+    setEstimationInitial(minutes)
+    
+    // 显示用户输入
+    setChatMessages(prev => [
+      ...prev,
+      { role: 'user', content: [{ type: 'text', text: `${minutes}分钟` }] }
+    ])
+    
+    // 进入buffer询问阶段
+    const bufferMinutes = calculateBuffer(minutes)
+    const totalWithBuffer = minutes + bufferMinutes
+    const message = `好的！那如果再加上20%的缓冲时间（约${bufferMinutes}分钟），总共${totalWithBuffer}分钟，你会更从容。\n\n要加上缓冲时间吗？`
+    
+    streamAIMessage(message)
+    setWorkflowMode('task-estimation-buffer')
+  }, [estimationTask, setChatMessages, streamAIMessage])
+  
+  /**
+   * 确认最终估计（是否含buffer）
+   * 需要在dashboard中调用updateTask API
+   */
+  const confirmEstimation = useCallback((withBuffer: boolean) => {
+    if (!estimationTask || !estimationInitial) return
+    
+    const finalMinutes = encodeEstimatedDuration(estimationInitial, withBuffer)
+    
+    // 这个方法只负责更新本地状态和显示确认消息
+    // 实际的数据库更新由dashboard的onEstimationConfirm处理
+    const totalMinutes = withBuffer ? Math.ceil(estimationInitial * 1.2) : estimationInitial
+    const displayText = withBuffer 
+      ? `${totalMinutes}分钟（含20%缓冲）`
+      : `${estimationInitial}分钟`
+    
+    // 显示用户选择
+    setChatMessages(prev => [
+      ...prev,
+      { role: 'user', content: [{ type: 'text', text: withBuffer ? '✅ 加上缓冲时间' : '⏱️ 就这个时间' }] }
+    ])
+    
+    streamAIMessage(`✅ 已记录！任务「${estimationTask.title}」的预估时长为：${displayText}`)
+    
+    // 清空估算状态，返回操作选择层级
+    clearEstimationState()
+    goBackToSingleTaskAction()
+  }, [estimationTask, estimationInitial, setChatMessages, streamAIMessage])
+  
+  /**
+   * 取消估算，返回上一级
+   */
+  const cancelEstimation = useCallback(() => {
+    clearEstimationState()
+    goBackToSingleTaskAction()
+    
+    // 显示取消消息
+    setChatMessages(prev => [
+      ...prev,
+      { role: 'user', content: [{ type: 'text', text: '← 重新估算' }] }
+    ])
+    streamAIMessage('好的，已取消。请重新选择操作：')
+  }, [setChatMessages, streamAIMessage])
+  
+  /**
+   * 清空估算状态（内部辅助方法）
+   */
+  const clearEstimationState = useCallback(() => {
+    setEstimationTask(null)
+    setEstimationInitial(null)
+    setEstimationReflection('')
+  }, [])
+  
   /**
    * 重置工作流状态
    */
@@ -614,6 +767,10 @@ ${recommendation.reason}
     setClarificationAnswer('')
     setStructuredContext(null)
     setAIClarificationSummary('')
+    // ⭐ 清空估算状态
+    setEstimationTask(null)
+    setEstimationInitial(null)
+    setEstimationReflection('')
   }, [])
 
   return {
@@ -633,6 +790,11 @@ ${recommendation.reason}
     structuredContext,
     aiClarificationSummary,
     
+    // ⭐ 估算相关状态
+    estimationTask,
+    estimationInitial,
+    estimationReflection,
+    
     // 方法
     startWorkflow,
     selectOption,
@@ -648,6 +810,13 @@ ${recommendation.reason}
     confirmClarification,
     rejectClarification,
     
+    // ⭐ 估算相关方法
+    selectTaskForEstimation,
+    submitInitialEstimation,
+    resubmitEstimation,
+    confirmEstimation,
+    cancelEstimation,
+
     resetWorkflow
   }
 }

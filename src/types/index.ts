@@ -21,7 +21,7 @@ export interface Task {
   // 任务拆解相关字段
   parent_id?: string // 父任务ID，NULL表示顶级任务
   subtask_order?: number // 子任务排序序号
-  estimated_duration?: string // 预估执行时长，如"2小时"、"30分钟"
+  estimated_duration?: number // ⭐ 预估执行时长（分钟数）。10000+表示含buffer（如10120表示100分钟+buffer）
   is_expanded?: boolean // 任务是否展开显示子任务（UI状态）
   
   // 前端计算字段（不存储在数据库）
@@ -119,7 +119,7 @@ export interface SubtaskSuggestion {
   title: string
   description: string
   priority: 'low' | 'medium' | 'high'
-  estimated_duration?: string // 预估时长，如"30分钟"、"2小时"
+  estimated_duration?: number // ⭐ 预估时长（分钟数）
   is_selected: boolean // 是否被用户选中
   order: number // 排序序号
 }
@@ -276,6 +276,9 @@ export type WorkflowMode =
   | 'task-selection'             // 选择要拆解的任务
   | 'task-context-input'         // 等待用户输入任务上下文（拆解前收集背景信息）
   | 'task-clarification-input'   // 等待用户回答任务澄清问题
+  | 'task-estimation-input'      // ⭐ 时间估算：等待用户输入初始估计
+  | 'task-estimation-reflection' // ⭐ 时间估算：显示AI反思，等待用户重新输入或确认
+  | 'task-estimation-buffer'     // ⭐ 时间估算：AI询问buffer，等待确认
   | 'priority-sort'              // 优先级排序模式(总入口)
   | 'priority-feeling'           // 询问感觉阶段
   | 'priority-matrix'            // 显示矩阵阶段

@@ -19,6 +19,7 @@ import PriorityMatrix from '@/components/PriorityMatrix'
 import { taskOperations } from '@/utils/taskUtils'
 import { doubaoService, type ChatMessage } from '@/lib/doubaoService'
 import { compressImage, fileToBase64, isFileSizeExceeded, formatFileSize } from '@/utils/imageUtils'
+import { encodeEstimatedDuration } from '@/utils/timeEstimation'
 import { saveChatMessage, getChatMessages, clearChatMessages } from '@/lib/chatMessages'
 import UserProfileModal from '@/components/UserProfileModal'
 import { getUserProfile, upsertUserProfile, addCustomTaskTag } from '@/lib/userProfile'
@@ -126,6 +127,10 @@ export default function DashboardPage() {
     clarificationAnswer,
     structuredContext,
     aiClarificationSummary,
+    // ⭐ 时间估算相关状态
+    estimationTask,
+    estimationInitial,
+    estimationReflection,
     // 方法
     startWorkflow,
     selectOption: selectWorkflowOption,
@@ -139,6 +144,12 @@ export default function DashboardPage() {
     submitClarificationAnswer,
     confirmClarification,
     rejectClarification,
+    // ⭐ 时间估算相关方法
+    selectTaskForEstimation,
+    submitInitialEstimation,
+    resubmitEstimation,
+    confirmEstimation,
+    cancelEstimation,
     resetWorkflow
   } = useWorkflowAssistant({
     tasks,
@@ -1082,6 +1093,42 @@ export default function DashboardPage() {
           content: [{
             type: 'text',
             text: '❌ 更新任务描述失败，请稍后重试。'
+          }]
+        }
+      ])
+    }
+  }
+
+  /**
+   * ⭐ 处理时间估算确认
+   */
+  const handleEstimationConfirm = async (withBuffer: boolean) => {
+    if (!user || !estimationTask || !estimationInitial) return
+    
+    const finalMinutes = encodeEstimatedDuration(estimationInitial, withBuffer)
+    
+    try {
+      // 更新任务
+      const result = await updateTask(estimationTask.id, {
+        estimated_duration: finalMinutes
+      })
+      
+      if (result.task) {
+        // 更新本地状态
+        setTasks(prevTasks => taskOperations.updateTask(prevTasks, result.task!))
+      }
+      
+      // 调用hook的确认方法（显示确认消息并清理状态）
+      confirmEstimation(withBuffer)
+    } catch (error) {
+      console.error('更新任务时间估算失败:', error)
+      setChatMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: [{
+            type: 'text',
+            text: '❌ 保存时间估算失败，请稍后重试。'
           }]
         }
       ])
@@ -2525,6 +2572,11 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
               onClarificationConfirm={handleClarificationConfirm}
               onClarificationReject={rejectClarification}
               hasStructuredContext={!!structuredContext}
+              onEstimationSubmit={submitInitialEstimation}
+              onEstimationResubmit={resubmitEstimation}
+              onEstimationConfirm={handleEstimationConfirm}
+              onEstimationCancel={cancelEstimation}
+              estimationInitial={estimationInitial}
               handleSendMessage={handleSendMessage}
               handleClearChat={handleClearChat}
               handleDragEnter={handleDragEnter}

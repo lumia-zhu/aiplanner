@@ -57,7 +57,7 @@ export async function createTask(
     deadline_time?: string
     priority?: 'low' | 'medium' | 'high'
     parent_id?: string
-    estimated_duration?: string
+    estimated_duration?: number // ⭐ 改为number类型（分钟数）
     subtask_order?: number
     tags?: string[] // ⭐ 新增: 任务标签
   }
@@ -133,6 +133,7 @@ export async function updateTask(
     priority?: 'low' | 'medium' | 'high'
     completed?: boolean
     tags?: string[] // ⭐ 新增: 任务标签
+    estimated_duration?: number // ⭐ 新增: 预估时长（分钟数）
   }
 ): Promise<{ task?: Task; error?: string }> {
   try {
@@ -397,7 +398,7 @@ export async function createSubtasks(
         priority: subtask.priority || null, // ✅ 如果是 undefined，转为 null
         parent_id: parentId,
         subtask_order: subtask.order || index + 1,
-        estimated_duration: subtask.estimated_duration?.trim() || null,
+        estimated_duration: subtask.estimated_duration || null, // ⭐ 现在是number类型，不需要trim
         completed: false,
         is_expanded: false
       }))

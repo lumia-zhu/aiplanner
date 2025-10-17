@@ -4,6 +4,7 @@ import { isTaskOverdue } from '@/lib/tasks'
 import { hasTaskTags } from '@/types'
 import SubtaskList from './SubtaskList'
 import TaskTagBadge from './TaskTagBadge'
+import { formatEncodedDuration } from '@/utils/timeEstimation'
 
 interface TaskItemProps {
   task: Task
@@ -163,6 +164,15 @@ export default function TaskItem({ task, onToggleComplete, onEdit, onDelete, onD
               {task.tags!.map((tag) => (
                 <TaskTagBadge key={tag} tag={tag} size="sm" />
               ))}
+            </div>
+          )}
+
+          {/* ⭐ 时间估算显示 */}
+          {task.estimated_duration && (
+            <div className="mt-2">
+              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                ⏱️ {formatEncodedDuration(task.estimated_duration)}
+              </span>
             </div>
           )}
 

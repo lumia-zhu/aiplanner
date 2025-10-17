@@ -9,6 +9,8 @@ import SingleTaskActionOptions from './SingleTaskActionOptions'
 import TaskSelectionOptions from './TaskSelectionOptions'
 import TaskDecompositionCard from './TaskDecompositionCard'
 import ClarificationConfirmOptions from './ClarificationConfirmOptions'
+import TimeEstimationInput from './TimeEstimationInput'
+import EstimationConfirmOptions from './EstimationConfirmOptions'
 
 // 任务识别相关类型
 interface RecognizedTask {
@@ -65,6 +67,13 @@ interface ChatSidebarProps {
   onClarificationReject?: () => void
   hasStructuredContext?: boolean  // 是否有结构化上下文（用于显示确认/修正按钮）
   
+  // ⭐ 时间估算相关回调
+  onEstimationSubmit?: (minutes: number) => void
+  onEstimationResubmit?: (minutes: number) => void  // 反思后重新提交
+  onEstimationConfirm?: (withBuffer: boolean) => void
+  onEstimationCancel?: () => void
+  estimationInitial?: number | null  // 初始估计分钟数（用于显示确认按钮）
+  
   // 事件处理函数
   handleSendMessage: () => void
   handleClearChat: () => void
@@ -115,6 +124,11 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   onClarificationConfirm,
   onClarificationReject,
   hasStructuredContext,
+  onEstimationSubmit,
+  onEstimationResubmit,
+  onEstimationConfirm,
+  onEstimationCancel,
+  estimationInitial,
   handleSendMessage,
   handleClearChat,
   handleDragEnter,
@@ -436,6 +450,46 @@ const ChatSidebar = memo<ChatSidebarProps>(({
             <ClarificationConfirmOptions
               onConfirm={onClarificationConfirm}
               onReject={onClarificationReject}
+              disabled={isSending}
+            />
+          </div>
+        </div>
+      )}
+      
+      {/* ⭐ 时间估算输入区域（初始） */}
+      {workflowMode === 'task-estimation-input' && onEstimationSubmit && onEstimationCancel && (
+        <div className="border-t border-gray-200 bg-gradient-to-b from-blue-50 to-white flex-shrink-0">
+          <div className="p-4">
+            <TimeEstimationInput
+              onSubmit={onEstimationSubmit}
+              onCancel={onEstimationCancel}
+            />
+          </div>
+        </div>
+      )}
+      
+      {/* ⭐ 时间估算输入区域（反思后重新输入） */}
+      {workflowMode === 'task-estimation-reflection' && onEstimationResubmit && onEstimationCancel && (
+        <div className="border-t border-gray-200 bg-gradient-to-b from-purple-50 to-white flex-shrink-0">
+          <div className="p-4">
+            <TimeEstimationInput
+              onSubmit={onEstimationResubmit}
+              onCancel={onEstimationCancel}
+              defaultValue={estimationInitial || 60}
+            />
+          </div>
+        </div>
+      )}
+      
+      {/* ⭐ 时间估算Buffer确认区域 */}
+      {workflowMode === 'task-estimation-buffer' && estimationInitial && onEstimationConfirm && onEstimationCancel && (
+        <div className="border-t border-gray-200 bg-gradient-to-b from-yellow-50 to-white flex-shrink-0">
+          <div className="p-4">
+            <EstimationConfirmOptions
+              estimateMinutes={estimationInitial}
+              onConfirmWithBuffer={() => onEstimationConfirm(true)}
+              onConfirmWithoutBuffer={() => onEstimationConfirm(false)}
+              onCancel={onEstimationCancel}
               disabled={isSending}
             />
           </div>

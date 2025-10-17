@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import type { Task } from '@/types'
 import TaskTagSelector from './TaskTagSelector'
+import { parseTimeEstimate, formatMinutes } from '@/utils/timeEstimation'
 
 export interface TaskFormProps {
   task?: Task // 如果提供了task，则为编辑模式
@@ -12,6 +13,7 @@ export interface TaskFormProps {
     deadline_time?: string
     priority?: 'low' | 'medium' | 'high' // ⭐ 修改: 优先级可选
     tags?: string[] // ⭐ 新增: 任务标签
+    estimated_duration?: number // ⭐ 新增: 预估时长（分钟数）
   }) => Promise<void>
   onCancel: () => void
   onAddCustomTag?: (tag: string) => void // 添加新标签到用户标签池
@@ -26,6 +28,8 @@ export default function TaskForm({ task, defaultDate, customTags = [], onSubmit,
   const [deadlineTime, setDeadlineTime] = useState('')
   const [priority, setPriority] = useState<'low' | 'medium' | 'high' | ''>('') // ⭐ 修改: 默认为空
   const [tags, setTags] = useState<string[]>([]) // ⭐ 新增: 标签状态
+  const [estimatedDuration, setEstimatedDuration] = useState('') // ⭐ 新增: 时间估算输入
+  const [parsedMinutes, setParsedMinutes] = useState<number | null>(null) // ⭐ 解析后的分钟数
   const [error, setError] = useState('')
 
   // 初始化表单数据
@@ -53,6 +57,13 @@ export default function TaskForm({ task, defaultDate, customTags = [], onSubmit,
       }
       
       setPriority(task.priority || '') // ⭐ 修改: 如果没有优先级则设为空
+      
+      // ⭐ 新增: 初始化时间估算
+      if (task.estimated_duration) {
+        const formatted = formatMinutes(task.estimated_duration)
+        setEstimatedDuration(formatted)
+        setParsedMinutes(task.estimated_duration)
+      }
     } else if (defaultDate) {
       // 新建模式：使用默认日期
       const year = defaultDate.getFullYear()
@@ -62,6 +73,16 @@ export default function TaskForm({ task, defaultDate, customTags = [], onSubmit,
       setDeadlineTime('') // 时间留空让用户选择
     }
   }, [task, defaultDate])
+
+  // ⭐ 实时解析时间估算输入
+  useEffect(() => {
+    if (estimatedDuration.trim()) {
+      const parsed = parseTimeEstimate(estimatedDuration)
+      setParsedMinutes(parsed)
+    } else {
+      setParsedMinutes(null)
+    }
+  }, [estimatedDuration])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -90,7 +111,8 @@ export default function TaskForm({ task, defaultDate, customTags = [], onSubmit,
         description: description.trim(),
         deadline_time: deadlineDateTime,
         priority: priority || undefined, // ⭐ 修改: 只在有优先级时提交
-        tags: tags.length > 0 ? tags : undefined // ⭐ 新增: 提交标签
+        tags: tags.length > 0 ? tags : undefined, // ⭐ 新增: 提交标签
+        estimated_duration: parsedMinutes || undefined // ⭐ 新增: 提交时间估算
       })
     } catch (err) {
       setError('保存失败，请重试')
@@ -211,6 +233,31 @@ export default function TaskForm({ task, defaultDate, customTags = [], onSubmit,
             onTagsChange={setTags}
             onAddCustomTag={onAddCustomTag}
           />
+
+          {/* ⭐ 时间估算输入 */}
+          <div>
+            <label htmlFor="estimatedDuration" className="block text-sm font-medium text-gray-700 mb-1">
+              预估时长 (可选)
+            </label>
+            <input
+              type="text"
+              id="estimatedDuration"
+              value={estimatedDuration}
+              onChange={(e) => setEstimatedDuration(e.target.value)}
+              placeholder="如：2小时、120分钟、2h"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            {parsedMinutes && (
+              <p className="text-xs text-green-600 mt-1">
+                ✓ 将记录为：{formatMinutes(parsedMinutes)}
+              </p>
+            )}
+            {estimatedDuration && !parsedMinutes && (
+              <p className="text-xs text-yellow-600 mt-1">
+                ⚠️ 格式不正确，试试"2小时"或"120分钟"
+              </p>
+            )}
+          </div>
 
           {error && (
             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded text-sm">
