@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { getUserFromStorage, clearUserFromStorage, AuthUser } from '@/lib/auth'
 import { getUserTasks, createTask, updateTask, deleteTask, toggleTaskComplete, getUserTasksWithSubtasks, createSubtasks, toggleTaskExpansion, promoteSubtasksToTasks } from '@/lib/tasks'
 import type { Task, SubtaskSuggestion, DateScope } from '@/types'
-import { getDefaultDateScope, serializeDateScope, deserializeDateScope, filterTasksByScope, getScopeDescription, getStartOfDay, getEndOfDay } from '@/utils/dateUtils'
+import { getDefaultDateScope, serializeDateScope, deserializeDateScope, filterTasksByScope, getScopeDescription, getStartOfDay, getEndOfDay, isSameDay } from '@/utils/dateUtils'
 import DraggableTaskItem from '@/components/DraggableTaskItem'
 import TaskForm from '@/components/TaskForm'
 import OutlookImport from '@/components/OutlookImport'
@@ -126,6 +126,20 @@ export default function DashboardPage() {
     // 默认：今天 + 包含逾期任务
     return getDefaultDateScope()
   })
+
+  // ⭐ 日历范围选择状态
+  const [calendarSelectionMode, setCalendarSelectionMode] = useState<'idle' | 'selecting-range'>('idle')
+  const [tempStartDate, setTempStartDate] = useState<Date | null>(null)
+
+  // ⭐ 当用户通过日期选择器/预设按钮修改时，清除日历选择状态
+  // 注意：只在preset变为非custom时才清除（避免日历点击触发）
+  useEffect(() => {
+    if (calendarSelectionMode === 'selecting-range' && dateScope.preset !== 'custom') {
+      console.log('📅 预设按钮点击，清除日历选择状态')
+      setCalendarSelectionMode('idle')
+      setTempStartDate(null)
+    }
+  }, [dateScope.preset, calendarSelectionMode])
   
   // 监听dateScope变化，保存到sessionStorage
   useEffect(() => {
@@ -133,6 +147,13 @@ export default function DashboardPage() {
       sessionStorage.setItem('dateScope', serializeDateScope(dateScope))
     }
   }, [dateScope])
+
+  // ⭐ 监听dateScope变化，自动跳转日历视图到选中的日期范围
+  useEffect(() => {
+    // 使用 dateScope 的起始日期作为日历视图的显示日期
+    setCalendarViewDate(dateScope.start)
+    console.log('📅 日历视图跳转到:', dateScope.start)
+  }, [dateScope.start])
   
   // ⭐ 工作流结束时关闭侧边栏
   const handleWorkflowEnd = useCallback(() => {
@@ -234,6 +255,8 @@ export default function DashboardPage() {
   
   // 日历选中日期状态
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
+  // ⭐ 日历视图显示的日期（用于控制周视图和月视图跳转）
+  const [calendarViewDate, setCalendarViewDate] = useState<Date>(new Date())
   const importButtonRef = useRef<HTMLButtonElement>(null)
   const newTaskButtonRef = useRef<HTMLButtonElement>(null)
   
@@ -1895,30 +1918,80 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
     setSelectedImportPlatform(null)
   }
 
-  // ⭐ 处理日期选择（同时更新dateScope和selectedDate，保持交互一致）
-  const handleDateSelect = (date: Date) => {
-    console.log('🔍 [handleDateSelect] 点击日历日期:', date)
-    setSelectedDate(date)
-    
-    // 同步更新dateScope为选中的那一天
-    const dayStart = getStartOfDay(date)
-    const dayEnd = getEndOfDay(date)
-    
-    const newScope = {
-      start: dayStart,
-      end: dayEnd,
-      includeOverdue: dateScope.includeOverdue, // 保持逾期任务勾选状态
-      preset: 'custom' as const // 设为自定义范围
-    }
-    
-    console.log('🔍 [handleDateSelect] 新的dateScope:', {
-      start: newScope.start.toISOString(),
-      end: newScope.end.toISOString(),
-      preset: newScope.preset,
-      includeOverdue: newScope.includeOverdue
+  // ⭐ 处理日历日期点击（支持范围选择）
+  const handleDateSelect = (clickedDate: Date) => {
+    console.log('🔍 [日历点击]', {
+      clickedDate,
+      mode: calendarSelectionMode,
+      tempStart: tempStartDate
     })
-    
-    setDateScope(newScope)
+
+    if (calendarSelectionMode === 'idle') {
+      // ===== 第一次点击：选择起始点 =====
+      console.log('📍 选择起始点:', clickedDate)
+      
+      setTempStartDate(clickedDate)
+      setCalendarSelectionMode('selecting-range')
+      
+      // 暂时设置为单日范围（起始点=结束点）
+      const newScope: DateScope = {
+        start: getStartOfDay(clickedDate),
+        end: getEndOfDay(clickedDate),
+        includeOverdue: dateScope.includeOverdue,
+        preset: 'custom'
+      }
+      
+      setDateScope(newScope)
+      setSelectedDate(clickedDate)
+      
+    } else if (calendarSelectionMode === 'selecting-range') {
+      // ===== 第二次点击：选择结束点 =====
+      
+      // 特殊情况：点击同一天
+      if (tempStartDate && isSameDay(clickedDate, tempStartDate)) {
+        console.log('📅 点击同一天，设置为单日范围')
+        
+        // 退出选择模式
+        setCalendarSelectionMode('idle')
+        setTempStartDate(null)
+        
+        // dateScope 已经在第一次点击时设置为单日了，这里确认即可
+        return
+      }
+      
+      // ⭐ 智能处理日期顺序：无论用户点击顺序如何，都自动确定较早和较晚的日期
+      const startTime = getStartOfDay(tempStartDate!).getTime()
+      const endTime = getStartOfDay(clickedDate).getTime()
+      
+      let actualStart: Date
+      let actualEnd: Date
+      
+      if (endTime < startTime) {
+        // 用户先点了晚的日期，再点了早的日期 -> 自动调整顺序
+        console.log('🔄 自动调整日期顺序:', clickedDate, '->', tempStartDate)
+        actualStart = clickedDate
+        actualEnd = tempStartDate!
+      } else {
+        // 用户点击顺序正确（早 -> 晚）
+        console.log('✅ 选择范围:', tempStartDate, '->', clickedDate)
+        actualStart = tempStartDate!
+        actualEnd = clickedDate
+      }
+      
+      const newScope: DateScope = {
+        start: getStartOfDay(actualStart),
+        end: getEndOfDay(actualEnd),
+        includeOverdue: dateScope.includeOverdue,
+        preset: 'custom'
+      }
+      
+      setDateScope(newScope)
+      setSelectedDate(clickedDate)
+      
+      // 退出选择模式
+      setCalendarSelectionMode('idle')
+      setTempStartDate(null)
+    }
   }
 
   // ⭐ 根据日期范围筛选任务（替换原有的getTasksForSelectedDate）
@@ -2396,12 +2469,17 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
           onScopeChange={setDateScope}
         />
 
+
         {/* 日历视图 */}
         <CalendarView 
           tasks={tasks}
           selectedDate={selectedDate}
           onDateSelect={handleDateSelect}
           dateScope={dateScope}
+          calendarSelectionMode={calendarSelectionMode}
+          tempStartDate={tempStartDate}
+          viewDate={calendarViewDate}
+          onViewDateChange={setCalendarViewDate}
         />
 
         <div className="flex justify-between items-center mb-6">

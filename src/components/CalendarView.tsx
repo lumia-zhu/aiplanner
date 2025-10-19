@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react'
 import { Task, DateScope } from '@/types'
-import { getStartOfDay } from '@/utils/dateUtils'
+import { getStartOfDay, isDateInRange, isSameDay } from '@/utils/dateUtils'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import TaskTooltip from './TaskTooltip'
 
@@ -10,7 +10,11 @@ interface CalendarViewProps {
   tasks: Task[]
   selectedDate?: Date
   onDateSelect?: (date: Date) => void
-  dateScope: DateScope  // ⭐ 新增：日期范围
+  dateScope: DateScope  // ⭐ 日期范围
+  calendarSelectionMode?: 'idle' | 'selecting-range'  // ⭐ 选择模式
+  tempStartDate?: Date | null  // ⭐ 临时起始日期
+  viewDate?: Date  // ⭐ 日历视图显示的日期（用于周视图和月视图）
+  onViewDateChange?: (date: Date) => void  // ⭐ 新增：当用户切换月份时通知父组件
 }
 
 interface CalendarDay {
@@ -20,9 +24,19 @@ interface CalendarDay {
   tasks: Task[]
 }
 
-export default function CalendarView({ tasks, selectedDate, onDateSelect, dateScope }: CalendarViewProps) {
+export default function CalendarView({ 
+  tasks, 
+  selectedDate, 
+  onDateSelect, 
+  dateScope,
+  calendarSelectionMode = 'idle',
+  tempStartDate = null,
+  viewDate,  // ⭐ 新增：从外部控制日历显示的日期
+  onViewDateChange  // ⭐ 新增：月份切换回调
+}: CalendarViewProps) {
   const [isExpanded, setIsExpanded] = useState(false)
-  const [currentDate, setCurrentDate] = useState(new Date())
+  // ⭐ 使用传入的 viewDate，如果没有则使用 dateScope.start 或当前日期
+  const currentDate = viewDate || dateScope.start || new Date()
 
   /**
    * 检查日期是否在dateScope范围内
@@ -34,12 +48,11 @@ export default function CalendarView({ tasks, selectedDate, onDateSelect, dateSc
     return dayStart >= scopeStart && dayStart <= scopeEnd
   }
 
-  // 获取当前周的日期范围
+  // 获取当前周的日期范围（基于 currentDate）
   const getCurrentWeek = () => {
-    const today = new Date()
-    const startOfWeek = new Date(today)
-    const day = today.getDay()
-    const diff = today.getDate() - day + (day === 0 ? -6 : 1) // 周一开始
+    const startOfWeek = new Date(currentDate)
+    const day = currentDate.getDay()
+    const diff = currentDate.getDate() - day + (day === 0 ? -6 : 1) // 周一开始
     startOfWeek.setDate(diff)
 
     const weekDays = []
@@ -107,15 +120,14 @@ export default function CalendarView({ tasks, selectedDate, onDateSelect, dateSc
 
   // 月份导航
   const navigateMonth = (direction: 'prev' | 'next') => {
-    setCurrentDate(prev => {
-      const newDate = new Date(prev)
-      if (direction === 'prev') {
-        newDate.setMonth(prev.getMonth() - 1)
-      } else {
-        newDate.setMonth(prev.getMonth() + 1)
-      }
-      return newDate
-    })
+    const newDate = new Date(currentDate)
+    if (direction === 'prev') {
+      newDate.setMonth(currentDate.getMonth() - 1)
+    } else {
+      newDate.setMonth(currentDate.getMonth() + 1)
+    }
+    // ⭐ 通知父组件月份变化
+    onViewDateChange?.(newDate)
   }
 
   const today = new Date()
@@ -182,14 +194,23 @@ export default function CalendarView({ tasks, selectedDate, onDateSelect, dateSc
                 const isSelected = selectedDate && date.toDateString() === selectedDate.toDateString()
                 const inScope = isDateInScope(date)  // ⭐ 检查是否在范围内
                 
+                // ⭐ 新增：检查是否是临时起始点
+                const isTempStart = tempStartDate && isSameDay(date, tempStartDate)
+                
                 return (
                   <Tooltip.Root key={index}>
                     <Tooltip.Trigger asChild>
                       <div
-                        className={`text-center p-2 rounded-lg cursor-pointer transition-colors hover:bg-gray-50 ${
-                          isToday ? 'bg-blue-100 text-gray-900' : 
-                          isSelected ? 'bg-gray-200 text-gray-900' : 
-                          inScope ? 'text-gray-700' : 'bg-gray-100 text-gray-400 opacity-60'  // ⭐ 非范围内浅灰遮罩
+                        className={`text-center p-2 cursor-pointer transition-all rounded-lg ${
+                          isTempStart 
+                            ? 'ring-4 ring-blue-500 bg-blue-100 text-gray-900'  // 起始点：蓝色加粗边框
+                            : isToday 
+                              ? 'bg-gray-200 text-gray-900 font-semibold'  // ⭐ 今天：灰色填充 + 加粗
+                              : inScope 
+                                ? `bg-blue-50 text-gray-700 hover:bg-blue-100`  // ⭐ 范围内：淡蓝色背景（优先级高于isSelected）
+                                : isSelected 
+                                  ? 'bg-gray-200 text-gray-900' 
+                                  : 'bg-gray-100 text-gray-400 opacity-60'  // ⭐ 非范围内浅灰遮罩
                         }`}
                         onClick={() => onDateSelect?.(date)}
                       >
@@ -244,6 +265,9 @@ export default function CalendarView({ tasks, selectedDate, onDateSelect, dateSc
                 const isSelected = selectedDate && day.date.toDateString() === selectedDate.toDateString()
                 const inScope = isDateInScope(day.date)  // ⭐ 检查是否在范围内
                 
+                // ⭐ 新增：检查是否是临时起始点
+                const isTempStart = tempStartDate && isSameDay(day.date, tempStartDate)
+                
                 // 排序任务（未完成优先）
                 const sortedTasks = [...day.tasks].sort((a, b) => {
                   if (a.completed !== b.completed) {
@@ -256,19 +280,25 @@ export default function CalendarView({ tasks, selectedDate, onDateSelect, dateSc
                   <Tooltip.Root key={index}>
                     <Tooltip.Trigger asChild>
                       <div
-                        className={`relative h-24 p-1.5 cursor-pointer transition-colors rounded flex flex-col ${
-                          day.isToday ? 'bg-blue-100' : 
-                          isSelected ? 'bg-gray-200' : 
-                          inScope ? 'hover:bg-gray-50' : 'bg-gray-100 opacity-60'  // ⭐ 非范围内浅灰遮罩
+                        className={`relative h-24 p-1.5 cursor-pointer transition-all flex flex-col rounded ${
+                          isTempStart
+                            ? 'ring-4 ring-blue-500 bg-blue-50'  // 起始点：蓝色加粗边框
+                            : day.isToday 
+                              ? 'bg-gray-200'  // ⭐ 今天：灰色填充
+                              : inScope 
+                                ? 'bg-blue-50 hover:bg-blue-100'  // ⭐ 范围内：淡蓝色背景（优先级高于isSelected）
+                                : isSelected 
+                                  ? 'bg-gray-200' 
+                                  : 'bg-gray-100 opacity-60'  // ⭐ 非范围内浅灰遮罩
                         } ${
                           !day.isCurrentMonth ? 'text-gray-300' : 
-                          inScope ? 'text-gray-700' : 'text-gray-400'  // ⭐ 非范围内文字颜色变浅
+                          inScope || day.isToday ? 'text-gray-700' : 'text-gray-400'  // ⭐ 非范围内文字颜色变浅
                         }`}
                         onClick={() => onDateSelect?.(day.date)}
                       >
                         {/* 日期 + 任务数徽章 */}
                         <div className="flex justify-between items-start mb-0.5">
-                          <span className="text-sm font-medium">
+                          <span className={`text-sm ${day.isToday ? 'font-semibold' : 'font-medium'}`}>
                             {day.date.getDate()}
                           </span>
                           {day.tasks.length > 3 && (

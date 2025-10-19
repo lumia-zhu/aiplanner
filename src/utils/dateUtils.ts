@@ -42,6 +42,27 @@ export function isSameDay(date1: Date, date2: Date): boolean {
 }
 
 /**
+ * 检查日期是否在范围内（包含边界）
+ * @param date 要检查的日期
+ * @param rangeStart 范围起始日期
+ * @param rangeEnd 范围结束日期
+ * @returns 是否在范围内
+ */
+export function isDateInRange(
+  date: Date, 
+  rangeStart: Date | null, 
+  rangeEnd: Date | null
+): boolean {
+  if (!rangeStart || !rangeEnd) return false
+  
+  const dateTime = getStartOfDay(date).getTime()
+  const startTime = getStartOfDay(rangeStart).getTime()
+  const endTime = getStartOfDay(rangeEnd).getTime()
+  
+  return dateTime >= startTime && dateTime <= endTime
+}
+
+/**
  * 格式化日期为 YYYY-MM-DD 字符串
  * @param date 日期对象
  * @returns YYYY-MM-DD 格式字符串
