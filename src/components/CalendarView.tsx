@@ -3,6 +3,8 @@
 import React, { useState, useMemo } from 'react'
 import { Task, DateScope } from '@/types'
 import { getStartOfDay } from '@/utils/dateUtils'
+import * as Tooltip from '@radix-ui/react-tooltip'
+import TaskTooltip from './TaskTooltip'
 
 interface CalendarViewProps {
   tasks: Task[]
@@ -120,7 +122,8 @@ export default function CalendarView({ tasks, selectedDate, onDateSelect, dateSc
   const weekdays = ['一', '二', '三', '四', '五', '六', '日']
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+    <Tooltip.Provider delayDuration={300}>
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
       {/* 头部 - 展开/收起控制 */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200">
         <div className="flex items-center space-x-3">
@@ -180,29 +183,45 @@ export default function CalendarView({ tasks, selectedDate, onDateSelect, dateSc
                 const inScope = isDateInScope(date)  // ⭐ 检查是否在范围内
                 
                 return (
-                  <div
-                    key={index}
-                    className={`text-center p-2 rounded-lg cursor-pointer transition-colors hover:bg-gray-50 ${
-                      isToday ? 'bg-blue-100 text-gray-900' : 
-                      isSelected ? 'bg-gray-200 text-gray-900' : 
-                      inScope ? 'text-gray-700' : 'bg-gray-100 text-gray-400 opacity-60'  // ⭐ 非范围内浅灰遮罩
-                    }`}
-                    onClick={() => onDateSelect?.(date)}
-                  >
-                    <div className="text-xs text-gray-500 mb-1">
-                      {weekdays[index]}
-                    </div>
-                    <div className="text-sm font-medium">
-                      {date.getDate()}
-                    </div>
-                    {dayTasks.length > 0 && (
-                      <div className="flex justify-center mt-1">
-                        <div className={`w-1.5 h-1.5 rounded-full ${
-                          dayTasks.some(t => !t.completed) ? 'bg-red-400' : 'bg-green-400'
-                        }`} />
+                  <Tooltip.Root key={index}>
+                    <Tooltip.Trigger asChild>
+                      <div
+                        className={`text-center p-2 rounded-lg cursor-pointer transition-colors hover:bg-gray-50 ${
+                          isToday ? 'bg-blue-100 text-gray-900' : 
+                          isSelected ? 'bg-gray-200 text-gray-900' : 
+                          inScope ? 'text-gray-700' : 'bg-gray-100 text-gray-400 opacity-60'  // ⭐ 非范围内浅灰遮罩
+                        }`}
+                        onClick={() => onDateSelect?.(date)}
+                      >
+                        <div className="text-xs text-gray-500 mb-1">
+                          {weekdays[index]}
+                        </div>
+                        <div className="text-sm font-medium">
+                          {date.getDate()}
+                        </div>
+                        {dayTasks.length > 0 && (
+                          <div className="flex justify-center mt-1">
+                            <div className={`w-1.5 h-1.5 rounded-full ${
+                              dayTasks.some(t => !t.completed) ? 'bg-red-400' : 'bg-green-400'
+                            }`} />
+                          </div>
+                        )}
                       </div>
+                    </Tooltip.Trigger>
+                    {dayTasks.length > 0 && (
+                      <Tooltip.Portal>
+                        <Tooltip.Content
+                          side="bottom"
+                          align="center"
+                          className="z-50 bg-white rounded-lg shadow-xl border border-gray-200 p-3 animate-in fade-in-0 zoom-in-95"
+                          sideOffset={5}
+                        >
+                          <TaskTooltip tasks={dayTasks} date={date} />
+                          <Tooltip.Arrow className="fill-white" />
+                        </Tooltip.Content>
+                      </Tooltip.Portal>
                     )}
-                  </div>
+                  </Tooltip.Root>
                 )
               })}
             </div>
@@ -225,47 +244,80 @@ export default function CalendarView({ tasks, selectedDate, onDateSelect, dateSc
                 const isSelected = selectedDate && day.date.toDateString() === selectedDate.toDateString()
                 const inScope = isDateInScope(day.date)  // ⭐ 检查是否在范围内
                 
+                // 排序任务（未完成优先）
+                const sortedTasks = [...day.tasks].sort((a, b) => {
+                  if (a.completed !== b.completed) {
+                    return a.completed ? 1 : -1
+                  }
+                  return 0
+                })
+                
                 return (
-                  <div
-                    key={index}
-                    className={`relative h-12 p-1 text-center cursor-pointer transition-colors rounded ${
-                      day.isToday ? 'bg-blue-100' : 
-                      isSelected ? 'bg-gray-200' : 
-                      inScope ? 'hover:bg-gray-50' : 'bg-gray-100 opacity-60'  // ⭐ 非范围内浅灰遮罩
-                    } ${
-                      !day.isCurrentMonth ? 'text-gray-300' : 
-                      inScope ? 'text-gray-700' : 'text-gray-400'  // ⭐ 非范围内文字颜色变浅
-                    }`}
-                    onClick={() => onDateSelect?.(day.date)}
-                  >
-                    <div className="text-sm pt-1">
-                      {day.date.getDate()}
-                    </div>
-                  
-                  {/* 任务指示器 */}
-                  {day.tasks.length > 0 && (
-                    <div className="absolute bottom-0.5 left-1/2 transform -translate-x-1/2">
-                      {day.tasks.length <= 3 ? (
-                        <div className="flex space-x-0.5">
-                          {day.tasks.slice(0, 3).map((task, taskIndex) => (
-                            <div
-                              key={taskIndex}
-                              className={`w-1.5 h-1.5 rounded-full ${
-                                task.completed ? 'bg-green-400' : 
-                                task.priority === 'high' ? 'bg-red-400' :
-                                task.priority === 'medium' ? 'bg-yellow-400' : 'bg-blue-400'
-                              }`}
-                            />
-                          ))}
+                  <Tooltip.Root key={index}>
+                    <Tooltip.Trigger asChild>
+                      <div
+                        className={`relative h-24 p-1.5 cursor-pointer transition-colors rounded flex flex-col ${
+                          day.isToday ? 'bg-blue-100' : 
+                          isSelected ? 'bg-gray-200' : 
+                          inScope ? 'hover:bg-gray-50' : 'bg-gray-100 opacity-60'  // ⭐ 非范围内浅灰遮罩
+                        } ${
+                          !day.isCurrentMonth ? 'text-gray-300' : 
+                          inScope ? 'text-gray-700' : 'text-gray-400'  // ⭐ 非范围内文字颜色变浅
+                        }`}
+                        onClick={() => onDateSelect?.(day.date)}
+                      >
+                        {/* 日期 + 任务数徽章 */}
+                        <div className="flex justify-between items-start mb-0.5">
+                          <span className="text-sm font-medium">
+                            {day.date.getDate()}
+                          </span>
+                          {day.tasks.length > 3 && (
+                            <span className="text-xs bg-gray-300 text-gray-700 px-1 rounded">
+                              +{day.tasks.length - 3}
+                            </span>
+                          )}
                         </div>
-                      ) : (
-                        <div className="bg-gray-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                          {day.tasks.length}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  </div>
+                      
+                        {/* 任务列表（显示前3个） */}
+                        {sortedTasks.length > 0 && (
+                          <div className="flex-1 space-y-0.5 overflow-hidden">
+                            {sortedTasks.slice(0, 3).map((task, taskIndex) => (
+                              <div
+                                key={taskIndex}
+                                className={`text-xs truncate flex items-center gap-1 ${
+                                  task.completed ? 'text-gray-400' : 'text-gray-700'
+                                }`}
+                              >
+                                <span className="flex-shrink-0">
+                                  {task.completed ? '✓' : '○'}
+                                </span>
+                                <span className={`truncate ${task.completed ? 'line-through' : ''}`}>
+                                  {task.title}
+                                  {/* 如果是第3个任务且还有更多，显示省略号 */}
+                                  {taskIndex === 2 && sortedTasks.length > 3 && (
+                                    <span className="ml-1 text-gray-400">...</span>
+                                  )}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </Tooltip.Trigger>
+                    {day.tasks.length > 0 && (
+                      <Tooltip.Portal>
+                        <Tooltip.Content
+                          side="top"
+                          align="center"
+                          className="z-50 bg-white rounded-lg shadow-xl border border-gray-200 p-3 animate-in fade-in-0 zoom-in-95"
+                          sideOffset={5}
+                        >
+                          <TaskTooltip tasks={day.tasks} date={day.date} />
+                          <Tooltip.Arrow className="fill-white" />
+                        </Tooltip.Content>
+                      </Tooltip.Portal>
+                    )}
+                  </Tooltip.Root>
                 )
               })}
             </div>
@@ -273,5 +325,6 @@ export default function CalendarView({ tasks, selectedDate, onDateSelect, dateSc
         )}
       </div>
     </div>
+    </Tooltip.Provider>
   )
 }
