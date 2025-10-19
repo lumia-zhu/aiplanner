@@ -41,16 +41,41 @@ function DraggableTaskCard({ task }: { task: Task }) {
     opacity: isDragging ? 0.5 : 1,
   }
 
+  const isCompleted = task.completed
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       {...attributes}
       {...listeners}
-      className="bg-white px-3 py-2 rounded-md shadow-sm border border-gray-300 hover:shadow-md transition-all cursor-move min-w-[180px] max-w-[220px] touch-none"
+      className={`px-3 py-2 rounded-md shadow-sm border hover:shadow-md transition-all cursor-move min-w-[180px] max-w-[220px] touch-none ${
+        isCompleted 
+          ? 'bg-gray-50 border-gray-300 opacity-60'  // ⭐ 已完成：灰色背景
+          : 'bg-white border-gray-300'
+      }`}
     >
-      <div className="font-medium text-sm text-gray-900 line-clamp-2">{task.title}</div>
-      {task.deadline_datetime && (
+      <div className="flex items-start gap-2">
+        {/* ⭐ 已完成图标 */}
+        {isCompleted && (
+          <div className="flex-shrink-0 text-green-500 mt-0.5">
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+            </svg>
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <div className={`font-medium text-sm line-clamp-2 ${
+            isCompleted ? 'line-through text-gray-500' : 'text-gray-900'
+          }`}>
+            {task.title}
+          </div>
+          {isCompleted && (
+            <div className="text-xs text-gray-500 mt-0.5">已完成</div>
+          )}
+        </div>
+      </div>
+      {task.deadline_datetime && !isCompleted && (
         <div className="text-xs text-gray-600 mt-1">
           📅 {new Date(task.deadline_datetime).toLocaleDateString('zh-CN', {
             month: 'numeric',
@@ -81,15 +106,40 @@ function QuadrantTaskCard({ task, borderColor }: { task: Task; borderColor: stri
     opacity: isDragging ? 0.5 : 1,
   }
 
+  const isCompleted = task.completed
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       {...attributes}
       {...listeners}
-      className={`bg-white px-3 py-2 rounded-md shadow-sm border ${borderColor} hover:shadow-md transition-all cursor-move touch-none`}
+      className={`px-3 py-2 rounded-md shadow-sm border hover:shadow-md transition-all cursor-move touch-none ${
+        isCompleted 
+          ? 'bg-gray-50 border-gray-300 opacity-60'  // ⭐ 已完成：灰色背景，忽略象限颜色
+          : `bg-white ${borderColor}`
+      }`}
     >
-      <div className="font-medium text-sm text-gray-900 line-clamp-2">{task.title}</div>
+      <div className="flex items-start gap-2">
+        {/* ⭐ 已完成图标 */}
+        {isCompleted && (
+          <div className="flex-shrink-0 text-green-500">
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+            </svg>
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <div className={`font-medium text-sm line-clamp-2 ${
+            isCompleted ? 'line-through text-gray-500' : 'text-gray-900'
+          }`}>
+            {task.title}
+          </div>
+          {isCompleted && (
+            <span className="text-xs text-gray-500">已完成</span>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

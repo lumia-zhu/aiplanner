@@ -194,23 +194,18 @@ export default function CalendarView({
                 const isSelected = selectedDate && date.toDateString() === selectedDate.toDateString()
                 const inScope = isDateInScope(date)  // ⭐ 检查是否在范围内
                 
-                // ⭐ 新增：检查是否是临时起始点
-                const isTempStart = tempStartDate && isSameDay(date, tempStartDate)
-                
                 return (
                   <Tooltip.Root key={index}>
                     <Tooltip.Trigger asChild>
                       <div
                         className={`text-center p-2 cursor-pointer transition-all rounded-lg ${
-                          isTempStart 
-                            ? 'ring-4 ring-blue-500 bg-blue-100 text-gray-900'  // 起始点：蓝色加粗边框
-                            : isToday 
-                              ? 'bg-gray-200 text-gray-900 font-semibold'  // ⭐ 今天：灰色填充 + 加粗
-                              : inScope 
-                                ? `bg-blue-50 text-gray-700 hover:bg-blue-100`  // ⭐ 范围内：淡蓝色背景（优先级高于isSelected）
-                                : isSelected 
-                                  ? 'bg-gray-200 text-gray-900' 
-                                  : 'bg-gray-100 text-gray-400 opacity-60'  // ⭐ 非范围内浅灰遮罩
+                          isToday 
+                            ? 'bg-gray-200 text-gray-900 font-semibold'  // ⭐ 今天：灰色填充 + 加粗
+                            : inScope 
+                              ? `bg-blue-50 text-gray-700 hover:bg-blue-100`  // ⭐ 范围内：淡蓝色背景（包括临时起始点）
+                              : isSelected 
+                                ? 'bg-gray-200 text-gray-900' 
+                                : 'bg-gray-100 text-gray-400 opacity-60'  // ⭐ 非范围内浅灰遮罩
                         }`}
                         onClick={() => onDateSelect?.(date)}
                       >
@@ -265,9 +260,6 @@ export default function CalendarView({
                 const isSelected = selectedDate && day.date.toDateString() === selectedDate.toDateString()
                 const inScope = isDateInScope(day.date)  // ⭐ 检查是否在范围内
                 
-                // ⭐ 新增：检查是否是临时起始点
-                const isTempStart = tempStartDate && isSameDay(day.date, tempStartDate)
-                
                 // 排序任务（未完成优先）
                 const sortedTasks = [...day.tasks].sort((a, b) => {
                   if (a.completed !== b.completed) {
@@ -281,15 +273,13 @@ export default function CalendarView({
                     <Tooltip.Trigger asChild>
                       <div
                         className={`relative h-24 p-1.5 cursor-pointer transition-all flex flex-col rounded ${
-                          isTempStart
-                            ? 'ring-4 ring-blue-500 bg-blue-50'  // 起始点：蓝色加粗边框
-                            : day.isToday 
-                              ? 'bg-gray-200'  // ⭐ 今天：灰色填充
-                              : inScope 
-                                ? 'bg-blue-50 hover:bg-blue-100'  // ⭐ 范围内：淡蓝色背景（优先级高于isSelected）
-                                : isSelected 
-                                  ? 'bg-gray-200' 
-                                  : 'bg-gray-100 opacity-60'  // ⭐ 非范围内浅灰遮罩
+                          day.isToday 
+                            ? 'bg-gray-200'  // ⭐ 今天：灰色填充
+                            : inScope 
+                              ? 'bg-blue-50 hover:bg-blue-100'  // ⭐ 范围内：淡蓝色背景（包括临时起始点）
+                              : isSelected 
+                                ? 'bg-gray-200' 
+                                : 'bg-gray-100 opacity-60'  // ⭐ 非范围内浅灰遮罩
                         } ${
                           !day.isCurrentMonth ? 'text-gray-300' : 
                           inScope || day.isToday ? 'text-gray-700' : 'text-gray-400'  // ⭐ 非范围内文字颜色变浅

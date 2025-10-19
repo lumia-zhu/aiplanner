@@ -279,7 +279,7 @@ export function getDefaultDateScope(): DateScope {
   return {
     start: today,
     end: getEndOfDay(today),
-    includeOverdue: true,
+    includeOverdue: false,  // ⭐ 默认不包含逾期任务
     preset: 'today'
   }
 }

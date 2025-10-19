@@ -1321,7 +1321,7 @@ export default function DashboardPage() {
         
         // 预处理图片（包含缓存）
         await preprocessImage(file)
-        setSelectedImage(file)
+      setSelectedImage(file)
         
         console.log('图片选择完成')
       } catch (error) {
@@ -1438,7 +1438,7 @@ export default function DashboardPage() {
             }
             
             alert('AI返回了详细说明而不是任务列表。正在尝试从文本中提取任务信息...');
-            return [];
+        return [];
           }
         }
       }
@@ -1741,18 +1741,18 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
             console.log('识别到的任务:', tasks);
             
             // 添加友好的任务识别结果消息
-            const aiMessage: ChatMessage = {
-              role: 'assistant',
-              content: [
-                {
-                  type: 'text',
+        const aiMessage: ChatMessage = {
+          role: 'assistant',
+          content: [
+            {
+              type: 'text',
                   text: `✅ 任务识别完成！从内容中识别到 ${tasks.length} 个任务，请在下方预览区域查看并选择需要添加的任务。`
-                }
-              ]
             }
+          ]
+        }
             setIsSending(false)  // 立即停止"正在思考"的显示
-            setChatMessages([...newMessages, aiMessage])
-            
+        setChatMessages([...newMessages, aiMessage])
+
             // 保存用户消息和AI回复到数据库
             if (user) {
               const chatDate = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`

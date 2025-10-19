@@ -20,20 +20,22 @@ interface TaskSelectionOptionsProps {
  * 任务选择按钮组件
  */
 export default function TaskSelectionOptions({ tasks, onSelect, disabled = false }: TaskSelectionOptionsProps) {
-  // 显示“传入范围内”的未完成任务（范围由上层已过滤）
-  const availableTasks = tasks.filter(task => !task.completed)
+  // ⭐ 显示所有任务（包括已完成的），让用户看到完整情况
+  const allTasks = tasks
+  const hasAnyTask = allTasks.length > 0
   
   return (
     <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-2">
-      {availableTasks.length === 0 ? (
-        // 没有可拆解的任务
+      {!hasAnyTask ? (
+        // 没有任何任务
         <div className="text-center py-8 text-gray-500">
           <div className="text-4xl mb-2">📭</div>
-          <p className="text-sm">当前范围内暂无待处理的任务</p>
+          <p className="text-sm">当前范围内暂无任务</p>
         </div>
       ) : (
-        // 显示所有可拆解的任务
-        availableTasks.map((task) => {
+        // 显示所有任务（包括已完成的）
+        allTasks.map((task) => {
+          const isCompleted = task.completed
           return (
             <button
               key={task.id}
@@ -44,17 +46,39 @@ export default function TaskSelectionOptions({ tasks, onSelect, disabled = false
                 w-full text-left p-3 rounded-lg border-2 transition-all
                 ${disabled 
                   ? 'bg-gray-100 border-gray-200 cursor-not-allowed opacity-50' 
-                  : 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 hover:border-blue-400 hover:shadow-md'
+                  : isCompleted
+                    ? 'bg-gray-50 border-gray-300 opacity-60'  // ⭐ 已完成：灰色背景，降低透明度
+                    : 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 hover:border-blue-400 hover:shadow-md'
                 }
               `}
             >
               <div className="flex items-start gap-2.5">
+                {/* ⭐ 已完成图标 */}
+                {isCompleted && (
+                  <div className="flex-shrink-0 text-green-500 mt-0.5">
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                )}
+                
                 {/* 任务内容 */}
                 <div className="flex-1 min-w-0">
                   {/* 任务标题 */}
-                  <h3 className="text-sm font-semibold mb-1 text-blue-900 line-clamp-2">
-                    {task.title}
-                  </h3>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className={`text-sm font-semibold line-clamp-2 ${
+                      isCompleted 
+                        ? 'line-through text-gray-500'  // ⭐ 已完成：删除线 + 灰色
+                        : 'text-blue-900'
+                    }`}>
+                      {task.title}
+                    </h3>
+                    {isCompleted && (
+                      <span className="flex-shrink-0 text-xs text-gray-500 bg-gray-200 px-2 py-0.5 rounded">
+                        已完成
+                      </span>
+                    )}
+                  </div>
                   
                   {/* 任务标签 */}
                   {hasTaskTags(task) && (
