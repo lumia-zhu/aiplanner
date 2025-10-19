@@ -2569,9 +2569,9 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
           )}
         </div>
 
-              {/* AI辅助完善计划按钮 - 固定在Todo区域底部中央 */}
+              {/* AI辅助完善计划按钮 - 粘性固定在Todo区域底部中央 */}
               {displayTasks.length > 0 && (
-                <div className="absolute bottom-4 left-0 right-0 z-30 flex justify-center pointer-events-none">
+                <div className="sticky bottom-4 left-0 right-0 z-30 flex justify-center pointer-events-none mt-6">
                   <button
                     onClick={async () => {
                       // 解锁高级功能并展开侧边栏
