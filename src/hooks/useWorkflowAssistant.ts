@@ -7,7 +7,7 @@ import { useState, useCallback, useRef } from 'react'
 import type { Task, UserProfile, WorkflowMode, AIRecommendation, PrioritySortFeeling, SingleTaskAction, ClarificationQuestion, StructuredContext, DateScope } from '@/types'
 import type { ChatMessage } from '@/lib/doubaoService'
 import { analyzeTasksForWorkflow, getTodayTasks, generateDetailedTaskSummary } from '@/lib/workflowAnalyzer'
-import { filterTasksByScope } from '@/utils/dateUtils'
+import { filterTasksByScope, getScopeDescription } from '@/utils/dateUtils'
 import { getMatrixTypeByFeeling, getMatrixConfig } from '@/types'
 import { streamText } from '@/utils/streamText'
 import { generateContextQuestions, formatQuestionsMessage } from '@/lib/contextQuestions'
@@ -180,8 +180,11 @@ export function useWorkflowAssistant({
         recommendation.confidence === 'high' ? '高' : 
         recommendation.confidence === 'medium' ? '中' : '低'
       
+      // 获取范围描述
+      const scopeText = getScopeDescription(dateScope)
+      
       // 构建AI消息
-      const aiMessage = `📋 今天的任务分析
+      const aiMessage = `📋 ${scopeText}的任务分析
 
 ${detailedSummary}
 
@@ -205,7 +208,7 @@ ${recommendation.reason}
     } finally {
       setIsAnalyzing(false)
     }
-  }, [tasks, userProfile, setChatMessages, streamAIMessage])
+  }, [tasks, userProfile, dateScope, setChatMessages, streamAIMessage])
 
   /**
    * 用户选择选项
