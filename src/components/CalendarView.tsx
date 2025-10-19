@@ -1,12 +1,14 @@
 'use client'
 
 import React, { useState, useMemo } from 'react'
-import { Task } from '@/types'
+import { Task, DateScope } from '@/types'
+import { getStartOfDay } from '@/utils/dateUtils'
 
 interface CalendarViewProps {
   tasks: Task[]
   selectedDate?: Date
   onDateSelect?: (date: Date) => void
+  dateScope: DateScope  // ⭐ 新增：日期范围
 }
 
 interface CalendarDay {
@@ -16,9 +18,19 @@ interface CalendarDay {
   tasks: Task[]
 }
 
-export default function CalendarView({ tasks, selectedDate, onDateSelect }: CalendarViewProps) {
+export default function CalendarView({ tasks, selectedDate, onDateSelect, dateScope }: CalendarViewProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [currentDate, setCurrentDate] = useState(new Date())
+
+  /**
+   * 检查日期是否在dateScope范围内
+   */
+  const isDateInScope = (date: Date): boolean => {
+    const dayStart = getStartOfDay(date)
+    const scopeStart = getStartOfDay(dateScope.start)
+    const scopeEnd = getStartOfDay(dateScope.end)
+    return dayStart >= scopeStart && dayStart <= scopeEnd
+  }
 
   // 获取当前周的日期范围
   const getCurrentWeek = () => {
@@ -165,12 +177,15 @@ export default function CalendarView({ tasks, selectedDate, onDateSelect }: Cale
                 const dayTasks = getTasksForDate(date)
                 const isToday = date.toDateString() === today.toDateString()
                 const isSelected = selectedDate && date.toDateString() === selectedDate.toDateString()
+                const inScope = isDateInScope(date)  // ⭐ 检查是否在范围内
                 
                 return (
                   <div
                     key={index}
-                    className={`text-center p-2 rounded-lg cursor-pointer transition-colors hover:bg-gray-50 text-gray-700 ${
-                      isToday ? 'bg-blue-100' : isSelected ? 'bg-gray-200' : ''
+                    className={`text-center p-2 rounded-lg cursor-pointer transition-colors hover:bg-gray-50 ${
+                      isToday ? 'bg-blue-100 text-gray-900' : 
+                      isSelected ? 'bg-gray-200 text-gray-900' : 
+                      inScope ? 'text-gray-700' : 'bg-gray-100 text-gray-400 opacity-60'  // ⭐ 非范围内浅灰遮罩
                     }`}
                     onClick={() => onDateSelect?.(date)}
                   >
@@ -208,6 +223,7 @@ export default function CalendarView({ tasks, selectedDate, onDateSelect }: Cale
             <div className="grid grid-cols-7 gap-1">
               {monthDays.map((day, index) => {
                 const isSelected = selectedDate && day.date.toDateString() === selectedDate.toDateString()
+                const inScope = isDateInScope(day.date)  // ⭐ 检查是否在范围内
                 
                 return (
                   <div
@@ -215,9 +231,10 @@ export default function CalendarView({ tasks, selectedDate, onDateSelect }: Cale
                     className={`relative h-12 p-1 text-center cursor-pointer transition-colors rounded ${
                       day.isToday ? 'bg-blue-100' : 
                       isSelected ? 'bg-gray-200' : 
-                      'hover:bg-gray-50'
+                      inScope ? 'hover:bg-gray-50' : 'bg-gray-100 opacity-60'  // ⭐ 非范围内浅灰遮罩
                     } ${
-                      !day.isCurrentMonth ? 'text-gray-300' : 'text-gray-700'
+                      !day.isCurrentMonth ? 'text-gray-300' : 
+                      inScope ? 'text-gray-700' : 'text-gray-400'  // ⭐ 非范围内文字颜色变浅
                     }`}
                     onClick={() => onDateSelect?.(day.date)}
                   >

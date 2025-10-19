@@ -4,9 +4,10 @@
  */
 
 import { useState, useCallback, useRef } from 'react'
-import type { Task, UserProfile, WorkflowMode, AIRecommendation, PrioritySortFeeling, SingleTaskAction, ClarificationQuestion, StructuredContext } from '@/types'
+import type { Task, UserProfile, WorkflowMode, AIRecommendation, PrioritySortFeeling, SingleTaskAction, ClarificationQuestion, StructuredContext, DateScope } from '@/types'
 import type { ChatMessage } from '@/lib/doubaoService'
 import { analyzeTasksForWorkflow, getTodayTasks, generateDetailedTaskSummary } from '@/lib/workflowAnalyzer'
+import { filterTasksByScope } from '@/utils/dateUtils'
 import { getMatrixTypeByFeeling, getMatrixConfig } from '@/types'
 import { streamText } from '@/utils/streamText'
 import { generateContextQuestions, formatQuestionsMessage } from '@/lib/contextQuestions'
@@ -22,6 +23,7 @@ import { generateClarificationQuestionsWithFallback } from '@/lib/clarificationA
 interface UseWorkflowAssistantProps {
   tasks: Task[]
   userProfile: UserProfile | null
+  dateScope: DateScope  // ⭐ 新增：日期范围
   setChatMessages: (messages: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => void
   setStreamingMessage: (message: string | ((prev: string) => string)) => void
   setIsSending: (sending: boolean) => void
@@ -85,6 +87,7 @@ interface UseWorkflowAssistantReturn {
 export function useWorkflowAssistant({
   tasks,
   userProfile,
+  dateScope,
   setChatMessages,
   setStreamingMessage,
   setIsSending,
@@ -159,15 +162,15 @@ export function useWorkflowAssistant({
       setIsAnalyzing(true)
       setWorkflowMode('initial')
       
-      // 获取今天的任务
-      const todayTasks = getTodayTasks(tasks)
+      // 使用当前范围的任务
+      const scopedTasks = filterTasksByScope(tasks, dateScope)
       
-      // 调用分析服务
-      const recommendation = await analyzeTasksForWorkflow(tasks, userProfile)
+      // 调用分析服务（传入dateScope）
+      const recommendation = await analyzeTasksForWorkflow(tasks, userProfile, dateScope)
       setAIRecommendation(recommendation)
       
       // 生成详细任务摘要(包含任务列表)
-      const detailedSummary = generateDetailedTaskSummary(todayTasks)
+      const detailedSummary = generateDetailedTaskSummary(scopedTasks, dateScope)
       
       // 生成置信度显示
       const confidenceEmoji = 
@@ -408,17 +411,55 @@ ${recommendation.reason}
       setWorkflowMode('task-selection')
       streamAIMessage('好的！我来帮你拆解任务。\n\n请选择你想要拆解的任务：')
     } else if (action === 'clarify') {
-      // 为"任务澄清"给出建议与原因
-      const todayTasks = getTodayTasks(tasks)
-      const recommendations = recommendTasksForClarification(todayTasks)
+      // ⭐ 为"任务澄清"给出建议与原因（使用dateScope筛选的任务）
+      const scopedTasks = filterTasksByScope(tasks, dateScope)
+      
+      // ⭐ 调试日志
+      console.log('🔍 [Clarify] 调试信息:')
+      console.log('  - 所有任务数量:', tasks.length)
+      console.log('  - dateScope:', {
+        start: dateScope.start.toISOString(),
+        end: dateScope.end.toISOString(),
+        preset: dateScope.preset,
+        includeOverdue: dateScope.includeOverdue
+      })
+      console.log('  - 筛选后任务数量:', scopedTasks.length)
+      console.log('  - 筛选后任务:', scopedTasks.map(t => ({
+        title: t.title,
+        deadline: t.deadline_datetime,
+        completed: t.completed
+      })))
+      
+      const recommendations = recommendTasksForClarification(scopedTasks)
+      console.log('  - 推荐任务数量:', recommendations.length)
+      
       const recommendationMessage = formatRecommendationsMessage(recommendations)
       
       setWorkflowMode('task-selection')
       streamAIMessage(recommendationMessage)
     } else if (action === 'estimate') {
-      // ⭐ 新增: 任务时间估计功能，也进入任务选择流程
-      const todayTasks = getTodayTasks(tasks)
-      const recommendations = recommendTasksForTimeEstimation(todayTasks)
+      // ⭐ 新增: 任务时间估计功能，使用dateScope筛选的任务
+      const scopedTasks = filterTasksByScope(tasks, dateScope)
+      
+      // ⭐ 调试日志
+      console.log('🔍 [Estimate] 调试信息:')
+      console.log('  - 所有任务数量:', tasks.length)
+      console.log('  - dateScope:', {
+        start: dateScope.start.toISOString(),
+        end: dateScope.end.toISOString(),
+        preset: dateScope.preset,
+        includeOverdue: dateScope.includeOverdue
+      })
+      console.log('  - 筛选后任务数量:', scopedTasks.length)
+      console.log('  - 筛选后任务:', scopedTasks.map(t => ({
+        title: t.title,
+        deadline: t.deadline_datetime,
+        completed: t.completed
+      })))
+      
+      const recommendations = recommendTasksForTimeEstimation(scopedTasks)
+      console.log('  - 推荐任务数量:', recommendations.length)
+      
       const recommendationMessage = formatTimeEstimationRecommendationsMessage(recommendations)
       
       setWorkflowMode('task-selection')
@@ -575,7 +616,8 @@ ${recommendation.reason}
     // ⭐ 生成智能引导消息
     const guidanceMessage = getGuidanceMessage('action-cancelled-decompose', {
       currentTask: selectedTaskForDecompose || undefined,
-      allTasks: tasks
+      allTasks: tasks,
+      dateScope
     })
     
     // 清空选中的任务
@@ -699,7 +741,8 @@ ${recommendation.reason}
     // ⭐ 添加智能引导
     const guidanceMessage = getGuidanceMessage('action-completed-clarify', {
       currentTask: selectedTaskForDecompose,
-      allTasks: tasks
+      allTasks: tasks,
+      dateScope
     })
     
     successMessage += '\n\n' + guidanceMessage
@@ -756,7 +799,8 @@ ${recommendation.reason}
     // ⭐ 生成智能引导消息（在清空状态前）
     const guidanceMessage = getGuidanceMessage('action-cancelled-clarify', {
       currentTask: selectedTaskForDecompose || undefined,
-      allTasks: tasks
+      allTasks: tasks,
+      dateScope
     })
     
     // 清空澄清状态和选中的任务
@@ -880,7 +924,8 @@ ${recommendation.reason}
     // ⭐ 生成智能引导消息
     const guidanceMessage = getGuidanceMessage('action-completed-estimate', {
       currentTask: estimationTask,
-      allTasks: tasks
+      allTasks: tasks,
+      dateScope
     })
     
     streamAIMessage(`✅ 已记录！任务「${estimationTask.title}」的预估时长为：${displayText}\n\n${guidanceMessage}`)
@@ -897,7 +942,8 @@ ${recommendation.reason}
     // ⭐ 生成智能引导消息（在清空状态前获取任务信息）
     const guidanceMessage = getGuidanceMessage('action-cancelled-estimate', {
       currentTask: estimationTask || undefined,
-      allTasks: tasks
+      allTasks: tasks,
+      dateScope
     })
     
     clearEstimationState()

@@ -3,7 +3,8 @@
  * 为用户提供基于上下文的引导建议（Phase 1: 规则引导）
  */
 
-import type { Task } from '@/types'
+import type { Task, DateScope } from '@/types'
+import { filterTasksByScope, getScopeDescription } from '@/utils/dateUtils'
 
 // ============================================
 // 类型定义
@@ -31,6 +32,9 @@ export interface GuidanceContext {
   
   // 所有任务
   allTasks: Task[]
+  
+  // ⭐ 日期范围（用于筛选任务）
+  dateScope?: DateScope
   
   // 最近操作历史（可选，Phase 2使用）
   recentActions?: string[]
@@ -96,33 +100,44 @@ function analyzeTask(task: Task): TaskAnalysis {
 }
 
 /**
- * 分析今日任务概况
+ * 分析范围内任务概况（替换原来的analyzeTodayTasks）
+ * @param tasks 所有任务列表
+ * @param scope 日期范围（可选，默认使用今天）
  */
-function analyzeTodayTasks(tasks: Task[]): {
+function analyzeScopedTasks(tasks: Task[], scope?: DateScope): {
   total: number
   completed: number
   urgent: number
 } {
+  // 如果有scope，使用scope筛选；否则使用今天
+  let scopedTasks: Task[]
+  if (scope) {
+    scopedTasks = filterTasksByScope(tasks, scope)
+  } else {
+    // 降级：使用今天
+    const now = new Date()
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000)
+    
+    scopedTasks = tasks.filter(task => {
+      if (!task.deadline_datetime) return false
+      const deadline = new Date(task.deadline_datetime)
+      return deadline >= todayStart && deadline < todayEnd
+    })
+  }
+  
   const now = new Date()
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000)
-  
-  const todayTasks = tasks.filter(task => {
-    if (!task.deadline_datetime) return false
-    const deadline = new Date(task.deadline_datetime)
-    return deadline >= todayStart && deadline < todayEnd
-  })
-  
-  const completed = todayTasks.filter(t => t.completed).length
-  const urgent = todayTasks.filter(t => {
+  const completed = scopedTasks.filter(t => t.completed).length
+  const urgent = scopedTasks.filter(t => {
     if (t.completed) return false
-    const deadline = new Date(t.deadline_datetime!)
+    if (!t.deadline_datetime) return false
+    const deadline = new Date(t.deadline_datetime)
     const hoursUntilDeadline = (deadline.getTime() - now.getTime()) / (1000 * 60 * 60)
     return hoursUntilDeadline < 6 && hoursUntilDeadline > 0
   }).length
   
   return {
-    total: todayTasks.length,
+    total: scopedTasks.length,
     completed,
     urgent
   }
@@ -142,7 +157,15 @@ export function generateRuleBasedGuidance(
   scenario: GuidanceScenario,
   context: GuidanceContext
 ): string {
-  const { currentTask, allTasks } = context
+  const { currentTask, allTasks, dateScope } = context
+  
+  // ⭐ 辅助函数：给消息添加范围标签
+  const withScopePrefix = (message: string): string => {
+    if (dateScope) {
+      return `📅 [当前范围: ${getScopeDescription(dateScope)}]\n\n${message}`
+    }
+    return message
+  }
   
   switch (scenario) {
     case 'action-cancelled-clarify': {
@@ -238,11 +261,11 @@ export function generateRuleBasedGuidance(
         message += `\n\n💡 建议：给每个子任务估算时间，整体规划会更清晰。`
       }
       
-      // ⭐ 统计今天的未完成任务（而不是所有任务）
-      const todayStats = analyzeTodayTasks(allTasks)
-      const todayIncompleteTasks = todayStats.total - todayStats.completed
-      if (todayIncompleteTasks > 1) {
-        message += `\n\n你今天还有${todayIncompleteTasks - 1}个任务待处理，要继续完善吗？`
+      // ⭐ 统计范围内的未完成任务（而不是所有任务）
+      const scopedStats = analyzeScopedTasks(allTasks, dateScope)
+      const scopedIncompleteTasks = scopedStats.total - scopedStats.completed
+      if (scopedIncompleteTasks > 1) {
+        message += `\n\n你还有${scopedIncompleteTasks - 1}个任务待处理，要继续完善吗？`
       }
       
       return message
@@ -265,11 +288,11 @@ export function generateRuleBasedGuidance(
       }
       // 如果都差不多完善了，提示可以排列优先级或继续其他任务
       else {
-        // ⭐ 统计今天的未完成任务（而不是所有任务）
-        const todayStats = analyzeTodayTasks(allTasks)
-        const todayIncompleteTasks = todayStats.total - todayStats.completed
-        if (todayIncompleteTasks > 1) {
-          message += `\n\n👍 任务规划得不错！你今天还有${todayIncompleteTasks - 1}个任务，可以排列一下优先级。`
+        // ⭐ 统计范围内的未完成任务（而不是所有任务）
+        const scopedStats = analyzeScopedTasks(allTasks, dateScope)
+        const scopedIncompleteTasks = scopedStats.total - scopedStats.completed
+        if (scopedIncompleteTasks > 1) {
+          message += `\n\n👍 任务规划得不错！你还有${scopedIncompleteTasks - 1}个任务，可以排列一下优先级。`
         }
       }
       

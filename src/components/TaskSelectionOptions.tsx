@@ -10,26 +10,6 @@ import type { Task } from '@/types'
 import TaskTagBadge from './TaskTagBadge'
 import { hasTaskTags } from '@/types'
 
-/**
- * 判断任务是否是今天的任务
- */
-function isTodayTask(task: Task): boolean {
-  if (!task.deadline_datetime) return false
-  
-  try {
-    const taskDate = new Date(task.deadline_datetime)
-    const today = new Date()
-    
-    return (
-      taskDate.getFullYear() === today.getFullYear() &&
-      taskDate.getMonth() === today.getMonth() &&
-      taskDate.getDate() === today.getDate()
-    )
-  } catch (error) {
-    return false
-  }
-}
-
 interface TaskSelectionOptionsProps {
   tasks: Task[]
   onSelect: (task: Task | null) => void  // null 表示返回上一级
@@ -40,8 +20,8 @@ interface TaskSelectionOptionsProps {
  * 任务选择按钮组件
  */
 export default function TaskSelectionOptions({ tasks, onSelect, disabled = false }: TaskSelectionOptionsProps) {
-  // 只显示今天的未完成任务
-  const availableTasks = tasks.filter(task => !task.is_completed && isTodayTask(task))
+  // 显示“传入范围内”的未完成任务（范围由上层已过滤）
+  const availableTasks = tasks.filter(task => !task.completed)
   
   return (
     <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-2">
@@ -49,7 +29,7 @@ export default function TaskSelectionOptions({ tasks, onSelect, disabled = false
         // 没有可拆解的任务
         <div className="text-center py-8 text-gray-500">
           <div className="text-4xl mb-2">📭</div>
-          <p className="text-sm">今天暂无待拆解的任务</p>
+          <p className="text-sm">当前范围内暂无待处理的任务</p>
         </div>
       ) : (
         // 显示所有可拆解的任务

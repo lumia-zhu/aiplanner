@@ -548,3 +548,38 @@ export function getMatrixTypeByFeeling(feeling: PrioritySortFeeling): MatrixType
   }
   return map[feeling]
 }
+
+// ============================================
+// 日期范围选择器相关类型
+// ============================================
+
+/**
+ * 日期范围预设选项类型
+ */
+export type DateScopePreset = 
+  | 'custom'   // 自定义日期范围
+  | 'today'    // 今天
+  | '3days'    // 未来3天
+  | '7days'    // 未来7天
+  | 'week'     // 本周（周一至周日）
+  | 'month'    // 本月（1号至月末）
+
+/**
+ * 日期范围接口
+ * 统一控制日历高亮、Todo展示和AI讨论的任务范围
+ */
+export interface DateScope {
+  start: Date                   // 起始日期（零点 00:00:00）
+  end: Date                     // 结束日期（23:59:59）
+  includeOverdue: boolean       // 是否包含之前未完成的任务
+  preset: DateScopePreset       // 当前使用的预设类型
+}
+
+/**
+ * 日期范围预设选项配置
+ */
+export interface DateScopePresetOption {
+  id: DateScopePreset          // 预设ID
+  label: string                 // 显示标签
+  description: string           // 预设描述
+}

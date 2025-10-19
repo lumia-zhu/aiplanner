@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { getUserFromStorage, clearUserFromStorage, AuthUser } from '@/lib/auth'
 import { getUserTasks, createTask, updateTask, deleteTask, toggleTaskComplete, getUserTasksWithSubtasks, createSubtasks, toggleTaskExpansion, promoteSubtasksToTasks } from '@/lib/tasks'
-import type { Task, SubtaskSuggestion } from '@/types'
+import type { Task, SubtaskSuggestion, DateScope } from '@/types'
+import { getDefaultDateScope, serializeDateScope, deserializeDateScope, filterTasksByScope, getScopeDescription, getStartOfDay, getEndOfDay } from '@/utils/dateUtils'
 import DraggableTaskItem from '@/components/DraggableTaskItem'
 import TaskForm from '@/components/TaskForm'
 import OutlookImport from '@/components/OutlookImport'
@@ -13,6 +14,7 @@ import GoogleCalendarImport from '@/components/GoogleCalendarImport'
 import CanvasImport from '@/components/CanvasImport'
 import CalendarView from '@/components/CalendarView'
 import ChatSidebar from '@/components/ChatSidebar'
+import DateScopeSelector from '@/components/DateScopeSelector'
 import TaskDecompositionModal from '@/components/TaskDecompositionModal'
 import QuickAddTask from '@/components/QuickAddTask'
 import PriorityMatrix from '@/components/PriorityMatrix'
@@ -113,6 +115,25 @@ export default function DashboardPage() {
   const [showProfileSaveSuccess, setShowProfileSaveSuccess] = useState(false)
   const [isFirstTimeUser, setIsFirstTimeUser] = useState(false) // 是否首次登录用户
   
+  // ⭐ 日期范围状态（统一控制日历、Todo、AI的任务范围）
+  const [dateScope, setDateScope] = useState<DateScope>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('dateScope')
+      if (saved) {
+        return deserializeDateScope(saved)
+      }
+    }
+    // 默认：今天 + 包含逾期任务
+    return getDefaultDateScope()
+  })
+  
+  // 监听dateScope变化，保存到sessionStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('dateScope', serializeDateScope(dateScope))
+    }
+  }, [dateScope])
+  
   // ⭐ 工作流结束时关闭侧边栏
   const handleWorkflowEnd = useCallback(() => {
     setIsChatSidebarOpen(false)
@@ -167,6 +188,7 @@ export default function DashboardPage() {
   } = useWorkflowAssistant({
     tasks,
     userProfile,
+    dateScope,  // ⭐ 传入日期范围
     setChatMessages,
     setStreamingMessage,
     setIsSending,
@@ -1873,28 +1895,34 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
     setSelectedImportPlatform(null)
   }
 
-  // 处理日期选择
+  // ⭐ 处理日期选择（同时更新dateScope和selectedDate，保持交互一致）
   const handleDateSelect = (date: Date) => {
+    console.log('🔍 [handleDateSelect] 点击日历日期:', date)
     setSelectedDate(date)
-    console.log('Selected date:', date)
-  }
-
-  // 获取选中日期的任务
-  const getTasksForSelectedDate = () => {
-    return tasks.filter(task => {
-      // 如果任务没有截止时间，显示在今天的任务列表中
-      if (!task.deadline_datetime) {
-        return selectedDate.toDateString() === new Date().toDateString()
-      }
-      
-      // 如果有截止时间，按日期过滤
-      const taskDate = new Date(task.deadline_datetime)
-      return taskDate.toDateString() === selectedDate.toDateString()
+    
+    // 同步更新dateScope为选中的那一天
+    const dayStart = getStartOfDay(date)
+    const dayEnd = getEndOfDay(date)
+    
+    const newScope = {
+      start: dayStart,
+      end: dayEnd,
+      includeOverdue: dateScope.includeOverdue, // 保持逾期任务勾选状态
+      preset: 'custom' as const // 设为自定义范围
+    }
+    
+    console.log('🔍 [handleDateSelect] 新的dateScope:', {
+      start: newScope.start.toISOString(),
+      end: newScope.end.toISOString(),
+      preset: newScope.preset,
+      includeOverdue: newScope.includeOverdue
     })
+    
+    setDateScope(newScope)
   }
 
-  // 获取要显示的任务（严格按选中日期筛选）
-  const displayTasks = getTasksForSelectedDate()
+  // ⭐ 根据日期范围筛选任务（替换原有的getTasksForSelectedDate）
+  const displayTasks = filterTasksByScope(tasks, dateScope)
 
   // 处理显示新建任务表单
   const handleShowTaskForm = () => {
@@ -2362,20 +2390,30 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
               </div>
             )}
 
+        {/* ⭐ 日期范围选择器 */}
+        <DateScopeSelector 
+          scope={dateScope}
+          onScopeChange={setDateScope}
+        />
+
         {/* 日历视图 */}
         <CalendarView 
           tasks={tasks}
           selectedDate={selectedDate}
           onDateSelect={handleDateSelect}
+          dateScope={dateScope}
         />
 
         <div className="flex justify-between items-center mb-6">
           <div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              {selectedDate.getMonth() + 1}月{selectedDate.getDate()}日的任务
+              {getScopeDescription(dateScope)}的任务
             </h2>
             <p className="text-gray-600">
               共 {displayTasks.length} 个任务，{displayTasks.filter(t => !t.completed).length} 个待完成
+              {dateScope.includeOverdue && displayTasks.some(t => !t.completed && t.deadline_datetime && new Date(t.deadline_datetime) < new Date()) && 
+                <span className="ml-2 text-red-600">（包含逾期任务）</span>
+              }
             </p>
           </div>
           <div className="flex items-center space-x-3">
@@ -2599,7 +2637,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
               showTaskPreview={showTaskPreview}
               setShowTaskPreview={setShowTaskPreview}
               workflowMode={workflowMode}
-              currentTasks={tasks}
+              currentTasks={displayTasks}  // ⭐ 使用筛选后的任务（根据dateScope）
               onWorkflowOptionSelect={selectWorkflowOption}
               onFeelingSelect={selectFeeling}
               onActionSelect={selectAction}
