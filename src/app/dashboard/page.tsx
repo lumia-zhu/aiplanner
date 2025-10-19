@@ -2029,7 +2029,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
           {/* flex布局容器：在主内容区域内部分左右 */}
           <div className="flex gap-6 h-[calc(100vh-8rem)]">
             {/* 左侧：任务管理区域 */}
-            <div className="flex-1 overflow-y-auto transition-all duration-300 ease-in-out relative">
+            <div className="flex-1 overflow-y-auto transition-all duration-300 ease-in-out relative pb-24">
               {/* AI 聊天框 - 临时隐藏 */}
             <div 
               className={`bg-white rounded-lg shadow-sm border mb-6 transition-all duration-200 hidden ${
@@ -2567,42 +2567,42 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
               </DragOverlay>
             </DndContext>
           )}
-
-          {/* AI完善计划按钮 - 在所有任务下方 */}
-          {displayTasks.length > 0 && (
-            <div className="mt-6 flex justify-center">
-              <button
-                onClick={async () => {
-                  // 解锁高级功能并展开侧边栏
-                  enableAdvancedTools()
-                  setIsChatSidebarOpen(true) // 展开右侧聊天侧边栏
-                  
-                  // 启动工作流分析
-                  await startWorkflow()
-                }}
-                disabled={isWorkflowAnalyzing}
-                className={`inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-50 to-blue-50 hover:from-purple-100 hover:to-blue-100 border-2 border-purple-200 hover:border-purple-300 text-purple-700 rounded-xl transition-all font-medium shadow-sm hover:shadow-md ${
-                  isWorkflowAnalyzing ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-              >
-                {isWorkflowAnalyzing ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-purple-700 border-t-transparent rounded-full animate-spin"></div>
-                    <span>分析中...</span>
-                  </>
-                ) : (
-                  <span>✨ 下一步，AI辅助完善计划</span>
-                )}
-              </button>
-            </div>
-          )}
         </div>
 
-              {/* 浮动AI助手按钮 - 仅在侧边栏收起时显示 */}
+              {/* AI辅助完善计划按钮 - 固定在Todo区域底部中央 */}
+              {displayTasks.length > 0 && (
+                <div className="absolute bottom-4 left-0 right-0 z-30 flex justify-center pointer-events-none">
+                  <button
+                    onClick={async () => {
+                      // 解锁高级功能并展开侧边栏
+                      enableAdvancedTools()
+                      setIsChatSidebarOpen(true) // 展开右侧聊天侧边栏
+                      
+                      // 启动工作流分析
+                      await startWorkflow()
+                    }}
+                    disabled={isWorkflowAnalyzing}
+                    className={`inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-50 to-blue-50 hover:from-purple-100 hover:to-blue-100 border-2 border-purple-200 hover:border-purple-300 text-purple-700 rounded-xl transition-all font-medium shadow-sm hover:shadow-md pointer-events-auto ${
+                      isWorkflowAnalyzing ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    {isWorkflowAnalyzing ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-purple-700 border-t-transparent rounded-full animate-spin"></div>
+                        <span>分析中...</span>
+                      </>
+                    ) : (
+                      <span>✨ 下一步，AI辅助完善计划</span>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {/* 浮动AI助手按钮 - 固定在屏幕右下角 */}
               {!isChatSidebarOpen && (
                 <button
                   onClick={toggleChatSidebar}
-                  className="absolute right-4 bottom-4 z-40 w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-full shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-300 flex items-center justify-center group"
+                  className="fixed right-4 bottom-4 z-40 w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-full shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-300 flex items-center justify-center group"
                   title="展开AI助手 (Ctrl+B)"
                 >
                   {/* AI图标 */}
