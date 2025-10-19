@@ -123,7 +123,7 @@ export default function DashboardPage() {
         return deserializeDateScope(saved)
       }
     }
-    // 默认：今天 + 包含逾期任务
+    // 默认：今天 + 不包含逾期任务
     return getDefaultDateScope()
   })
 
@@ -324,10 +324,20 @@ export default function DashboardPage() {
     if (!currentUser) {
       router.push('/auth/login')
     } else {
+      // ⭐ 用户登录时，清除 sessionStorage 中的状态，确保每次登录都是全新状态
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('dateScope')
+        sessionStorage.removeItem('chatSidebarOpen')
+      }
+      
       setUser(currentUser)
       loadTasks(currentUser.id)
       // 加载用户个人资料
       loadUserProfile(currentUser.id)
+      
+      // ⭐ 重置为默认状态
+      setDateScope(getDefaultDateScope())
+      setIsChatSidebarOpen(false)
     }
   }, [router])
   
