@@ -28,6 +28,12 @@ export default function LoginPage() {
     if (result.error) {
       setError(result.error)
     } else if (result.user) {
+      // ⭐ 登录成功时清除之前的会话状态，确保每次登录都是全新状态
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('dateScope')
+        sessionStorage.removeItem('chatSidebarOpen')
+      }
+      
       saveUserToStorage(result.user)
       router.push('/dashboard') // 登录成功后跳转到仪表板
     }
