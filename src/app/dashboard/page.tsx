@@ -262,9 +262,10 @@ export default function DashboardPage() {
   
   const router = useRouter()
   // 高级工具开关（默认关闭），用于控制：排列优先级按钮、拆解入口、AI侧边栏展开
+  // ⭐ 使用 sessionStorage，每次登录后默认关闭，只有点击"AI辅助完善计划"后才开启
   const [advancedToolsEnabled, setAdvancedToolsEnabled] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('advancedToolsEnabled')
+      const saved = sessionStorage.getItem('advancedToolsEnabled')
       return saved !== null ? JSON.parse(saved) : false
     }
     return false
@@ -273,7 +274,7 @@ export default function DashboardPage() {
   const enableAdvancedTools = useCallback(() => {
     setAdvancedToolsEnabled(true)
     if (typeof window !== 'undefined') {
-      localStorage.setItem('advancedToolsEnabled', 'true')
+      sessionStorage.setItem('advancedToolsEnabled', 'true')
     }
     // 同时展开AI侧边栏
     setIsChatSidebarOpen(true)
@@ -2588,18 +2589,25 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
             <div className="bg-white rounded-lg shadow p-12 text-center">
               <div className="text-6xl mb-4">📅</div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">
-                {selectedDate.toDateString() === new Date().toDateString() 
-                  ? '今天还没有任务' 
-                  : `${selectedDate.getMonth() + 1}月${selectedDate.getDate()}日没有任务`
-                }
+                {getScopeDescription(dateScope)}暂无任务
               </h3>
               <p className="text-gray-600 mb-6">
-                点击上方输入框添加新的任务
+                点击上方按钮添加任务，或选定其他包含任务的日期范围
               </p>
               <div className="flex gap-3 justify-center">
                 {selectedDate.toDateString() !== new Date().toDateString() && (
                   <button
-                    onClick={() => setSelectedDate(new Date())}
+                    onClick={() => {
+                      const today = new Date()
+                      setSelectedDate(today)
+                      // 同时更新 dateScope 为今天
+                      setDateScope({
+                        start: getStartOfDay(today),
+                        end: getEndOfDay(today),
+                        includeOverdue: dateScope.includeOverdue,
+                        preset: 'today'
+                      })
+                    }}
                     className="bg-gray-100 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-200 transition-colors font-medium"
                   >
                     回到今天
@@ -2676,8 +2684,8 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                 </div>
               )}
 
-              {/* 浮动AI助手按钮 - 固定在屏幕右下角 */}
-              {!isChatSidebarOpen && (
+              {/* 浮动AI助手按钮 - 固定在屏幕右下角（仅在用户点击"AI辅助完善计划"后且有任务时显示） */}
+              {advancedToolsEnabled && !isChatSidebarOpen && displayTasks.length > 0 && (
                 <button
                   onClick={toggleChatSidebar}
                   className="fixed right-4 bottom-4 z-40 w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-full shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-300 flex items-center justify-center group"

@@ -163,7 +163,7 @@ export const TASK_TAG_CONFIG = {
   MAX_TAGS_PER_TASK: 3,        // 每个任务最多3个标签
   MAX_CUSTOM_TAGS: 20,          // 用户最多保存20个自定义标签
   MAX_TAG_LENGTH: 10,           // 每个标签最多10个字符
-  TAG_REGEX: /^[\u4e00-\u9fa5a-zA-Z0-9]+$/,  // 只允许中文、字母、数字
+  TAG_REGEX: /^[\u4e00-\u9fa5a-zA-Z0-9\s]+$/,  // 允许中文、字母、数字和空格
 } as const
 
 // 标签颜色配置 - ADHD友好设计：统一灰色调，无图标，降低视觉干扰
@@ -239,7 +239,7 @@ export function validateTagName(tag: string): string | null {
     return `标签最多${TASK_TAG_CONFIG.MAX_TAG_LENGTH}个字符`
   }
   if (!TASK_TAG_CONFIG.TAG_REGEX.test(tag)) {
-    return '标签只能包含中文、字母和数字'
+    return '标签只能包含中文、字母、数字和空格'
   }
   return null  // 验证通过
 }

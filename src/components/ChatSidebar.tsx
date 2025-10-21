@@ -154,6 +154,26 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   chatScrollRef
 }) => {
   
+  // ⭐ 判断是否应该禁用输入框（引导用户使用按钮）
+  const shouldDisableInput = (() => {
+    // 特殊输入模式不禁用
+    if (workflowMode === 'task-context-input' || workflowMode === 'task-clarification-input') {
+      return false
+    }
+    
+    // 以下模式需要禁用输入框，引导用户点击按钮
+    const buttonGuidedModes: WorkflowMode[] = [
+      'initial',                    // 初始选项（完善单个任务/排序/结束）
+      'single-task-action',         // 单任务操作选项（澄清/拆解/估时）
+      'task-selection',             // 任务选择（选择要操作的任务）
+      'priority-feeling',           // ⭐ 优先级排序：询问感觉（截止日期临近/任务太多太乱/大脑一片空白）
+      'clarification-confirm',      // 澄清确认
+      'estimation-confirm',         // 估时确认
+    ]
+    
+    return workflowMode ? buttonGuidedModes.includes(workflowMode) : false
+  })()
+  
   return (
     <>
 
@@ -575,12 +595,17 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                   handleImageSelect(file)
                 }
               }}
+              disabled={shouldDisableInput}
             />
-            <div className={`w-10 h-10 flex items-center justify-center rounded-lg transition-colors border bg-white cursor-pointer ${
-              isImageProcessing 
-                ? 'border-blue-500 text-blue-500' 
-                : 'border-gray-300 text-gray-500 hover:text-blue-500 hover:bg-blue-50'
-            }`}>
+            <div className={`w-10 h-10 flex items-center justify-center rounded-lg transition-colors border ${
+              shouldDisableInput
+                ? 'bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed'
+                : isImageProcessing 
+                  ? 'border-blue-500 text-blue-500 bg-white cursor-pointer' 
+                  : 'border-gray-300 text-gray-500 hover:text-blue-500 hover:bg-blue-50 bg-white cursor-pointer'
+            }`}
+            title={shouldDisableInput ? "请先选择上方操作" : "上传图片"}
+            >
               {isImageProcessing ? (
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
               ) : (
@@ -618,22 +643,26 @@ const ChatSidebar = memo<ChatSidebarProps>(({
             }}
             onPaste={handlePaste}
             placeholder={
-              workflowMode === 'task-context-input'
-                ? "请描述任务的背景信息..."
-                : workflowMode === 'task-clarification-input'
-                  ? "请回答上面的问题..."
-                  : isTaskRecognitionMode 
-                    ? "描述任务内容或上传包含任务的图片..." 
-                    : doubaoService.hasApiKey() ? "输入消息或粘贴图片(Ctrl+V)..." : "请先配置API Key"
+              shouldDisableInput
+                ? "💡 请点击上方按钮选择操作"
+                : workflowMode === 'task-context-input'
+                  ? "请描述任务的背景信息..."
+                  : workflowMode === 'task-clarification-input'
+                    ? "请回答上面的问题..."
+                    : isTaskRecognitionMode 
+                      ? "描述任务内容或上传包含任务的图片..." 
+                      : doubaoService.hasApiKey() ? "输入消息或粘贴图片(Ctrl+V)..." : "请先配置API Key"
             }
-            className={`flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent text-sm transition-all duration-200 resize-none text-gray-900 placeholder-gray-500 h-10 ${
-              workflowMode === 'task-context-input'
-                ? 'border-blue-500 focus:ring-blue-500 bg-blue-50 ring-4 ring-blue-300/50 shadow-lg animate-pulse'
-                : workflowMode === 'task-clarification-input'
-                  ? 'border-purple-500 focus:ring-purple-500 bg-purple-50 ring-4 ring-purple-300/50 shadow-lg animate-pulse'
-                  : isTaskRecognitionMode 
-                    ? 'border-green-300 focus:ring-green-500 bg-green-50' 
-                    : 'border-gray-300 focus:ring-blue-500 bg-white'
+            className={`flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent text-sm transition-all duration-200 resize-none h-10 ${
+              shouldDisableInput
+                ? 'bg-gray-100 border-gray-200 text-gray-400 placeholder-gray-400 cursor-not-allowed'
+                : workflowMode === 'task-context-input'
+                  ? 'border-blue-500 focus:ring-blue-500 bg-blue-50 ring-4 ring-blue-300/50 shadow-lg animate-pulse text-gray-900 placeholder-gray-500'
+                  : workflowMode === 'task-clarification-input'
+                    ? 'border-purple-500 focus:ring-purple-500 bg-purple-50 ring-4 ring-purple-300/50 shadow-lg animate-pulse text-gray-900 placeholder-gray-500'
+                    : isTaskRecognitionMode 
+                      ? 'border-green-300 focus:ring-green-500 bg-green-50 text-gray-900 placeholder-gray-500' 
+                      : 'border-gray-300 focus:ring-blue-500 bg-white text-gray-900 placeholder-gray-500'
             }`}
             rows={1}
             style={{ 
@@ -642,13 +671,17 @@ const ChatSidebar = memo<ChatSidebarProps>(({
               maxHeight: '40px',
               verticalAlign: 'top'
             }}
-            disabled={(!doubaoService.hasApiKey() || isSending) && workflowMode !== 'task-context-input' && workflowMode !== 'task-clarification-input'}
+            disabled={shouldDisableInput || ((!doubaoService.hasApiKey() || isSending) && workflowMode !== 'task-context-input' && workflowMode !== 'task-clarification-input')}
           />
 
           {/* 语音按钮 */}
-          <div className="w-10 h-10 flex items-center justify-center text-gray-500 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors border border-gray-300 bg-white cursor-pointer"
-            onClick={handleVoiceClick}
-            title="语音输入"
+          <div className={`w-10 h-10 flex items-center justify-center rounded-lg transition-colors border ${
+            shouldDisableInput
+              ? 'bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed'
+              : 'text-gray-500 hover:text-blue-500 hover:bg-blue-50 border-gray-300 bg-white cursor-pointer'
+          }`}
+            onClick={shouldDisableInput ? undefined : handleVoiceClick}
+            title={shouldDisableInput ? "请先选择上方操作" : "语音输入"}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
@@ -658,6 +691,9 @@ const ChatSidebar = memo<ChatSidebarProps>(({
           {/* 发送按钮 */}
           <div
             onClick={() => {
+              // 如果禁用，不处理点击
+              if (shouldDisableInput) return
+              
               // 根据模式处理发送
               if (workflowMode === 'task-context-input' && onContextSubmit) {
                 // 提交任务拆解上下文
@@ -678,18 +714,20 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                 }
               }
             }}
-            className={`h-10 px-4 rounded-lg transition-colors text-sm font-medium flex items-center gap-1.5 border cursor-pointer ${
-              workflowMode === 'task-context-input'
-                ? (!chatMessage.trim() || isSending
-                    ? 'bg-gray-300 text-gray-500 border-gray-300 cursor-not-allowed'
-                    : 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700')
-                : workflowMode === 'task-clarification-input'
+            className={`h-10 px-4 rounded-lg transition-colors text-sm font-medium flex items-center gap-1.5 border ${
+              shouldDisableInput
+                ? 'bg-gray-200 text-gray-400 border-gray-200 cursor-not-allowed'
+                : workflowMode === 'task-context-input'
                   ? (!chatMessage.trim() || isSending
                       ? 'bg-gray-300 text-gray-500 border-gray-300 cursor-not-allowed'
-                      : 'bg-purple-600 text-white border-purple-600 hover:bg-purple-700')
-                  : ((!chatMessage.trim() && !selectedImage) || !doubaoService.hasApiKey() || isSending
-                      ? 'bg-gray-300 text-gray-500 border-gray-300 cursor-not-allowed'
-                      : 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700')
+                      : 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700 cursor-pointer')
+                  : workflowMode === 'task-clarification-input'
+                    ? (!chatMessage.trim() || isSending
+                        ? 'bg-gray-300 text-gray-500 border-gray-300 cursor-not-allowed'
+                        : 'bg-purple-600 text-white border-purple-600 hover:bg-purple-700 cursor-pointer')
+                    : ((!chatMessage.trim() && !selectedImage) || !doubaoService.hasApiKey() || isSending
+                        ? 'bg-gray-300 text-gray-500 border-gray-300 cursor-not-allowed'
+                        : 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700 cursor-pointer')
             }`}
           >
             {isSending ? (
