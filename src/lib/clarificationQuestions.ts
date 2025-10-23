@@ -200,22 +200,22 @@ export function recommendTasksForClarification(tasks: Task[]): Array<{
 
     // ⭐ 检查1：没有描述
     if (!task.description || task.description.trim().length === 0) {
-      reasons.push('缺少描述')
+      reasons.push('Missing description')
     }
 
     // ⭐ 检查2：描述很短（少于20字）
     if (task.description && task.description.trim().length > 0 && task.description.trim().length < 20) {
-      reasons.push('描述较简略')
+      reasons.push('Brief description')
     }
 
     // ⭐ 检查3：没有截止时间
     if (!task.deadline_datetime) {
-      reasons.push('未设置截止时间')
+      reasons.push('No deadline set')
     }
 
     // ⭐ 检查4：没有预估时长
     if (!task.estimated_duration) {
-      reasons.push('未估算时间')
+      reasons.push('No time estimate')
     }
 
     // ⭐ 检查5：没有优先级标签（important/urgent/normal等）
@@ -223,23 +223,23 @@ export function recommendTasksForClarification(tasks: Task[]): Array<{
       ['important', 'urgent', 'normal', 'low'].includes(tag)
     )
     if (!hasPriorityTag) {
-      reasons.push('未标记优先级')
+      reasons.push('No priority marked')
     }
 
     // ⭐ 检查6：标题很长（可能不够清晰）
     if (task.title.length > 20) {
-      reasons.push('标题较长')
+      reasons.push('Long title')
     }
 
     // ⭐ 检查7：标记为困难任务
     if (task.tags?.includes('difficult')) {
-      reasons.push('困难任务需要详细规划')
+      reasons.push('Difficult task needs detailed planning')
     }
 
     // ⭐ 检查8：标记为重要但信息不完整
     if (task.tags?.includes('important')) {
       if (!task.deadline_datetime || !task.estimated_duration) {
-        reasons.push('重要任务信息不完整')
+        reasons.push('Important task with incomplete info')
       }
     }
 
@@ -313,27 +313,27 @@ export function recommendTasksForTimeEstimation(tasks: Task[]): Array<{
 
     // 检查1：没有预估时长
     if (!task.estimated_duration) {
-      reasons.push('缺少时间预估')
+      reasons.push('Missing time estimate')
     }
 
     // 检查2：标记为困难（通常需要更准确的时间估计）
     if (task.tags?.includes('difficult')) {
-      reasons.push('困难任务需要准确估时')
+      reasons.push('Difficult task needs accurate estimation')
     }
 
     // 检查3：有多个子任务的父任务
     if (task.subtasks && task.subtasks.length > 0) {
-      reasons.push(`包含${task.subtasks.length}个子任务`)
+      reasons.push(`Contains ${task.subtasks.length} subtasks`)
     }
 
     // 检查4：标题很长或描述复杂（可能任务复杂）
     if (task.title.length > 20 || (task.description?.length || 0) > 100) {
-      reasons.push('任务较复杂')
+      reasons.push('Complex task')
     }
 
     // 检查5：有明确截止时间但没有时间估计（需要规划）
     if (task.deadline_datetime && !task.estimated_duration) {
-      reasons.push('有截止时间需要规划')
+      reasons.push('Has deadline, needs planning')
     }
 
     // 如果有任何理由，添加到推荐列表
@@ -364,7 +364,7 @@ export function formatTimeEstimationRecommendationsMessage(
   recommendations: Array<{ task: Task; reason: string }>
 ): string {
   if (recommendations.length === 0) {
-    return '选择一个任务，我会帮你评估它需要多长时间。'
+    return 'Select a task, and I will help you estimate how long it will take.'
   }
 
   const topRecommendations = recommendations.slice(0, 3)
@@ -372,10 +372,10 @@ export function formatTimeEstimationRecommendationsMessage(
     .map((rec, i) => `${i + 1}. **${rec.task.title}** - ${rec.reason}`)
     .join('\n')
 
-  return `根据你的任务情况，我建议优先估算以下任务的时间：
+  return `Based on your task situation, I suggest prioritizing time estimation for the following tasks:
 
 ${suggestionList}
 
-选择一个任务，我会帮你评估它需要多长时间。`
+Select a task, and I will help you estimate how long it will take.`
 }
 
