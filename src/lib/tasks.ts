@@ -645,7 +645,8 @@ export async function appendStructuredContextToTask(
     difficulty?: string
     priority_reason?: string
     estimated_duration?: number
-  }
+  },
+  aiSummary?: string  // ⭐ 新增：AI生成的任务概要
 ): Promise<{ success: boolean; task?: Task; error?: string }> {
   try {
     const supabase = createClient()
@@ -662,50 +663,70 @@ export async function appendStructuredContextToTask(
       return { success: false, error: '任务不存在或无权访问' }
     }
     
-    // 2. 格式化结构化上下文为紧凑的单行格式
-    const infoParts: string[] = []
+    console.log('📋 开始追加结构化上下文:', {
+      taskId,
+      taskTitle: currentTask.title,
+      structuredContext,
+      aiSummary
+    })
     
-    // 按顺序添加有内容的字段
-    if (structuredContext.expected_output) {
-      infoParts.push(`产出：${structuredContext.expected_output}`)
+    // 2. 优先使用 AI 生成的 summary，如果没有才手动拼接
+    let contextToAppend = ''
+    
+    if (aiSummary && aiSummary.trim()) {
+      // ⭐ 直接使用 AI 生成的 summary（去掉开头的"📋 任务概要"标题）
+      const summaryContent = aiSummary.replace(/^📋\s*任务概要\s*\n+/, '').trim()
+      contextToAppend = `\n\n${summaryContent}`
+      console.log('✅ 使用 AI 生成的 summary')
+    } else {
+      // 降级方案：手动拼接结构化上下文
+      const infoParts: string[] = []
+      
+      if (structuredContext.expected_output) {
+        infoParts.push(`产出：${structuredContext.expected_output}`)
+      }
+      
+      if (structuredContext.estimated_duration && structuredContext.estimated_duration > 0) {
+        const hours = structuredContext.estimated_duration / 60
+        const formatted = hours % 1 === 0 ? `${hours}小时` : `${hours}小时`
+        infoParts.push(`时长：${formatted}`)
+      }
+      
+      if (structuredContext.timeline) {
+        infoParts.push(`时间：${structuredContext.timeline}`)
+      }
+      
+      if (structuredContext.dependencies && structuredContext.dependencies.length > 0) {
+        infoParts.push(`依赖：${structuredContext.dependencies.join('、')}`)
+      }
+      
+      if (structuredContext.difficulty) {
+        infoParts.push(`挑战：${structuredContext.difficulty}`)
+      }
+      
+      if (structuredContext.priority_reason) {
+        infoParts.push(`优先级：${structuredContext.priority_reason}`)
+      }
+      
+      if (infoParts.length === 0) {
+        return { success: true, task: currentTask }
+      }
+      
+      contextToAppend = `\n\n## 📋 ${infoParts.join(' | ')}`
+      console.log('⚠️ AI summary 为空，使用降级方案手动拼接')
     }
     
-    // 添加预估时长
-    if (structuredContext.estimated_duration && structuredContext.estimated_duration > 0) {
-      const hours = structuredContext.estimated_duration / 60
-      const formatted = hours % 1 === 0 ? `${hours}小时` : `${hours}小时`
-      infoParts.push(`时长：${formatted}`)
-    }
-    
-    if (structuredContext.timeline) {
-      infoParts.push(`时间：${structuredContext.timeline}`)
-    }
-    
-    if (structuredContext.dependencies && structuredContext.dependencies.length > 0) {
-      infoParts.push(`依赖：${structuredContext.dependencies.join('、')}`)
-    }
-    
-    if (structuredContext.difficulty) {
-      infoParts.push(`挑战：${structuredContext.difficulty}`)
-    }
-    
-    if (structuredContext.priority_reason) {
-      infoParts.push(`优先级：${structuredContext.priority_reason}`)
-    }
-    
-    // 如果没有任何上下文信息，直接返回
-    if (infoParts.length === 0) {
-      return { success: true, task: currentTask }
-    }
-    
-    // 3. 构建紧凑的单行标签（使用 | 分隔）
-    const contextTag = `\n\n## 📋 ${infoParts.join(' | ')}`
-    
-    // 4. 将上下文追加到现有描述中
+    // 3. 将上下文追加到现有描述中
     const currentDescription = currentTask.description || ''
     const updatedDescription = currentDescription
-      ? `${currentDescription}${contextTag}`
-      : contextTag.trim()
+      ? `${currentDescription}${contextToAppend}`
+      : contextToAppend.trim()
+    
+    console.log('📝 生成的描述内容:', {
+      contextToAppend,
+      currentDescription,
+      updatedDescription
+    })
     
     // 5. 构建更新数据对象
     const updateData: any = {

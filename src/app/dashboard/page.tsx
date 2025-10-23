@@ -1191,11 +1191,12 @@ export default function DashboardPage() {
       // 导入appendStructuredContextToTask函数
       const { appendStructuredContextToTask } = await import('@/lib/tasks')
       
-      // 更新任务描述
+      // 更新任务描述（传入 AI 生成的 summary）
       const result = await appendStructuredContextToTask(
         user.id,
         selectedTaskForDecompose.id,
-        structuredContext
+        structuredContext,
+        aiClarificationSummary  // ⭐ 传入 AI 生成的任务概要
       )
       
       if (!result.success || !result.task) {
