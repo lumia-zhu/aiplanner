@@ -44,7 +44,7 @@ export async function getUserTasks(userId: string): Promise<{ tasks?: Task[]; er
     
     return { tasks: sortedTasks }
   } catch (error) {
-    return { error: '获取任务失败' }
+    return { error: 'Failed to get tasks' }
   }
 }
 
@@ -119,7 +119,7 @@ export async function createTask(
     
     return { task: data }
   } catch (error) {
-    return { error: '创建任务失败' }
+    return { error: 'Failed to create task' }
   }
 }
 
@@ -211,7 +211,7 @@ export async function updateTask(
     console.log('✅ updateTask 成功:', data)
     return { task: data }
   } catch (error) {
-    return { error: '更新任务失败' }
+    return { error: 'Failed to update task' }
   }
 }
 
@@ -231,7 +231,7 @@ export async function deleteTask(taskId: string): Promise<{ error?: string }> {
     
     return {}
   } catch (error) {
-    return { error: '删除任务失败' }
+    return { error: 'Failed to delete task' }
   }
 }
 
@@ -283,7 +283,7 @@ export async function getUserTasksWithSubtasks(userId: string): Promise<{ tasks?
     return { tasks }
   } catch (error) {
     console.error('❌ 获取任务异常:', error)
-    return { error: '获取任务失败' }
+    return { error: 'Failed to get tasks' }
   }
 }
 
@@ -383,7 +383,7 @@ export async function createSubtasks(
     
     if (!parentTask) {
       console.error('父任务验证失败 - 任务不存在')
-      return { error: '父任务不存在或无权限访问' }
+      return { error: 'Parent task not found or no access' }
     }
     
     console.log('✅ 父任务验证通过:', parentTask.id)
@@ -526,7 +526,7 @@ export async function promoteSubtasksToTasks(
     
     if (parentError || !parentTask) {
       console.error('父任务验证失败:', parentError)
-      return { error: '父任务不存在或无权限访问' }
+      return { error: 'Parent task not found or no access' }
     }
     
     // 2. 获取所有子任务（包含 description 用于追加路径）
@@ -660,7 +660,7 @@ export async function appendStructuredContextToTask(
       .single()
     
     if (fetchError || !currentTask) {
-      return { success: false, error: '任务不存在或无权访问' }
+      return { success: false, error: 'Task not found or no access' }
     }
     
     console.log('📋 开始追加结构化上下文:', {
@@ -776,7 +776,7 @@ export async function appendStructuredContextToTask(
     
     if (updateError) {
       console.error('更新任务描述失败:', updateError)
-      return { success: false, error: '更新任务失败' }
+      return { success: false, error: 'Failed to update task' }
     }
     
     console.log('✅ 任务上下文已追加:', taskId)

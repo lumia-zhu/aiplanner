@@ -63,7 +63,7 @@ export default function UserProfileModal({
       // 保存成功后立即关闭弹窗
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : '保存失败')
+      setError(err instanceof Error ? err.message : 'Save failed')
     } finally {
       setIsSaving(false)
     }
@@ -98,7 +98,7 @@ export default function UserProfileModal({
             <button
               onClick={handleCancel}
               className="text-gray-400 hover:text-gray-600 transition-colors"
-              title="关闭"
+              title="Close"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -147,27 +147,27 @@ export default function UserProfileModal({
                 <option value="" className="text-gray-400">请选择年级</option>
                 
                 {/* 本科 */}
-                <optgroup label="本科">
-                  <option value="大一">大一</option>
-                  <option value="大二">大二</option>
-                  <option value="大三">大三</option>
-                  <option value="大四">大四</option>
+                <optgroup label="Undergraduate">
+                  <option value="Freshman">Freshman</option>
+                  <option value="Sophomore">Sophomore</option>
+                  <option value="Junior">Junior</option>
+                  <option value="Senior">Senior</option>
                 </optgroup>
 
-                {/* 硕士 */}
-                <optgroup label="硕士研究生">
-                  <option value="硕一">硕一</option>
-                  <option value="硕二">硕二</option>
-                  <option value="硕三">硕三</option>
+                {/* Master's */}
+                <optgroup label="Master's">
+                  <option value="Master 1st Year">Master 1st Year</option>
+                  <option value="Master 2nd Year">Master 2nd Year</option>
+                  <option value="Master 3rd Year">Master 3rd Year</option>
                 </optgroup>
 
-                {/* 博士 */}
-                <optgroup label="博士研究生">
-                  <option value="博一">博一</option>
-                  <option value="博二">博二</option>
-                  <option value="博三">博三</option>
-                  <option value="博四">博四</option>
-                  <option value="博五">博五</option>
+                {/* Ph.D. */}
+                <optgroup label="Ph.D.">
+                  <option value="Ph.D. 1st Year">Ph.D. 1st Year</option>
+                  <option value="Ph.D. 2nd Year">Ph.D. 2nd Year</option>
+                  <option value="Ph.D. 3rd Year">Ph.D. 3rd Year</option>
+                  <option value="Ph.D. 4th Year">Ph.D. 4th Year</option>
+                  <option value="Ph.D. 5th Year">Ph.D. 5th Year</option>
                 </optgroup>
               </select>
               <p className="mt-1 text-xs text-gray-500">选择你当前的年级</p>
@@ -175,22 +175,22 @@ export default function UserProfileModal({
 
             {/* 挑战标签选择器 */}
             <TagSelector
-              label="我的挑战"
+              label="My Challenges"
               predefinedTags={CHALLENGE_TAGS}
               selectedTags={challenges}
               onTagsChange={setChallenges}
               maxTags={5}
-              placeholder="输入其他挑战"
+              placeholder="Enter other challenges"
             />
 
             {/* 工作场所标签选择器 */}
             <TagSelector
-              label="常用工作场所"
+              label="Usual Workplaces"
               predefinedTags={WORKPLACE_TAGS}
               selectedTags={workplaces}
               onTagsChange={setWorkplaces}
               maxTags={5}
-              placeholder="输入其他场所"
+              placeholder="Enter other places"
             />
 
             {/* 提示信息 */}
@@ -230,7 +230,7 @@ export default function UserProfileModal({
                   保存中...
                 </>
               ) : (
-                '保存'
+                'Save'
               )}
             </button>
           </div>

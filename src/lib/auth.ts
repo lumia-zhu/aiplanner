@@ -26,7 +26,7 @@ export async function registerUser(username: string, password: string): Promise<
     
     if (error) {
       if (error.code === '23505') { // 唯一约束违反
-        return { error: '用户名已存在' }
+        return { error: 'Username already exists' }
       }
       return { error: error.message }
     }
@@ -40,9 +40,9 @@ export async function registerUser(username: string, password: string): Promise<
       }
     }
     
-    return { error: '注册失败' }
+    return { error: 'Registration failed' }
   } catch (error) {
-    return { error: '注册异常' }
+    return { error: 'Registration error' }
   }
 }
 
@@ -61,12 +61,12 @@ export async function loginUser(username: string, password: string): Promise<{ u
       .single()
     
     if (error || !data) {
-      return { error: '用户名或密码错误' }
+      return { error: 'Invalid username or password' }
     }
     
     // 验证密码
     if (data.password_hash !== passwordHash) {
-      return { error: '用户名或密码错误' }
+      return { error: 'Invalid username or password' }
     }
     
     return {
@@ -76,7 +76,7 @@ export async function loginUser(username: string, password: string): Promise<{ u
       }
     }
   } catch (error) {
-    return { error: '登录异常' }
+    return { error: 'Login error' }
   }
 }
 
