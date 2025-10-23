@@ -53,13 +53,13 @@ export async function analyzeTasksForWorkflow(
 ): Promise<AIRecommendation> {
   // ⭐ 使用范围内的任务进行分析
   const scopedTasks = getScopedTasks(tasks, scope)
-  const scopeText = scope ? getScopeDescription(scope) : '今天'
+  const scopeText = scope ? getScopeDescription(scope) : 'Today'
   
   // 情况1: 范围内没有任务
   if (scopedTasks.length === 0) {
     return {
       mode: 'single-task',
-      reason: `你${scopeText}没有安排任何任务。可以先为${scopeText}添加一些任务,然后我再帮你完善计划。`,
+      reason: `You have no tasks scheduled for ${scopeText}. You can add some tasks for ${scopeText} first, and then I'll help you refine your plan.`,
       confidence: 'low'
     }
   }
@@ -68,7 +68,7 @@ export async function analyzeTasksForWorkflow(
   if (scopedTasks.length <= 2) {
     return {
       mode: 'single-task',
-      reason: `你${scopeText}有 ${scopedTasks.length} 个任务,数量较少。我建议逐个完善这些任务,明确细节和执行步骤,这样执行起来会更高效。`,
+      reason: `You have ${scopedTasks.length} tasks for ${scopeText}, which is relatively few. I suggest refining these tasks one by one, clarifying details and execution steps for more efficient execution.`,
       confidence: 'high'
     }
   }
@@ -85,7 +85,7 @@ export async function analyzeTasksForWorkflow(
   if (simpleDescRatio > 0.5) {
     return {
       mode: 'single-task',
-      reason: `你${scopeText}有 ${scopedTasks.length} 个任务,其中 ${tasksWithSimpleDesc.length} 个任务的描述比较简单。我建议先逐个完善这些任务,补充必要的细节、拆解复杂任务、估计时间,这样后续执行会更清晰。完善后我们再一起排列优先级。`,
+      reason: `You have ${scopedTasks.length} tasks for ${scopeText}, of which ${tasksWithSimpleDesc.length} have relatively simple descriptions. I suggest refining these tasks one by one first, adding necessary details, breaking down complex tasks, and estimating time. This will make subsequent execution clearer. After refinement, we can arrange priorities together.`,
       confidence: 'medium'
     }
   }
@@ -94,7 +94,7 @@ export async function analyzeTasksForWorkflow(
   if (scopedTasks.length > 5 && simpleDescRatio < 0.3) {
     return {
       mode: 'priority-sort',
-      reason: `你${scopeText}有 ${scopedTasks.length} 个任务,而且大部分任务的信息都比较完整了。我建议直接使用优先级排序功能,帮你理清"先做什么、后做什么",让计划更有条理。`,
+      reason: `You have ${scopedTasks.length} tasks for ${scopeText}, and most of the task information is quite complete. I suggest using the priority sorting feature directly to help you clarify "what to do first, what to do later" and make your plan more organized.`,
       confidence: 'high'
     }
   }
@@ -108,7 +108,7 @@ export async function analyzeTasksForWorkflow(
     if (hasGoodTagging) {
       return {
         mode: 'priority-sort',
-        reason: `你${scopeText}有 ${scopedTasks.length} 个任务,而且已经添加了不少标签信息。看起来你对任务的情况比较清楚,我建议直接排列优先级,制定执行计划。`,
+        reason: `You have ${scopedTasks.length} tasks for ${scopeText}, and you've added quite a bit of tag information. It seems you have a good understanding of the task situation. I suggest arranging priorities directly and making an execution plan.`,
         confidence: 'medium'
       }
     }
@@ -117,7 +117,7 @@ export async function analyzeTasksForWorkflow(
   // 默认情况: 推荐单个任务完善
   return {
     mode: 'single-task',
-    reason: `你${scopeText}有 ${scopedTasks.length} 个任务。我建议先逐个完善任务,明确每个任务的具体内容和执行步骤,然后再排列优先级。这样你会对整体计划更有把握。`,
+    reason: `You have ${scopedTasks.length} tasks for ${scopeText}. I suggest refining tasks one by one first, clarifying the specific content and execution steps of each task, and then arranging priorities. This way you'll have a better grasp of the overall plan.`,
     confidence: 'medium'
   }
 }
@@ -129,7 +129,7 @@ export async function analyzeTasksForWorkflow(
  */
 export function generateTaskSummary(tasks: Task[]): string {
   if (tasks.length === 0) {
-    return '你还没有添加任何任务。'
+    return 'You haven\'t added any tasks yet.'
   }
 
   const completedCount = tasks.filter(t => t.completed).length
@@ -139,32 +139,32 @@ export function generateTaskSummary(tasks: Task[]): string {
   const withTags = tasks.filter(t => (t.tags?.length ?? 0) > 0).length
   const withDescription = tasks.filter(t => (t.description?.trim().length ?? 0) > 10).length
 
-  let summary = `你目前有 ${tasks.length} 个任务`
+  let summary = `You currently have ${tasks.length} tasks`
   
   if (completedCount > 0) {
-    summary += `,已完成 ${completedCount} 个`
+    summary += `, ${completedCount} completed`
   }
   
   if (pendingCount > 0) {
-    summary += `,待完成 ${pendingCount} 个`
+    summary += `, ${pendingCount} pending`
   }
 
-  summary += '。'
+  summary += '.'
 
-  // 添加任务信息完整度描述
+  // Add task information completeness description
   const infoDetails = []
   if (withDeadline > 0) {
-    infoDetails.push(`${withDeadline} 个有截止时间`)
+    infoDetails.push(`${withDeadline} with deadlines`)
   }
   if (withTags > 0) {
-    infoDetails.push(`${withTags} 个有标签`)
+    infoDetails.push(`${withTags} with tags`)
   }
   if (withDescription > 0) {
-    infoDetails.push(`${withDescription} 个有详细描述`)
+    infoDetails.push(`${withDescription} with detailed descriptions`)
   }
 
   if (infoDetails.length > 0) {
-    summary += '其中 ' + infoDetails.join('、') + '。'
+    summary += ' Among them, ' + infoDetails.join(', ') + '.'
   }
 
   return summary
@@ -176,29 +176,29 @@ export function generateTaskSummary(tasks: Task[]): string {
  * @returns 详细的任务摘要,包含任务列表
  */
 export function generateDetailedTaskSummary(tasks: Task[], scope?: DateScope): string {
-  const scopeText = scope ? getScopeDescription(scope) : '今天'
+  const scopeText = scope ? getScopeDescription(scope) : 'Today'
   if (tasks.length === 0) {
-    return `你${scopeText}没有安排任何任务。`
+    return `You have no tasks scheduled for ${scopeText}.`
   }
 
   const completedCount = tasks.filter(t => t.completed).length
   const pendingCount = tasks.length - completedCount
   
-  // 简洁的统计
-  let summary = `你${scopeText}有 ${tasks.length} 个任务`
+  // Concise statistics
+  let summary = `You have ${tasks.length} tasks for ${scopeText}`
   
   if (completedCount > 0) {
-    summary += `,已完成 ${completedCount} 个`
+    summary += `, ${completedCount} completed`
   }
   
   if (pendingCount > 0) {
-    summary += `,待完成 ${pendingCount} 个`
+    summary += `, ${pendingCount} pending`
   }
   
-  summary += '。'
+  summary += '.'
   
-  // 添加任务列表
-  summary += `\n\n${scopeText}的任务:`
+  // Add task list
+  summary += `\n\nTasks for ${scopeText}:`
   tasks.forEach((task, index) => {
     const status = task.completed ? '✅' : '⏳'
     const tags = task.tags && task.tags.length > 0 

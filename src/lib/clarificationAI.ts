@@ -198,7 +198,9 @@ ${taskInfo}
 ✓ 是否避免了显而易见/空泛的问题？
 ✓ 三问是否互补且符合递进逻辑？
 
-请直接输出3个问题（每行以"- "开头，不要任何额外文字）：`
+请直接输出3个问题（每行以"- "开头，不要任何额外文字）：
+
+**IMPORTANT: Generate all 3 questions in ENGLISH ONLY. Do NOT use Chinese. Start each question with "- "`
 
     // 调用豆包API
     const apiKey = process.env.NEXT_PUBLIC_DOUBAO_API_KEY

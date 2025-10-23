@@ -241,7 +241,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 002 2z" />
               </svg>
               <p className="text-blue-700 font-medium text-sm">拖拽图片到这里</p>
-              <p className="text-blue-600 text-xs">支持 JPG, PNG, GIF 等格式</p>
+              <p className="text-blue-600 text-xs">Supports JPG, PNG, GIF and other formats</p>
             </div>
           </div>
         )}
@@ -253,7 +253,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
               <img src="/ai-avatar.svg" alt="AI" className="w-8 h-8 rounded-full flex-shrink-0" />
               <div className="bg-white rounded-lg px-3 py-2 shadow-sm flex-1">
                 <p className="text-sm" style={{ color: '#3f3f3f' }}>
-                  你好！我是AI助手，可以帮你管理任务、分析图片。{!doubaoService.hasApiKey() ? '请先配置API Key。' : '你可以直接粘贴图片(Ctrl+V)或拖拽图片到这里，有什么可以帮助你的吗？'}
+                  Hi! I'm your AI assistant. I can help you manage tasks and analyze images. {!doubaoService.hasApiKey() ? 'Please configure your API Key first.' : 'You can paste images (Ctrl+V) or drag images here. How can I help you?'}
                 </p>
               </div>
             </div>
@@ -273,11 +273,11 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                     <div key={contentIndex}>
                       {content.type === 'text' && content.text && (
                         <div>
-                          {content.text.startsWith('🔍 智能任务识别中...') ? (
+                          {content.text.startsWith('🔍 Intelligent Task Recognition中...') ? (
                             <div className="space-y-2">
                               <div className="flex items-center gap-2">
                                 <span className="text-green-600">🔍</span>
-                                <span className="text-sm font-medium text-green-700">智能任务识别</span>
+                                <span className="text-sm font-medium text-green-700">Intelligent Task Recognition</span>
                               </div>
                               {content.text.includes('\n用户输入：') && (
                                 <div className="pl-6">
@@ -302,7 +302,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                             className="max-w-full h-auto rounded border border-gray-200"
                           style={{ maxHeight: '150px' }}
                         />
-                          <p className="text-xs text-gray-500 mt-1">📸 已上传图片</p>
+                          <p className="text-xs text-gray-500 mt-1">📸 已Upload Image</p>
                         </div>
                       )}
                       {content.type === 'interactive' && content.interactive && (
@@ -351,7 +351,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
             ))
           )}
           
-          {/* 流式输出和发送中指示器 */}
+          {/* 流式输出和Sending...指示器 */}
           {isSending && !streamingMessage && (
             <div className="flex items-start gap-3">
               <img src="/ai-avatar.svg" alt="AI" className="w-8 h-8 rounded-full flex-shrink-0" />
@@ -421,7 +421,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                 disabled={recognizedTasks.filter(t => t.isSelected).length === 0}
                 className="bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
               >
-                添加选中 ({recognizedTasks.filter(t => t.isSelected).length})
+                Add Selected ({recognizedTasks.filter(t => t.isSelected).length})
               </button>
             </div>
 
@@ -444,7 +444,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                           task.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' :
                           'bg-green-100 text-green-700'
                         }`}>
-                          {task.priority === 'high' ? '高' : task.priority === 'medium' ? '中' : '低'}
+                          {task.priority === 'high' ? 'High' : task.priority === 'medium' ? 'Medium' : 'Low'}
                         </span>
                         {task.deadline_date || task.deadline_time ? (
                           <span className="text-xs text-gray-500 bg-blue-100 px-1 py-0.5 rounded">
@@ -452,12 +452,12 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                               `${task.deadline_date} ${task.deadline_time}` :
                               task.deadline_date ? 
                                 `${task.deadline_date} 23:59` :
-                                `今天 ${task.deadline_time}`
+                                `Today ${task.deadline_time}`
                             }
                           </span>
                         ) : (
                           <span className="text-xs text-orange-600 bg-orange-100 px-1 py-0.5 rounded">
-                            无截止时间
+                            No deadline
                           </span>
                         )}
                       </div>
@@ -564,7 +564,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                   ? 'border-blue-500 text-blue-500 bg-white cursor-pointer' 
                   : 'border-gray-300 text-gray-500 hover:text-blue-500 hover:bg-blue-50 bg-white cursor-pointer'
             }`}
-            title={shouldDisableInput ? "请先选择上方操作" : "上传图片"}
+            title={shouldDisableInput ? "Please select an option above first" : "Upload Image"}
             >
               {isImageProcessing ? (
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
@@ -611,7 +611,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                     ? "请回答上面的问题..."
                     : isTaskRecognitionMode 
                       ? "描述任务内容或上传包含任务的图片..." 
-                      : doubaoService.hasApiKey() ? "输入消息或粘贴图片(Ctrl+V)..." : "请先配置API Key"
+                      : doubaoService.hasApiKey() ? "Type a message or paste an image (Ctrl+V)..." : "Please configure API Key first"
             }
             className={`flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent text-sm transition-all duration-200 resize-none h-10 ${
               shouldDisableInput
@@ -641,7 +641,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
               : 'text-gray-500 hover:text-blue-500 hover:bg-blue-50 border-gray-300 bg-white cursor-pointer'
           }`}
             onClick={shouldDisableInput ? undefined : handleVoiceClick}
-            title={shouldDisableInput ? "请先选择上方操作" : "语音输入"}
+            title={shouldDisableInput ? "Please select an option above first" : "Voice Input"}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
@@ -693,7 +693,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
             {isSending ? (
               <>
                 <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                <span>发送中</span>
+                <span>Sending...</span>
               </>
             ) : (
               <>
@@ -796,7 +796,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                 disabled={!editableText.trim() || isSending}
                 className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-green-600 border border-green-600 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isSending ? '解析中...' : '✅ 确认修改'}
+                {isSending ? 'Parsing...' : '✅ Confirm Edit'}
               </button>
               <button
                 onClick={handleCancelEdit}
@@ -813,13 +813,13 @@ const ChatSidebar = memo<ChatSidebarProps>(({
         <div className="mt-3 pt-3 border-t border-gray-100">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-700">智能任务识别</span>
+              <span className="text-sm font-medium text-gray-700">Intelligent Task Recognition</span>
               <span className={`text-xs px-2 py-0.5 rounded-full ${
                 isTaskRecognitionMode 
                   ? 'bg-green-100 text-green-700' 
                   : 'bg-gray-100 text-gray-500'
               }`}>
-                {isTaskRecognitionMode ? '已启用' : '已关闭'}
+                {isTaskRecognitionMode ? 'Enabled' : 'Disabled'}
               </span>
             </div>
 
@@ -842,7 +842,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
             <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700 leading-relaxed">
               <div className="flex items-start gap-2">
                 <span className="text-green-600">💡</span>
-                <span>任务识别模式已启用：在输入框中描述任务或上传图片，AI将自动识别并提取任务信息</span>
+                <span>任务识别模式Enabled：在输入框中描述任务或Upload Image，AI将自动识别并提取任务信息</span>
               </div>
             </div>
           )}

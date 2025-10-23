@@ -151,6 +151,11 @@ ${taskInfo}
 
 请直接输出3个问题（每行以"- "开头，不要任何额外文字）：`
 
+    // Add English instruction to ensure English output
+    const userPromptWithEnglish = userPrompt + `
+
+**CRITICAL: Generate ALL 3 questions in ENGLISH ONLY. Do NOT respond in Chinese. Each question must start with "- "`
+
     // 调用豆包API
     const apiKey = process.env.NEXT_PUBLIC_DOUBAO_API_KEY
     if (!apiKey) {
@@ -167,7 +172,7 @@ ${taskInfo}
         model: DOUBAO_CONFIG.model,
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
+          { role: 'user', content: userPromptWithEnglish }
         ],
         temperature: 0.7, // 稍高的温度，增加创造性
         max_tokens: 200, // 3个问题，每个约30字，稍微多一点buffer

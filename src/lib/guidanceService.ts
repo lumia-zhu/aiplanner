@@ -162,7 +162,7 @@ export function generateRuleBasedGuidance(
   // ⭐ 辅助函数：给消息添加范围标签
   const withScopePrefix = (message: string): string => {
     if (dateScope) {
-      return `📅 [当前范围: ${getScopeDescription(dateScope)}]\n\n${message}`
+      return `📅 [Current scope: ${getScopeDescription(dateScope)}]\n\n${message}`
     }
     return message
   }
@@ -171,7 +171,7 @@ export function generateRuleBasedGuidance(
     case 'action-cancelled-clarify': {
       // 取消任务澄清
       if (!currentTask) {
-        return '没关系！你可以选择其他任务，或者尝试其他操作。'
+        return 'No problem! You can choose another task or try other actions.'
       }
       
       const analysis = analyzeTask(currentTask)
@@ -179,66 +179,66 @@ export function generateRuleBasedGuidance(
       
       // 按工作流顺序建议：拆解 → 时间估计 → 优先级
       if (analysis.missingFields.length > 0) {
-        return `没关系！「${taskTitle}」还缺少${analysis.missingFields.join('、')}。你可以：\n` +
-               `• 拆解这个任务看看包含哪些步骤\n` +
-               `• 估算一下大概需要多久\n` +
-               `• 或者选择其他任务`
+        return `No problem! "` + taskTitle + `" is missing ${analysis.missingFields.join('、')}. You can:\n` +
+               `• Decompose this task to see what steps it includes\n` +
+               `• Estimate how long it will take\n` +
+               `• Or choose another task`
       } else {
-        return `没关系！「${taskTitle}」的信息已经比较完整了。你可以：\n` +
-               `• 拆解这个任务为更小的子任务\n` +
-               `• 估算所需时间\n` +
-               `• 或者排列任务优先级`
+        return `No problem! "` + taskTitle + `" information is already quite complete. You can:\n` +
+               `• Decompose this task into smaller subtasks\n` +
+               `• Estimate the required time\n` +
+               `• Or arrange task priorities`
       }
     }
     
     case 'action-cancelled-decompose': {
       // 取消任务拆解
       if (!currentTask) {
-        return '没关系！你可以选择其他任务，或者尝试其他操作。'
+        return 'No problem! You can choose another task or try other actions.'
       }
       
       const analysis = analyzeTask(currentTask)
       const taskTitle = currentTask.title
       
       if (analysis.missingFields.includes('时间估算')) {
-        return `没关系！「${taskTitle}」可以先估算一下时间，这样更好规划。\n` +
-               `也可以选择其他任务或操作。`
+        return `No problem! "` + taskTitle + `" you can first estimate the time, which is better for planning. \n` +
+               `You can also choose another task or operation.`
       } else {
-        return `没关系！「${taskTitle}」看起来还不需要拆解。\n` +
-               `你可以选择其他任务或操作。`
+        return `No problem! "` + taskTitle + `" doesn't seem to need decomposition. \n` +
+               `You can choose another task or operation.`
       }
     }
     
     case 'action-cancelled-estimate': {
       // 取消时间估算
       if (!currentTask) {
-        return '没关系！你可以选择其他任务，或者尝试其他操作。'
+        return 'No problem! You can choose another task or try other actions.'
       }
       
       const taskTitle = currentTask.title
-      return `没关系！「${taskTitle}」可以之后再估算时间。\n` +
-             `你可以先拆解任务或选择其他操作。`
+      return `No problem! "` + taskTitle + `" you can estimate the time later. \n` +
+             `You can first decompose the task or choose another operation.`
     }
     
     case 'action-completed-clarify': {
       // 完成任务澄清 → 建议顺序：拆解 → 时间估计
       if (!currentTask) {
-        return '太好了！任务信息已经更新。接下来你可以继续完善其他任务。'
+        return 'Great! Task information has been updated. You can continue to improve other tasks.'
       }
       
       const analysis = analyzeTask(currentTask)
       const taskTitle = currentTask.title
       
-      let message = `很好！「${taskTitle}」的信息更完整了。`
+      let message = `Great! "` + taskTitle + `" information is more complete. `
       
       // 按工作流顺序建议下一步
       // 优先级1：如果任务复杂且没有子任务 → 建议拆解
       if (analysis.complexity === 'complex' && !analysis.hasSubtasks) {
-        message += `\n\n💡 建议：这个任务看起来比较复杂，可以拆解成小步骤更好执行。`
+        message += `\n\n💡 Suggestion: This task looks relatively complex, you can decompose it into smaller steps for better execution. `
       }
       // 优先级2：如果已经拆解或不需要拆解 → 建议估时
       else if (analysis.missingFields.includes('时间估算')) {
-        message += `\n\n⏱️ 建议：可以估算一下需要多久，方便安排时间。`
+        message += `\n\n⏱️ Suggestion: You can estimate how long it will take, which is convenient for arranging time. `
       }
       
       return message
@@ -247,25 +247,25 @@ export function generateRuleBasedGuidance(
     case 'action-completed-decompose': {
       // 完成任务拆解 → 建议：时间估计
       if (!currentTask) {
-        return '太好了！任务已经拆解完成。'
+        return 'Great! Task decomposition is complete.'
       }
       
       const analysis = analyzeTask(currentTask)
       const taskTitle = currentTask.title
       const subtaskCount = currentTask.subtasks?.length || 0
       
-      let message = `很好！「${taskTitle}」已经拆分为${subtaskCount}个子任务了。`
+      let message = `Great! "` + taskTitle + `" has been decomposed into ${subtaskCount} subtasks. `
       
       // 按工作流顺序：拆解完成后 → 建议估时
       if (analysis.missingFields.includes('时间估算')) {
-        message += `\n\n💡 建议：给每个子任务估算时间，整体规划会更清晰。`
+        message += `\n\n💡 Suggestion: Estimate time for each subtask, the overall plan will be clearer. `
       }
       
       // ⭐ 统计范围内的未完成任务（而不是所有任务）
       const scopedStats = analyzeScopedTasks(allTasks, dateScope)
       const scopedIncompleteTasks = scopedStats.total - scopedStats.completed
       if (scopedIncompleteTasks > 1) {
-        message += `\n\n你还有${scopedIncompleteTasks - 1}个任务待处理，要继续完善吗？`
+        message += `\n\nYou still have ${scopedIncompleteTasks - 1} tasks to complete, do you want to continue improving? `
       }
       
       return message
@@ -274,17 +274,17 @@ export function generateRuleBasedGuidance(
     case 'action-completed-estimate': {
       // 完成时间估算 → 建议：排列优先级（都差不多了）
       if (!currentTask) {
-        return '太好了！时间估算已完成。'
+        return 'Great! Time estimation is complete.'
       }
       
       const analysis = analyzeTask(currentTask)
       const taskTitle = currentTask.title
       
-      let message = `很好！「${taskTitle}」的时间规划更清晰了。`
+      let message = `Great! "` + taskTitle + `" time planning is clearer. `
       
       // 按工作流顺序：估时完成后 → 检查是否还需要拆解（反向检查）
       if (analysis.complexity === 'complex' && !analysis.hasSubtasks) {
-        message += `\n\n💡 建议：这个任务比较复杂，拆解成小步骤会更好执行。`
+        message += `\n\n💡 Suggestion: This task is relatively complex, decomposing it into smaller steps will be better to execute. `
       }
       // 如果都差不多完善了，提示可以排列优先级或继续其他任务
       else {
@@ -292,7 +292,7 @@ export function generateRuleBasedGuidance(
         const scopedStats = analyzeScopedTasks(allTasks, dateScope)
         const scopedIncompleteTasks = scopedStats.total - scopedStats.completed
         if (scopedIncompleteTasks > 1) {
-          message += `\n\n👍 任务规划得不错！你还有${scopedIncompleteTasks - 1}个任务，可以排列一下优先级。`
+          message += `\n\n👍 Task planning is good! You still have ${scopedIncompleteTasks - 1} tasks, you can arrange the priorities. `
         }
       }
       
@@ -307,23 +307,23 @@ export function generateRuleBasedGuidance(
     case 'return-to-action-select': {
       // 返回到操作选择（通用场景）
       if (!currentTask) {
-        return '请选择你想进行的操作。'
+        return 'Please choose the operation you want to perform.'
       }
       
       const analysis = analyzeTask(currentTask)
       const taskTitle = currentTask.title
       
       if (analysis.missingFields.length >= 2) {
-        return `「${taskTitle}」还有一些信息可以完善。你可以选择澄清、拆解或估时。`
+        return `"` + taskTitle + `" still has some information to improve. You can choose to clarify, decompose, or estimate time. `
       } else if (analysis.complexity === 'complex' && !analysis.hasSubtasks) {
-        return `「${taskTitle}」看起来比较复杂，建议拆解成小步骤。你也可以选择其他操作。`
+        return `"` + taskTitle + `" looks relatively complex, it is recommended to decompose it into smaller steps. You can also choose other operations. `
       } else {
-        return `「${taskTitle}」已经比较完善了。你可以选择继续优化或处理其他任务。`
+        return `"` + taskTitle + `" is already relatively complete. You can choose to continue optimizing or processing other tasks. `
       }
     }
     
     default:
-      return '请选择下一步操作。'
+      return 'Please choose the next operation.'
   }
 }
 

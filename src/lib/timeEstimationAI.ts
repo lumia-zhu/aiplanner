@@ -163,7 +163,9 @@ ${userContext}
 **用户的初始时间估计：**
 ${formatMinutes(initialEstimate)}
 
-请生成一个反思性问题，帮助用户重新审视这个估计。`
+请生成一个反思性问题，帮助用户重新审视这个估计。
+
+**CRITICAL: Respond ONLY in ENGLISH. Generate exactly 3 reflection questions, each on a new line starting with "- ". Do NOT respond in Chinese.**`
 
   try {
     const response = await fetch(DOUBAO_CONFIG.endpoint, {
