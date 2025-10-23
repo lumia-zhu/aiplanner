@@ -27,7 +27,7 @@ interface InteractiveButtonsProps {
 const WORKFLOW_OPTIONS = [
   {
     id: 'A' as const,
-    label: '完善单个任务',
+    label: 'Refine Single Task',
     description: '逐个澄清、拆解、估计时间',
     icon: '🔍',
     colorClass: 'from-blue-50 to-indigo-50 border-blue-200 hover:border-blue-400',
@@ -35,8 +35,8 @@ const WORKFLOW_OPTIONS = [
   },
   {
     id: 'B' as const,
-    label: '对所有任务排序',
-    description: '使用矩阵工具安排优先级',
+    label: 'Sort All Tasks',
+    description: 'Organize priorities using matrix',
     icon: '📊',
     colorClass: 'from-purple-50 to-pink-50 border-purple-200 hover:border-purple-400',
     textClass: 'text-purple-900'
@@ -44,7 +44,7 @@ const WORKFLOW_OPTIONS = [
   {
     id: 'C' as const,
     label: '结束AI辅助',
-    description: '我已经了解了',
+    description: 'Got it',
     icon: '✅',
     colorClass: 'from-green-50 to-emerald-50 border-green-200 hover:border-green-400',
     textClass: 'text-green-900'
@@ -56,32 +56,32 @@ const ACTION_OPTIONS = [
   {
     id: 'clarify' as const,
     emoji: '📝',
-    label: '任务澄清',
-    description: '明确任务的具体要求和目标',
+    label: 'Clarify Task',
+    description: 'Define requirements and goals',
     colorClass: 'from-blue-50 to-indigo-50 border-blue-200 hover:border-blue-400',
     textClass: 'text-blue-900'
   },
   {
     id: 'decompose' as const,
     emoji: '🔨',
-    label: '任务拆解',
-    description: '将复杂任务分解成小步骤',
+    label: 'Decompose Task',
+    description: 'Break down into smaller steps',
     colorClass: 'from-green-50 to-emerald-50 border-green-200 hover:border-green-400',
     textClass: 'text-green-900'
   },
   {
     id: 'estimate' as const,
     emoji: '⏱️',
-    label: '任务时间估计',
-    description: '估算任务需要的时间',
+    label: 'Estimate Time',
+    description: 'Estimate duration needed',
     colorClass: 'from-orange-50 to-amber-50 border-orange-200 hover:border-orange-400',
     textClass: 'text-orange-900'
   },
   {
     id: 'back' as const,
     emoji: '↩️',
-    label: '返回上一级',
-    description: '回到选择模式',
+    label: 'Go Back',
+    description: 'Return to selection',
     colorClass: 'from-gray-50 to-slate-50 border-gray-300 hover:border-gray-400',
     textClass: 'text-gray-900'
   }
@@ -92,32 +92,32 @@ const FEELING_OPTIONS = [
   {
     id: 'urgent' as const,
     emoji: '🔥',
-    label: '截止日期临近',
-    description: '先分清"马上做"和"等会儿做"',
+    label: 'Deadline Approaching',
+    description: 'Separate "do now" from "do later"',
     colorClass: 'from-red-50 to-orange-50 border-red-200 hover:border-red-400',
     textClass: 'text-red-900'
   },
   {
     id: 'overwhelmed' as const,
     emoji: '🤔',
-    label: '任务太多太乱',
-    description: '先找到"高回报"和"轻松赢"的事',
+    label: 'Too Many Tasks',
+    description: 'Find "high value" and "quick wins"',
     colorClass: 'from-yellow-50 to-amber-50 border-yellow-200 hover:border-yellow-400',
     textClass: 'text-yellow-900'
   },
   {
     id: 'blank' as const,
     emoji: '😫',
-    label: '大脑一片空白',
-    description: '先找"最不费力"或"有点想做"的事',
+    label: 'Feeling Blank',
+    description: 'Find "easiest" or "most appealing" tasks',
     colorClass: 'from-purple-50 to-pink-50 border-purple-200 hover:border-purple-400',
     textClass: 'text-purple-900'
   },
   {
     id: 'back' as const,
     emoji: '↩️',
-    label: '返回上一级',
-    description: '回到选择模式',
+    label: 'Go Back',
+    description: 'Return to selection',
     colorClass: 'from-gray-50 to-slate-50 border-gray-300 hover:border-gray-400',
     textClass: 'text-gray-900'
   }
