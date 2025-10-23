@@ -88,7 +88,7 @@ export default function TaskForm({ task, defaultDate, customTags = [], onSubmit,
     e.preventDefault()
     
     if (!title.trim()) {
-      setError('请输入任务标题')
+      setError('Please enter task title')
       return
     }
 
@@ -115,7 +115,7 @@ export default function TaskForm({ task, defaultDate, customTags = [], onSubmit,
         estimated_duration: parsedMinutes || undefined // ⭐ 新增: 提交时间估算
       })
     } catch (err) {
-      setError('保存失败，请重试')
+      setError('Save failed, please try again')
     }
   }
 
@@ -130,19 +130,19 @@ export default function TaskForm({ task, defaultDate, customTags = [], onSubmit,
         }}
       >
         <h2 className="text-xl font-semibold text-gray-900 mb-2">
-          {task ? '编辑任务' : '创建新任务'}
+          {task ? 'Edit Task' : 'Create New Task'}
         </h2>
         
         {/* 必填项说明 */}
         <p className="text-xs text-gray-500 mb-4">
-          <span className="text-red-500">*</span> 表示必填项
+          <span className="text-red-500">*</span> Required field
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* 任务标题 */}
           <div>
             <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
-              任务标题 <span className="text-red-500">*</span>
+              Task Title <span className="text-red-500">*</span>
             </label>
             <input
               id="title"
@@ -150,7 +150,7 @@ export default function TaskForm({ task, defaultDate, customTags = [], onSubmit,
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-[#3f3f3f]"
-              placeholder="输入任务标题"
+              placeholder="Enter task title"
               disabled={isLoading}
             />
           </div>
@@ -158,7 +158,7 @@ export default function TaskForm({ task, defaultDate, customTags = [], onSubmit,
           {/* 任务描述 */}
           <div>
             <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
-              任务描述
+              Description
             </label>
             <textarea
               id="description"
@@ -166,7 +166,7 @@ export default function TaskForm({ task, defaultDate, customTags = [], onSubmit,
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-[#3f3f3f]"
-              placeholder="输入任务描述"
+              placeholder="Enter task description"
               disabled={isLoading}
             />
           </div>
@@ -174,7 +174,7 @@ export default function TaskForm({ task, defaultDate, customTags = [], onSubmit,
           {/* 截止日期和时间 */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              截止时间
+              Deadline
             </label>
             <div className="grid grid-cols-2 gap-3">
               {/* 日期选择 */}
@@ -204,18 +204,18 @@ export default function TaskForm({ task, defaultDate, customTags = [], onSubmit,
                   value={deadlineTime}
                   onChange={(e) => setDeadlineTime(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-[#3f3f3f]"
-                  placeholder="选择时间（可选）"
+                  placeholder="Select time (optional)"
                   disabled={isLoading}
                 />
               </div>
             </div>
-            <p className="text-xs text-gray-500 mt-1">留空表示无特定截止时间</p>
+            <p className="text-xs text-gray-500 mt-1">Leave blank for no specific deadline</p>
           </div>
 
           {/* 优先级 */}
           <div>
             <label htmlFor="priority" className="block text-sm font-medium text-gray-700 mb-1">
-              优先级
+              Priority
             </label>
             <select
               id="priority"
@@ -224,10 +224,10 @@ export default function TaskForm({ task, defaultDate, customTags = [], onSubmit,
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-[#3f3f3f]"
               disabled={isLoading}
             >
-              <option value="">不设置优先级</option>
-              <option value="low">低优先级</option>
-              <option value="medium">中优先级</option>
-              <option value="high">高优先级</option>
+              <option value="">No priority</option>
+              <option value="low">Low priority</option>
+              <option value="medium">Medium priority</option>
+              <option value="high">High priority</option>
             </select>
           </div>
 
@@ -242,25 +242,25 @@ export default function TaskForm({ task, defaultDate, customTags = [], onSubmit,
           {/* ⭐ 时间估算输入 */}
           <div>
             <label htmlFor="estimatedDuration" className="block text-sm font-medium text-gray-700 mb-1">
-              预估时长
+              Estimated Duration
             </label>
             <input
               type="text"
               id="estimatedDuration"
               value={estimatedDuration}
               onChange={(e) => setEstimatedDuration(e.target.value)}
-              placeholder="例如：30 分钟、1.5 小时、2 天"
+              placeholder="e.g., 30 minutes, 1.5 hours, 2 days"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder:text-gray-400"
               disabled={isLoading}
             />
             {parsedMinutes && (
               <p className="text-xs text-green-600 mt-1">
-                ✓ 将记录为：{formatMinutes(parsedMinutes)}
+                ✓ Will be recorded as: {formatMinutes(parsedMinutes)}
               </p>
             )}
             {estimatedDuration && !parsedMinutes && (
               <p className="text-xs text-yellow-600 mt-1">
-                ⚠️ 格式不正确，试试"2小时"或"120分钟"
+                ⚠️ Invalid format, try "2 hours" or "120 minutes"
               </p>
             )}
           </div>
@@ -278,7 +278,7 @@ export default function TaskForm({ task, defaultDate, customTags = [], onSubmit,
               disabled={isLoading}
               className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
             >
-              {isLoading ? '保存中...' : (task ? '保存修改' : '创建任务')}
+              {isLoading ? 'Saving...' : (task ? 'Save Changes' : 'Create Task')}
             </button>
             <button
               type="button"
@@ -286,7 +286,7 @@ export default function TaskForm({ task, defaultDate, customTags = [], onSubmit,
               disabled={isLoading}
               className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 font-medium"
             >
-              取消
+              Cancel
             </button>
           </div>
         </form>

@@ -24,7 +24,7 @@ export default function TaskItem({ task, onToggleComplete, onEdit, onDelete, onD
   const isOverdue = isTaskOverdue(task)
   
   const handleDelete = async () => {
-    if (window.confirm('确定要删除这个任务吗？')) {
+    if (window.confirm('Are you sure you want to delete this task?')) {
       setIsDeleting(true)
       await onDelete(task.id)
       setIsDeleting(false)
@@ -46,10 +46,10 @@ export default function TaskItem({ task, onToggleComplete, onEdit, onDelete, onD
 
   const getPriorityText = (priority: string) => {
     switch (priority) {
-      case 'high': return '高'
-      case 'medium': return '中'
-      case 'low': return '低'
-      default: return '未知'
+      case 'high': return 'High'
+      case 'medium': return 'Medium'
+      case 'low': return 'Low'
+      default: return 'Unknown'
     }
   }
 
@@ -145,7 +145,7 @@ export default function TaskItem({ task, onToggleComplete, onEdit, onDelete, onD
               {task.title}
               {isOverdue && !task.completed && (
                 <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                  已过期
+                  Overdue
                 </span>
               )}
             </h3>
@@ -153,7 +153,7 @@ export default function TaskItem({ task, onToggleComplete, onEdit, onDelete, onD
             {/* 优先级标签 - 仅在有优先级时显示 */}
             {task.priority && (
               <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(task.priority)}`}>
-                {getPriorityText(task.priority)}优先级
+                {getPriorityText(task.priority)} Priority
               </span>
             )}
           </div>
@@ -203,9 +203,9 @@ export default function TaskItem({ task, onToggleComplete, onEdit, onDelete, onD
                     onDecompose(task)
                   }}
                   className="text-purple-600 hover:text-purple-800 text-sm font-medium"
-                  title="将任务拆解为多个子任务"
+                  title="Decompose task into multiple subtasks"
                 >
-                  拆解任务
+                  Decompose
                 </button>
               ) */}
               <button
@@ -215,7 +215,7 @@ export default function TaskItem({ task, onToggleComplete, onEdit, onDelete, onD
                 }}
                 className="text-blue-600 hover:text-blue-800 text-sm font-medium"
               >
-                编辑
+                Edit
               </button>
               <button
                 onClick={(e) => {
@@ -225,7 +225,7 @@ export default function TaskItem({ task, onToggleComplete, onEdit, onDelete, onD
                 disabled={isDeleting}
                 className="text-red-600 hover:text-red-800 text-sm font-medium disabled:opacity-50"
               >
-                {isDeleting ? '删除中...' : '删除'}
+                {isDeleting ? 'Deleting...' : 'Delete'}
               </button>
             </div>
           </div>
