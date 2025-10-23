@@ -1,6 +1,6 @@
 /**
- * 内联交互按钮组件
- * 用于在AI消息中渲染可点击的按钮，支持多种交互类型
+ * Inline interactive buttons component
+ * Renders clickable buttons in AI messages, supporting various interaction types
  */
 
 'use client'
@@ -11,7 +11,7 @@ import type { Task, PrioritySortFeeling, SingleTaskAction } from '@/types'
 
 interface InteractiveButtonsProps {
   interactive: InteractiveMessage
-  // 各种回调函数
+  // Various callback functions
   onWorkflowOptionSelect?: (optionId: 'A' | 'B' | 'C') => void
   onActionSelect?: (action: SingleTaskAction) => void
   onFeelingSelect?: (feeling: PrioritySortFeeling) => void
@@ -19,16 +19,16 @@ interface InteractiveButtonsProps {
   onClarificationConfirm?: () => void
   onClarificationReject?: () => void
   onEstimationConfirm?: (withBuffer: boolean) => void
-  // 当前任务列表（用于任务选择）
+  // Current task list (for task selection)
   currentTasks?: Task[]
 }
 
-// 工作流选项配置
+// Workflow options configuration
 const WORKFLOW_OPTIONS = [
   {
     id: 'A' as const,
     label: 'Refine Single Task',
-    description: '逐个澄清、拆解、估计时间',
+    description: 'Clarify, decompose, and estimate time one by one',
     icon: '🔍',
     colorClass: 'from-blue-50 to-indigo-50 border-blue-200 hover:border-blue-400',
     textClass: 'text-blue-900'
@@ -43,7 +43,7 @@ const WORKFLOW_OPTIONS = [
   },
   {
     id: 'C' as const,
-    label: '结束AI辅助',
+    label: 'End AI Assistance',
     description: 'Got it',
     icon: '✅',
     colorClass: 'from-green-50 to-emerald-50 border-green-200 hover:border-green-400',
@@ -51,7 +51,7 @@ const WORKFLOW_OPTIONS = [
   }
 ]
 
-// 单任务操作选项配置
+// Single task action options configuration
 const ACTION_OPTIONS = [
   {
     id: 'clarify' as const,
@@ -87,7 +87,7 @@ const ACTION_OPTIONS = [
   }
 ]
 
-// 感觉选项配置
+// Feeling options configuration
 const FEELING_OPTIONS = [
   {
     id: 'urgent' as const,
@@ -134,9 +134,9 @@ export default function InteractiveButtons({
   onEstimationConfirm,
   currentTasks = []
 }: InteractiveButtonsProps) {
-  const isActive = interactive.isActive !== false // 默认为true
+  const isActive = interactive.isActive !== false // Active by default
 
-  // 渲染工作流选项按钮
+  // Render workflow options buttons
   if (interactive.type === 'workflow-options') {
     return (
       <div className="space-y-2 mt-3">
@@ -180,7 +180,7 @@ export default function InteractiveButtons({
     )
   }
 
-  // 渲染单任务操作按钮
+  // Render single task action buttons
   if (interactive.type === 'single-task-action') {
     return (
       <div className="space-y-2 mt-3">
@@ -224,7 +224,7 @@ export default function InteractiveButtons({
     )
   }
 
-  // 渲染感觉选项按钮
+  // Render feeling options buttons
   if (interactive.type === 'feeling-options') {
     return (
       <div className="space-y-2 mt-3">
@@ -268,7 +268,7 @@ export default function InteractiveButtons({
     )
   }
 
-  // 渲染任务选择列表
+  // Render task selection list
   if (interactive.type === 'task-selection') {
     const allTasks = currentTasks
     const hasAnyTask = allTasks.length > 0
@@ -276,7 +276,7 @@ export default function InteractiveButtons({
     if (!hasAnyTask) {
       return (
         <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
-          <p className="text-xs text-gray-500 text-center">暂无可选择的任务</p>
+          <p className="text-xs text-gray-500 text-center">No tasks available</p>
         </div>
       )
     }
@@ -320,7 +320,7 @@ export default function InteractiveButtons({
                     </h3>
                     {isCompleted && (
                       <span className="px-1.5 py-0.5 bg-green-100 text-green-700 text-xs rounded-full whitespace-nowrap">
-                        已完成
+                        Completed
                       </span>
                     )}
                   </div>
@@ -353,7 +353,7 @@ export default function InteractiveButtons({
     )
   }
 
-  // 渲染澄清确认按钮
+  // Render clarification confirmation buttons
   if (interactive.type === 'clarification-confirm') {
     return (
       <div className="flex gap-2 mt-3">
@@ -369,7 +369,7 @@ export default function InteractiveButtons({
             }
           `}
         >
-          ✅ 确认，继续
+          ✅ Confirm, Continue
         </button>
         <button
           type="button"
@@ -383,13 +383,13 @@ export default function InteractiveButtons({
             }
           `}
         >
-          🔄 需要修正
+          🔄 Needs Correction
         </button>
       </div>
     )
   }
 
-  // 渲染估时确认按钮
+  // Render time estimation confirmation buttons
   if (interactive.type === 'estimation-confirm') {
     const estimateMinutes = interactive.data?.estimateMinutes || 60
     const bufferMinutes = Math.round(estimateMinutes * 0.3)
@@ -413,10 +413,10 @@ export default function InteractiveButtons({
             <div className="flex-shrink-0 text-lg mt-0.5">✅</div>
             <div className="flex-1 min-w-0">
               <h3 className={`text-xs font-semibold mb-0.5 ${!isActive ? 'text-gray-500' : 'text-green-900'}`}>
-                加上Buffer：{totalMinutes}分钟
+                Add Buffer: {totalMinutes} minutes
               </h3>
               <p className="text-xs text-gray-600 leading-snug">
-                包含30% Buffer ({bufferMinutes}分钟)，更安全
+                Include 30% Buffer ({bufferMinutes} minutes), more reliable
               </p>
             </div>
             {isActive && (
@@ -444,10 +444,10 @@ export default function InteractiveButtons({
             <div className="flex-shrink-0 text-lg mt-0.5">⚡</div>
             <div className="flex-1 min-w-0">
               <h3 className={`text-xs font-semibold mb-0.5 ${!isActive ? 'text-gray-500' : 'text-blue-900'}`}>
-                按原估计：{estimateMinutes}分钟
+                Stick with estimate: {estimateMinutes} minutes
               </h3>
               <p className="text-xs text-gray-600 leading-snug">
-                我对自己很有信心
+                I'm confident with this
               </p>
             </div>
             {isActive && (
