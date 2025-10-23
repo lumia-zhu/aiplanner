@@ -64,10 +64,14 @@ const TASK_CLARIFICATION_SCHEMA = {
 
 // 交互式消息类型
 export type InteractiveMessageType = 
-  | 'task-decomposition'  // 任务拆解
-  | 'workflow-options'    // 工作流选项
-  | 'feeling-options'     // 感受选项
-  | 'action-options'      // 动作选项
+  | 'task-decomposition'     // 任务拆解
+  | 'workflow-options'       // 工作流初始选项（完善单个任务/排序/结束）
+  | 'single-task-action'     // 单任务操作选项（澄清/拆解/估时）
+  | 'feeling-options'        // 优先级排序感觉选项
+  | 'task-selection'         // 任务选择列表
+  | 'clarification-confirm'  // 澄清确认按钮
+  | 'estimation-confirm'     // 估时确认按钮
+  | 'action-options'         // 动作选项（保留兼容）
 
 // 交互式消息数据接口
 export interface InteractiveMessage {

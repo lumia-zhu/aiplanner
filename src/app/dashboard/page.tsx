@@ -1011,6 +1011,27 @@ export default function DashboardPage() {
           }
         ])
         
+        // ⭐ 1秒后显示初始选项按钮，让用户可以继续操作
+        setTimeout(() => {
+          setChatMessages(prev => [
+            ...prev,
+            {
+              role: 'assistant',
+              content: [
+                { type: 'text', text: '排序完成！还想做点什么吗？' },
+                {
+                  type: 'interactive',
+                  interactive: {
+                    type: 'workflow-options',
+                    data: {},
+                    isActive: true
+                  }
+                }
+              ]
+            }
+          ])
+        }, 1000)
+        
         // 重置工作流状态
         resetWorkflow()
       }
@@ -1082,7 +1103,7 @@ export default function DashboardPage() {
         }))
       )
       
-      // 发送确认消息，并返回到操作选择层级
+      // 发送确认消息
       setChatMessages(prev => [
         ...prev,
         {
@@ -1093,8 +1114,27 @@ export default function DashboardPage() {
           }]
         }
       ])
-      // 返回上一层（澄清/拆解/估计/返回）
-      goBackToSingleTaskAction()
+      
+      // ⭐ 1秒后自动显示单任务操作按钮，让用户可以继续完善
+      setTimeout(() => {
+        setChatMessages(prev => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: [
+              { type: 'text', text: '拆解完成！要不要继续澄清细节或估算时间？' },
+              {
+                type: 'interactive',
+                interactive: {
+                  type: 'single-task-action',
+                  data: {},
+                  isActive: true
+                }
+              }
+            ]
+          }
+        ])
+      }, 1000)
       
       console.log('🎉 子任务创建完成')
     } catch (error) {

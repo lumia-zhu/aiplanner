@@ -5,7 +5,7 @@
 
 import { useState, useCallback, useRef } from 'react'
 import type { Task, UserProfile, WorkflowMode, AIRecommendation, PrioritySortFeeling, SingleTaskAction, ClarificationQuestion, StructuredContext, DateScope } from '@/types'
-import type { ChatMessage } from '@/lib/doubaoService'
+import type { ChatMessage, InteractiveMessageType } from '@/lib/doubaoService'
 import { analyzeTasksForWorkflow, getTodayTasks, generateDetailedTaskSummary } from '@/lib/workflowAnalyzer'
 import { filterTasksByScope, getScopeDescription } from '@/utils/dateUtils'
 import { getMatrixTypeByFeeling, getMatrixConfig } from '@/types'
@@ -155,6 +155,56 @@ export function useWorkflowAssistant({
   }, [setChatMessages, setStreamingMessage, setIsSending])
 
   /**
+   * 辅助函数: 流式显示带交互按钮的AI消息
+   */
+  const streamAIMessageWithInteractive = useCallback((
+    text: string, 
+    interactive: { type: InteractiveMessageType; data?: any }
+  ) => {
+    // 先取消之前的流式输出(如果有)
+    if (cancelStreamRef.current) {
+      cancelStreamRef.current()
+    }
+    
+    setStreamingMessage('')
+    setIsSending(true)
+    
+    const cancel = streamText({
+      text,
+      onChunk: (chunk) => {
+        setStreamingMessage(prev => prev + chunk)
+      },
+      onComplete: () => {
+        // 流式输出完成,添加到消息列表（包含交互按钮）
+        setChatMessages(prev => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: [
+              { type: 'text', text },
+              { 
+                type: 'interactive', 
+                interactive: {
+                  type: interactive.type,
+                  data: interactive.data || {},
+                  isActive: true
+                }
+              }
+            ]
+          }
+        ])
+        setStreamingMessage('')
+        setIsSending(false)
+        cancelStreamRef.current = null
+      },
+      chunkSize: 2,
+      delay: 30
+    })
+    
+    cancelStreamRef.current = cancel
+  }, [setChatMessages, setStreamingMessage, setIsSending])
+
+  /**
    * 开始工作流: 分析任务并生成推荐
    */
   const startWorkflow = useCallback(async () => {
@@ -197,8 +247,11 @@ ${recommendation.reason}
 
 请选择你想做什么:`
       
-      // 使用流式输出显示消息
-      streamAIMessage(aiMessage)
+      // 使用流式输出显示消息（带交互按钮）
+      streamAIMessageWithInteractive(aiMessage, {
+        type: 'workflow-options',
+        data: {}
+      })
       
     } catch (error) {
       console.error('工作流分析失败:', error)
@@ -214,6 +267,21 @@ ${recommendation.reason}
    * 用户选择选项
    */
   const selectOption = useCallback((optionId: 'A' | 'B' | 'C') => {
+    // 禁用上一条消息的工作流选项按钮
+    setChatMessages(prev => prev.map((msg, idx) => {
+      if (idx === prev.length - 1 && msg.content.some(c => c.type === 'interactive' && c.interactive?.type === 'workflow-options')) {
+        return {
+          ...msg,
+          content: msg.content.map(c => 
+            c.type === 'interactive' 
+              ? { ...c, interactive: { ...c.interactive!, isActive: false } }
+              : c
+          )
+        }
+      }
+      return msg
+    }))
+
     if (optionId === 'A') {
       // 选择完善单个任务 - 进入操作选择阶段
       setWorkflowMode('single-task-action')
@@ -227,8 +295,11 @@ ${recommendation.reason}
         }
       ])
       
-      // 然后流式显示AI回复
-      streamAIMessage('好的!我可以帮你做以下操作:\n\n请选择你想对任务进行什么操作:')
+      // 然后流式显示AI回复（带交互按钮）
+      streamAIMessageWithInteractive('好的!我可以帮你做以下操作:\n\n请选择你想对任务进行什么操作:', {
+        type: 'single-task-action',
+        data: {}
+      })
       
     } else if (optionId === 'B') {
       // 选择优先级排序 - 进入询问感觉阶段
@@ -242,7 +313,11 @@ ${recommendation.reason}
         }
       ])
       
-      streamAIMessage('好的!在开始排序之前,我想了解一下:\n\n你现在主要的感觉是什么? 这将帮助我推荐最适合你的排序方法:')
+      // 使用带交互按钮的流式输出
+      streamAIMessageWithInteractive('好的!在开始排序之前,我想了解一下:\n\n你现在主要的感觉是什么? 这将帮助我推荐最适合你的排序方法:', {
+        type: 'feeling-options',
+        data: {}
+      })
       
     } else if (optionId === 'C') {
       // 结束AI辅助
@@ -266,15 +341,29 @@ ${recommendation.reason}
         onWorkflowEnd?.()
       }, streamDuration + 1000) // 流式输出完成 + 1秒延迟
     }
-  }, [setChatMessages, streamAIMessage])
+  }, [setChatMessages, streamAIMessage, streamAIMessageWithInteractive])
 
   /**
    * 用户选择感觉选项
    */
   const selectFeeling = useCallback((feeling: PrioritySortFeeling) => {
+    // 禁用上一条消息的感觉选项按钮
+    setChatMessages(prev => prev.map((msg, idx) => {
+      if (idx === prev.length - 1 && msg.content.some(c => c.type === 'interactive' && c.interactive?.type === 'feeling-options')) {
+        return {
+          ...msg,
+          content: msg.content.map(c => 
+            c.type === 'interactive' 
+              ? { ...c, interactive: { ...c.interactive!, isActive: false } }
+              : c
+          )
+        }
+      }
+      return msg
+    }))
+
     if (feeling === 'back') {
       // 返回初始状态
-      setWorkflowMode('initial')
       setSelectedFeeling(null)
       setChatMessages(prev => [
         ...prev,
@@ -283,7 +372,15 @@ ${recommendation.reason}
           content: [{ type: 'text', text: '↩️ 返回上一级' }]
         }
       ])
-      streamAIMessage('好的,已返回上一级。请重新选择你想做什么:')
+      
+      // ⭐ 1秒后显示初始选项按钮
+      setTimeout(() => {
+        setWorkflowMode('initial')
+        streamAIMessageWithInteractive('好的，已返回上一级。请重新选择你想做什么:', {
+          type: 'workflow-options',
+          data: {}
+        })
+      }, 1000)
       return
     }
     
@@ -366,9 +463,23 @@ ${recommendation.reason}
    * 用户选择单个任务操作
    */
   const selectAction = useCallback((action: SingleTaskAction) => {
+    // 禁用上一条消息的单任务操作按钮
+    setChatMessages(prev => prev.map((msg, idx) => {
+      if (idx === prev.length - 1 && msg.content.some(c => c.type === 'interactive' && c.interactive?.type === 'single-task-action')) {
+        return {
+          ...msg,
+          content: msg.content.map(c => 
+            c.type === 'interactive' 
+              ? { ...c, interactive: { ...c.interactive!, isActive: false } }
+              : c
+          )
+        }
+      }
+      return msg
+    }))
+
     if (action === 'back') {
       // 返回初始状态
-      setWorkflowMode('initial')
       setSelectedAction(null)
       setChatMessages(prev => [
         ...prev,
@@ -377,7 +488,15 @@ ${recommendation.reason}
           content: [{ type: 'text', text: '↩️ 返回上一级' }]
         }
       ])
-      streamAIMessage('好的,已返回上一级。请重新选择你想做什么:')
+      
+      // ⭐ 1秒后显示初始选项按钮
+      setTimeout(() => {
+        setWorkflowMode('initial')
+        streamAIMessageWithInteractive('好的，已返回上一级。请重新选择你想做什么:', {
+          type: 'workflow-options',
+          data: {}
+        })
+      }, 1000)
       return
     }
     
@@ -412,7 +531,10 @@ ${recommendation.reason}
     // 如果是任务拆解、任务澄清或时间估计，进入任务选择模式
     if (action === 'decompose') {
       setWorkflowMode('task-selection')
-      streamAIMessage('好的！我来帮你拆解任务。\n\n请选择你想要拆解的任务：')
+      streamAIMessageWithInteractive('好的！我来帮你拆解任务。\n\n请选择你想要拆解的任务：', {
+        type: 'task-selection',
+        data: {}
+      })
     } else if (action === 'clarify') {
       // ⭐ 为"任务澄清"给出建议与原因（使用dateScope筛选的任务）
       const scopedTasks = filterTasksByScope(tasks, dateScope)
@@ -439,7 +561,10 @@ ${recommendation.reason}
       const recommendationMessage = formatRecommendationsMessage(recommendations)
       
       setWorkflowMode('task-selection')
-      streamAIMessage(recommendationMessage)
+      streamAIMessageWithInteractive(recommendationMessage, {
+        type: 'task-selection',
+        data: {}
+      })
     } else if (action === 'estimate') {
       // ⭐ 新增: 任务时间估计功能，使用dateScope筛选的任务
       const scopedTasks = filterTasksByScope(tasks, dateScope)
@@ -466,17 +591,35 @@ ${recommendation.reason}
       const recommendationMessage = formatTimeEstimationRecommendationsMessage(recommendations)
       
       setWorkflowMode('task-selection')
-      streamAIMessage(recommendationMessage)
+      streamAIMessageWithInteractive(recommendationMessage, {
+        type: 'task-selection',
+        data: {}
+      })
     } else {
       // 其他未知功能
       streamAIMessage(`✅ 好的!我会帮你进行${selected.label}。\n\n**功能开发中...**\n\n敬请期待! 🚀`)
     }
-  }, [setChatMessages, streamAIMessage])
+  }, [setChatMessages, streamAIMessage, streamAIMessageWithInteractive, tasks, dateScope])
 
   /**
    * 用户选择要拆解的任务
    */
   const selectTaskForDecompose = useCallback(async (task: Task | null) => {
+    // 禁用上一条消息的任务选择按钮
+    setChatMessages(prev => prev.map((msg, idx) => {
+      if (idx === prev.length - 1 && msg.content.some(c => c.type === 'interactive' && c.interactive?.type === 'task-selection')) {
+        return {
+          ...msg,
+          content: msg.content.map(c => 
+            c.type === 'interactive' 
+              ? { ...c, interactive: { ...c.interactive!, isActive: false } }
+              : c
+          )
+        }
+      }
+      return msg
+    }))
+
     if (task === null) {
       // 返回上一级（返回到操作选择）
       setWorkflowMode('single-task-action')
@@ -686,8 +829,11 @@ ${recommendation.reason}
         setStructuredContext(result.structured_context)
         setAIClarificationSummary(result.summary)
         
-        // 流式显示AI的理解总结
-        streamAIMessage(result.summary)
+        // 流式显示AI的理解总结（带确认按钮）
+        streamAIMessageWithInteractive(result.summary, {
+          type: 'clarification-confirm',
+          data: {}
+        })
         
         // 注意：不在这里自动切换状态，等待用户确认或修正
       } else {
@@ -706,7 +852,7 @@ ${recommendation.reason}
       setStructuredContext(null)
       setAIClarificationSummary('')
     }
-  }, [selectedTaskForDecompose, clarificationQuestions, setChatMessages, streamAIMessage, setIsSending])
+  }, [selectedTaskForDecompose, clarificationQuestions, setChatMessages, streamAIMessage, streamAIMessageWithInteractive, setIsSending])
 
   /**
    * 确认澄清结果
@@ -715,6 +861,21 @@ ${recommendation.reason}
   const confirmClarification = useCallback(() => {
     if (!selectedTaskForDecompose || !structuredContext) return
     
+    // 禁用上一条消息的澄清确认按钮
+    setChatMessages(prev => prev.map((msg, idx) => {
+      if (idx === prev.length - 1 && msg.content.some(c => c.type === 'interactive' && c.interactive?.type === 'clarification-confirm')) {
+        return {
+          ...msg,
+          content: msg.content.map(c => 
+            c.type === 'interactive' 
+              ? { ...c, interactive: { ...c.interactive!, isActive: false } }
+              : c
+          )
+        }
+      }
+      return msg
+    }))
+
     // 显示用户确认消息
     setChatMessages(prev => [
       ...prev,
@@ -752,18 +913,41 @@ ${recommendation.reason}
     
     streamAIMessage(successMessage)
     
-    // 清空澄清状态，返回操作选择
+    // 清空澄清状态
     setClarificationQuestions([])
     setClarificationAnswer('')
     setStructuredContext(null)
     setAIClarificationSummary('')
-    setWorkflowMode('single-task-action')
-  }, [selectedTaskForDecompose, structuredContext, setChatMessages, streamAIMessage, tasks])
+    
+    // ⭐ 1秒后自动显示单任务操作按钮，让用户可以继续完善
+    setTimeout(() => {
+      setWorkflowMode('single-task-action')
+      streamAIMessageWithInteractive('很好！还想对这个任务做点什么吗？', {
+        type: 'single-task-action',
+        data: {}
+      })
+    }, 1000)
+  }, [selectedTaskForDecompose, structuredContext, setChatMessages, streamAIMessage, streamAIMessageWithInteractive, tasks, dateScope])
 
   /**
    * 重新澄清
    */
   const rejectClarification = useCallback(() => {
+    // 禁用上一条消息的澄清确认按钮
+    setChatMessages(prev => prev.map((msg, idx) => {
+      if (idx === prev.length - 1 && msg.content.some(c => c.type === 'interactive' && c.interactive?.type === 'clarification-confirm')) {
+        return {
+          ...msg,
+          content: msg.content.map(c => 
+            c.type === 'interactive' 
+              ? { ...c, interactive: { ...c.interactive!, isActive: false } }
+              : c
+          )
+        }
+      }
+      return msg
+    }))
+
     // 显示用户拒绝消息
     setChatMessages(prev => [
       ...prev,
@@ -898,9 +1082,12 @@ ${recommendation.reason}
     const totalWithBuffer = minutes + bufferMinutes
     const message = `好的！那如果再加上20%的缓冲时间（约${bufferMinutes}分钟），总共${totalWithBuffer}分钟，你会更从容。\n\n要加上缓冲时间吗？`
     
-    streamAIMessage(message)
+    streamAIMessageWithInteractive(message, {
+      type: 'estimation-confirm',
+      data: { estimateMinutes: minutes }
+    })
     setWorkflowMode('task-estimation-buffer')
-  }, [estimationTask, setChatMessages, streamAIMessage])
+  }, [estimationTask, setChatMessages, streamAIMessage, streamAIMessageWithInteractive])
   
   /**
    * 确认最终估计（是否含buffer）
@@ -909,6 +1096,21 @@ ${recommendation.reason}
   const confirmEstimation = useCallback((withBuffer: boolean) => {
     if (!estimationTask || !estimationInitial) return
     
+    // 禁用上一条消息的估时确认按钮
+    setChatMessages(prev => prev.map((msg, idx) => {
+      if (idx === prev.length - 1 && msg.content.some(c => c.type === 'interactive' && c.interactive?.type === 'estimation-confirm')) {
+        return {
+          ...msg,
+          content: msg.content.map(c => 
+            c.type === 'interactive' 
+              ? { ...c, interactive: { ...c.interactive!, isActive: false } }
+              : c
+          )
+        }
+      }
+      return msg
+    }))
+
     const finalMinutes = encodeEstimatedDuration(estimationInitial, withBuffer)
     
     // 这个方法只负责更新本地状态和显示确认消息
@@ -933,10 +1135,18 @@ ${recommendation.reason}
     
     streamAIMessage(`✅ 已记录！任务「${estimationTask.title}」的预估时长为：${displayText}\n\n${guidanceMessage}`)
     
-    // 清空估算状态，返回操作选择层级
+    // 清空估算状态
     clearEstimationState()
-    goBackToSingleTaskAction()
-  }, [estimationTask, estimationInitial, setChatMessages, streamAIMessage, tasks])
+    
+    // ⭐ 1秒后自动显示单任务操作按钮，让用户可以继续完善
+    setTimeout(() => {
+      setWorkflowMode('single-task-action')
+      streamAIMessageWithInteractive('时间估算完成！还需要其他帮助吗？', {
+        type: 'single-task-action',
+        data: {}
+      })
+    }, 1000)
+  }, [estimationTask, estimationInitial, setChatMessages, streamAIMessage, streamAIMessageWithInteractive, tasks, dateScope])
   
   /**
    * 取消估算，返回上一级

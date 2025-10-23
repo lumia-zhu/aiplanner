@@ -11,6 +11,7 @@ import TaskDecompositionCard from './TaskDecompositionCard'
 import ClarificationConfirmOptions from './ClarificationConfirmOptions'
 import TimeEstimationInput from './TimeEstimationInput'
 import EstimationConfirmOptions from './EstimationConfirmOptions'
+import InteractiveButtons from './InteractiveButtons'
 
 // 任务识别相关类型
 interface RecognizedTask {
@@ -316,6 +317,23 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                               }}
                             />
                           )}
+                          
+                          {/* 通用交互按钮 */}
+                          {['workflow-options', 'single-task-action', 'feeling-options', 
+                            'task-selection', 'clarification-confirm', 'estimation-confirm'
+                           ].includes(content.interactive.type) && (
+                            <InteractiveButtons
+                              interactive={content.interactive}
+                              onWorkflowOptionSelect={onWorkflowOptionSelect}
+                              onActionSelect={onActionSelect}
+                              onFeelingSelect={onFeelingSelect}
+                              onTaskSelect={onTaskSelect}
+                              onClarificationConfirm={onClarificationConfirm}
+                              onClarificationReject={onClarificationReject}
+                              onEstimationConfirm={onEstimationConfirm}
+                              currentTasks={currentTasks}
+                            />
+                          )}
                         </div>
                       )}
                     </div>
@@ -447,45 +465,6 @@ const ChatSidebar = memo<ChatSidebarProps>(({
         </div>
       )}
       
-      {/* 工作流选项区域 - 初始状态 */}
-      {workflowMode === 'initial' && onWorkflowOptionSelect && (
-        <div className="border-t border-gray-200 bg-gradient-to-b from-gray-50 to-white flex-shrink-0">
-          <div className="p-4">
-            {/* 工作流选项按钮 */}
-            <WorkflowOptions 
-              onSelect={onWorkflowOptionSelect}
-              disabled={isWorkflowAnalyzing || isSending}
-            />
-          </div>
-        </div>
-      )}
-      
-      {/* 单个任务操作选项区域 */}
-      {workflowMode === 'single-task-action' && onActionSelect && (
-        <div className="border-t border-gray-200 bg-gradient-to-b from-gray-50 to-white flex-shrink-0">
-          <div className="p-4">
-            {/* 操作选项按钮 */}
-            <SingleTaskActionOptions 
-              onSelect={onActionSelect}
-              disabled={isSending}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* 澄清确认/修正按钮 */}
-      {hasStructuredContext && onClarificationConfirm && onClarificationReject && (
-        <div className="border-t border-gray-200 bg-gradient-to-b from-purple-50 to-white flex-shrink-0">
-          <div className="p-4">
-            <ClarificationConfirmOptions
-              onConfirm={onClarificationConfirm}
-              onReject={onClarificationReject}
-              disabled={isSending}
-            />
-          </div>
-        </div>
-      )}
-      
       {/* ⭐ 时间估算输入区域（初始） */}
       {workflowMode === 'task-estimation-input' && onEstimationSubmit && onEstimationCancel && (
         <div className="border-t border-gray-200 bg-gradient-to-b from-blue-50 to-white flex-shrink-0">
@@ -520,33 +499,6 @@ const ChatSidebar = memo<ChatSidebarProps>(({
               onConfirmWithBuffer={() => onEstimationConfirm(true)}
               onConfirmWithoutBuffer={() => onEstimationConfirm(false)}
               onCancel={onEstimationCancel}
-              disabled={isSending}
-            />
-          </div>
-        </div>
-      )}
-      
-      {/* 感觉选项区域 - 询问感觉阶段 */}
-      {workflowMode === 'priority-feeling' && onFeelingSelect && (
-        <div className="border-t border-gray-200 bg-gradient-to-b from-gray-50 to-white flex-shrink-0">
-          <div className="p-4">
-            {/* 感觉选项按钮 */}
-            <FeelingOptions 
-              onSelect={onFeelingSelect}
-              disabled={isSending}
-            />
-          </div>
-        </div>
-      )}
-      
-      {/* 任务选择区域 - 选择要拆解的任务 */}
-      {workflowMode === 'task-selection' && onTaskSelect && currentTasks && (
-        <div className="border-t border-gray-200 bg-gradient-to-b from-gray-50 to-white flex-shrink-0">
-          <div className="p-4">
-            {/* 任务选择组件 */}
-            <TaskSelectionOptions 
-              tasks={currentTasks}
-              onSelect={onTaskSelect}
               disabled={isSending}
             />
           </div>
