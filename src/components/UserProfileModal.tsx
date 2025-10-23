@@ -94,7 +94,7 @@ export default function UserProfileModal({
         >
           {/* 头部 */}
           <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 rounded-t-2xl flex items-center justify-between">
-            <h2 className="text-xl font-bold text-gray-800">个人资料设置</h2>
+            <h2 className="text-xl font-bold text-gray-800">Personal Profile Settings</h2>
             <button
               onClick={handleCancel}
               className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -118,7 +118,7 @@ export default function UserProfileModal({
             {/* 专业输入框 */}
             <div>
               <label htmlFor="major" className="block text-sm font-medium text-gray-700 mb-2">
-                专业
+                Major
               </label>
               <input
                 id="major"
@@ -129,13 +129,13 @@ export default function UserProfileModal({
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-gray-900 placeholder:text-gray-400"
                 disabled={isSaving}
               />
-              <p className="mt-1 text-xs text-gray-500">请输入你的专业方向</p>
+              <p className="mt-1 text-xs text-gray-500">Enter your major or field of study</p>
             </div>
 
             {/* 年级下拉选择 */}
             <div>
               <label htmlFor="grade" className="block text-sm font-medium text-gray-700 mb-2">
-                年级
+                Grade Level
               </label>
               <select
                 id="grade"
@@ -144,7 +144,7 @@ export default function UserProfileModal({
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white text-gray-900"
                 disabled={isSaving}
               >
-                <option value="" className="text-gray-400">请选择年级</option>
+                <option value="" className="text-gray-400">Select grade level</option>
                 
                 {/* 本科 */}
                 <optgroup label="Undergraduate">
@@ -170,7 +170,7 @@ export default function UserProfileModal({
                   <option value="Ph.D. 5th Year">Ph.D. 5th Year</option>
                 </optgroup>
               </select>
-              <p className="mt-1 text-xs text-gray-500">选择你当前的年级</p>
+              <p className="mt-1 text-xs text-gray-500">Select your current grade level</p>
             </div>
 
             {/* 挑战标签选择器 */}
@@ -200,8 +200,8 @@ export default function UserProfileModal({
                   <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                 </svg>
                 <div className="text-sm text-blue-700">
-                  <p className="font-medium mb-1">个性化功能</p>
-                  <p>完善个人资料后，AI 可以根据你的专业、年级、挑战和工作场所提供更精准的任务建议。</p>
+                  <p className="font-medium mb-1">Personalization Feature</p>
+                  <p>After completing your profile, AI can provide more precise task suggestions based on your major, grade level, challenges, and workplaces.</p>
                 </div>
               </div>
             </div>
@@ -214,7 +214,7 @@ export default function UserProfileModal({
               disabled={isSaving}
               className="px-5 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
             >
-              取消
+              Cancel
             </button>
             <button
               onClick={handleSave}

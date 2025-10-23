@@ -77,23 +77,23 @@ export const ALL_GRADES = [
 
 // 预定义的挑战标签（后续步骤会使用）
 export const CHALLENGE_TAGS = [
-  '拖延',
-  '夜猫子',
-  '容易分心',
-  '完美主义',
-  '时间估算不准',
-  '优先级不清',
+  'Procrastination',
+  'Night Owl',
+  'Easily Distracted',
+  'Perfectionism',
+  'Poor Time Estimation',
+  'Unclear Priorities',
 ] as const
 
 // 预定义的工作场所标签（后续步骤会使用）
 export const WORKPLACE_TAGS = [
-  '教室',
-  '图书馆',
-  '工位',
-  '咖啡厅',
-  '宿舍',
-  '自习室',
-  '家里',
+  'Classroom',
+  'Library',
+  'Workstation',
+  'Coffee Shop',
+  'Dormitory',
+  'Study Room',
+  'Home',
 ] as const
 
 // 用户认证相关类型（扩展，包含个人资料）
@@ -152,10 +152,10 @@ export const PRESET_TASK_TAGS = [
 
 // 标签显示名称映射(中英文)
 export const TASK_TAG_LABELS: Record<string, string> = {
-  easy: '简单',
-  difficult: '困难',
-  important: '重要',
-  urgent: '紧急',
+  easy: 'Easy',
+  difficult: 'Difficult',
+  important: 'Important',
+  urgent: 'Urgent',
 }
 
 // 标签配置
@@ -428,29 +428,29 @@ export interface MatrixState {
  */
 export const EISENHOWER_MATRIX_CONFIG: MatrixConfig = {
   type: 'eisenhower',
-  title: '艾森豪威尔矩阵',
-  xAxis: { min: '不紧急', max: '紧急' },
-  yAxis: { min: '不重要', max: '重要' },
+  title: 'Eisenhower Matrix',
+  xAxis: { min: 'Not Urgent', max: 'Urgent' },
+  yAxis: { min: 'Not Important', max: 'Important' },
   quadrants: {
     q1: {
-      label: '重要且紧急',
+      label: 'Important & Urgent',
       color: '#EF4444',  // 红色
-      description: '必须马上做'
+      description: 'Do First'
     },
     q2: {
-      label: '重要不紧急',
+      label: 'Important, Not Urgent',
       color: '#3B82F6',  // 蓝色
-      description: '应该计划做'
+      description: 'Schedule'
     },
     q3: {
-      label: '不重要但紧急',
+      label: 'Not Important, Urgent',
       color: '#F59E0B',  // 橙色
-      description: '可以委托做'
+      description: 'Delegate'
     },
     q4: {
-      label: '不重要不紧急',
+      label: 'Not Important, Not Urgent',
       color: '#10B981',  // 绿色
-      description: '有空再做'
+      description: 'Eliminate'
     }
   }
 }

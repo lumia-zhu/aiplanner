@@ -700,7 +700,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                 </svg>
-                <span>{workflowMode === 'task-context-input' || workflowMode === 'task-clarification-input' ? '提交' : '发送'}</span>
+                <span>{workflowMode === 'task-context-input' || workflowMode === 'task-clarification-input' ? 'Submit' : 'Send'}</span>
               </>
             )}
           </div>

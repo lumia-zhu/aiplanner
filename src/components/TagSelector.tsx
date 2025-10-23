@@ -17,7 +17,7 @@ export default function TagSelector({
   selectedTags,
   onTagsChange,
   maxTags = 10,
-  placeholder = '输入自定义标签',
+  placeholder = 'Enter custom tag',
 }: TagSelectorProps) {
   const [customInput, setCustomInput] = useState('')
 
@@ -29,7 +29,7 @@ export default function TagSelector({
     } else {
       // 选中 (检查是否超过最大数量)
       if (selectedTags.length >= maxTags) {
-        alert(`最多只能选择 ${maxTags} 个标签`)
+        alert(`You can select up to ${maxTags} tags`)
         return
       }
       onTagsChange([...selectedTags, tag])
@@ -46,12 +46,12 @@ export default function TagSelector({
     }
     
     if (trimmedInput.length > 20) {
-      alert('标签长度不能超过 20 个字符')
+      alert('Tag length cannot exceed 20 characters')
       return
     }
     
     if (selectedTags.includes(trimmedInput)) {
-      alert('该标签已存在')
+      alert('This tag already exists')
       return
     }
     
@@ -109,7 +109,7 @@ export default function TagSelector({
       {/* 已选中的自定义标签 (不在预定义列表中的) */}
       {selectedTags.filter(tag => !predefinedTags.includes(tag)).length > 0 && (
         <div className="mb-3">
-          <p className="text-xs text-gray-600 mb-2">自定义标签:</p>
+          <p className="text-xs text-gray-600 mb-2">Custom Tags:</p>
           <div className="flex flex-wrap gap-2">
             {selectedTags
               .filter(tag => !predefinedTags.includes(tag))
@@ -145,14 +145,14 @@ export default function TagSelector({
           disabled={!customInput.trim()}
           className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
         >
-          + 添加
+          + Add
         </button>
       </div>
 
       {/* 提示信息 */}
       <p className="mt-2 text-xs text-gray-500">
-        已选择 {selectedTags.length} 个标签
-        {selectedTags.length > 0 && ' · 点击标签可取消选择'}
+        {selectedTags.length} tags selected
+        {selectedTags.length > 0 && ' · Click tag to deselect'}
       </p>
     </div>
   )
