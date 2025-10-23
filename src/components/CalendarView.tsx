@@ -142,7 +142,7 @@ export default function CalendarView({
           <h3 className="text-lg font-semibold text-gray-900">
             {isExpanded 
               ? `${currentDate.getFullYear()}年${currentDate.getMonth() + 1}月`
-              : '本周日程'
+              : 'This Week'
             }
           </h3>
           {isExpanded && (
@@ -170,7 +170,7 @@ export default function CalendarView({
           onClick={() => setIsExpanded(!isExpanded)}
           className="flex items-center space-x-2 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
         >
-          <span>{isExpanded ? '收起' : '展开月视图'}</span>
+          <span>{isExpanded ? 'Collapse' : 'Expand Month View'}</span>
           <svg 
             className={`w-4 h-4 transform transition-transform ${isExpanded ? 'rotate-180' : ''}`} 
             fill="none" 

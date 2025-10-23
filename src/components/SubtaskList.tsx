@@ -133,14 +133,14 @@ export default function SubtaskList({
                     <button
                       onClick={() => onEdit(subtask)}
                       className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
-                      title="编辑子任务"
+                      title="Edit subtask"
                     >
                       ✏️
                     </button>
                     <button
                       onClick={() => onDelete(subtask.id)}
                       className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-                      title="删除子任务"
+                      title="Delete subtask"
                     >
                       🗑️
                     </button>
@@ -172,7 +172,7 @@ export default function SubtaskList({
               <button
                 onClick={handlePromoteClick}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 border border-blue-300 hover:border-blue-400 text-blue-700 hover:text-blue-900 rounded-lg transition-all text-xs font-medium shadow-sm hover:shadow whitespace-nowrap"
-                title="将所有子任务转换为独立的普通任务"
+                title="Convert all subtasks to independent tasks"
               >
                 <span>⬆️</span>
                 <span>全部提升为独立任务</span>

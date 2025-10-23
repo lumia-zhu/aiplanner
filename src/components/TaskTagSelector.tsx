@@ -59,7 +59,7 @@ export default function TaskTagSelector({
     
     // 检查是否已在当前任务中选中
     if (selectedTags.includes(trimmedInput)) {
-      setError('该标签已添加到此任务')
+      setError('Tag already added to this task')
       setTimeout(() => setError(''), 3000)
       return
     }
@@ -150,7 +150,7 @@ export default function TaskTagSelector({
             value={customInput}
             onChange={(e) => setCustomInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="输入自定义标签"
+            placeholder="Enter custom tag"
             maxLength={TASK_TAG_CONFIG.MAX_TAG_LENGTH}
             className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-gray-900 placeholder:text-gray-400"
           />

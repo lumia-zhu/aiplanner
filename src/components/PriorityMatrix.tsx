@@ -173,8 +173,8 @@ function DroppableZone({
 const QUADRANTS = {
   q2: {
     id: 'q2',
-    title: '重要但不紧急',
-    subtitle: '长期规划',
+    title: 'Important, Not Urgent',
+    subtitle: 'Long-term Planning',
     icon: '🟢',
     bgColor: 'bg-green-50',
     borderColor: 'border-green-200',
@@ -183,8 +183,8 @@ const QUADRANTS = {
   },
   q1: {
     id: 'q1',
-    title: '重要且紧急',
-    subtitle: '立即处理',
+    title: 'Important & Urgent',
+    subtitle: 'Do Now',
     icon: '🔴',
     bgColor: 'bg-red-50',
     borderColor: 'border-red-200',
@@ -193,7 +193,7 @@ const QUADRANTS = {
   },
   q4: {
     id: 'q4',
-    title: '不重要不紧急',
+    title: 'Not Important, Not Urgent',
     subtitle: '减少/避免',
     icon: '⚪',
     bgColor: 'bg-gray-50',
@@ -203,7 +203,7 @@ const QUADRANTS = {
   },
   q3: {
     id: 'q3',
-    title: '紧急但不重要',
+    title: 'Urgent, Not Important',
     subtitle: '委托/快速处理',
     icon: '🟡',
     bgColor: 'bg-yellow-50',
