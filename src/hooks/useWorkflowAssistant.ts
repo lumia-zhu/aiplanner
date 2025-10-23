@@ -769,12 +769,21 @@ ${recommendation.reason}
     // 清空选中的任务
     setSelectedTaskForDecompose(null)
     
-    // 显示智能引导消息
-    streamAIMessage(guidanceMessage)
+    // 显示用户取消消息
+    setChatMessages(prev => [
+      ...prev,
+      { role: 'user', content: [{ type: 'text', text: '← 取消' }] }
+    ])
     
-    // 返回到单任务操作选择
-    setWorkflowMode('single-task-action')
-  }, [streamAIMessage, selectedTaskForDecompose, tasks])
+    // 1秒后显示 single-task-action 按钮
+    setTimeout(() => {
+      setWorkflowMode('single-task-action')
+      streamAIMessageWithInteractive(guidanceMessage, {
+        type: 'single-task-action',
+        data: {}
+      })
+    }, 1000)
+  }, [setChatMessages, streamAIMessageWithInteractive, selectedTaskForDecompose, tasks, dateScope])
 
   /**
    * 静默清空选中任务（不发送消息）
@@ -997,12 +1006,21 @@ ${recommendation.reason}
     setAIClarificationSummary('')
     setSelectedTaskForDecompose(null)
     
-    // 显示智能引导消息
-    streamAIMessage(guidanceMessage)
+    // 显示用户取消消息
+    setChatMessages(prev => [
+      ...prev,
+      { role: 'user', content: [{ type: 'text', text: '← 取消' }] }
+    ])
     
-    // 返回到单任务操作选择
-    setWorkflowMode('single-task-action')
-  }, [streamAIMessage, selectedTaskForDecompose, tasks])
+    // 1秒后显示 single-task-action 按钮
+    setTimeout(() => {
+      setWorkflowMode('single-task-action')
+      streamAIMessageWithInteractive(guidanceMessage, {
+        type: 'single-task-action',
+        data: {}
+      })
+    }, 1000)
+  }, [setChatMessages, streamAIMessageWithInteractive, selectedTaskForDecompose, tasks, dateScope])
 
   // ============================================
   // ⭐ 时间估算相关方法
@@ -1159,16 +1177,26 @@ ${recommendation.reason}
       dateScope
     })
     
-    clearEstimationState()
-    goBackToSingleTaskAction()
+    // 清空估算状态
+    setEstimationTask(null)
+    setEstimationInitial(null)
+    setEstimationReflection('')
     
     // 显示取消消息
     setChatMessages(prev => [
       ...prev,
       { role: 'user', content: [{ type: 'text', text: '← 取消' }] }
     ])
-    streamAIMessage(guidanceMessage)
-  }, [setChatMessages, streamAIMessage, estimationTask, tasks])
+    
+    // 1秒后显示 single-task-action 按钮
+    setTimeout(() => {
+      setWorkflowMode('single-task-action')
+      streamAIMessageWithInteractive(guidanceMessage, {
+        type: 'single-task-action',
+        data: {}
+      })
+    }, 1000)
+  }, [setChatMessages, streamAIMessageWithInteractive, estimationTask, tasks, dateScope])
   
   /**
    * 清空估算状态（内部辅助方法）
