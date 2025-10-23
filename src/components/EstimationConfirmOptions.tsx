@@ -25,15 +25,15 @@ export default function EstimationConfirmOptions({
     <div className="space-y-3">
       {/* 时间显示 */}
       <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
-        <div className="text-sm text-gray-600 mb-1">你的初始估计</div>
+        <div className="text-sm text-gray-600 mb-1">Your Initial Estimate</div>
         <div className="text-2xl font-bold text-blue-600">{formatMinutes(estimateMinutes)}</div>
       </div>
       
       {/* Buffer说明 */}
       <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
         <p className="text-sm text-yellow-800">
-          💡 <span className="font-semibold">建议加上20%缓冲时间</span>（约{formatMinutes(bufferMinutes)}），
-          这样更从容，不会因为意外情况而焦虑。
+          💡 <span className="font-semibold">Recommend adding 20% buffer time</span> (about {formatMinutes(bufferMinutes)}),
+          this gives you more flexibility and reduces stress from unexpected situations.
         </p>
       </div>
       
@@ -54,10 +54,10 @@ export default function EstimationConfirmOptions({
           <div className="flex-shrink-0 text-2xl">✅</div>
           <div className="flex-1">
             <h3 className="text-base font-bold mb-1 text-green-900">
-              好的，加上缓冲时间
+              Yes, Add Buffer Time
             </h3>
             <p className="text-sm text-gray-700">
-              记录为：<span className="font-semibold text-green-700">{totalWithBuffer}分钟（含20%缓冲）</span>
+              Record as: <span className="font-semibold text-green-700">{formatMinutes(totalWithBuffer)} (with 20% buffer)</span>
             </p>
           </div>
           <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -80,10 +80,10 @@ export default function EstimationConfirmOptions({
           <div className="flex-shrink-0 text-2xl">⏱️</div>
           <div className="flex-1">
             <h3 className="text-base font-bold mb-1 text-blue-900">
-              不用了，就这个时间
+              No Thanks, Use This Time
             </h3>
             <p className="text-sm text-gray-700">
-              记录为：<span className="font-semibold text-blue-700">{estimateMinutes}分钟</span>
+              Record as: <span className="font-semibold text-blue-700">{formatMinutes(estimateMinutes)}</span>
             </p>
           </div>
           <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -103,7 +103,7 @@ export default function EstimationConfirmOptions({
             }
           `}
         >
-          ← 重新估算
+          ← Re-estimate
         </button>
       </div>
     </div>

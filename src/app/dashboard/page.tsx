@@ -1036,7 +1036,7 @@ Find tasks that match your current state! 🎯`
             {
               role: 'assistant',
               content: [
-                { type: 'text', text: '排序完成！还想做点什么吗？' },
+                { type: 'text', text: 'Sorting complete! What would you like to do next?' },
                 {
                   type: 'interactive',
                   interactive: {
@@ -1054,10 +1054,10 @@ Find tasks that match your current state! 🎯`
         resetWorkflow()
       }
       
-      alert('✅ 任务优先级分类已保存！')
+      alert('✅ Task priority classification saved!')
     } catch (error) {
       console.error('保存矩阵分类失败:', error)
-      alert('❌ 保存失败，请重试')
+      alert('❌ Save failed, please try again')
     }
   }
   
@@ -1683,7 +1683,7 @@ Find tasks that match your current state! 🎯`
   const handleClearChat = async () => {
     if (!user) return
     
-    const confirmed = window.confirm('确定要清空当前日期的所有对话记录吗？此操作无法撤销。')
+    const confirmed = window.confirm('Are you sure you want to clear all chat history for the current date? This action cannot be undone.')
     if (!confirmed) return
     
     try {
