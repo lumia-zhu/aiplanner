@@ -715,7 +715,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                 disabled={isSending}
                 className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-600 bg-gray-100 border border-gray-200 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                跳过
+                Skip
               </button>
             )}
             {onContextCancel && (
@@ -724,7 +724,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                 disabled={isSending}
                 className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-red-500 border border-red-500 rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                取消
+                Cancel
               </button>
             )}
           </div>
@@ -738,7 +738,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
               disabled={isSending}
               className="px-6 py-2.5 text-sm font-medium text-white bg-red-500 border border-red-500 rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              取消
+              Cancel
             </button>
           </div>
         )}
@@ -803,7 +803,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                 disabled={isSending}
                 className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-600 bg-gray-100 border border-gray-200 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                ❌ 取消
+                ❌ Cancel
               </button>
             </div>
           </div>

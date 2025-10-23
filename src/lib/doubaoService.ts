@@ -531,11 +531,13 @@ ${userContext}
       }
       
       // 构建任务澄清专用的系统提示词
-      const systemPrompt = `你是一位专业的任务管理助手。用户刚刚回答了关于任务的澄清问题，你需要将用户的自然语言回答整合为结构化的任务上下文。
+      const systemPrompt = `**CRITICAL: ALL text content in structured_context and summary fields MUST be in ENGLISH. Do NOT use Chinese in the output JSON.**
 
-⏰ 当前时间参考：${currentDateStr}（ISO格式：${currentISO}）${userContextInfo}
+You are a professional task management assistant. The user has just answered clarification questions about a task, and you need to integrate the user's natural language answers into structured task context.
 
-重要要求：
+⏰ Current time reference: ${currentDateStr} (ISO format: ${currentISO})${userContextInfo}
+
+Important requirements:
 1. 仔细分析用户的回答，提取相关信息
 2. **特别注意时间信息的提取和转换**：
    - 如果用户提到了具体时间（如"明天下午3点"、"下周一早上"、"1月20日"），必须转换为ISO 8601格式
@@ -817,11 +819,13 @@ ${userAnswer}
       }
       
       // 构建任务澄清专用的系统提示词
-      const systemPrompt = `你是一位专业的任务管理助手。用户刚刚编辑了任务的详细信息，你需要将用户编辑的自然语言文本解析为结构化的任务上下文。
+      const systemPrompt = `**CRITICAL: ALL text content in structured_context and summary fields MUST be in ENGLISH. Do NOT use Chinese in the output JSON.**
 
-⏰ 当前时间参考：${currentDateStr}（ISO格式：${currentISO}）${userContextInfo}
+You are a professional task management assistant. The user has just edited the task details, and you need to parse the user's edited natural language text into structured task context.
 
-重要要求：
+⏰ Current time reference: ${currentDateStr} (ISO format: ${currentISO})${userContextInfo}
+
+Important requirements:
 1. **仔细分析用户编辑的文本，只提取用户明确提到的信息**
    - **不要推测或补充用户没有提到的信息**
    - 如果用户删除了某些内容，就不要在结果中包含
