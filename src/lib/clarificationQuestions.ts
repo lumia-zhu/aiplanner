@@ -167,11 +167,11 @@ export function formatClarificationQuestionsMessage(
     .map((q, i) => `${i + 1}. ${q.question}`)
     .join('\n\n')
 
-  return `好的！在开始澄清「${task.title}」之前，我想了解一些背景信息：
+  return `Great! Before we start clarifying "${task.title}", I'd like to understand some background information:
 
 ${questionList}
 
-💡 请在下方输入框中回答这些问题，也可以提供其他任何你知道的信息（可以自由描述，不需要严格按问题序号）`
+💡 Please answer these questions in the input box below. You can also provide any other information you know (feel free to describe, no need to strictly follow question numbers)`
 }
 
 // ============================================
@@ -272,7 +272,7 @@ export function formatRecommendationsMessage(
   recommendations: Array<{ task: Task; reason: string }>
 ): string {
   if (recommendations.length === 0) {
-    return '选择一个任务，我会问你几个问题来帮你更好地理解它。'
+    return 'Select a task, and I will ask you a few questions to help you better understand it.'
   }
 
   const topRecommendations = recommendations.slice(0, 3)
@@ -280,11 +280,11 @@ export function formatRecommendationsMessage(
     .map((rec, i) => `${i + 1}. **${rec.task.title}** - ${rec.reason}`)
     .join('\n')
 
-  return `根据你的任务情况，我建议优先澄清以下任务：
+  return `Based on your task situation, I suggest prioritizing clarification of the following tasks:
 
 ${suggestionList}
 
-选择一个任务，我会问你几个问题来帮你更好地理解它。`
+Select a task, and I will ask you a few questions to help you better understand it.`
 }
 
 // ============================================

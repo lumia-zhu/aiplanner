@@ -37,11 +37,11 @@ export function generateContextQuestions(task: Task): string[] {
  * 用于在聊天界面显示
  */
 export function formatQuestionsMessage(task: Task, questions: string[]): string {
-  return `好的！在开始拆解「${task.title}」之前，我想了解一些背景信息：
+  return `Great! Before we start breaking down "${task.title}", I'd like to understand some background information:
 
 ${questions.map((q, i) => `${i + 1}. ${q}`).join('\n\n')}
 
-💡 请在下方输入框中回答这些问题，也可以提供其他任何你知道的信息（可以自由描述，不需要严格按问题序号）`
+💡 Please answer these questions in the input box below. You can also provide any other information you know (feel free to describe, no need to strictly follow question numbers)`
 }
 
 

@@ -307,11 +307,11 @@ export function formatDynamicDecompositionMessage(task: Task, questions: string[
     .map((q, i) => `${i + 1}. ${q}`)
     .join('\n\n')
 
-  return `好的！在开始拆解「${task.title}」之前，我想了解一些背景信息：
+  return `Great! Before we start breaking down "${task.title}", I'd like to understand some background information:
 
 ${questionList}
 
-💡 请在下方输入框中回答这些问题，也可以提供其他任何你知道的信息（可以自由描述，不需要严格按问题序号）`
+💡 Please answer these questions in the input box below. You can also provide any other information you know (feel free to describe, no need to strictly follow question numbers)`
 }
 
 /**
@@ -340,11 +340,11 @@ export async function generateDecompositionQuestionsWithFallback(task: Task): Pr
     
     // 降级到规则模板
     const ruleBasedQuestions = generateContextQuestions(task)
-    const ruleBasedMessage = `好的！在开始拆解「${task.title}」之前，我想了解一些背景信息：
+    const ruleBasedMessage = `Great! Before we start breaking down "${task.title}", I'd like to understand some background information:
 
 ${ruleBasedQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n\n')}
 
-💡 请在下方输入框中回答这些问题，也可以提供其他任何你知道的信息（可以自由描述，不需要严格按问题序号）`
+💡 Please answer these questions in the input box below. You can also provide any other information you know (feel free to describe, no need to strictly follow question numbers)`
     
     return {
       questions: ruleBasedQuestions,
