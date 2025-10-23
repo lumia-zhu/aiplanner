@@ -298,12 +298,12 @@ export default function TaskDecompositionCard({
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
-            取消
+            Cancel
           </button>
         </div>
       ) : (
         <div className="text-center text-sm text-gray-500 py-2">
-          ✅ 已确认
+          ✅ Confirmed
         </div>
       )}
     </div>
