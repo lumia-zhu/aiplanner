@@ -2756,7 +2756,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                   </svg>
                   {/* 悬停提示 */}
                   <span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-lg">
-                    AI助手
+                    AI Assistant
                   </span>
                 </button>
               )}

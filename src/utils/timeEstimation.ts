@@ -77,17 +77,17 @@ export function formatMinutes(minutes: number | string): string {
   if (isNaN(num) || num <= 0) return ''
   
   if (num < 60) {
-    return `${num}分钟`
+    return `${num} minutes`
   }
   
   const hours = Math.floor(num / 60)
   const mins = num % 60
   
   if (mins === 0) {
-    return `${hours}小时`
+    return `${hours} hour${hours > 1 ? 's' : ''}`
   }
   
-  return `${hours}小时${mins}分钟`
+  return `${hours} hour${hours > 1 ? 's' : ''} ${mins} minutes`
 }
 
 /**
@@ -200,7 +200,7 @@ export function formatEncodedDuration(encoded: number | undefined): string {
   
   if (totalMinutes === 0) return ''
   
-  return hasBuffer ? `${totalMinutes}分钟（含缓冲）` : `${totalMinutes}分钟`
+  return hasBuffer ? `${totalMinutes} minutes (with buffer)` : `${totalMinutes} minutes`
 }
 
 /**
@@ -213,19 +213,19 @@ export function validateTimeEstimate(minutes: number): {
   message?: string
 } {
   if (isNaN(minutes)) {
-    return { valid: false, message: '请输入有效的数字' }
+    return { valid: false, message: 'Please enter a valid number' }
   }
   
   if (minutes <= 0) {
-    return { valid: false, message: '时间必须大于0' }
+    return { valid: false, message: 'Time must be greater than 0' }
   }
   
   if (minutes > 1440) {
-    return { valid: false, message: '时间不能超过24小时' }
+    return { valid: false, message: 'Time cannot exceed 24 hours' }
   }
   
   if (minutes < 5) {
-    return { valid: false, message: '建议时间至少5分钟' }
+    return { valid: false, message: 'Recommended minimum is 5 minutes' }
   }
   
   return { valid: true }
