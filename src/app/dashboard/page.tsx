@@ -2548,9 +2548,9 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
               {getScopeDescription(dateScope)}的任务
             </h2>
             <p className="text-gray-600">
-              共 {displayTasks.length} 个任务，{displayTasks.filter(t => !t.completed).length} 个待完成
+              {displayTasks.length} task{displayTasks.length !== 1 ? 's' : ''} total, {displayTasks.filter(t => !t.completed).length} pending
               {dateScope.includeOverdue && displayTasks.some(t => !t.completed && t.deadline_datetime && new Date(t.deadline_datetime) < new Date()) && 
-                <span className="ml-2 text-red-600">（包含逾期任务）</span>
+                <span className="ml-2 text-red-600">(Including overdue tasks)</span>
               }
             </p>
           </div>
@@ -2588,7 +2588,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                   style={{ backgroundColor: '#4A90E2' }}
                 >
                   <span className="text-white text-lg font-bold flex-shrink-0 w-4 h-4 flex items-center justify-center">+</span>
-                  新建任务
+                  New Task
                 </button>
           </div>
         </div>
@@ -2596,7 +2596,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
         {/* 任务进度条 */}
         <div className="mb-6 bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-gray-700">任务进度</span>
+            <span className="text-sm font-medium text-gray-700">Task Progress</span>
             <span className="text-sm text-gray-600">
               {displayTasks.filter(t => t.completed).length}/{displayTasks.length}
             </span>
@@ -2611,14 +2611,14 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
           </div>
           <div className="flex justify-between items-center mt-2">
             <span className="text-xs text-gray-500">
-              {displayTasks.length > 0 ? Math.round((displayTasks.filter(t => t.completed).length / displayTasks.length) * 100) : 0}% 完成
+              {displayTasks.length > 0 ? Math.round((displayTasks.filter(t => t.completed).length / displayTasks.length) * 100) : 0}% Complete
             </span>
             {displayTasks.length > 0 && displayTasks.filter(t => t.completed).length === displayTasks.length && (
               <span className="text-xs text-green-600 font-medium flex items-center gap-1">
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-                全部完成！
+                All Done!
               </span>
             )}
           </div>
@@ -2642,16 +2642,16 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
           {isLoading ? (
             <div className="text-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="mt-4 text-gray-600">加载任务中...</p>
+              <p className="mt-4 text-gray-600">Loading tasks...</p>
             </div>
           ) : displayTasks.length === 0 ? (
             <div className="bg-white rounded-lg shadow p-12 text-center">
               <div className="text-6xl mb-4">📅</div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">
-                {getScopeDescription(dateScope)}暂无任务
+                No Tasks for {getScopeDescription(dateScope)}
               </h3>
               <p className="text-gray-600 mb-6">
-                点击上方按钮添加任务，或选定其他包含任务的日期范围
+                Click the button above to add tasks, or select a different date range
               </p>
               <div className="flex gap-3 justify-center">
                 {selectedDate.toDateString() !== new Date().toDateString() && (
@@ -2737,7 +2737,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                         <span>分析中...</span>
                       </>
                     ) : (
-                      <span>✨ 下一步，AI辅助完善计划</span>
+                      <span>✨ Next，AI-assisted Planning</span>
                     )}
                   </button>
                 </div>

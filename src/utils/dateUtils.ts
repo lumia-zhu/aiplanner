@@ -242,15 +242,15 @@ export function filterTasksByScope(tasks: Task[], scope: DateScope): Task[] {
 export function getScopeDescription(scope: DateScope): string {
   switch (scope.preset) {
     case 'today':
-      return '今天'
+      return 'Today'
     case '3days':
-      return '未来3天'
+      return 'Next 3 Days'
     case '7days':
-      return '未来7天'
+      return 'Next 7 Days'
     case 'week':
-      return '本周'
+      return 'This Week'
     case 'month':
-      return '本月'
+      return 'This Month'
     case 'custom': {
       // 自定义范围：显示"M/D-M/D"格式
       const startMonth = scope.start.getMonth() + 1
@@ -266,7 +266,7 @@ export function getScopeDescription(scope: DateScope): string {
       return `${startMonth}/${startDay}-${endMonth}/${endDay}`
     }
     default:
-      return '自定义范围'
+      return 'Custom Range'
   }
 }
 

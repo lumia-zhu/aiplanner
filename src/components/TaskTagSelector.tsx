@@ -37,7 +37,7 @@ export default function TaskTagSelector({
     } else {
       // 选中 (检查是否超过最大数量)
       if (selectedTags.length >= TASK_TAG_CONFIG.MAX_TAGS_PER_TASK) {
-        setError(`最多只能选择 ${TASK_TAG_CONFIG.MAX_TAGS_PER_TASK} 个标签`)
+        setError(`Maximum ${TASK_TAG_CONFIG.MAX_TAGS_PER_TASK} tags allowed`)
         setTimeout(() => setError(''), 3000)
         return
       }
@@ -66,7 +66,7 @@ export default function TaskTagSelector({
     
     // 检查数量限制
     if (selectedTags.length >= TASK_TAG_CONFIG.MAX_TAGS_PER_TASK) {
-      setError(`最多只能选择 ${TASK_TAG_CONFIG.MAX_TAGS_PER_TASK} 个标签`)
+      setError(`Maximum ${TASK_TAG_CONFIG.MAX_TAGS_PER_TASK} tags allowed`)
       setTimeout(() => setError(''), 3000)
       return
     }
@@ -121,12 +121,12 @@ export default function TaskTagSelector({
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-2">
-        标签
+        Tags
       </label>
 
       {/* 预设标签 */}
       <div className="mb-3">
-        <p className="text-xs text-gray-600 mb-2">预设标签:</p>
+        <p className="text-xs text-gray-600 mb-2">Preset Tags:</p>
         <div className="flex flex-wrap gap-2">
           {Array.from(PRESET_TASK_TAGS).map((tag) => renderTagButton(tag))}
         </div>
@@ -135,7 +135,7 @@ export default function TaskTagSelector({
       {/* 用户的自定义标签 */}
       {customTags.length > 0 && (
         <div className="mb-3">
-          <p className="text-xs text-gray-600 mb-2">我的标签:</p>
+          <p className="text-xs text-gray-600 mb-2">My Tags:</p>
           <div className="flex flex-wrap gap-2">
             {customTags.map((tag) => renderTagButton(tag))}
           </div>
@@ -160,7 +160,7 @@ export default function TaskTagSelector({
             disabled={!customInput.trim()}
             className="px-3 py-1.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium whitespace-nowrap"
           >
-            + 添加
+            + Add
           </button>
         </div>
 
@@ -172,8 +172,8 @@ export default function TaskTagSelector({
         {/* 已选标签提示 */}
         <div className="flex items-center justify-between text-xs text-gray-500">
           <span>
-            已选择 {selectedTags.length} 个标签
-            {selectedTags.length > 0 && ' · 点击标签可取消选择'}
+            {selectedTags.length} tag{selectedTags.length !== 1 ? 's' : ''} selected
+            {selectedTags.length > 0 && ' · Click to deselect'}
           </span>
         </div>
       </div>
@@ -181,7 +181,7 @@ export default function TaskTagSelector({
       {/* 已选标签展示 */}
       {selectedTags.length > 0 && (
         <div className="mt-3 pt-3 border-t border-gray-200">
-          <p className="text-xs text-gray-600 mb-2">当前任务标签:</p>
+          <p className="text-xs text-gray-600 mb-2">Current Task Tags:</p>
           <div className="flex flex-wrap gap-2">
             {selectedTags.map((tag) => {
               const colorConfig = getTagColor(tag)

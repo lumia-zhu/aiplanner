@@ -271,7 +271,7 @@ export default function DateScopeSelector({ scope, onScopeChange }: DateScopeSel
             onChange={handleIncludeOverdueChange}
             className="w-4 h-4 text-blue-500 border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
           />
-          <span className="text-sm text-gray-700">包含之前未完成的任务</span>
+          <span className="text-sm text-gray-700">Include overdue tasks</span>
         </label>
 
         {/* 错误提示 */}
