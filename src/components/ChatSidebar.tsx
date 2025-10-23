@@ -262,7 +262,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
             chatMessages.map((message, index) => (
               <div key={index} className={`flex items-start gap-3 ${message.role === 'user' ? 'flex-row-reverse' : ''}`}>
                 {message.role === 'user' ? (
-                  <img src="/user-avatar.svg" alt="我" className="w-8 h-8 rounded-full flex-shrink-0" />
+                  <img src="/user-avatar.svg" alt="Me" className="w-8 h-8 rounded-full flex-shrink-0" />
                 ) : (
                   <img src="/ai-avatar.svg" alt="AI" className="w-8 h-8 rounded-full flex-shrink-0" />
                 )}
@@ -298,7 +298,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                         <div className="mt-2">
                         <img 
                           src={content.image_url.url} 
-                          alt="上传的图片" 
+                          alt="Uploaded image" 
                             className="max-w-full h-auto rounded border border-gray-200"
                           style={{ maxHeight: '150px' }}
                         />
@@ -444,7 +444,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                           task.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' :
                           'bg-green-100 text-green-700'
                         }`}>
-                          {task.priority === 'high' ? '高' : task.priority === 'medium' ? '中' : '低'}
+                          {task.priority === 'high' ? 'High' : task.priority === 'medium' ? 'Medium' : 'Low'}
                         </span>
                         {task.deadline_date || task.deadline_time ? (
                           <span className="text-xs text-gray-500 bg-blue-100 px-1 py-0.5 rounded">
@@ -521,7 +521,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
             <div className="flex items-center gap-2">
                     <img 
                       src={URL.createObjectURL(selectedImage)} 
-                      alt="待发送的图片" 
+                      alt="Image to send" 
                       className="w-12 h-12 object-cover rounded"
                     />
               <div className="flex-1">
@@ -564,7 +564,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                   ? 'border-blue-500 text-blue-500 bg-white cursor-pointer' 
                   : 'border-gray-300 text-gray-500 hover:text-blue-500 hover:bg-blue-50 bg-white cursor-pointer'
             }`}
-            title={shouldDisableInput ? "请先选择上方操作" : "上传图片"}
+            title={shouldDisableInput ? "Please select an action above" : "Upload image"}
             >
               {isImageProcessing ? (
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
@@ -641,7 +641,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
               : 'text-gray-500 hover:text-blue-500 hover:bg-blue-50 border-gray-300 bg-white cursor-pointer'
           }`}
             onClick={shouldDisableInput ? undefined : handleVoiceClick}
-            title={shouldDisableInput ? "请先选择上方操作" : "语音输入"}
+            title={shouldDisableInput ? "Please select an action above" : "Voice input"}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
@@ -700,7 +700,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                 </svg>
-                <span>{workflowMode === 'task-context-input' || workflowMode === 'task-clarification-input' ? '提交' : '发送'}</span>
+                <span>{workflowMode === 'task-context-input' || workflowMode === 'task-clarification-input' ? 'Submit' : 'Send'}</span>
               </>
             )}
           </div>
@@ -819,7 +819,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                   ? 'bg-green-100 text-green-700' 
                   : 'bg-gray-100 text-gray-500'
               }`}>
-                {isTaskRecognitionMode ? '已启用' : '已关闭'}
+                {isTaskRecognitionMode ? 'Enabled' : 'Disabled'}
               </span>
             </div>
 
