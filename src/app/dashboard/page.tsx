@@ -2143,7 +2143,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
           {/* flex布局容器：在主内容区域内部分左右 */}
           <div className="flex gap-6 h-[calc(100vh-8rem)]">
             {/* 左侧：任务管理区域 */}
-            <div className="flex-1 overflow-y-auto transition-all duration-300 ease-in-out relative pb-24">
+            <div className="flex-1 overflow-y-auto custom-scrollbar transition-all duration-300 ease-in-out relative pb-24">
               {/* AI 聊天框 - 临时隐藏 */}
             <div 
               className={`bg-white rounded-lg shadow-sm border mb-6 transition-all duration-200 hidden ${
