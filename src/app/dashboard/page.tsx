@@ -178,6 +178,7 @@ export default function DashboardPage() {
     clarificationAnswer,
     structuredContext,
     aiClarificationSummary,
+    editableText,
     // ⭐ 时间估算相关状态
     estimationTask,
     estimationInitial,
@@ -199,6 +200,9 @@ export default function DashboardPage() {
     cancelClarificationAnswer,  // ⭐ 新增
     confirmClarification,
     rejectClarification,
+    handleConfirmEdit,
+    handleCancelEdit,
+    setEditableText,
     // ⭐ 时间估算相关方法
     selectTaskForEstimation,
     submitInitialEstimation,
@@ -2794,6 +2798,10 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
               onClarificationConfirm={handleClarificationConfirm}
               onClarificationReject={rejectClarification}
               hasStructuredContext={!!structuredContext}
+              editableText={editableText}
+              setEditableText={setEditableText}
+              handleConfirmEdit={handleConfirmEdit}
+              handleCancelEdit={handleCancelEdit}
               onEstimationSubmit={submitInitialEstimation}
               onEstimationResubmit={resubmitEstimation}
               onEstimationConfirm={handleEstimationConfirm}

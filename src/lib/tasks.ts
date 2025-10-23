@@ -643,8 +643,8 @@ export async function appendStructuredContextToTask(
     dependencies?: string[]
     expected_output?: string
     difficulty?: string
-    mood?: string
     priority_reason?: string
+    estimated_duration?: number
   }
 ): Promise<{ success: boolean; task?: Task; error?: string }> {
   try {
@@ -662,48 +662,49 @@ export async function appendStructuredContextToTask(
       return { success: false, error: '任务不存在或无权访问' }
     }
     
-    // 2. 格式化结构化上下文为markdown标签
-    const contextLines: string[] = []
+    // 2. 格式化结构化上下文为紧凑的单行格式
+    const infoParts: string[] = []
+    
+    // 按顺序添加有内容的字段
+    if (structuredContext.expected_output) {
+      infoParts.push(`产出：${structuredContext.expected_output}`)
+    }
+    
+    // 添加预估时长
+    if (structuredContext.estimated_duration && structuredContext.estimated_duration > 0) {
+      const hours = structuredContext.estimated_duration / 60
+      const formatted = hours % 1 === 0 ? `${hours}小时` : `${hours}小时`
+      infoParts.push(`时长：${formatted}`)
+    }
     
     if (structuredContext.timeline) {
-      contextLines.push(`- ⏰ 时间：${structuredContext.timeline}`)
+      infoParts.push(`时间：${structuredContext.timeline}`)
     }
     
     if (structuredContext.dependencies && structuredContext.dependencies.length > 0) {
-      contextLines.push(`- 🔗 依赖：${structuredContext.dependencies.join('、')}`)
-    }
-    
-    if (structuredContext.expected_output) {
-      contextLines.push(`- 🎯 产出：${structuredContext.expected_output}`)
+      infoParts.push(`依赖：${structuredContext.dependencies.join('、')}`)
     }
     
     if (structuredContext.difficulty) {
-      contextLines.push(`- 💡 难点：${structuredContext.difficulty}`)
-    }
-    
-    if (structuredContext.mood) {
-      contextLines.push(`- 🎭 情绪：${structuredContext.mood}`)
+      infoParts.push(`挑战：${structuredContext.difficulty}`)
     }
     
     if (structuredContext.priority_reason) {
-      contextLines.push(`- ⚖️ 优先级：${structuredContext.priority_reason}`)
+      infoParts.push(`优先级：${structuredContext.priority_reason}`)
     }
     
     // 如果没有任何上下文信息，直接返回
-    if (contextLines.length === 0) {
+    if (infoParts.length === 0) {
       return { success: true, task: currentTask }
     }
     
-    // 3. 构建完整的上下文标签
-    const contextTag = `
----
-${contextLines.join('\n')}
----`
+    // 3. 构建紧凑的单行标签（使用 | 分隔）
+    const contextTag = `\n\n## 📋 ${infoParts.join(' | ')}`
     
     // 4. 将上下文追加到现有描述中
     const currentDescription = currentTask.description || ''
     const updatedDescription = currentDescription
-      ? `${currentDescription}\n${contextTag}`
+      ? `${currentDescription}${contextTag}`
       : contextTag.trim()
     
     // 5. 构建更新数据对象

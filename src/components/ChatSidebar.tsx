@@ -69,6 +69,10 @@ interface ChatSidebarProps {
   onClarificationConfirm?: () => void
   onClarificationReject?: () => void
   hasStructuredContext?: boolean  // 是否有结构化上下文（用于显示确认/修正按钮）
+  editableText?: string  // ⭐ 可编辑的澄清文本
+  setEditableText?: (text: string) => void  // ⭐ 设置可编辑文本
+  handleConfirmEdit?: () => void  // ⭐ 确认编辑
+  handleCancelEdit?: () => void  // ⭐ 取消编辑
   
   // 任务拆解上下文相关回调
   onContextSkip?: () => void  // ⭐ 跳过任务上下文输入
@@ -133,6 +137,10 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   onClarificationConfirm,
   onClarificationReject,
   hasStructuredContext,
+  editableText,
+  setEditableText,
+  handleConfirmEdit,
+  handleCancelEdit,
   onContextSkip,  // ⭐ 新增
   onContextCancel,  // ⭐ 新增
   onEstimationSubmit,
@@ -732,6 +740,72 @@ const ChatSidebar = memo<ChatSidebarProps>(({
             >
               取消
             </button>
+          </div>
+        )}
+
+        {/* ⭐ 任务澄清编辑模式 */}
+        {workflowMode === 'clarification-edit' && editableText !== undefined && (
+          <div className="px-4 py-4 bg-yellow-50/30 border-t border-yellow-200">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              💡 编辑任务信息（可修改任何内容）：
+            </label>
+            <textarea
+              value={editableText}
+              onChange={(e) => setEditableText(e.target.value)}
+              onKeyDown={(e) => {
+                // 按Enter键时，插入新的列表项（带点号）
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  const textarea = e.currentTarget
+                  const start = textarea.selectionStart
+                  const end = textarea.selectionEnd
+                  const text = editableText || ''
+                  
+                  // 检查当前行是否已经是列表项
+                  const beforeCursor = text.substring(0, start)
+                  const currentLineStart = beforeCursor.lastIndexOf('\n') + 1
+                  const currentLine = text.substring(currentLineStart, start)
+                  
+                  // 如果当前行以 "• " 开头，在下一行也添加 "• "
+                  if (currentLine.trim().startsWith('•')) {
+                    const newText = text.substring(0, end) + '\n• ' + text.substring(end)
+                    setEditableText(newText)
+                    
+                    // 设置光标位置到新列表项后面
+                    setTimeout(() => {
+                      textarea.selectionStart = textarea.selectionEnd = end + 3
+                    }, 0)
+                  } else {
+                    // 否则正常换行
+                    const newText = text.substring(0, end) + '\n' + text.substring(end)
+                    setEditableText(newText)
+                    
+                    setTimeout(() => {
+                      textarea.selectionStart = textarea.selectionEnd = end + 1
+                    }, 0)
+                  }
+                }
+              }}
+              rows={12}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-900 placeholder-gray-400 resize-y"
+              placeholder="编辑任务详情..."
+            />
+            <div className="flex gap-3 mt-3">
+              <button
+                onClick={handleConfirmEdit}
+                disabled={!editableText.trim() || isSending}
+                className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-green-600 border border-green-600 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSending ? '解析中...' : '✅ 确认修改'}
+              </button>
+              <button
+                onClick={handleCancelEdit}
+                disabled={isSending}
+                className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-600 bg-gray-100 border border-gray-200 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                ❌ 取消
+              </button>
+            </div>
           </div>
         )}
         

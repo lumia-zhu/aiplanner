@@ -19,6 +19,7 @@ import { doubaoService } from '@/lib/doubaoService'
 import { generateReflectionQuestion, buildUserProfile } from '@/lib/timeEstimationAI'
 import { formatMinutes, calculateBuffer, encodeEstimatedDuration } from '@/utils/timeEstimation'
 import { generateClarificationQuestionsWithFallback } from '@/lib/clarificationAI'
+import { formatSummaryForEdit } from '@/utils/summaryUtils'
 
 interface UseWorkflowAssistantProps {
   tasks: Task[]
@@ -46,6 +47,7 @@ interface UseWorkflowAssistantReturn {
   clarificationAnswer: string  // 用户的澄清回答
   structuredContext: StructuredContext | null  // AI提取的结构化上下文
   aiClarificationSummary: string  // AI生成的理解总结
+  editableText: string  // ⭐ 用户编辑的澄清文本
   
   // ⭐ 时间估算相关状态
   estimationTask: Task | null  // 正在估算的任务
@@ -70,6 +72,9 @@ interface UseWorkflowAssistantReturn {
   cancelClarificationAnswer: () => void  // ⭐ 取消任务澄清，返回上一级
   confirmClarification: () => void  // 确认澄清结果
   rejectClarification: () => void  // 重新澄清
+  handleConfirmEdit: () => Promise<void>  // ⭐ 确认编辑后的澄清内容
+  handleCancelEdit: () => void  // ⭐ 取消编辑
+  setEditableText: (text: string) => void  // ⭐ 设置可编辑文本
   
   // ⭐ 时间估算相关方法
   selectTaskForEstimation: (task: Task) => void  // 选择要估算的任务
@@ -108,6 +113,7 @@ export function useWorkflowAssistant({
   const [clarificationAnswer, setClarificationAnswer] = useState<string>('')
   const [structuredContext, setStructuredContext] = useState<StructuredContext | null>(null)
   const [aiClarificationSummary, setAIClarificationSummary] = useState<string>('')
+  const [editableText, setEditableText] = useState<string>('')  // ⭐ 用户编辑的澄清文本
   
   // ⭐ 时间估算相关状态
   const [estimationTask, setEstimationTask] = useState<Task | null>(null)           // 正在估算的任务
@@ -828,7 +834,8 @@ ${recommendation.reason}
         selectedTaskForDecompose.title,
         selectedTaskForDecompose.description,
         clarificationQuestions,
-        answer
+        answer,
+        userProfile
       )
       
       setIsSending(false)
@@ -957,19 +964,92 @@ ${recommendation.reason}
       return msg
     }))
 
-    // 显示用户拒绝消息
+    // 显示用户选择修正的消息
     setChatMessages(prev => [
       ...prev,
-      { role: 'user', content: [{ type: 'text', text: '✏️ 重新描述' }] }
+      { role: 'user', content: [{ type: 'text', text: '✏️ 需要修正' }] }
     ])
     
-    // 清空当前澄清结果，回到输入状态
-    setClarificationAnswer('')
-    setStructuredContext(null)
-    setAIClarificationSummary('')
+    // 初始化可编辑文本
+    const editText = formatSummaryForEdit(aiClarificationSummary)
+    setEditableText(editText)
     
-    streamAIMessage('好的，请重新回答刚才的问题，我会更仔细地理解你的意思。')
-  }, [setChatMessages, streamAIMessage])
+    // 进入编辑模式，不清空数据
+    setWorkflowMode('clarification-edit')
+    
+    // 显示提示消息
+    streamAIMessage('好的！你可以直接编辑下面的内容，修改任意信息后点击"确认修改"。')
+  }, [aiClarificationSummary, setChatMessages, streamAIMessage])
+
+  /**
+   * ⭐ 确认编辑后的澄清内容
+   */
+  const handleConfirmEdit = useCallback(async () => {
+    if (!selectedTaskForDecompose || !editableText.trim()) return
+    
+    setIsSending(true)
+    
+    try {
+      // 调用AI重新解析编辑后的文本
+      const result = await doubaoService.reparseTaskClarification(
+        selectedTaskForDecompose.title,
+        editableText,
+        userProfile
+      )
+      
+      setIsSending(false)
+      
+      if (result.success && result.structured_context && result.summary) {
+        // 更新结构化上下文和总结
+        setStructuredContext(result.structured_context)
+        setAIClarificationSummary(result.summary)
+        
+        // 显示用户的编辑消息
+        setChatMessages(prev => [
+          ...prev,
+          { role: 'user', content: [{ type: 'text', text: '✅ 已确认修改' }] }
+        ])
+        
+        // 显示AI确认消息并提供确认按钮
+        streamAIMessageWithInteractive(result.summary, {
+          type: 'clarification-confirm',
+          data: {}
+        })
+        
+        // 退出编辑模式
+        setWorkflowMode('task-clarification-input')
+      } else {
+        throw new Error('重新解析失败')
+      }
+    } catch (error) {
+      console.error('重新解析任务失败:', error)
+      setIsSending(false)
+      streamAIMessage('抱歉，AI在解析你的编辑时遇到问题，请稍后重试。')
+    }
+  }, [editableText, selectedTaskForDecompose, userProfile, setIsSending, setChatMessages, streamAIMessage, streamAIMessageWithInteractive])
+
+  /**
+   * ⭐ 取消编辑，返回到澄清确认状态
+   */
+  const handleCancelEdit = useCallback(() => {
+    // 清空编辑文本
+    setEditableText('')
+    
+    // 显示用户取消消息
+    setChatMessages(prev => [
+      ...prev,
+      { role: 'user', content: [{ type: 'text', text: '❌ 取消编辑' }] }
+    ])
+    
+    // 返回到原来的澄清确认状态
+    setWorkflowMode('task-clarification-input')
+    
+    // 重新显示AI的理解和确认按钮
+    streamAIMessageWithInteractive(aiClarificationSummary, {
+      type: 'clarification-confirm',
+      data: {}
+    })
+  }, [aiClarificationSummary, setChatMessages, streamAIMessageWithInteractive])
 
   /**
    * ⭐ 跳过澄清问题，返回上一级
@@ -1245,6 +1325,7 @@ ${recommendation.reason}
     clarificationAnswer,
     structuredContext,
     aiClarificationSummary,
+    editableText,
     
     // ⭐ 估算相关状态
     estimationTask,
@@ -1269,6 +1350,9 @@ ${recommendation.reason}
     cancelClarificationAnswer,  // ⭐ 新增
     confirmClarification,
     rejectClarification,
+    handleConfirmEdit,
+    handleCancelEdit,
+    setEditableText,
     
     // ⭐ 估算相关方法
     selectTaskForEstimation,

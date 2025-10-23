@@ -37,25 +37,25 @@ const TASK_CLARIFICATION_SCHEMA = {
         },
         difficulty: {
           type: "string",
-          description: "预期的困难点或障碍，如果没有则填写空字符串"
-        },
-        mood: {
-          type: "string",
-          description: "用户对任务的情绪感受，如果没有则填写空字符串"
+          description: "预期的困难点或障碍（简洁描述，不超过30字），如果没有则填写空字符串"
         },
         priority_reason: {
           type: "string",
-          description: "优先级理由，如果没有则填写空字符串"
+          description: "优先级理由（简洁说明，不超过30字），如果没有则填写空字符串"
+        },
+        estimated_duration: {
+          type: "number",
+          description: "预估完成时长（分钟数），识别如'1小时'=60、'1.5小时'或'一个半小时'=90、'半小时'=30、'2-3小时'=150。如果没有则填写0"
         }
       },
       required: ["timeline", "deadline_datetime", "deadline_confidence", 
                  "dependencies", "expected_output", "difficulty", 
-                 "mood", "priority_reason"],
+                 "priority_reason", "estimated_duration"],
       additionalProperties: false
     },
     summary: {
       type: "string",
-      description: "一句话总结，以'我理解的任务是这样的：'开头"
+      description: "结构化总结，格式：'📋 任务概要\\n\\n[一句话描述]\\n\\n• 产出：...\\n• 时间：...\\n• 依赖：...\\n• 挑战：...（只列出有内容的项）'"
     }
   },
   required: ["structured_context", "summary"],
@@ -478,7 +478,8 @@ ${userContext}
     taskTitle: string,
     taskDescription: string | undefined,
     questions: Array<{ dimension: string; question: string; purpose: string }>,
-    userAnswer: string
+    userAnswer: string,
+    userProfile?: { major?: string; grade?: string; challenges?: string[]; workplaces?: string[] } | null
   ): Promise<{
     success: boolean
     structured_context?: {
@@ -488,8 +489,8 @@ ${userContext}
       dependencies?: string[]
       expected_output?: string
       difficulty?: string
-      mood?: string
       priority_reason?: string
+      estimated_duration?: number
     }
     summary?: string
     error?: string
@@ -512,10 +513,27 @@ ${userContext}
       })
       const currentISO = currentDate.toISOString()
       
+      // 构建用户背景信息
+      let userContextInfo = ''
+      if (userProfile) {
+        const contextParts: string[] = []
+        if (userProfile.major) contextParts.push(`专业：${userProfile.major}`)
+        if (userProfile.grade) contextParts.push(`年级：${userProfile.grade}`)
+        if (userProfile.challenges && userProfile.challenges.length > 0) {
+          contextParts.push(`挑战：${userProfile.challenges.join('、')}`)
+        }
+        if (userProfile.workplaces && userProfile.workplaces.length > 0) {
+          contextParts.push(`常用工作场所：${userProfile.workplaces.join('、')}`)
+        }
+        if (contextParts.length > 0) {
+          userContextInfo = `\n\n👤 用户背景：\n${contextParts.join('\n')}\n\n💡 请结合用户背景理解任务，识别可能的挑战和合适的执行方式。`
+        }
+      }
+      
       // 构建任务澄清专用的系统提示词
       const systemPrompt = `你是一位专业的任务管理助手。用户刚刚回答了关于任务的澄清问题，你需要将用户的自然语言回答整合为结构化的任务上下文。
 
-⏰ 当前时间参考：${currentDateStr}（ISO格式：${currentISO}）
+⏰ 当前时间参考：${currentDateStr}（ISO格式：${currentISO}）${userContextInfo}
 
 重要要求：
 1. 仔细分析用户的回答，提取相关信息
@@ -537,8 +555,22 @@ ${userContext}
      * "medium": 相对日期（如"明天下午"）
      * "low": 时间模糊（如"这周"、"月底前"）
      * "": 用户完全没提时间
-3. 如果用户未提及某个字段，该字段设置为空字符串""
-4. 生成一句话总结，以"我理解的任务是这样的："开头，不超过100字
+3. **特别注意预估时长的提取（estimated_duration）**：
+   - 识别时间表达并转换为分钟数（number类型）
+   - 转换规则：
+     * "1小时" / "一小时" / "1h" → 60
+     * "1.5小时" / "一个半小时" / "1个半小时" → 90
+     * "半小时" / "30分钟" / "0.5小时" → 30
+     * "2小时" / "两小时" → 120
+     * "2-3小时" / "两到三小时" → 150（取中间值）
+     * "一整天" / "全天" → 480（8小时）
+     * "半天" → 240（4小时）
+   - 如果用户没提时长，设置为0
+4. 如果用户未提及某个字段，该字段设置为空字符串""（estimated_duration除外，设为0）
+5. 生成结构化总结，要求：
+   - 第一段：用一句话概括任务核心（不超过30字，去掉"我理解的任务是这样的"等冗余前缀）
+   - 第二段：只列出**有实际内容**的关键信息（没有的信息不要列出）
+   - 每项信息简洁明了，去掉冗余描述
 
 输出格式说明：
 - timeline: 字符串，保留用户的原始时间表达，没有则为空字符串""
@@ -546,7 +578,7 @@ ${userContext}
 - deadline_confidence: 字符串，只能是"high"/"medium"/"low"或空字符串""
 - dependencies: 数组，如["依赖1", "依赖2"]，没有则为空数组[]
 - 其他字段: 字符串，没有则为空字符串""
-- summary: 必须是字符串，不能为空`
+- summary: 必须是字符串，格式为"📋 任务概要\n\n[一句话任务描述]\n\n• 产出：[具体产出]\n• 时长：[X小时/X分钟]（如果estimated_duration>0）\n• 时间：[时间安排]（如果有）\n• 依赖：[依赖资源]（如果有）\n• 挑战：[潜在挑战]（如果有）"（只列出有内容的项，空项不列出），不能为空`
 
       // 构建问题列表文本
       const questionList = questions
@@ -598,7 +630,7 @@ ${userAnswer}
           role: 'assistant',
           content: [{
             type: 'text',
-            text: `{"structured_context":{"timeline":"下周上课前完成","dependencies":["导师提供的最新研究数据"],"expected_output":"用于课堂讲解的PPT，需要包含新概念和研究数据","difficulty":"数据获取的时效性，担心导师数据来不及提供","mood":"有点焦虑","priority_reason":"下周就要上课，时间紧迫且对学生影响大"},"summary":"我理解的任务是这样的：你需要在下周上课前制作一份讲解新概念的课程PPT，其中需要用到导师提供的最新研究数据。这个任务比较重要且紧迫，你目前有点焦虑，主要担心数据能否及时获取。"}`
+            text: `{"structured_context":{"timeline":"下周上课前","dependencies":["导师的最新研究数据"],"expected_output":"包含新概念和研究数据的课堂PPT","difficulty":"数据获取时效性","priority_reason":"时间紧迫","estimated_duration":120},"summary":"📋 任务概要\\n\\n制作讲解新概念的课程PPT\\n\\n• 产出：包含新概念和研究数据的课堂PPT\\n• 时长：2小时\\n• 时间：下周上课前\\n• 依赖：导师的最新研究数据\\n• 挑战：数据获取时效性"}`
           }]
         },
         {
@@ -684,7 +716,6 @@ ${userAnswer}
           dependencies: (context.dependencies && context.dependencies.length > 0) ? context.dependencies : undefined,
           expected_output: context.expected_output || undefined,
           difficulty: context.difficulty || undefined,
-          mood: context.mood || undefined,
           priority_reason: context.priority_reason || undefined,
         }
         
@@ -720,6 +751,260 @@ ${userAnswer}
       return { 
         success: false, 
         error: `任务澄清失败: ${errorMessage}` 
+      }
+    }
+  }
+
+  /**
+   * 重新解析用户编辑后的任务澄清内容
+   * @param taskTitle 任务标题
+   * @param editedText 用户编辑后的文本
+   * @param userProfile 用户背景信息
+   * @returns 重新解析后的结构化上下文和总结
+   */
+  async reparseTaskClarification(
+    taskTitle: string,
+    editedText: string,
+    userProfile?: { major?: string; grade?: string; challenges?: string[]; workplaces?: string[] } | null
+  ): Promise<{
+    success: boolean
+    structured_context?: {
+      timeline?: string
+      deadline_datetime?: string
+      deadline_confidence?: 'high' | 'medium' | 'low'
+      dependencies?: string[]
+      expected_output?: string
+      difficulty?: string
+      priority_reason?: string
+      estimated_duration?: number
+    }
+    summary?: string
+    error?: string
+  }> {
+    const apiKey = this.getApiKey()
+    if (!apiKey) {
+      return { success: false, error: '请在环境变量中配置 NEXT_PUBLIC_DOUBAO_API_KEY' }
+    }
+
+    try {
+      // 获取当前时间作为参考
+      const currentDate = new Date()
+      const currentDateStr = currentDate.toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        weekday: 'long',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+      const currentISO = currentDate.toISOString()
+      
+      // 构建用户背景信息
+      let userContextInfo = ''
+      if (userProfile) {
+        const contextParts: string[] = []
+        if (userProfile.major) contextParts.push(`专业：${userProfile.major}`)
+        if (userProfile.grade) contextParts.push(`年级：${userProfile.grade}`)
+        if (userProfile.challenges && userProfile.challenges.length > 0) {
+          contextParts.push(`挑战：${userProfile.challenges.join('、')}`)
+        }
+        if (userProfile.workplaces && userProfile.workplaces.length > 0) {
+          contextParts.push(`常用工作场所：${userProfile.workplaces.join('、')}`)
+        }
+        if (contextParts.length > 0) {
+          userContextInfo = `\n\n👤 用户背景：\n${contextParts.join('\n')}\n\n💡 请结合用户背景理解任务，识别可能的挑战和合适的执行方式。`
+        }
+      }
+      
+      // 构建任务澄清专用的系统提示词
+      const systemPrompt = `你是一位专业的任务管理助手。用户刚刚编辑了任务的详细信息，你需要将用户编辑的自然语言文本解析为结构化的任务上下文。
+
+⏰ 当前时间参考：${currentDateStr}（ISO格式：${currentISO}）${userContextInfo}
+
+重要要求：
+1. **仔细分析用户编辑的文本，只提取用户明确提到的信息**
+   - **不要推测或补充用户没有提到的信息**
+   - 如果用户删除了某些内容，就不要在结果中包含
+   - 如果用户没提到挑战、优先级等字段，就设为空字符串""
+2. **特别注意时间信息的提取和转换**：
+   - 如果用户提到了具体时间（如"明天下午3点"、"下周一早上"、"1月20日"），必须转换为ISO 8601格式
+   - **时区处理：用户所在时区为北京时间（UTC+8），返回的时间格式必须不包含时区标识**
+   - 转换规则：
+     * "今天" → 使用当天日期
+     * "明天" → 当天+1天
+     * "后天" → 当天+2天
+     * "下周X" → 计算到下周对应的星期几
+     * "X月Y日" → 使用当前年份（如果该日期已过则为明年）+ 指定月日
+     * 时间默认值：早上→09:00，中午→12:00，下午→14:00，晚上→19:00，具体时间点按用户描述
+     * 如果未指定具体时间点，使用23:59
+   - **重要：返回的时间必须是北京本地时间，格式为"YYYY-MM-DDTHH:mm:ss"（不带Z或时区偏移）**
+   - 同时保留原始自然语言描述在timeline字段
+   - 设置置信度：
+     * "high": 明确的日期+时间点（如"1月15日下午3点"、"今天下午1点"）
+     * "medium": 相对日期（如"明天下午"）
+     * "low": 时间模糊（如"这周"、"月底前"）
+     * "": 用户完全没提时间
+3. **特别注意预估时长的提取（estimated_duration）**：
+   - 识别时间表达并转换为分钟数（number类型）
+   - 转换规则：
+     * "1小时" / "一小时" / "1h" → 60
+     * "1.5小时" / "一个半小时" / "1个半小时" → 90
+     * "半小时" / "30分钟" / "0.5小时" → 30
+     * "2小时" / "两小时" → 120
+     * "2-3小时" / "两到三小时" → 150（取中间值）
+     * "一整天" / "全天" → 480（8小时）
+     * "半天" → 240（4小时）
+   - 如果用户没提时长，设置为0
+4. 如果用户未提及某个字段，该字段设置为空字符串""（estimated_duration除外，设为0）
+5. 生成结构化总结，要求：
+   - 第一段：用一句话概括任务核心（不超过30字）
+   - 第二段：只列出**有实际内容**的关键信息（没有的信息不要列出）
+   - 每项信息简洁明了，去掉冗余描述
+
+输出格式说明：
+- timeline: 字符串，保留用户的原始时间表达，没有则为空字符串""
+- deadline_datetime: 字符串，北京本地时间的ISO格式（如"2025-01-17T13:00:00"，不带Z或+08:00），没有则为空字符串""
+- deadline_confidence: 字符串，只能是"high"/"medium"/"low"或空字符串""
+- dependencies: 数组，如["依赖1", "依赖2"]，没有则为空数组[]
+- 其他字段: 字符串，没有则为空字符串""
+- estimated_duration: 数字，单位是分钟，没有则为0
+- summary: 必须是字符串，格式为"📋 任务概要\\n\\n[一句话任务描述]\\n\\n• 产出：[具体产出]\\n• 时长：[X小时/X分钟]（如果estimated_duration>0）\\n• 时间：[时间安排]（如果有）\\n• 依赖：[依赖资源]（如果有）\\n• 挑战：[潜在挑战]（如果有）"（只列出有内容的项，空项不列出），不能为空`
+
+      // 构建用户消息
+      const userMessage = `任务标题：${taskTitle}
+
+用户编辑后的任务详情：
+${editedText}
+
+请分析用户编辑的内容，提取结构化信息，并生成格式化的总结。`
+
+      const messages: ChatMessage[] = [
+        {
+          role: 'system',
+          content: [{
+            type: 'text',
+            text: systemPrompt
+          }]
+        },
+        {
+          role: 'user',
+          content: [{
+            type: 'text',
+            text: userMessage
+          }]
+        }
+      ]
+
+      // 准备请求体 - 使用结构化输出
+      const requestBody = {
+        model: DOUBAO_CONFIG.model,
+        messages: messages,
+        stream: false,
+        temperature: 0.7,
+        thinking: {
+          type: "disabled"  // 关闭深度思考以提高响应速度
+        },
+        response_format: {   // 使用结构化输出
+          type: "json_schema",
+          json_schema: {
+            name: "task_clarification",
+            strict: true,
+            schema: TASK_CLARIFICATION_SCHEMA
+          }
+        }
+      }
+
+      console.log('📝 调用任务重新解析API（结构化输出）...')
+
+      // 调用豆包 API
+      const response = await fetch(DOUBAO_CONFIG.endpoint, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody)
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('任务重新解析 API 错误响应:', errorText)
+        return { success: false, error: `API 调用失败 (${response.status})` }
+      }
+
+      // 处理响应
+      const data = await response.json()
+      const aiContent = data?.choices?.[0]?.message?.content
+      
+      let messageText = ''
+      if (typeof aiContent === 'string') {
+        messageText = aiContent
+      } else if (Array.isArray(aiContent)) {
+        messageText = aiContent
+          .map((part: any) => (typeof part === 'string' ? part : (part?.text ?? '')))
+          .join('')
+      }
+
+      console.log('📝 任务重新解析响应(结构化):', messageText?.slice(0, 200) + '...')
+
+      if (!messageText || messageText.trim().length === 0) {
+        return { success: false, error: '模型未返回可用文本内容' }
+      }
+
+      // 解析 JSON - 由于使用了 json_schema，返回应该是纯净的JSON
+      try {
+        const parsed = JSON.parse(messageText)
+        
+        if (!parsed.structured_context || !parsed.summary) {
+          console.error('JSON结构不完整:', parsed)
+          return { success: false, error: 'AI返回的数据结构不完整' }
+        }
+
+        // 将空字符串转换为undefined（便于后续处理）
+        const context = parsed.structured_context
+        const normalizedContext = {
+          timeline: context.timeline || undefined,
+          deadline_datetime: context.deadline_datetime || undefined,
+          deadline_confidence: context.deadline_confidence || undefined,
+          dependencies: (context.dependencies && context.dependencies.length > 0) ? context.dependencies : undefined,
+          expected_output: context.expected_output || undefined,
+          difficulty: context.difficulty || undefined,
+          priority_reason: context.priority_reason || undefined,
+          estimated_duration: context.estimated_duration || 0,
+        }
+        
+        // 验证 deadline_datetime 格式（如果存在）
+        if (normalizedContext.deadline_datetime) {
+          const deadline = new Date(normalizedContext.deadline_datetime)
+          if (isNaN(deadline.getTime())) {
+            console.warn('deadline_datetime 格式无效，将忽略:', 
+                         normalizedContext.deadline_datetime)
+            normalizedContext.deadline_datetime = undefined
+            normalizedContext.deadline_confidence = undefined
+          } else {
+            console.log('✅ 解析到截止时间:', 
+                       normalizedContext.deadline_datetime,
+                       '置信度:', 
+                       normalizedContext.deadline_confidence)
+          }
+        }
+
+        return {
+          success: true,
+          structured_context: normalizedContext,
+          summary: parsed.summary
+        }
+      } catch (parseError) {
+        console.error('JSON解析失败:', messageText, parseError)
+        return { success: false, error: '无法解析AI返回的结构化数据' }
+      }
+
+    } catch (error: unknown) {
+      console.error('任务重新解析请求失败:', error)
+      const errorMessage = error instanceof Error ? error.message : '未知错误'
+      return { 
+        success: false, 
+        error: `任务重新解析失败: ${errorMessage}` 
       }
     }
   }

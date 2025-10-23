@@ -276,6 +276,7 @@ export type WorkflowMode =
   | 'task-selection'             // 选择要拆解的任务
   | 'task-context-input'         // 等待用户输入任务上下文（拆解前收集背景信息）
   | 'task-clarification-input'   // 等待用户回答任务澄清问题
+  | 'clarification-edit'         // ⭐ 任务澄清：用户编辑AI理解的结构化文本
   | 'task-estimation-input'      // ⭐ 时间估算：等待用户输入初始估计
   | 'task-estimation-reflection' // ⭐ 时间估算：显示AI反思，等待用户重新输入或确认
   | 'task-estimation-buffer'     // ⭐ 时间估算：AI询问buffer，等待确认
