@@ -828,7 +828,7 @@ export default function DashboardPage() {
       
       if (result.error) {
         console.error('创建子任务API错误:', result.error)
-        setError(`创建失败: ${result.error}`)
+        setError(`Creation failed: ${result.error}`)
       } else {
         console.log('✅ 子任务创建成功，局部更新任务列表')
         
@@ -860,7 +860,7 @@ export default function DashboardPage() {
             role: 'assistant',
             content: [{
               type: 'text',
-              text: `✅ 成功创建了${createdCount}个子任务！\n\n${guidanceMessage}`
+              text: `✅ Successfully created ${createdCount} subtask${createdCount > 1 ? 's' : ''}!\n\n${guidanceMessage}`
             }]
           }
         ])
@@ -878,7 +878,7 @@ export default function DashboardPage() {
               role: 'assistant',
               content: [{ 
                 type: 'text', 
-                text: `✅ 太棒了！任务《${decomposingTask.title}》已成功拆解为 ${createdCount} 个子任务！\n\n你可以继续选择其他任务拆解，或者返回上一级选择其他操作。` 
+                text: `✅ Great! Task "${decomposingTask.title}" has been successfully decomposed into ${createdCount} subtask${createdCount > 1 ? 's' : ''}!\n\nYou can continue to select other tasks to decompose, or go back to choose other actions.` 
               }]
             }
           ])
@@ -887,7 +887,7 @@ export default function DashboardPage() {
     } catch (error) {
       console.error('创建子任务异常:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      setError(`创建子任务时发生错误: ${errorMessage}`)
+      setError(`Error creating subtasks: ${errorMessage}`)
     }
   }
 
@@ -944,13 +944,13 @@ export default function DashboardPage() {
         })
         
         // 显示成功消息
-        alert(`✅ 成功将 ${result.count} 个子任务提升为独立任务，父任务已删除！`)
+        alert(`✅ Successfully promoted ${result.count} subtask${result.count > 1 ? 's' : ''} to independent task${result.count > 1 ? 's' : ''}, parent task deleted!`)
       }
     } catch (error) {
       console.error('提升子任务异常:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      setError(`提升子任务时发生错误: ${errorMessage}`)
-      alert(`❌ 提升失败: ${errorMessage}`)
+      setError(`Error promoting subtasks: ${errorMessage}`)
+      alert(`❌ Promotion failed: ${errorMessage}`)
     }
   }
 
@@ -985,35 +985,35 @@ export default function DashboardPage() {
         let completionMessage = ''
         
         if (matrixState.type === 'eisenhower') {
-          completionMessage = `✅ 太棒了!已完成优先级分类!
+          completionMessage = `✅ Great! Priority classification complete!
 
-你的任务已经按照【重要性】和【紧急性】进行了分类,现在你可以:
-1️⃣ 优先处理 ${config.quadrants.q1.label} 的任务
-2️⃣ 合理安排 ${config.quadrants.q2.label} 的任务
-3️⃣ 考虑委托 ${config.quadrants.q3.label} 的任务
-4️⃣ 减少或延后 ${config.quadrants.q4.label} 的任务
+Your tasks have been classified by [Importance] and [Urgency]. Now you can:
+1️⃣ Prioritize ${config.quadrants.q1.label} tasks
+2️⃣ Schedule ${config.quadrants.q2.label} tasks appropriately
+3️⃣ Consider delegating ${config.quadrants.q3.label} tasks
+4️⃣ Reduce or postpone ${config.quadrants.q4.label} tasks
 
-加油! 💪`
+Keep going! 💪`
         } else if (matrixState.type === 'effort-impact') {
-          completionMessage = `✅ 太棒了!已完成任务分类!
+          completionMessage = `✅ Great! Task classification complete!
 
-你的任务已经按照【努力程度】和【影响力】进行了分类:
-🎯 优先做 ${config.quadrants.q2.label} - 这些是快速胜利!
-💎 然后规划 ${config.quadrants.q1.label}
-⚠️ 尽量避免 ${config.quadrants.q3.label}
-✅ 有空做 ${config.quadrants.q4.label}
+Your tasks have been classified by [Effort] and [Impact]:
+🎯 Prioritize ${config.quadrants.q2.label} - these are quick wins!
+💎 Then plan ${config.quadrants.q1.label}
+⚠️ Try to avoid ${config.quadrants.q3.label}
+✅ Do ${config.quadrants.q4.label} when you have time
 
-聪明地工作! 🧠`
+Work smart! 🧠`
         } else if (matrixState.type === 'fun-stimulation') {
-          completionMessage = `✅ 太棒了!已完成任务分类!
+          completionMessage = `✅ Great! Task classification complete!
 
-你的任务已经按照【趣味性】和【刺激性】进行了分类:
-🌟 尽情享受 ${config.quadrants.q1.label}
-⚡ 短时冲刺 ${config.quadrants.q2.label}
-😊 疲惫时做 ${config.quadrants.q4.label}
-😴 批量处理 ${config.quadrants.q3.label}
+Your tasks have been classified by [Fun] and [Stimulation]:
+🌟 Enjoy ${config.quadrants.q1.label}
+⚡ Sprint through ${config.quadrants.q2.label}
+😊 Do ${config.quadrants.q4.label} when tired
+😴 Batch process ${config.quadrants.q3.label}
 
-找到适合自己状态的任务吧! 🎯`
+Find tasks that match your current state! 🎯`
         }
         
         setChatMessages(prev => [
@@ -2104,7 +2104,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">加载中...</p>
+          <p className="mt-4 text-gray-600">Loading...</p>
         </div>
       </div>
     )
@@ -2122,12 +2122,12 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
           <div className="flex justify-between h-16">
             <div className="flex items-center">
               <h1 className="text-xl font-semibold text-gray-900">
-                📋 任务管理器
+                📋 Task Manager
               </h1>
             </div>
             <div className="flex items-center space-x-4">
               <span className="text-gray-700">
-                欢迎，<span className="font-medium">{user.username}</span>
+                Welcome, <span className="font-medium">{user.username}</span>
               </span>
               
               {/* 个人资料图标按钮 */}
@@ -2149,7 +2149,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                 onClick={handleLogout}
                 className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors"
               >
-                退出登录
+                Logout
               </button>
             </div>
           </div>

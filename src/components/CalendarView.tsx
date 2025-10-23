@@ -141,7 +141,7 @@ export default function CalendarView({
         <div className="flex items-center space-x-3">
           <h3 className="text-lg font-semibold text-gray-900">
             {isExpanded 
-              ? `${currentDate.getFullYear()}年${currentDate.getMonth() + 1}月`
+              ? `${currentDate.toLocaleString('en-US', { month: 'long', year: 'numeric' })}`
               : 'This Week'
             }
           </h3>

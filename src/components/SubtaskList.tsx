@@ -175,7 +175,7 @@ export default function SubtaskList({
                 title="Convert all subtasks to independent tasks"
               >
                 <span>⬆️</span>
-                <span>全部提升为独立任务</span>
+                <span>Promote All to Tasks</span>
               </button>
             )}
           </div>

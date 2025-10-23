@@ -47,20 +47,20 @@ export default function LoginPage() {
         {/* 应用标题和介绍 */}
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            📋 任务管理器
+            📋 Task Manager
           </h1>
           <p className="text-gray-600 text-sm mb-6">
-            简洁高效的任务管理应用
+            Simple and efficient task management
           </p>
           <p className="text-base text-gray-600">
-            欢迎回来！请登录您的账户
+            Welcome back! Please login
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
-              用户名
+              Username
             </label>
             <input
               id="username"
@@ -75,7 +75,7 @@ export default function LoginPage() {
 
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-              密码
+              Password
             </label>
             <input
               id="password"
@@ -105,9 +105,9 @@ export default function LoginPage() {
 
         <div className="mt-6 text-center">
           <p className="text-sm text-gray-600">
-            还没有账户？{' '}
+            Don't have an account?{' '}
             <Link href="/auth/register" className="text-blue-600 hover:text-blue-500 font-medium">
-              立即注册
+              Register now
             </Link>
           </p>
         </div>
