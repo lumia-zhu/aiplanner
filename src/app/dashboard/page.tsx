@@ -592,9 +592,23 @@ export default function DashboardPage() {
   const handleEditTask = useCallback((task: Task, buttonElement?: HTMLElement) => {
     console.log('📝 准备编辑任务，传入的task:', task)
     
-    // ⭐ 关键修复：从最新的tasks状态中查找任务，而不是直接使用传入的task对象
-    // 这样可以确保编辑时使用的是最新的数据
-    const latestTask = tasks.find(t => t.id === task.id)
+    // ⭐ 递归查找任务（支持子任务）
+    const findTaskRecursively = (taskList: Task[], targetId: string): Task | null => {
+      for (const t of taskList) {
+        if (t.id === targetId) {
+          return t
+        }
+        // 如果有子任务，递归查找
+        if (t.subtasks && t.subtasks.length > 0) {
+          const found = findTaskRecursively(t.subtasks, targetId)
+          if (found) return found
+        }
+      }
+      return null
+    }
+    
+    // 从最新的tasks状态中查找任务（包括子任务）
+    const latestTask = findTaskRecursively(tasks, task.id)
     if (!latestTask) {
       console.error('❌ 未找到任务:', task.id)
       return

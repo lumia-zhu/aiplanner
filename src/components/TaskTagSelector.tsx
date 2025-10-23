@@ -121,7 +121,7 @@ export default function TaskTagSelector({
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-2">
-        标签 (可选)
+        标签
       </label>
 
       {/* 预设标签 */}

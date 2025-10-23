@@ -129,15 +129,20 @@ export default function TaskForm({ task, defaultDate, customTags = [], onSubmit,
             : 'center center'
         }}
       >
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">
+        <h2 className="text-xl font-semibold text-gray-900 mb-2">
           {task ? '编辑任务' : '创建新任务'}
         </h2>
+        
+        {/* 必填项说明 */}
+        <p className="text-xs text-gray-500 mb-4">
+          <span className="text-red-500">*</span> 表示必填项
+        </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* 任务标题 */}
           <div>
             <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
-              任务标题 *
+              任务标题 <span className="text-red-500">*</span>
             </label>
             <input
               id="title"
@@ -153,7 +158,7 @@ export default function TaskForm({ task, defaultDate, customTags = [], onSubmit,
           {/* 任务描述 */}
           <div>
             <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
-              任务描述 (可选)
+              任务描述
             </label>
             <textarea
               id="description"
@@ -169,7 +174,7 @@ export default function TaskForm({ task, defaultDate, customTags = [], onSubmit,
           {/* 截止日期和时间 */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              截止时间 (可选)
+              截止时间
             </label>
             <div className="grid grid-cols-2 gap-3">
               {/* 日期选择 */}
@@ -210,7 +215,7 @@ export default function TaskForm({ task, defaultDate, customTags = [], onSubmit,
           {/* 优先级 */}
           <div>
             <label htmlFor="priority" className="block text-sm font-medium text-gray-700 mb-1">
-              优先级 (可选)
+              优先级
             </label>
             <select
               id="priority"
@@ -237,15 +242,16 @@ export default function TaskForm({ task, defaultDate, customTags = [], onSubmit,
           {/* ⭐ 时间估算输入 */}
           <div>
             <label htmlFor="estimatedDuration" className="block text-sm font-medium text-gray-700 mb-1">
-              预估时长 (可选)
+              预估时长
             </label>
             <input
               type="text"
               id="estimatedDuration"
               value={estimatedDuration}
               onChange={(e) => setEstimatedDuration(e.target.value)}
-              placeholder="如：2小时、120分钟、2h"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="例如：30 分钟、1.5 小时、2 天"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder:text-gray-400"
+              disabled={isLoading}
             />
             {parsedMinutes && (
               <p className="text-xs text-green-600 mt-1">
