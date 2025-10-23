@@ -131,7 +131,7 @@ export default function CalendarView({
   }
 
   const today = new Date()
-  const weekdays = ['一', '二', '三', '四', '五', '六', '日']
+  const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
   return (
     <Tooltip.Provider delayDuration={300}>

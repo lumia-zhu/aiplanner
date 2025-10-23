@@ -2178,7 +2178,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                   <div className="flex items-center gap-2">
                     <div className={`w-2 h-2 rounded-full ${doubaoService.hasApiKey() ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
                     <span className="text-sm font-medium" style={{ color: '#3f3f3f' }}>
-                       AI 助手 {!doubaoService.hasApiKey() && '(需要配置API Key)'}
+                       AI Assistant {!doubaoService.hasApiKey() && '(API Key required)'}
                     </span>
                   </div>
                   {chatMessages.length > 0 && (
@@ -2215,7 +2215,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                       </div>
                       <div className="bg-white rounded-lg px-3 py-2 shadow-sm max-w-xs">
                         <p className="text-sm" style={{ color: '#3f3f3f' }}>
-                          你好！我是AI助手，可以帮你管理任务、分析图片。{!doubaoService.hasApiKey() ? '请先配置API Key。' : '你可以直接粘贴图片(Ctrl+V)或拖拽图片到这里，有什么可以帮助你的吗？'}
+                          Hi! I'm your AI assistant. I can help you manage tasks and analyze images. {!doubaoService.hasApiKey() ? 'Please configure your API Key first.' : 'You can paste images (Ctrl+V) or drag images here. How can I help you?'}
                         </p>
                       </div>
                     </div>
@@ -2669,7 +2669,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                     }}
                     className="bg-gray-100 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-200 transition-colors font-medium"
                   >
-                    回到今天
+                    Back to Today
                   </button>
                 )}
               </div>
@@ -2748,7 +2748,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                 <button
                   onClick={toggleChatSidebar}
                   className="fixed right-4 bottom-4 z-40 w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-full shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-300 flex items-center justify-center group"
-                  title="展开AI助手 (Ctrl+B)"
+                  title="Expand AI Assistant (Ctrl+B)"
                 >
                   {/* AI图标 */}
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
