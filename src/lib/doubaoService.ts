@@ -55,7 +55,7 @@ const TASK_CLARIFICATION_SCHEMA = {
     },
     summary: {
       type: "string",
-      description: "结构化总结，格式：'📋 任务概要\\n\\n[一句话描述]\\n\\n• 产出：...\\n• 时间：...\\n• 依赖：...\\n• 挑战：...（只列出有内容的项）'"
+      description: "Structured summary, format: '📋 Task Overview\\n\\n[One-sentence description]\\n\\n• Output: ...\\n• Time: ...\\n• Dependencies: ...\\n• Challenges: ... (only list items with content)'"
     }
   },
   required: ["structured_context", "summary"],
@@ -520,7 +520,7 @@ ${userContext}
         if (userProfile.major) contextParts.push(`专业：${userProfile.major}`)
         if (userProfile.grade) contextParts.push(`年级：${userProfile.grade}`)
         if (userProfile.challenges && userProfile.challenges.length > 0) {
-          contextParts.push(`挑战：${userProfile.challenges.join('、')}`)
+          contextParts.push(`Challenges: ${userProfile.challenges.join(', ')}`)
         }
         if (userProfile.workplaces && userProfile.workplaces.length > 0) {
           contextParts.push(`常用工作场所：${userProfile.workplaces.join('、')}`)
@@ -578,7 +578,7 @@ ${userContext}
 - deadline_confidence: 字符串，只能是"high"/"medium"/"low"或空字符串""
 - dependencies: 数组，如["依赖1", "依赖2"]，没有则为空数组[]
 - 其他字段: 字符串，没有则为空字符串""
-- summary: 必须是字符串，格式为"📋 任务概要\n\n[一句话任务描述]\n\n• 产出：[具体产出]\n• 时长：[X小时/X分钟]（如果estimated_duration>0）\n• 时间：[时间安排]（如果有）\n• 依赖：[依赖资源]（如果有）\n• 挑战：[潜在挑战]（如果有）"（只列出有内容的项，空项不列出），不能为空`
+- summary: Must be a string, format: "📋 Task Overview\n\n[One-sentence task description]\n\n• Output: [specific output]\n• Duration: [X hours/X minutes] (if estimated_duration>0)\n• Time: [time arrangement] (if any)\n• Dependencies: [dependency resources] (if any)\n• Challenges: [potential challenges] (if any)" (only list items with content, omit empty items), cannot be empty`
 
       // 构建问题列表文本
       const questionList = questions
@@ -630,7 +630,7 @@ ${userAnswer}
           role: 'assistant',
           content: [{
             type: 'text',
-            text: `{"structured_context":{"timeline":"下周上课前","dependencies":["导师的最新研究数据"],"expected_output":"包含新概念和研究数据的课堂PPT","difficulty":"数据获取时效性","priority_reason":"时间紧迫","estimated_duration":120},"summary":"📋 任务概要\\n\\n制作讲解新概念的课程PPT\\n\\n• 产出：包含新概念和研究数据的课堂PPT\\n• 时长：2小时\\n• 时间：下周上课前\\n• 依赖：导师的最新研究数据\\n• 挑战：数据获取时效性"}`
+            text: `{"structured_context":{"timeline":"Before next week's class","dependencies":["Latest research data from advisor"],"expected_output":"Classroom PPT with new concepts and research data","difficulty":"Timeliness of data acquisition","priority_reason":"Time-sensitive","estimated_duration":120},"summary":"📋 Task Overview\\n\\nCreate course PPT explaining new concepts\\n\\n• Output: Classroom PPT with new concepts and research data\\n• Duration: 2 hours\\n• Time: Before next week's class\\n• Dependencies: Latest research data from advisor\\n• Challenges: Timeliness of data acquisition"}`
           }]
         },
         {
@@ -806,7 +806,7 @@ ${userAnswer}
         if (userProfile.major) contextParts.push(`专业：${userProfile.major}`)
         if (userProfile.grade) contextParts.push(`年级：${userProfile.grade}`)
         if (userProfile.challenges && userProfile.challenges.length > 0) {
-          contextParts.push(`挑战：${userProfile.challenges.join('、')}`)
+          contextParts.push(`Challenges: ${userProfile.challenges.join(', ')}`)
         }
         if (userProfile.workplaces && userProfile.workplaces.length > 0) {
           contextParts.push(`常用工作场所：${userProfile.workplaces.join('、')}`)

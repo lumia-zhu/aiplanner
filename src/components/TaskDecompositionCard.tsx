@@ -112,19 +112,19 @@ export default function TaskDecompositionCard({
       {/* 标题 */}
       <div className="flex items-center gap-2 mb-3">
         <span className="text-xl">📋</span>
-        <h4 className="font-semibold text-gray-800">任务拆解建议</h4>
+        <h4 className="font-semibold text-gray-800">Task Decomposition Suggestions</h4>
       </div>
 
       {/* 父任务信息 */}
       <div className="mb-4 p-3 bg-white rounded-lg border border-blue-200">
-        <p className="text-sm text-gray-600 mb-1">父任务：</p>
+        <p className="text-sm text-gray-600 mb-1">Parent Task:</p>
         <p className="font-medium text-gray-900">{parentTask.title}</p>
       </div>
 
       {/* 子任务列表 */}
       <div className="space-y-2 mb-4">
         <p className="text-sm font-medium text-gray-700 mb-2">
-          子任务列表 ({subtasks.length}个)：
+          Subtask List ({subtasks.length}):
         </p>
         
         {subtasks.map((subtask, index) => (
@@ -172,7 +172,7 @@ export default function TaskDecompositionCard({
                     <button
                       onClick={handleCancelEdit}
                       className="p-1 text-gray-600 hover:bg-gray-100 rounded transition-colors"
-                      title="取消"
+                      title="Cancel"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -264,7 +264,7 @@ export default function TaskDecompositionCard({
                 }}
                 className="px-3 py-1 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition-colors text-sm"
               >
-                取消
+                Cancel
               </button>
             </div>
           ) : (
@@ -272,7 +272,7 @@ export default function TaskDecompositionCard({
               onClick={() => setIsAddingNew(true)}
               className="w-full p-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors text-sm font-medium"
             >
-              + 添加新子任务
+              + Add New Subtask
             </button>
           )}
         </div>
@@ -289,7 +289,7 @@ export default function TaskDecompositionCard({
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
-            确认添加 ({subtasks.length}个)
+            Confirm Add ({subtasks.length})
           </button>
           <button
             onClick={onCancel}

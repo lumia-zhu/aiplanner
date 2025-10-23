@@ -653,7 +653,7 @@ Please drag and drop tasks in the matrix that pops up! 👇`
         
         // 显示加载动画
         setIsSending(true)
-        streamAIMessage('正在分析任务，生成拆解引导问题...')
+        streamAIMessage('Analyzing task, generating decomposition guidance questions...')
         
         try {
           // 调用AI生成问题（带降级方案）
@@ -685,7 +685,7 @@ Please drag and drop tasks in the matrix that pops up! 👇`
         
         // 显示加载动画
         setIsSending(true)
-        streamAIMessage('正在分析任务，生成问题...')
+        streamAIMessage('Analyzing task, generating questions...')
         
         try {
           // 调用AI生成问题（带降级方案）
