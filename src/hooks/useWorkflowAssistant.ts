@@ -233,25 +233,25 @@ export function useWorkflowAssistant({
         recommendation.confidence === 'high' ? '⭐⭐⭐' :
         recommendation.confidence === 'medium' ? '⭐⭐' : '⭐'
       const confidenceText = 
-        recommendation.confidence === 'high' ? '高' : 
-        recommendation.confidence === 'medium' ? '中' : '低'
+        recommendation.confidence === 'high' ? 'High' : 
+        recommendation.confidence === 'medium' ? 'Medium' : 'Low'
       
       // 获取范围描述
       const scopeText = getScopeDescription(dateScope)
       
       // 构建AI消息
-      const aiMessage = `📋 ${scopeText}的任务分析
+      const aiMessage = `📋 Task Analysis for ${scopeText}
 
 ${detailedSummary}
 
 ---
 
-💡 我的建议:
+💡 My Suggestion:
 ${recommendation.reason}
 
 ---
 
-请选择你想做什么:`
+What would you like to do?`
       
       // 使用流式输出显示消息（带交互按钮）
       streamAIMessageWithInteractive(aiMessage, {
@@ -263,7 +263,7 @@ ${recommendation.reason}
       console.error('工作流分析失败:', error)
       
       // 使用流式输出显示错误消息
-      streamAIMessage('❌ 抱歉,分析任务时出现了问题。请稍后再试。')
+      streamAIMessage('❌ Sorry, an error occurred while analyzing tasks. Please try again later.')
     } finally {
       setIsAnalyzing(false)
     }
@@ -297,12 +297,12 @@ ${recommendation.reason}
         ...prev,
         {
           role: 'user',
-          content: [{ type: 'text', text: '🔍 完善单个任务' }]
+          content: [{ type: 'text', text: '🔍 Refine Single Task' }]
         }
       ])
       
       // 然后流式显示AI回复（带交互按钮）
-      streamAIMessageWithInteractive('好的!我可以帮你做以下操作:\n\n请选择你想对任务进行什么操作:', {
+      streamAIMessageWithInteractive('Great! I can help you with the following:\n\nWhat would you like to do with the task?', {
         type: 'single-task-action',
         data: {}
       })
@@ -315,12 +315,12 @@ ${recommendation.reason}
         ...prev,
         {
           role: 'user',
-          content: [{ type: 'text', text: '📊 对所有任务做优先级排序' }]
+          content: [{ type: 'text', text: '📊 Sort All Tasks by Priority' }]
         }
       ])
       
       // 使用带交互按钮的流式输出
-      streamAIMessageWithInteractive('好的!在开始排序之前,我想了解一下:\n\n你现在主要的感觉是什么? 这将帮助我推荐最适合你的排序方法:', {
+      streamAIMessageWithInteractive('Great! Before we start sorting, I\'d like to understand:\n\nHow are you feeling right now? This will help me recommend the best sorting method for you:', {
         type: 'feeling-options',
         data: {}
       })
@@ -333,11 +333,11 @@ ${recommendation.reason}
         ...prev,
         {
           role: 'user',
-          content: [{ type: 'text', text: '✅ 结束AI辅助' }]
+          content: [{ type: 'text', text: '✅ End AI Assistance' }]
         }
       ])
       
-      const message = '👋 好的!AI辅助已结束。\n\n如果需要帮助,随时点击"下一步,AI辅助完善计划"按钮即可。祝你高效完成任务! 💪'
+      const message = '👋 Alright! AI assistance has ended.\n\nIf you need help, just click the "Next, AI-assisted Planning" button anytime. Good luck with your tasks! 💪'
       streamAIMessage(message)
       
       // ⭐ 等待消息显示完成后1秒，关闭侧边栏
@@ -375,14 +375,14 @@ ${recommendation.reason}
         ...prev,
         {
           role: 'user',
-          content: [{ type: 'text', text: '↩️ 返回上一级' }]
+          content: [{ type: 'text', text: '↩️ Go Back' }]
         }
       ])
       
       // ⭐ 1秒后显示初始选项按钮
       setTimeout(() => {
         setWorkflowMode('initial')
-        streamAIMessageWithInteractive('好的，已返回上一级。请重新选择你想做什么:', {
+        streamAIMessageWithInteractive('Alright, returned to previous level. What would you like to do?', {
           type: 'workflow-options',
           data: {}
         })
@@ -405,15 +405,15 @@ ${recommendation.reason}
     const feelingMap = {
       urgent: { 
         emoji: '🔥',
-        label: '截止日期临近'
+        label: 'Deadline Approaching'
       },
       overwhelmed: { 
         emoji: '🤔',
-        label: '任务太多太乱'
+        label: 'Too Many Tasks'
       },
       blank: { 
         emoji: '😫',
-        label: '大脑一片空白'
+        label: 'Feeling Blank'
       }
     }
     
@@ -423,35 +423,35 @@ ${recommendation.reason}
     let guideMessage = ''
     
     if (feeling === 'urgent') {
-      guideMessage = `好的!我们来用【${config.title}】快速分类今天的任务~
+      guideMessage = `Great! Let's use the [${config.title}] to quickly categorize today's tasks~
 
-这个矩阵会帮你把任务分成四个象限:
+This matrix will help you divide tasks into four quadrants:
 📍 ${config.quadrants.q1.label}: ${config.quadrants.q1.description}
 📍 ${config.quadrants.q2.label}: ${config.quadrants.q2.description}
 📍 ${config.quadrants.q3.label}: ${config.quadrants.q3.description}
 📍 ${config.quadrants.q4.label}: ${config.quadrants.q4.description}
 
-请在弹出的矩阵中拖拽任务进行分类吧! 👇`
+Please drag and drop tasks in the matrix that pops up! 👇`
     } else if (feeling === 'overwhelmed') {
-      guideMessage = `好的!我们来用【${config.title}】找到"高回报"的任务~
+      guideMessage = `Great! Let's use the [${config.title}] to find "high-return" tasks~
 
-这个矩阵会帮你识别:
-🎯 ${config.quadrants.q2.label}: ${config.quadrants.q2.description} - 这些是最值得做的!
+This matrix will help you identify:
+🎯 ${config.quadrants.q2.label}: ${config.quadrants.q2.description} - These are the most worthwhile!
 💎 ${config.quadrants.q1.label}: ${config.quadrants.q1.description}
 ⚠️ ${config.quadrants.q3.label}: ${config.quadrants.q3.description}
 ✅ ${config.quadrants.q4.label}: ${config.quadrants.q4.description}
 
-请在弹出的矩阵中拖拽任务进行分类吧! 👇`
+Please drag and drop tasks in the matrix that pops up! 👇`
     } else if (feeling === 'blank') {
-      guideMessage = `好的!我们来用【${config.title}】找到你想做的任务~
+      guideMessage = `Great! Let's use the [${config.title}] to find tasks you want to do~
 
-这个矩阵会帮你发现:
+This matrix will help you discover:
 🌟 ${config.quadrants.q1.label}: ${config.quadrants.q1.description}
 ⚡ ${config.quadrants.q2.label}: ${config.quadrants.q2.description}
 😴 ${config.quadrants.q3.label}: ${config.quadrants.q3.description}
 😊 ${config.quadrants.q4.label}: ${config.quadrants.q4.description}
 
-请在弹出的矩阵中拖拽任务进行分类吧! 👇`
+Please drag and drop tasks in the matrix that pops up! 👇`
     }
     
     setChatMessages(prev => [

@@ -2545,7 +2545,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
         <div className="flex justify-between items-center mb-6">
           <div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              {getScopeDescription(dateScope)}的任务
+              Tasks for {getScopeDescription(dateScope)}
             </h2>
             <p className="text-gray-600">
               {displayTasks.length} task{displayTasks.length !== 1 ? 's' : ''} total, {displayTasks.filter(t => !t.completed).length} pending

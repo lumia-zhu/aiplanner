@@ -21,8 +21,8 @@ export default function DateScopeSelector({ scope, onScopeChange }: DateScopeSel
   // 预设按钮配置
   const presetOptions: Array<{ id: DateScopePreset; label: string }> = [
     { id: 'today', label: 'Today' },
-    { id: '3days', label: '3天' },
-    { id: '7days', label: '7天' },
+    { id: '3days', label: '3 days' },
+    { id: '7days', label: '7 days' },
     { id: 'week', label: 'This Week' },
     { id: 'month', label: 'This Month' },
   ]
