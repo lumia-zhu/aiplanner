@@ -604,13 +604,13 @@ const ChatSidebar = memo<ChatSidebarProps>(({
             onPaste={handlePaste}
             placeholder={
               shouldDisableInput
-                ? "💡 请点击上方按钮选择操作"
+                ? "💡 Please click the button above to select an action"
                 : workflowMode === 'task-context-input'
-                  ? "请描述任务的背景信息..."
+                  ? "Please describe the task background information..."
                   : workflowMode === 'task-clarification-input'
-                    ? "请回答上面的问题..."
+                    ? "Please answer the questions above..."
                     : isTaskRecognitionMode 
-                      ? "描述任务内容或上传包含任务的图片..." 
+                      ? "Describe task content or upload an image with tasks..." 
                       : doubaoService.hasApiKey() ? "Type a message or paste an image (Ctrl+V)..." : "Please configure API Key first"
             }
             className={`flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent text-sm transition-all duration-200 resize-none h-10 ${
