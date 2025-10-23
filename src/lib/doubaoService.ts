@@ -337,39 +337,44 @@ class DoubaoService {
 
     try {
       // 构建任务拆解专用的系统提示词
-      const systemPrompt = `你是一个专业的任务分解专家。你的任务是将用户提供的复杂任务分解为3-5个具体可执行的子任务。
+      const systemPrompt = `**CRITICAL: ALL subtask titles MUST be in ENGLISH. Do NOT use Chinese.**
 
-重要要求：
-1. 必须严格按照JSON格式返回，不要添加任何解释文字
-2. 子任务标题要简洁明了，控制在15字以内，直接说明要做什么
-3. 子任务应该按照逻辑顺序排列
-4. JSON格式必须严格正确，所有字符串必须用双引号包围
+You are a professional task decomposition expert. Your job is to break down complex tasks into 3-5 specific, actionable subtasks.
 
-返回格式：
+Important requirements:
+1. Must return strictly in JSON format, no explanatory text
+2. Subtask titles must be concise and clear, within 15 words, directly stating what to do
+3. Subtasks should be arranged in logical order
+4. JSON format must be strictly correct, all strings must be enclosed in double quotes
+5. **ALL subtask titles MUST be in ENGLISH**
+
+Return format:
 {
   "subtasks": [
     {
-      "title": "具体的子任务标题",
+      "title": "Specific subtask title in English",
       "order": 1
     }
   ]
 }
 
-注意：只需要title和order两个字段，不需要description或时间估计。`
+Note: Only title and order fields are needed, no description or time estimation.`
 
       // 构建用户消息
-      const userMessage = `请将以下任务拆解为具体的子任务：
+      const userMessage = `Please break down the following task into specific subtasks:
 
-任务标题：${taskTitle}
-${taskDescription ? `任务描述：${taskDescription}` : ''}
+Task title: ${taskTitle}
+${taskDescription ? `Task description: ${taskDescription}` : ''}
 
-${userContext ? `📋 用户补充信息：
+${userContext ? `📋 User-provided context:
 ${userContext}
 
-请特别考虑用户提供的背景信息，确保子任务符合实际情境。
+Please consider the user's background information to ensure subtasks fit the actual situation.
 ` : ''}
 
-请分析这个任务，并将其拆解为3-5个具体可执行的子任务。每个子任务都应该有明确的完成标准。`
+Please analyze this task and break it down into 3-5 specific, actionable subtasks. Each subtask should have clear completion criteria.
+
+**CRITICAL: ALL subtask titles MUST be in ENGLISH. Do NOT use Chinese.**`
 
       const messages: ChatMessage[] = [
         {
@@ -384,14 +389,14 @@ ${userContext}
           role: 'user',
           content: [{
             type: 'text',
-            text: '请将以下任务拆解为具体的子任务：\n\n任务标题：准备学术会议演讲\n任务描述：需要在下周的学术会议上做20分钟的演讲'
+            text: 'Please break down the following task into specific subtasks:\n\nTask title: Prepare academic conference presentation\nTask description: Need to give a 20-minute presentation at next week\'s academic conference'
           }]
         },
         {
           role: 'assistant',
           content: [{
             type: 'text',
-            text: '{"subtasks":[{"title":"确定演讲主题和大纲","order":1},{"title":"收集整理相关资料","order":2},{"title":"制作演讲PPT","order":3},{"title":"练习演讲内容","order":4},{"title":"准备问答环节","order":5}]}'
+            text: '{"subtasks":[{"title":"Define presentation topic and outline","order":1},{"title":"Collect and organize relevant materials","order":2},{"title":"Create presentation slides","order":3},{"title":"Practice presentation delivery","order":4},{"title":"Prepare Q&A responses","order":5}]}'
           }]
         },
         {
