@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "任务管理器",
-  description: "一个简洁高效的任务管理应用",
+  title: "Task Manager - AI-Powered Planning",
+  description: "A simple and efficient task management application with AI assistance",
 };
 
 export default function RootLayout({

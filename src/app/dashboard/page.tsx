@@ -244,12 +244,12 @@ export default function DashboardPage() {
     }
   }, [workflowMode, selectedFeeling])
   
-  // 监听任务选择,发送任务拆解交互式消息
+  // 监听任务选择,Send任务拆解交互式消息
   useEffect(() => {
     // 只有在 single-task 模式且有选中任务时才触发拆解
     // (即用户已提交context或跳过了context输入)
     if (selectedTaskForDecompose && workflowMode === 'single-task') {
-      // 调用AI生成子任务建议，并发送交互式消息到聊天流
+      // 调用AI生成子任务建议，并Send交互式消息到聊天流
       handleGenerateDecomposition(selectedTaskForDecompose)
     }
   }, [selectedTaskForDecompose, workflowMode])
@@ -375,7 +375,7 @@ export default function DashboardPage() {
           setShowProfileSaveSuccess(false)
         }, 3000)
       } else {
-        throw new Error(result.error || '保存失败')
+        throw new Error(result.error || 'Failed to save')
       }
     } catch (error) {
       console.error('❌ 保存个人资料失败:', error)
@@ -454,7 +454,7 @@ export default function DashboardPage() {
         setShowTaskForm(false)
       }
     } catch (error) {
-      setError('创建任务时发生错误')
+      setError('Error creating task')
       console.error('创建任务异常:', error)
     }
     
@@ -503,7 +503,7 @@ export default function DashboardPage() {
         setEditingTask(null)
       }
     } catch (error) {
-      setError('更新任务时发生错误')
+      setError('Error updating task')
       console.error('更新任务异常:', error)
     }
     
@@ -584,7 +584,7 @@ export default function DashboardPage() {
       if (hasError) {
         // 如果失败，回滚UI状态
         setTasks(oldTasks)
-        console.error('更新任务状态失败')
+        console.error('Failed to update task status')
       }
     } catch (error) {
       // 网络错误或其他异常，回滚UI状态
@@ -677,7 +677,7 @@ export default function DashboardPage() {
         return { id: result.task.id }
       }
     } catch (error) {
-      setError('创建任务时发生错误')
+      setError('Error creating task')
       console.error('快速添加任务异常:', error)
     }
   }
@@ -698,7 +698,7 @@ export default function DashboardPage() {
     }
   }
 
-  // 生成任务拆解建议并发送交互式消息
+  // 生成任务拆解建议并Send交互式消息
   const handleGenerateDecomposition = async (task: Task) => {
     try {
       console.log('🤖 开始生成任务拆解建议:', task.title)
@@ -719,7 +719,7 @@ export default function DashboardPage() {
             role: 'assistant',
             content: [{
               type: 'text',
-              text: `❌ 抱歉，任务拆解失败：${result.error || '未知错误'}`
+              text: `❌ 抱歉，Task decomposition failed：${result.error || 'Unknown error'}`
             }]
           }
         ])
@@ -768,7 +768,7 @@ export default function DashboardPage() {
         return
       }
       
-      // 发送交互式消息到聊天流
+      // Send交互式消息到聊天流
       setChatMessages(prev => [
         ...prev,
         {
@@ -793,7 +793,7 @@ export default function DashboardPage() {
         }
       ])
       
-      console.log('✅ 交互式拆解消息已发送')
+      console.log('✅ 交互式拆解消息已Send')
     } catch (error) {
       console.error('生成拆解建议异常:', error)
       setChatMessages(prev => [
@@ -802,7 +802,7 @@ export default function DashboardPage() {
           role: 'assistant',
           content: [{
             type: 'text',
-            text: `❌ 抱歉，发生了意外错误：${error instanceof Error ? error.message : '未知错误'}`
+            text: `❌ 抱歉，发生了意外错误：${error instanceof Error ? error.message : 'Unknown error'}`
           }]
         }
       ])
@@ -812,7 +812,7 @@ export default function DashboardPage() {
   // 处理子任务确认创建
   const handleSubtasksConfirm = async (selectedSubtasks: SubtaskSuggestion[]) => {
     if (!user || !decomposingTask) {
-      setError('用户信息或任务信息缺失')
+      setError('User or task information is missing')
       return
     }
 
@@ -869,7 +869,7 @@ export default function DashboardPage() {
         setShowDecompositionModal(false)
         setDecomposingTask(null)
         
-        // 清空工作流中的选中任务，并发送AI确认消息
+        // 清空工作流中的选中任务，并SendAI确认消息
         if (selectedTaskForDecompose) {
           clearSelectedTask() // 静默清空选中状态
           setChatMessages(prev => [
@@ -886,7 +886,7 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error('创建子任务异常:', error)
-      const errorMessage = error instanceof Error ? error.message : '未知错误'
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       setError(`创建子任务时发生错误: ${errorMessage}`)
     }
   }
@@ -910,14 +910,14 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error('切换任务展开状态失败:', error)
-      setError('切换任务展开状态时发生错误')
+      setError('Error toggling task expansion')
     }
   }
 
   // 处理提升子任务为独立任务
   const handlePromoteSubtasks = async (parentId: string) => {
     if (!user) {
-      setError('用户未登录')
+      setError('User not logged in')
       return
     }
 
@@ -948,7 +948,7 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error('提升子任务异常:', error)
-      const errorMessage = error instanceof Error ? error.message : '未知错误'
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       setError(`提升子任务时发生错误: ${errorMessage}`)
       alert(`❌ 提升失败: ${errorMessage}`)
     }
@@ -978,7 +978,7 @@ export default function DashboardPage() {
         config: null
       })
       
-      // 发送AI完成消息
+      // SendAI完成消息
       if (workflowMode === 'priority-matrix' && matrixState.config) {
         const config = matrixState.config
         
@@ -1121,7 +1121,7 @@ export default function DashboardPage() {
         }))
       )
       
-      // 发送确认消息
+      // Send确认消息
       setChatMessages(prev => [
         ...prev,
         {
@@ -1163,7 +1163,7 @@ export default function DashboardPage() {
           role: 'assistant',
           content: [{
             type: 'text',
-            text: `❌ 抱歉，发生了意外错误：${error instanceof Error ? error.message : '未知错误'}`
+            text: `❌ 抱歉，发生了意外错误：${error instanceof Error ? error.message : 'Unknown error'}`
           }]
         }
       ])
@@ -1172,7 +1172,7 @@ export default function DashboardPage() {
   
   // 处理交互式卡片的取消操作
   /**
-   * 处理澄清确认 - 更新任务描述
+   * 处理澄清确认 - 更新任务description
    */
   const handleClarificationConfirm = async () => {
     console.log('🔍 handleClarificationConfirm 被调用')
@@ -1186,12 +1186,12 @@ export default function DashboardPage() {
     }
     
     try {
-      console.log('✅ 用户确认澄清结果，开始更新任务描述')
+      console.log('✅ 用户确认澄清结果，开始更新任务description')
       
       // 导入appendStructuredContextToTask函数
       const { appendStructuredContextToTask } = await import('@/lib/tasks')
       
-      // 更新任务描述（传入 AI 生成的 summary）
+      // 更新任务description（传入 AI 生成的 summary）
       const result = await appendStructuredContextToTask(
         user.id,
         selectedTaskForDecompose.id,
@@ -1200,14 +1200,14 @@ export default function DashboardPage() {
       )
       
       if (!result.success || !result.task) {
-        console.error('更新任务描述失败:', result.error)
+        console.error('Failed to update task description:', result.error)
         setChatMessages(prev => [
           ...prev,
           {
             role: 'assistant',
             content: [{
               type: 'text',
-              text: `❌ 抱歉，更新任务描述失败：${result.error || '未知错误'}`
+              text: `❌ 抱歉，Failed to update task description：${result.error || 'Unknown error'}`
             }]
           }
         ])
@@ -1223,19 +1223,19 @@ export default function DashboardPage() {
         )
       )
       
-      console.log('✅ 任务描述已更新')
+      console.log('✅ 任务description已更新')
       
       // 调用原始的确认方法（清空状态，返回操作选择）
       confirmClarification()
     } catch (error) {
-      console.error('更新任务描述异常:', error)
+      console.error('更新任务description异常:', error)
       setChatMessages(prev => [
         ...prev,
         {
           role: 'assistant',
           content: [{
             type: 'text',
-            text: '❌ 更新任务描述失败，请稍后重试。'
+            text: '❌ Failed to update task description，请稍后重试。'
           }]
         }
       ])
@@ -1301,7 +1301,7 @@ export default function DashboardPage() {
       }))
     )
     
-    // 发送取消消息，并返回上一层
+    // Send取消消息，并返回上一层
     setChatMessages(prev => [
       ...prev,
       {
@@ -1513,14 +1513,14 @@ export default function DashboardPage() {
 
       if (parsed.tasks.length === 0) {
         console.log('AI未识别到任何任务');
-        alert('AI未能从内容中识别到具体的任务项目。请尝试更明确的描述或手动创建任务。');
+        alert('AI未能从内容中识别到具体的任务项目。请尝试更明确的description或手动创建任务。');
         return [];
       }
 
       // 转换为RecognizedTask格式
       const recognizedTasks = parsed.tasks.map((task: any, index: number) => ({
         id: `recognized-${Date.now()}-${index}`,
-        title: task.title || '未知任务',
+        title: task.title || 'Unknown task',
         description: task.description || '',
         priority: ['high', 'medium', 'low'].includes(task.priority) ? task.priority : 'medium',
         deadline_date: task.deadline_date === 'null' || !task.deadline_date || task.deadline_date === null ? undefined : task.deadline_date,
@@ -1560,7 +1560,7 @@ export default function DashboardPage() {
         if (currentTask) {
           tasks.push({
             id: `extracted-${Date.now()}-${tasks.length}`,
-            title: currentTask.title || '提取的任务',
+            title: currentTask.title || 'Extracted task',
             description: currentTask.description || '',
             priority: currentTask.priority || 'medium',
             deadline_date: currentTask.deadline_date,
@@ -1591,7 +1591,7 @@ export default function DashboardPage() {
     if (currentTask) {
       tasks.push({
         id: `extracted-${Date.now()}-${tasks.length}`,
-        title: currentTask.title || '提取的任务',
+        title: currentTask.title || 'Extracted task',
         description: currentTask.description || '',
         priority: currentTask.priority || 'medium',
         deadline_date: currentTask.deadline_date,
@@ -1661,7 +1661,7 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error('批量添加任务异常:', error);
-      alert('添加任务时发生错误');
+      alert('Error adding task');
     }
   }
 
@@ -1709,7 +1709,7 @@ export default function DashboardPage() {
     }
   }
 
-  // 处理发送消息
+  // 处理Send消息
   const handleSendMessage = async () => {
     if (!chatMessage.trim() && !selectedImage) return
     if (!doubaoService.hasApiKey()) {
@@ -1722,7 +1722,7 @@ export default function DashboardPage() {
     
     try {
       // 根据模式生成不同的prompt
-      let finalPrompt = chatMessage || '请分析这张图片'
+      let finalPrompt = chatMessage || 'Please analyze this image'
       
       if (isTaskRecognitionMode) {
         finalPrompt = `TASK_RECOGNITION_MODE: JSON ONLY RESPONSE REQUIRED
@@ -1732,13 +1732,13 @@ CRITICAL: You must respond with ONLY the JSON below. NO explanations. NO "这是
 Content to analyze: ${selectedImage ? 'Image content' : ''}${selectedImage && chatMessage ? ' + ' : ''}${chatMessage ? chatMessage : ''}
 
 Required JSON format:
-{"tasks":[{"title":"具体任务","description":"描述","priority":"high|medium|low","deadline_date":"YYYY-MM-DD","deadline_time":"HH:MM"}]}
+{"tasks":[{"title":"Specific task","description":"description","priority":"high|medium|low","deadline_date":"YYYY-MM-DD","deadline_time":"HH:MM"}]}
 
 Extract tasks: 报名, 参加, 提交, 完成, 准备. Use null for missing dates.
 
 CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
         
-        console.log('任务识别模式 - 发送的prompt:', finalPrompt);
+        console.log('任务识别模式 - Send的prompt:', finalPrompt);
       }
       
       // 添加用户消息到聊天历史
@@ -1748,7 +1748,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
           {
             type: 'text',
             text: isTaskRecognitionMode ? 
-              `🔍 智能任务识别中...${chatMessage ? `\n用户输入：${chatMessage}` : ''}` : 
+              `🔍 智能任务Recognizing...${chatMessage ? `\n用户输入：${chatMessage}` : ''}` : 
               finalPrompt
           }
         ]
@@ -1762,7 +1762,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
         // 优先使用缓存
         if (imageCache.current.has(cacheKey)) {
           imageBase64 = imageCache.current.get(cacheKey)!
-          console.log('使用缓存的图片进行发送')
+          console.log('使用缓存的图片进行Send')
         } else {
           // 缓存未命中，重新处理
           console.log('缓存未命中，重新处理图片')
@@ -1780,7 +1780,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
       const newMessages = [...chatMessages, userMessage]
       setChatMessages(newMessages)
 
-      // 发送到豆包 API（使用流式输出）
+      // Send到豆包 API（使用流式输出）
       const response = await doubaoService.sendMessage(
         finalPrompt,
         imageBase64,
@@ -1806,7 +1806,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
           content: [
             {
               type: 'text',
-                  text: `✅ 任务识别完成！从内容中识别到 ${tasks.length} 个任务，请在下方预览区域查看并选择需要添加的任务。`
+                  text: `✅ 任务识别完成！从内容中识别到 ${tasks.length} 个任务，请在下方Preview区域查看并选择需要添加的任务。`
             }
           ]
         }
@@ -1827,7 +1827,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
               content: [
                 {
                   type: 'text',
-                  text: `🤔 未能从内容中识别到具体的任务项目。请尝试更明确的描述，或者手动创建任务。`
+                  text: `🤔 未能从内容中识别到具体的任务项目。请尝试更明确的description，或者手动创建任务。`
                 }
               ]
             }
@@ -1874,7 +1874,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
           content: [
             {
               type: 'text',
-              text: `抱歉，发生了错误: ${response.error || '未知错误'}`
+              text: `抱歉，发生了错误: ${response.error || 'Unknown error'}`
             }
           ]
         }
@@ -1882,13 +1882,13 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
       }
 
     } catch (error) {
-      console.error('发送消息失败:', error)
+      console.error('Send消息失败:', error)
       const errorMessage: ChatMessage = {
         role: 'assistant',
         content: [
           {
             type: 'text',
-            text: '抱歉，发送消息时出现了问题，请稍后重试。'
+            text: '抱歉，Send消息时出现了问题，请稍后重试。'
           }
         ]
       }
@@ -1901,7 +1901,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
     }
   }
 
-  // 处理回车发送
+  // 处理回车Send
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -2134,7 +2134,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
               <button
                 onClick={() => setShowProfileModal(true)}
                 className="relative p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all group"
-                title="个人资料设置"
+                title="Profile Settings"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -2227,7 +2227,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                           message.role === 'user' ? 'bg-green-500' : 'bg-blue-500'
                         }`}>
                           <span className="text-white text-sm font-medium">
-                            {message.role === 'user' ? '我' : 'AI'}
+                            {message.role === 'user' ? 'Me' : 'AI'}
                           </span>
                         </div>
                         <div className={`rounded-lg px-3 py-2 shadow-sm max-w-xs ${
@@ -2243,7 +2243,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                               {content.type === 'image_url' && content.image_url && (
                                 <img 
                                   src={content.image_url.url} 
-                                  alt="上传的图片" 
+                                  alt="Uploaded image" 
                                   className="max-w-full h-auto rounded mt-2"
                                   style={{ maxHeight: '150px' }}
                                 />
@@ -2255,7 +2255,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                     ))
                   )}
                   
-                  {/* 流式输出和发送中指示器 */}
+                  {/* 流式输出和Sending指示器 */}
                   {isSending && (
                     <div className="flex items-start gap-3">
                       <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
@@ -2286,14 +2286,14 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
               
               {/* 输入框区域 */}
               <div className="p-4 border-t border-gray-100">
-                {/* 选中的图片预览 */}
+                {/* 选中的图片Preview */}
                 {selectedImage && (
                   <div className="mb-3 p-2 bg-blue-50 rounded-lg">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <img 
                           src={URL.createObjectURL(selectedImage)} 
-                          alt="预览" 
+                          alt="Preview" 
                           className="w-12 h-12 object-cover rounded"
                         />
                         <div>
@@ -2344,7 +2344,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                     onKeyPress={handleKeyPress}
                     onPaste={handlePaste}
                     placeholder={isTaskRecognitionMode 
-                      ? "描述任务内容或上传包含任务的图片..." 
+                      ? "description任务内容或上传包含任务的图片..." 
                       : "输入消息或粘贴图片(Ctrl+V)..."
                     }
                     className={`flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent text-sm transition-all duration-200 ${
@@ -2365,7 +2365,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                     </svg>
                   </button>
 
-                  {/* 发送按钮 */}
+                  {/* Send按钮 */}
                   <button 
                     onClick={handleSendMessage}
                     disabled={isSending || (!chatMessage.trim() && !selectedImage)}
@@ -2378,7 +2378,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                     {isSending ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                        {isTaskRecognitionMode ? '识别中...' : '发送中'}
+                        {isTaskRecognitionMode ? 'Recognizing...' : 'Sending'}
                       </>
                     ) : (
                       <>
@@ -2391,7 +2391,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                           </svg>
                         )}
-                        {isTaskRecognitionMode ? '识别任务' : '发送'}
+                        {isTaskRecognitionMode ? 'Recognize Tasks' : 'Send'}
                       </>
                     )}
                   </button>
@@ -2403,7 +2403,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-gray-700">智能任务识别</span>
                       <span className="text-xs text-gray-500">
-                        {isTaskRecognitionMode ? '已启用' : '已关闭'}
+                        {isTaskRecognitionMode ? 'Enabled' : 'Disabled'}
                       </span>
                     </div>
                     
@@ -2425,14 +2425,14 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                   {/* 模式提示 */}
                   {isTaskRecognitionMode && (
                     <div className="mt-2 p-2 bg-green-50 rounded text-xs text-green-700">
-                      💡 任务识别模式已启用：在上方输入框中描述任务或上传图片，点击发送后AI将识别并提取任务信息
+                      💡 任务识别模式Enabled：在上方输入框中description任务或上传图片，点击Send后AI将识别并提取任务信息
                     </div>
                   )}
                 </div>
               </div>
             </div>
 
-            {/* 任务识别结果预览 - 临时隐藏 */}
+            {/* 任务识别结果Preview - 临时隐藏 */}
             {showTaskPreview && recognizedTasks.length > 0 && (
               <div className="mt-4 bg-white rounded-lg shadow-sm border border-green-200 hidden">
                 <div className="p-4 border-b border-green-100 bg-green-50">
@@ -2504,7 +2504,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                               task.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' :
                               'bg-green-100 text-green-700'
                             }`}>
-                              {task.priority === 'high' ? '高' : task.priority === 'medium' ? '中' : '低'}优先级
+                              {task.priority === 'high' ? 'High' : task.priority === 'medium' ? 'Medium' : 'Low'} Priority
                             </span>
                             {task.deadline_time && (
                               <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
