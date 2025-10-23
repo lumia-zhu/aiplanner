@@ -310,7 +310,7 @@ export default function QuickAddTask({ selectedDate, onTaskCreate, onBatchUndo }
           onClick={() => setIsExpanded(!isExpanded)}
           disabled={isLoading}
           className="flex-shrink-0 w-10 h-10 flex items-center justify-center text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all disabled:opacity-50 border border-gray-200 hover:border-blue-300"
-          title={isExpanded ? "折叠" : "展开详细选项"}
+          title={isExpanded ? "Collapse" : "Expand options"}
         >
           <svg 
             className={`w-5 h-5 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
@@ -452,7 +452,7 @@ export default function QuickAddTask({ selectedDate, onTaskCreate, onBatchUndo }
                     type="button"
                     onClick={() => setDeadlineDate('')}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    title="清除日期"
+                    title="Clear date"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -485,7 +485,7 @@ export default function QuickAddTask({ selectedDate, onTaskCreate, onBatchUndo }
               disabled={isLoading || !title.trim()}
               className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
             >
-              {isLoading ? '添加中...' : '保存任务'}
+              {isLoading ? 'Adding...' : 'Save Task'}
             </button>
             <button
               onClick={handleCancel}

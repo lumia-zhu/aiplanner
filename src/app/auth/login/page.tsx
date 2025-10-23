@@ -16,7 +16,7 @@ export default function LoginPage() {
     e.preventDefault()
     
     if (!username.trim() || !password.trim()) {
-      setError('请输入用户名和密码')
+      setError('Please enter username and password')
       return
     }
 
@@ -68,7 +68,7 @@ export default function LoginPage() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-[#3f3f3f]"
-              placeholder="输入用户名"
+              placeholder="Enter username"
               disabled={isLoading}
             />
           </div>
@@ -83,7 +83,7 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-[#3f3f3f]"
-              placeholder="输入密码"
+              placeholder="Enter password"
               disabled={isLoading}
             />
           </div>
@@ -99,7 +99,7 @@ export default function LoginPage() {
             disabled={isLoading}
             className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
           >
-            {isLoading ? '登录中...' : '登录'}
+            {isLoading ? 'Logging in...' : 'Login'}
           </button>
         </form>
 

@@ -20,11 +20,11 @@ export default function DateScopeSelector({ scope, onScopeChange }: DateScopeSel
 
   // 预设按钮配置
   const presetOptions: Array<{ id: DateScopePreset; label: string }> = [
-    { id: 'today', label: '今天' },
+    { id: 'today', label: 'Today' },
     { id: '3days', label: '3天' },
     { id: '7days', label: '7天' },
-    { id: 'week', label: '本周' },
-    { id: 'month', label: '本月' },
+    { id: 'week', label: 'This Week' },
+    { id: 'month', label: 'This Month' },
   ]
 
   // 初始化：将 Date 对象转换为字符串（YYYY-MM-DD）
@@ -165,7 +165,7 @@ export default function DateScopeSelector({ scope, onScopeChange }: DateScopeSel
     // 检查是否结束日期早于开始日期
     const currentEnd = parseInputStringToDate(endDateStr)
     if (currentEnd && newStart > currentEnd) {
-      setDateError('结束日期不能早于开始日期')
+      setDateError('End date cannot be earlier than start date')
       return
     }
     
@@ -193,7 +193,7 @@ export default function DateScopeSelector({ scope, onScopeChange }: DateScopeSel
     // 检查是否结束日期早于开始日期
     const currentStart = parseInputStringToDate(startDateStr)
     if (currentStart && newEnd < currentStart) {
-      setDateError('结束日期不能早于开始日期')
+      setDateError('End date cannot be earlier than start date')
       return
     }
     

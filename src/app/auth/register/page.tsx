@@ -17,7 +17,7 @@ export default function RegisterPage() {
     e.preventDefault()
     
     if (!username.trim() || !password.trim() || !confirmPassword.trim()) {
-      setError('请填写所有字段')
+      setError('Please fill in all fields')
       return
     }
 
@@ -32,7 +32,7 @@ export default function RegisterPage() {
     }
 
     if (password !== confirmPassword) {
-      setError('两次输入的密码不一致')
+      setError('Passwords do not match')
       return
     }
 
@@ -108,7 +108,7 @@ export default function RegisterPage() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-[#3f3f3f]"
-              placeholder="再次输入密码"
+              placeholder="Enter password again"
               disabled={isLoading}
             />
           </div>
@@ -124,7 +124,7 @@ export default function RegisterPage() {
             disabled={isLoading}
             className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
           >
-            {isLoading ? '注册中...' : '注册'}
+            {isLoading ? 'Registering...' : 'Register'}
           </button>
         </form>
 
