@@ -713,6 +713,12 @@ export async function appendStructuredContextToTask(
       updated_at: new Date().toISOString()
     }
     
+    // ⭐ 如果有预估时长，同时更新 estimated_duration 字段
+    if (structuredContext.estimated_duration && structuredContext.estimated_duration > 0) {
+      updateData.estimated_duration = structuredContext.estimated_duration
+      console.log('✅ 同时更新任务预估时长:', structuredContext.estimated_duration, '分钟')
+    }
+    
     // 如果有明确的截止时间且置信度不是low，同时更新deadline字段
     if (structuredContext.deadline_datetime && 
         structuredContext.deadline_confidence && 
