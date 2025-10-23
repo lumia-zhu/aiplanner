@@ -71,7 +71,7 @@ function DraggableTaskCard({ task }: { task: Task }) {
             {task.title}
           </div>
           {isCompleted && (
-            <div className="text-xs text-gray-500 mt-0.5">已完成</div>
+            <div className="text-xs text-gray-500 mt-0.5">Completed</div>
           )}
         </div>
       </div>
@@ -136,7 +136,7 @@ function QuadrantTaskCard({ task, borderColor }: { task: Task; borderColor: stri
             {task.title}
           </div>
           {isCompleted && (
-            <span className="text-xs text-gray-500">已完成</span>
+            <span className="text-xs text-gray-500">Completed</span>
           )}
         </div>
       </div>
@@ -449,7 +449,7 @@ export default function PriorityMatrix({ tasks, config, onClose, onSave }: Props
                 🎯 {config.title}
               </h2>
               <p className="text-sm text-gray-600 mt-1">
-                拖动任务到相应象限进行分类整理
+                Drag tasks to quadrants to organize them
               </p>
             </div>
             <button
@@ -468,16 +468,16 @@ export default function PriorityMatrix({ tasks, config, onClose, onSave }: Props
             <DroppableZone id="unclassified" className="bg-blue-50 border border-transparent rounded-lg p-4">
               <h3 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
                 <span>📋</span>
-                <span>待分类任务</span>
+                <span>Unclassified Tasks</span>
                 <span className="text-sm bg-blue-100 px-2 py-1 rounded">
-                  {tasksByQuadrant.unclassified.length} 个
+                  {tasksByQuadrant.unclassified.length}
                 </span>
               </h3>
               <SortableContext items={allTaskIds} strategy={verticalListSortingStrategy}>
                 <div className="flex gap-3 overflow-x-auto pb-2">
                   {tasksByQuadrant.unclassified.length === 0 ? (
                     <div className="text-blue-400 text-sm py-4 w-full text-center">
-                      所有任务已分类 ✨
+                      All tasks classified ✨
                     </div>
                   ) : (
                     tasksByQuadrant.unclassified.map((task) => (
@@ -508,7 +508,7 @@ export default function PriorityMatrix({ tasks, config, onClose, onSave }: Props
                     <p className="text-xs text-gray-500 mt-1">{config.quadrants.q2.description}</p>
                   </div>
                   <span className="text-sm bg-white px-2 py-1 rounded text-gray-900 font-medium">
-                    {tasksByQuadrant.q2.length} 个
+                    {tasksByQuadrant.q2.length}
                   </span>
                 </div>
                 <SortableContext items={allTaskIds} strategy={verticalListSortingStrategy}>
@@ -516,7 +516,7 @@ export default function PriorityMatrix({ tasks, config, onClose, onSave }: Props
                     {tasksByQuadrant.q2.length === 0 ? (
                       <div className="flex flex-col items-center justify-center h-full text-gray-400">
                         <div className="text-4xl mb-2">📋</div>
-                        <div className="text-sm">拖动任务到这里</div>
+                        <div className="text-sm">Drag tasks here</div>
                       </div>
                     ) : (
                       tasksByQuadrant.q2.map((task) => (
@@ -543,7 +543,7 @@ export default function PriorityMatrix({ tasks, config, onClose, onSave }: Props
                     <p className="text-xs text-gray-500 mt-1">{config.quadrants.q1.description}</p>
                   </div>
                   <span className="text-sm bg-white px-2 py-1 rounded text-gray-900 font-medium">
-                    {tasksByQuadrant.q1.length} 个
+                    {tasksByQuadrant.q1.length}
                   </span>
                 </div>
                 <SortableContext items={allTaskIds} strategy={verticalListSortingStrategy}>
@@ -551,7 +551,7 @@ export default function PriorityMatrix({ tasks, config, onClose, onSave }: Props
                     {tasksByQuadrant.q1.length === 0 ? (
                       <div className="flex flex-col items-center justify-center h-full text-gray-400">
                         <div className="text-4xl mb-2">📋</div>
-                        <div className="text-sm">拖动任务到这里</div>
+                        <div className="text-sm">Drag tasks here</div>
                       </div>
                     ) : (
                       tasksByQuadrant.q1.map((task) => (
@@ -578,7 +578,7 @@ export default function PriorityMatrix({ tasks, config, onClose, onSave }: Props
                     <p className="text-xs text-gray-500 mt-1">{config.quadrants.q4.description}</p>
                   </div>
                   <span className="text-sm bg-white px-2 py-1 rounded text-gray-900 font-medium">
-                    {tasksByQuadrant.q4.length} 个
+                    {tasksByQuadrant.q4.length}
                   </span>
                 </div>
                 <SortableContext items={allTaskIds} strategy={verticalListSortingStrategy}>
@@ -586,7 +586,7 @@ export default function PriorityMatrix({ tasks, config, onClose, onSave }: Props
                     {tasksByQuadrant.q4.length === 0 ? (
                       <div className="flex flex-col items-center justify-center h-full text-gray-400">
                         <div className="text-4xl mb-2">📋</div>
-                        <div className="text-sm">拖动任务到这里</div>
+                        <div className="text-sm">Drag tasks here</div>
                       </div>
                     ) : (
                       tasksByQuadrant.q4.map((task) => (
@@ -613,7 +613,7 @@ export default function PriorityMatrix({ tasks, config, onClose, onSave }: Props
                     <p className="text-xs text-gray-500 mt-1">{config.quadrants.q3.description}</p>
                   </div>
                   <span className="text-sm bg-white px-2 py-1 rounded text-gray-900 font-medium">
-                    {tasksByQuadrant.q3.length} 个
+                    {tasksByQuadrant.q3.length}
                   </span>
                 </div>
                 <SortableContext items={allTaskIds} strategy={verticalListSortingStrategy}>
@@ -621,7 +621,7 @@ export default function PriorityMatrix({ tasks, config, onClose, onSave }: Props
                     {tasksByQuadrant.q3.length === 0 ? (
                       <div className="flex flex-col items-center justify-center h-full text-gray-400">
                         <div className="text-4xl mb-2">📋</div>
-                        <div className="text-sm">拖动任务到这里</div>
+                        <div className="text-sm">Drag tasks here</div>
                       </div>
                     ) : (
                       tasksByQuadrant.q3.map((task) => (
@@ -641,7 +641,7 @@ export default function PriorityMatrix({ tasks, config, onClose, onSave }: Props
               onClick={onClose}
               className="px-6 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
             >
-              取消
+              Cancel
             </button>
             <button
               onClick={handleSave}
@@ -650,7 +650,7 @@ export default function PriorityMatrix({ tasks, config, onClose, onSave }: Props
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
-              保存并应用
+              Save & Apply
             </button>
           </div>
         </div>

@@ -460,29 +460,29 @@ export const EISENHOWER_MATRIX_CONFIG: MatrixConfig = {
  */
 export const EFFORT_IMPACT_MATRIX_CONFIG: MatrixConfig = {
   type: 'effort-impact',
-  title: '努力/影响矩阵',
+  title: 'Effort/Impact Matrix',
   xAxis: { min: 'Low Effort', max: 'High Effort' },
   yAxis: { min: 'Low Impact', max: 'High Impact' },
   quadrants: {
     q1: {
       label: 'High Impact, High Effort',
       color: '#EF4444',  // 红色
-      description: '重大项目 - 需要规划'
+      description: 'Major Projects - Plan'
     },
     q2: {
       label: 'High Impact, Low Effort',
       color: '#3B82F6',  // 蓝色
-      description: '快速胜利 - 优先做'
+      description: 'Quick Wins - Do First'
     },
     q3: {
       label: 'Low Impact, High Effort',
       color: '#6B7280',  // 灰色
-      description: '费力不讨好 - 避免'
+      description: 'Avoid'
     },
     q4: {
       label: 'Low Impact, Low Effort',
       color: '#10B981',  // 绿色
-      description: '填充任务 - 有空做'
+      description: 'Fill-in Tasks'
     }
   }
 }
@@ -492,29 +492,29 @@ export const EFFORT_IMPACT_MATRIX_CONFIG: MatrixConfig = {
  */
 export const FUN_STIMULATION_MATRIX_CONFIG: MatrixConfig = {
   type: 'fun-stimulation',
-  title: '趣味/刺激矩阵',
+  title: 'Fun/Stimulation Matrix',
   xAxis: { min: 'Not Fun', max: 'Fun' },
   yAxis: { min: 'Not Stimulating', max: 'Stimulating' },
   quadrants: {
     q1: {
       label: 'Stimulating & Fun',
       color: '#8B5CF6',  // 紫色
-      description: '充满动力 - 尽情享受'
+      description: 'Energizing - Enjoy'
     },
     q2: {
       label: 'Stimulating, Not Fun',
       color: '#EF4444',  // 红色
-      description: '挑战任务 - 短时冲刺'
+      description: 'Challenging - Sprint'
     },
     q3: {
       label: 'Not Stimulating, Not Fun',
       color: '#6B7280',  // 灰色
-      description: '枯燥任务 - 批量处理'
+      description: 'Boring - Batch'
     },
     q4: {
       label: 'Fun, Not Stimulating',
       color: '#10B981',  // 绿色
-      description: '放松任务 - 疲惫时做'
+      description: 'Relaxing - Do When Tired'
     }
   }
 }

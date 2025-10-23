@@ -3026,7 +3026,7 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
                   content: [
                     {
                       type: 'text',
-                      text: '好的,已取消分类。如果需要的话随时可以重新开始哦! 😊'
+                      text: 'Okay, classification cancelled. Feel free to start again anytime! 😊'
                     }
                   ]
                 }
