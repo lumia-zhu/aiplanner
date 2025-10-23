@@ -776,7 +776,7 @@ export default function DashboardPage() {
           content: [
             {
               type: 'text',
-              text: `好的！我为你拆解了任务「${task.title}」：`
+              text: `Great! I've broken down the task "${task.title}":`
             },
             {
               type: 'interactive',

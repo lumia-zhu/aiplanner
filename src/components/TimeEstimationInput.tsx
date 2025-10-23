@@ -37,7 +37,7 @@ export default function TimeEstimationInput({
         const validation = validateTimeEstimate(parsed)
         setError(validation.valid ? '' : validation.message || '')
       } else {
-        setError('无法识别的格式，试试"2小时"或"120分钟"')
+        setError('Unrecognized format, try "2 hours" or "120 minutes"')
       }
     } else {
       setError('')
@@ -79,7 +79,7 @@ export default function TimeEstimationInput({
               : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
           }`}
         >
-          🎚️ 滑动条
+          🎚️ Slider
         </button>
         <button
           onClick={() => setMode('custom')}
@@ -89,7 +89,7 @@ export default function TimeEstimationInput({
               : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
           }`}
         >
-          ✏️ 自定义
+          ✏️ Custom
         </button>
       </div>
       
@@ -100,7 +100,7 @@ export default function TimeEstimationInput({
             <div className="text-3xl font-bold text-blue-600">
               {formatMinutes(sliderValue)}
             </div>
-            <p className="text-xs text-gray-500 mt-1">拖动滑块调整时间</p>
+            <p className="text-xs text-gray-500 mt-1">Drag slider to adjust time</p>
           </div>
           
           <div className="space-y-2">
@@ -132,7 +132,7 @@ export default function TimeEstimationInput({
               type="text"
               value={customInput}
               onChange={(e) => setCustomInput(e.target.value)}
-              placeholder="如：2小时、135分钟、2.5h"
+              placeholder="e.g., 2 hours, 135 minutes, 2.5h"
               className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-lg"
               autoFocus
             />
@@ -141,7 +141,7 @@ export default function TimeEstimationInput({
               <div className="flex items-center gap-2 text-sm">
                 <span className="text-green-600">✓</span>
                 <span className="text-gray-700">
-                  将记录为：<span className="font-semibold text-green-600">{formatMinutes(parsedMinutes)}</span>
+                  Will be recorded as: <span className="font-semibold text-green-600">{formatMinutes(parsedMinutes)}</span>
                 </span>
               </div>
             )}
@@ -155,13 +155,13 @@ export default function TimeEstimationInput({
           </div>
           
           <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-            <p className="text-xs text-blue-700 font-medium mb-1">💡 支持的格式：</p>
+            <p className="text-xs text-blue-700 font-medium mb-1">💡 Supported formats:</p>
             <div className="text-xs text-blue-600 space-y-0.5">
-              <div>• 纯数字：120（分钟）</div>
-              <div>• 小时：2小时、2h</div>
-              <div>• 分钟：90分钟、90min</div>
-              <div>• 小数：2.5小时、1.5h</div>
-              <div>• 组合：2小时30分钟</div>
+              <div>• Number: 120 (minutes)</div>
+              <div>• Hours: 2 hours, 2h</div>
+              <div>• Minutes: 90 minutes, 90min</div>
+              <div>• Decimal: 2.5 hours, 1.5h</div>
+              <div>• Combined: 2 hours 30 minutes</div>
             </div>
           </div>
         </div>
@@ -174,13 +174,13 @@ export default function TimeEstimationInput({
           disabled={!canSubmit}
           className="flex-1 px-4 py-3 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm"
         >
-          确定
+          Confirm
         </button>
         <button
           onClick={onCancel}
           className="px-4 py-3 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition"
         >
-          取消
+          Cancel
         </button>
       </div>
       

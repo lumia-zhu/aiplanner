@@ -37,8 +37,8 @@ export default function SubtaskList({
     
     // 简单的确认提示，避免误操作
     const confirmed = window.confirm(
-      `确定要将所有 ${subtasks.length} 个子任务提升为独立任务吗？\n\n` +
-      `提升后，这些子任务将变成当天的普通任务，不再与"${parentTask.title}"关联。`
+      `Are you sure you want to promote all ${subtasks.length} subtasks to independent tasks?\n\n` +
+      `After promotion, these subtasks will become regular tasks for today and will no longer be associated with "${parentTask.title}".`
     )
     
     if (confirmed) {
@@ -59,7 +59,7 @@ export default function SubtaskList({
           ▶️
         </span>
         <span>
-          {subtasks.length} 个子任务 {isExpanded ? '(点击收起)' : '(点击展开)'}
+          {subtasks.length} subtasks {isExpanded ? '(click to collapse)' : '(click to expand)'}
         </span>
       </button>
 
@@ -155,13 +155,13 @@ export default function SubtaskList({
             {/* 左侧：统计信息 */}
             <div className="flex items-center gap-4">
               <span>
-                ✅ 已完成: {subtasks.filter(t => t.completed).length}
+                ✅ Completed: {subtasks.filter(t => t.completed).length}
               </span>
               <span>
-                📋 总计: {subtasks.length}
+                📋 Total: {subtasks.length}
               </span>
               <span>
-                📊 进度: {subtasks.length > 0 
+                📊 Progress: {subtasks.length > 0 
                   ? Math.round((subtasks.filter(t => t.completed).length / subtasks.length) * 100)
                   : 0}%
               </span>
