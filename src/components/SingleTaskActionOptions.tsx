@@ -18,26 +18,26 @@ const ACTION_OPTIONS: SingleTaskActionOption[] = [
   {
     id: 'clarify',
     emoji: '📝',
-    label: '任务澄清',
-    description: '明确任务的具体要求和目标'
+    label: 'Task Clarification',
+    description: 'Clarify task requirements and goals'
   },
   {
     id: 'decompose',
     emoji: '🔨',
-    label: '任务拆解',
-    description: '将复杂任务分解成小步骤'
+    label: 'Task Decomposition',
+    description: 'Break down complex tasks into steps'
   },
   {
     id: 'estimate',
     emoji: '⏱️',
-    label: '任务时间估计',
-    description: '估算任务需要的时间'
+    label: 'Time Estimation',
+    description: 'Estimate how long the task will take'
   },
   {
     id: 'back',
     emoji: '↩️',
-    label: '返回上一级',
-    description: '回到选择模式'
+    label: 'Go Back',
+    description: 'Return to selection mode'
   }
 ]
 
