@@ -29,19 +29,7 @@ export default function NotesDashboardPage() {
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   
   // 日期范围
-  const [dateScope, setDateScope] = useState<DateScope>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = sessionStorage.getItem('dateScope')
-      if (saved) {
-        try {
-          return deserializeDateScope(JSON.parse(saved))
-        } catch (e) {
-          console.error('Failed to parse saved dateScope:', e)
-        }
-      }
-    }
-    return getDefaultDateScope()
-  })
+  const [dateScope, setDateScope] = useState<DateScope>(getDefaultDateScope())
   
   // AI 对话框状态
   const [isChatSidebarOpen, setIsChatSidebarOpen] = useState(() => {
@@ -51,12 +39,38 @@ export default function NotesDashboardPage() {
     }
     return false
   })
+  const [chatMessage, setChatMessage] = useState('')
+  const [selectedImage, setSelectedImage] = useState<File | null>(null)
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
+  const [isSending, setIsSending] = useState(false)
+  const [streamingMessage, setStreamingMessage] = useState('')
+  const [isDragOver, setIsDragOver] = useState(false)
+  const [isImageProcessing, setIsImageProcessing] = useState(false)
   const [isChatLoading, setIsChatLoading] = useState(false)
+  
+  // 任务识别相关状态（笔记模式暂不使用，但 ChatSidebar 需要）
+  const [isTaskRecognitionMode, setIsTaskRecognitionMode] = useState(false)
+  const [recognizedTasks, setRecognizedTasks] = useState<any[]>([])
+  const [showTaskPreview, setShowTaskPreview] = useState(false)
   
   // 用户资料弹窗
   const [showProfileModal, setShowProfileModal] = useState(false)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+
+  // 初始化：恢复保存的 dateScope
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('dateScope')
+      if (saved) {
+        try {
+          const restored = deserializeDateScope(JSON.parse(saved))
+          setDateScope(restored)
+        } catch (e) {
+          console.error('Failed to parse saved dateScope:', e)
+        }
+      }
+    }
+  }, [])
 
   // 初始化：检查登录状态
   useEffect(() => {
@@ -243,14 +257,14 @@ export default function NotesDashboardPage() {
       </header>
 
       {/* 主体内容 */}
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div className="max-w-full mx-auto px-4 py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           
           {/* 左侧：日期选择 + 日历 */}
-          <div className="lg:col-span-1 space-y-4">
+          <div className="lg:col-span-3 space-y-4">
             {/* 日期范围选择器 */}
             <DateScopeSelector
-              dateScope={dateScope}
+              scope={dateScope}
               onScopeChange={handleDateScopeChange}
             />
 
@@ -264,7 +278,7 @@ export default function NotesDashboardPage() {
           </div>
 
           {/* 右侧：笔记编辑器 */}
-          <div className="lg:col-span-3">
+          <div className="lg:col-span-9">
             {/* 日期标题 */}
             <div className="mb-4">
               <h2 className="text-2xl font-bold text-gray-900">
@@ -293,15 +307,22 @@ export default function NotesDashboardPage() {
       {isChatSidebarOpen && (
         <ChatSidebar
           isOpen={isChatSidebarOpen}
-          onClose={() => setIsChatSidebarOpen(false)}
+          onToggle={() => setIsChatSidebarOpen(!isChatSidebarOpen)}
+          chatMessage={chatMessage}
+          setChatMessage={setChatMessage}
+          selectedImage={selectedImage}
+          setSelectedImage={setSelectedImage}
           chatMessages={chatMessages}
           setChatMessages={setChatMessages}
-          user={user}
-          userProfile={userProfile}
-          tasks={[]}  // 笔记模式暂不传任务
-          onTasksUpdate={() => {}}
-          selectedDate={selectedDate}
-          dateScope={dateScope}
+          isSending={isSending}
+          streamingMessage={streamingMessage}
+          isDragOver={isDragOver}
+          isImageProcessing={isImageProcessing}
+          isTaskRecognitionMode={isTaskRecognitionMode}
+          setIsTaskRecognitionMode={setIsTaskRecognitionMode}
+          recognizedTasks={recognizedTasks}
+          showTaskPreview={showTaskPreview}
+          setShowTaskPreview={setShowTaskPreview}
         />
       )}
 
