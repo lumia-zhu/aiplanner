@@ -135,6 +135,8 @@ export async function saveNote(
     ...metadata
   }
 
+  console.log('🔍 准备保存笔记:', { dateStr, userId, metadata })
+  
   const { data, error } = await supabase
     .from('notes')
     .upsert(noteData, {
@@ -144,10 +146,18 @@ export async function saveNote(
     .single()
 
   if (error) {
-    console.error('保存笔记失败:', error)
+    console.error('❌ 保存笔记失败:', {
+      error,
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      noteData
+    })
     throw error
   }
 
+  console.log('✅ 笔记保存成功:', data)
   return data
 }
 
