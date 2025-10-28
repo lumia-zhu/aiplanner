@@ -23,24 +23,22 @@ export default function NotesTestPage() {
   }, [])
 
   async function checkAuth() {
-    const supabase = createClient()
-    const { data: { user: authUser } } = await supabase.auth.getUser()
+    // 从 localStorage 获取登录用户（自定义认证系统）
+    const userStr = typeof window !== 'undefined' ? localStorage.getItem('user') : null
     
-    if (!authUser) {
+    if (!userStr) {
       router.push('/auth/login')
       return
     }
 
-    // 从 users 表获取完整用户信息
-    const { data: userData } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', authUser.id)
-      .single()
-
-    if (userData) {
+    try {
+      const userData = JSON.parse(userStr)
       setUser(userData)
       loadNote(userData.id, selectedDate)
+    } catch (error) {
+      console.error('解析用户数据失败:', error)
+      router.push('/auth/login')
+      return
     }
     
     setLoading(false)
