@@ -201,6 +201,7 @@ body {
 /* 基础编辑器样式 */
 .ProseMirror {
   outline: none;
+  color: #3f3f3f;  /* 文本颜色 */
 }
 
 .ProseMirror p.is-editor-empty:first-child::before {
