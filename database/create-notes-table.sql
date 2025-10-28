@@ -8,7 +8,7 @@
 -- 1. 创建笔记主表
 CREATE TABLE IF NOT EXISTS notes (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,  -- 指向自定义 users 表，不是 auth.users
   
   -- 笔记内容
   title TEXT,                           -- 笔记标题（可选，可从第一行提取）
