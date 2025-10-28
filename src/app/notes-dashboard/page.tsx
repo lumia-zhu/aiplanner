@@ -1,35 +1,33 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { getUserFromStorage, clearUserFromStorage, AuthUser } from '@/lib/auth'
-import { getNoteByDate, saveNote, extractMetadata } from '@/lib/notes'
-import type { JSONContent } from '@tiptap/core'
+import { getNoteByDate, saveNote } from '@/lib/notes'
+import { JSONContent } from '@tiptap/react'
 import NoteEditor from '@/components/NoteEditor'
 import CalendarView from '@/components/CalendarView'
 import DateScopeSelector from '@/components/DateScopeSelector'
 import ChatSidebar from '@/components/ChatSidebar'
 import UserProfileModal from '@/components/UserProfileModal'
-import { doubaoService, type ChatMessage } from '@/lib/doubaoService'
-import { saveChatMessage, getChatMessages, clearChatMessages } from '@/lib/chatMessages'
-import { getUserProfile } from '@/lib/userProfile'
 import type { DateScope, UserProfile } from '@/types'
-import { getDefaultDateScope, serializeDateScope, deserializeDateScope } from '@/utils/dateUtils'
+import { getDefaultDateScope } from '@/utils/dateUtils'
 import { format } from 'date-fns'
+import { getUserProfile, upsertUserProfile, type UserProfileInput } from '@/lib/userProfile'
 
 export default function NotesDashboardPage() {
   const router = useRouter()
   const [user, setUser] = useState<AuthUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   
-  // 笔记相关状态
+  // 日期相关状态
   const [selectedDate, setSelectedDate] = useState(new Date())
-  const [noteContent, setNoteContent] = useState<JSONContent | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [lastSaved, setLastSaved] = useState<Date | null>(null)
-  
-  // 日期范围
   const [dateScope, setDateScope] = useState<DateScope>(getDefaultDateScope())
+  
+  // 笔记相关状态
+  const [currentNote, setCurrentNote] = useState<JSONContent | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [lastSaved, setLastSaved] = useState<Date | null>(null)
   
   // AI 对话框状态
   const [isChatSidebarOpen, setIsChatSidebarOpen] = useState(() => {
@@ -41,12 +39,11 @@ export default function NotesDashboardPage() {
   })
   const [chatMessage, setChatMessage] = useState('')
   const [selectedImage, setSelectedImage] = useState<File | null>(null)
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
+  const [chatMessages, setChatMessages] = useState<any[]>([])
   const [isSending, setIsSending] = useState(false)
   const [streamingMessage, setStreamingMessage] = useState('')
   const [isDragOver, setIsDragOver] = useState(false)
   const [isImageProcessing, setIsImageProcessing] = useState(false)
-  const [isChatLoading, setIsChatLoading] = useState(false)
   
   // 任务识别相关状态（笔记模式暂不使用，但 ChatSidebar 需要）
   const [isTaskRecognitionMode, setIsTaskRecognitionMode] = useState(false)
@@ -56,21 +53,6 @@ export default function NotesDashboardPage() {
   // 用户资料弹窗
   const [showProfileModal, setShowProfileModal] = useState(false)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
-
-  // 初始化：恢复保存的 dateScope
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = sessionStorage.getItem('dateScope')
-      if (saved) {
-        try {
-          const restored = deserializeDateScope(JSON.parse(saved))
-          setDateScope(restored)
-        } catch (e) {
-          console.error('Failed to parse saved dateScope:', e)
-        }
-      }
-    }
-  }, [])
 
   // 初始化：检查登录状态
   useEffect(() => {
@@ -83,261 +65,236 @@ export default function NotesDashboardPage() {
     loadUserProfile(userData.id)
     loadNote(userData.id, selectedDate)
     setIsLoading(false)
-  }, [])
+  }, [router, selectedDate])
 
   // 加载用户资料
-  async function loadUserProfile(userId: string) {
+  const loadUserProfile = useCallback(async (userId: string) => {
     try {
       const profile = await getUserProfile(userId)
       setUserProfile(profile)
     } catch (error) {
       console.error('加载用户资料失败:', error)
     }
-  }
+  }, [])
 
-  // 加载笔记
-  async function loadNote(userId: string, date: Date) {
+  // 加载指定日期的笔记
+  const loadNote = useCallback(async (userId: string, date: Date) => {
     try {
       const note = await getNoteByDate(userId, date)
       if (note) {
-        setNoteContent(note.content)
+        setCurrentNote(note.content)
       } else {
-        // 空白笔记
-        setNoteContent({
+        // 没有笔记，使用空白内容
+        setCurrentNote({
           type: 'doc',
           content: [{ type: 'paragraph' }]
         })
       }
     } catch (error) {
       console.error('加载笔记失败:', error)
+      alert('加载笔记失败')
     }
-  }
+  }, [])
 
   // 保存笔记
-  async function handleSaveNote(content: JSONContent) {
+  const handleNoteSave = useCallback(async (content: JSONContent) => {
     if (!user) return
-    
-    setSaving(true)
+
+    setIsSaving(true)
     try {
       await saveNote(user.id, selectedDate, content)
       setLastSaved(new Date())
-      setNoteContent(content)
+      console.log('✅ 笔记已保存')
     } catch (error) {
       console.error('保存笔记失败:', error)
+      alert('保存笔记失败')
     } finally {
-      setSaving(false)
+      setIsSaving(false)
     }
-  }
+  }, [user, selectedDate])
 
-  // 切换日期
-  function handleDateSelect(date: Date) {
+  // 处理日期选择
+  const handleDateSelect = useCallback((date: Date) => {
     setSelectedDate(date)
-    if (user) {
-      loadNote(user.id, date)
-    }
-  }
+  }, [])
 
-  // 日期范围变化
-  function handleDateScopeChange(newScope: DateScope) {
+  // 处理日期范围变化
+  const handleDateScopeChange = useCallback((newScope: DateScope) => {
     setDateScope(newScope)
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem('dateScope', JSON.stringify(serializeDateScope(newScope)))
-    }
-  }
+  }, [])
 
   // 登出
-  function handleLogout() {
+  const handleLogout = () => {
     clearUserFromStorage()
-    if (typeof window !== 'undefined') {
-      sessionStorage.removeItem('dateScope')
-      sessionStorage.removeItem('chatSidebarOpen')
-    }
     router.push('/auth/login')
   }
 
-  // 切换 AI 侧边栏
-  function toggleChatSidebar() {
-    const newState = !isChatSidebarOpen
-    setIsChatSidebarOpen(newState)
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem('chatSidebarOpen', JSON.stringify(newState))
+  // 处理用户资料更新
+  const handleUserProfileSave = useCallback(async (profileInput: UserProfileInput) => {
+    if (!user) return
+    try {
+      const updatedProfile = await upsertUserProfile(user.id, profileInput)
+      setUserProfile(updatedProfile)
+      setShowProfileModal(false)
+      alert('个人资料已更新！')
+    } catch (error) {
+      console.error('更新用户资料失败:', error)
+      alert('更新用户资料失败')
     }
-  }
+  }, [user])
 
-  // 获取笔记元数据
-  const metadata = noteContent ? extractMetadata(noteContent) : null
+  // 切换 AI 侧边栏
+  const toggleChatSidebar = useCallback(() => {
+    setIsChatSidebarOpen(prev => !prev)
+  }, [])
 
-  if (isLoading) {
+  if (isLoading || !user) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-600">Loading...</p>
+        <p className="mt-4 text-gray-600">加载中...</p>
       </div>
     )
-  }
-
-  if (!user) {
-    return null
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* 顶部导航栏 */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            {/* 左侧：标题 */}
-            <div className="flex items-center gap-4">
-              <h1 className="text-xl font-semibold text-gray-900">📝 Notes</h1>
-              
-              {/* 保存状态 */}
-              <div className="text-sm">
-                {saving && <span className="text-blue-600">💾 Saving...</span>}
-                {!saving && lastSaved && (
-                  <span className="text-green-600">
-                    ✓ Saved · {lastSaved.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                )}
-              </div>
+      <nav className="bg-white border-b border-gray-200 fixed top-0 left-0 right-0 z-50 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center">
+              <h1 className="text-xl font-bold text-gray-900">📝 Notes</h1>
             </div>
-
-            {/* 右侧：用户信息 + AI 按钮 */}
-            <div className="flex items-center gap-4">
-              {/* 元数据统计 */}
-              {metadata && (
-                <div className="flex gap-3 text-sm text-gray-600">
-                  {metadata.pending_tasks_count > 0 && (
-                    <span>☐ {metadata.pending_tasks_count}</span>
-                  )}
-                  {metadata.completed_tasks_count > 0 && (
-                    <span>✓ {metadata.completed_tasks_count}</span>
-                  )}
-                  {metadata.tags.length > 0 && (
-                    <span>🏷️ {metadata.tags.length}</span>
-                  )}
-                </div>
-              )}
-
-              {/* AI 助手按钮 */}
+            <div className="flex items-center space-x-4">
+              <span className="text-gray-700">
+                欢迎, <span className="font-medium">{user.username}</span>
+              </span>
               <button
-                onClick={toggleChatSidebar}
-                className={`
-                  flex items-center gap-2 px-3 py-2 rounded-lg transition
-                  ${isChatSidebarOpen 
-                    ? 'bg-blue-100 text-blue-700' 
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }
-                `}
-                title="Toggle AI Assistant (Ctrl+B)"
+                onClick={() => setShowProfileModal(true)}
+                className="text-blue-600 hover:text-blue-800 text-sm font-medium"
               >
-                <span className="text-sm font-medium">
-                  🤖 AI Assistant
-                  {!doubaoService.hasApiKey() && ' (API Key required)'}
-                </span>
+                个人资料
               </button>
-
-              {/* 用户菜单 */}
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setShowProfileModal(true)}
-                  className="text-gray-700 hover:text-gray-900"
-                  title="Personal Profile"
-                >
-                  <span className="text-sm">Welcome, <span className="font-medium">{user.username}</span></span>
-                </button>
-                <button
-                  onClick={handleLogout}
-                  className="px-3 py-2 text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition"
-                >
-                  Logout
-                </button>
-              </div>
+              <button
+                onClick={handleLogout}
+                className="text-red-600 hover:text-red-800 text-sm font-medium"
+              >
+                登出
+              </button>
             </div>
           </div>
         </div>
-      </header>
+      </nav>
 
-      {/* 主体内容 */}
-      <div className="max-w-full mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          
-          {/* 左侧：日期选择 + 日历 */}
-          <div className="lg:col-span-3 space-y-4">
-            {/* 日期范围选择器 */}
-            <DateScopeSelector
-              scope={dateScope}
-              onScopeChange={handleDateScopeChange}
-            />
-
-            {/* 日历视图 */}
-            <CalendarView
-              tasks={[]}  // 笔记模式不显示任务，可以后续改为显示笔记标记
-              selectedDate={selectedDate}
-              onDateSelect={handleDateSelect}
-              dateScope={dateScope}
-            />
-          </div>
-
-          {/* 右侧：笔记编辑器 */}
-          <div className="lg:col-span-9">
-            {/* 日期标题 */}
-            <div className="mb-4">
-              <h2 className="text-2xl font-bold text-gray-900">
-                {format(selectedDate, 'MMMM dd, yyyy')}
-              </h2>
-              <p className="text-sm text-gray-600">
-                {format(selectedDate, 'EEEE')}
-              </p>
-            </div>
-
-            {/* 编辑器 */}
-            {noteContent && (
-              <NoteEditor
-                key={selectedDate.toISOString()}
-                initialContent={noteContent}
-                onSave={handleSaveNote}
-                autoSave={true}
-                autoSaveDelay={1000}
+      {/* 主要内容区域 */}
+      <main className="py-6 px-4 sm:px-6 lg:px-8 pt-20">
+        <div className="max-w-7xl mx-auto">
+          {/* flex布局容器：在主内容区域内部分左右 */}
+          <div className="flex gap-6 h-[calc(100vh-8rem)]">
+            {/* 左侧：笔记管理区域 */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar transition-all duration-300 ease-in-out relative pb-24">
+              
+              {/* 日期范围选择器 */}
+              <DateScopeSelector 
+                scope={dateScope}
+                onScopeChange={handleDateScopeChange}
               />
-            )}
+
+              {/* 日历视图 */}
+              <CalendarView 
+                tasks={[]}  // 笔记模式暂时不显示任务标记
+                selectedDate={selectedDate}
+                onDateSelect={handleDateSelect}
+                dateScope={dateScope}
+              />
+
+              {/* 日期标题和保存状态 */}
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                    {format(selectedDate, 'yyyy年MM月dd日')}
+                  </h2>
+                  <p className="text-gray-600">
+                    {isSaving ? '保存中...' : lastSaved ? `最后保存: ${format(lastSaved, 'HH:mm:ss')}` : '未保存'}
+                  </p>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <button
+                    onClick={toggleChatSidebar}
+                    className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
+                    style={{ backgroundColor: '#9B59B6' }}
+                    title="打开AI助手"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                    </svg>
+                    AI助手
+                  </button>
+                </div>
+              </div>
+
+              {/* 笔记编辑器 */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+                <NoteEditor
+                  initialContent={currentNote}
+                  onUpdate={handleNoteSave}
+                  placeholder="开始记录你的想法..."
+                />
+              </div>
+
+              {/* 浮动AI助手按钮 - 固定在屏幕右下角 */}
+              {!isChatSidebarOpen && (
+                <button
+                  onClick={toggleChatSidebar}
+                  className="fixed right-4 bottom-4 z-40 w-14 h-14 bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-full shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-300 flex items-center justify-center group"
+                  title="展开AI助手 (Ctrl+B)"
+                >
+                  {/* AI图标 */}
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                  </svg>
+                  {/* 悬停提示 */}
+                  <span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-lg">
+                    AI助手
+                  </span>
+                </button>
+              )}
+            </div>
+
+            {/* 右侧：AI聊天侧边栏 */}
+            <ChatSidebar
+              isOpen={isChatSidebarOpen}
+              onToggle={toggleChatSidebar}
+              chatMessage={chatMessage}
+              setChatMessage={setChatMessage}
+              selectedImage={selectedImage}
+              setSelectedImage={setSelectedImage}
+              chatMessages={chatMessages}
+              setChatMessages={setChatMessages}
+              isSending={isSending}
+              streamingMessage={streamingMessage}
+              isDragOver={isDragOver}
+              isImageProcessing={isImageProcessing}
+              isTaskRecognitionMode={isTaskRecognitionMode}
+              setIsTaskRecognitionMode={setIsTaskRecognitionMode}
+              recognizedTasks={recognizedTasks}
+              showTaskPreview={showTaskPreview}
+              setShowTaskPreview={setShowTaskPreview}
+            />
           </div>
         </div>
-      </div>
+      </main>
 
-      {/* AI 侧边栏 */}
-      {isChatSidebarOpen && (
-        <ChatSidebar
-          isOpen={isChatSidebarOpen}
-          onToggle={() => setIsChatSidebarOpen(!isChatSidebarOpen)}
-          chatMessage={chatMessage}
-          setChatMessage={setChatMessage}
-          selectedImage={selectedImage}
-          setSelectedImage={setSelectedImage}
-          chatMessages={chatMessages}
-          setChatMessages={setChatMessages}
-          isSending={isSending}
-          streamingMessage={streamingMessage}
-          isDragOver={isDragOver}
-          isImageProcessing={isImageProcessing}
-          isTaskRecognitionMode={isTaskRecognitionMode}
-          setIsTaskRecognitionMode={setIsTaskRecognitionMode}
-          recognizedTasks={recognizedTasks}
-          showTaskPreview={showTaskPreview}
-          setShowTaskPreview={setShowTaskPreview}
-        />
-      )}
-
-      {/* 用户资料弹窗 */}
-      {showProfileModal && user && (
+      {/* 用户个人资料弹窗 */}
+      {user && (
         <UserProfileModal
-          userId={user.id}
+          isOpen={showProfileModal}
           onClose={() => setShowProfileModal(false)}
-          onSave={async () => {
-            await loadUserProfile(user.id)
-            setShowProfileModal(false)
-          }}
+          userId={user.id}
+          initialProfile={userProfile}
+          onSave={handleUserProfileSave}
         />
       )}
     </div>
   )
 }
-
