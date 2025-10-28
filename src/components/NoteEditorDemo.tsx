@@ -20,6 +20,7 @@ export default function NoteEditorDemo({
 }: NoteEditorDemoProps) {
   
   const editor = useEditor({
+    immediatelyRender: false,  // 🔧 修复 SSR 水合错误
     extensions: [
       StarterKit.configure({
         heading: {
