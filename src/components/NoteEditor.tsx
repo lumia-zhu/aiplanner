@@ -7,6 +7,57 @@ import TaskItem from '@tiptap/extension-task-item'
 import Placeholder from '@tiptap/extension-placeholder'
 import { useEffect, useCallback, useState } from 'react'
 import type { JSONContent } from '@tiptap/core'
+import { Extension, InputRule } from '@tiptap/core'
+
+const TaskListMarkdown = Extension.create({
+  name: 'taskListMarkdown',
+  addInputRules() {
+    return [
+      new InputRule({
+        find: /^(\s*)\[\]\s$/,
+        handler: ({ range, commands }) => {
+          commands.deleteRange({ from: range.from, to: range.to })
+          return commands.toggleTaskList()
+        }
+      }),
+      new InputRule({
+        find: /^(\s*)([-+*])\s$/,
+        handler: ({ range, commands }) => {
+          commands.deleteRange({ from: range.from, to: range.to })
+          return commands.toggleBulletList()
+        }
+      }),
+      new InputRule({
+        find: /^(\s*)(\d+)\.\s$/,
+        handler: ({ range, commands }) => {
+          commands.deleteRange({ from: range.from, to: range.to })
+          return commands.toggleOrderedList()
+        }
+      }),
+      new InputRule({
+        find: /^(\s*)#\s$/,
+        handler: ({ range, commands }) => {
+          commands.deleteRange({ from: range.from, to: range.to })
+          return commands.toggleHeading({ level: 1 })
+        }
+      }),
+      new InputRule({
+        find: /^(\s*)##\s$/,
+        handler: ({ range, commands }) => {
+          commands.deleteRange({ from: range.from, to: range.to })
+          return commands.toggleHeading({ level: 2 })
+        }
+      }),
+      new InputRule({
+        find: /^(\s*)###\s$/,
+        handler: ({ range, commands }) => {
+          commands.deleteRange({ from: range.from, to: range.to })
+          return commands.toggleHeading({ level: 3 })
+        }
+      }),
+    ]
+  }
+})
 
 interface NoteEditorProps {
   initialContent?: JSONContent
@@ -20,7 +71,7 @@ interface NoteEditorProps {
 export default function NoteEditor({
   initialContent,
   onSave,
-  placeholder = '开始记录你的想法...',
+  placeholder = 'Start writing... Type [] for tasks, # for headings, - for lists',
   editable = true,
   autoSave = true,
   autoSaveDelay = 1000
@@ -48,13 +99,11 @@ export default function NoteEditor({
       TaskList,
       TaskItem.configure({
         nested: true,
-        HTMLAttributes: {
-          class: 'flex items-start gap-2',
-        }
       }),
       Placeholder.configure({
         placeholder
       }),
+      TaskListMarkdown,
     ],
     content: initialContent || {
       type: 'doc',
@@ -159,33 +208,34 @@ export default function NoteEditor({
       {/* 浮动工具栏 - 选中文本时显示 */}
       {showBubbleMenu && (
         <div
-          className="fixed z-50 bg-white border border-gray-200 text-gray-700 rounded-lg shadow-lg px-2 py-2 flex items-center gap-1.5 transition-opacity duration-200"
+          className="fixed z-50 bg-white border border-gray-200 text-gray-700 rounded-lg px-1.5 py-1.5 flex items-center gap-1 animate-bubble-menu"
           style={{
             top: `${bubbleMenuPosition.top}px`,
             left: `${bubbleMenuPosition.left}px`,
             transform: 'translateX(-50%)',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05)',
           }}
         >
           {/* 待办列表 - 移到最左边 */}
           <button
             onClick={() => editor.chain().focus().toggleTaskList().run()}
-            className={`px-3 py-2 text-base rounded hover:bg-gray-100 transition ${
-              editor.isActive('taskList') ? 'bg-blue-50 text-blue-600' : 'text-gray-700'
+            className={`px-2.5 py-1.5 text-sm rounded-md hover:bg-gray-100 transition-all duration-150 ${
+              editor.isActive('taskList') ? 'bg-blue-50 text-blue-600 shadow-sm' : 'text-gray-700'
             }`}
-            title="待办列表"
+            title="待办列表 ([] + 空格)"
           >
             ☐
           </button>
 
-          <div className="w-px h-6 bg-gray-300 mx-1" />
+          <div className="w-px h-5 bg-gray-300 mx-0.5" />
 
           {/* 粗体 */}
           <button
             onClick={() => editor.chain().focus().toggleBold().run()}
-            className={`px-3 py-2 text-base rounded hover:bg-gray-100 transition font-bold ${
-              editor.isActive('bold') ? 'bg-blue-50 text-blue-600' : 'text-gray-700'
+            className={`px-2.5 py-1.5 text-sm rounded-md hover:bg-gray-100 transition-all duration-150 font-bold ${
+              editor.isActive('bold') ? 'bg-blue-50 text-blue-600 shadow-sm' : 'text-gray-700'
             }`}
-            title="粗体 (Ctrl+B)"
+            title="粗体 (⌘B)"
           >
             B
           </button>
@@ -193,66 +243,66 @@ export default function NoteEditor({
           {/* 斜体 */}
           <button
             onClick={() => editor.chain().focus().toggleItalic().run()}
-            className={`px-3 py-2 text-base rounded hover:bg-gray-100 transition italic ${
-              editor.isActive('italic') ? 'bg-blue-50 text-blue-600' : 'text-gray-700'
+            className={`px-2.5 py-1.5 text-sm rounded-md hover:bg-gray-100 transition-all duration-150 italic ${
+              editor.isActive('italic') ? 'bg-blue-50 text-blue-600 shadow-sm' : 'text-gray-700'
             }`}
-            title="斜体 (Ctrl+I)"
+            title="斜体 (⌘I)"
           >
             I
           </button>
 
-          <div className="w-px h-6 bg-gray-300 mx-1" />
+          <div className="w-px h-5 bg-gray-300 mx-0.5" />
 
           {/* 标题 */}
           <button
             onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-            className={`px-3 py-2 text-sm rounded hover:bg-gray-100 transition ${
-              editor.isActive('heading', { level: 1 }) ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700'
+            className={`px-2.5 py-1.5 text-xs rounded-md hover:bg-gray-100 transition-all duration-150 ${
+              editor.isActive('heading', { level: 1 }) ? 'bg-blue-50 text-blue-600 font-medium shadow-sm' : 'text-gray-700'
             }`}
-            title="一级标题"
+            title="一级标题 (# + 空格)"
           >
             H1
           </button>
 
           <button
             onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-            className={`px-3 py-2 text-sm rounded hover:bg-gray-100 transition ${
-              editor.isActive('heading', { level: 2 }) ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700'
+            className={`px-2.5 py-1.5 text-xs rounded-md hover:bg-gray-100 transition-all duration-150 ${
+              editor.isActive('heading', { level: 2 }) ? 'bg-blue-50 text-blue-600 font-medium shadow-sm' : 'text-gray-700'
             }`}
-            title="二级标题"
+            title="二级标题 (## + 空格)"
           >
             H2
           </button>
 
           <button
             onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-            className={`px-3 py-2 text-sm rounded hover:bg-gray-100 transition ${
-              editor.isActive('heading', { level: 3 }) ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700'
+            className={`px-2.5 py-1.5 text-xs rounded-md hover:bg-gray-100 transition-all duration-150 ${
+              editor.isActive('heading', { level: 3 }) ? 'bg-blue-50 text-blue-600 font-medium shadow-sm' : 'text-gray-700'
             }`}
-            title="三级标题"
+            title="三级标题 (### + 空格)"
           >
             H3
           </button>
 
-          <div className="w-px h-6 bg-gray-300 mx-1" />
+          <div className="w-px h-5 bg-gray-300 mx-0.5" />
 
           {/* 列表 */}
           <button
             onClick={() => editor.chain().focus().toggleBulletList().run()}
-            className={`px-3 py-2 text-base rounded hover:bg-gray-100 transition ${
-              editor.isActive('bulletList') ? 'bg-blue-50 text-blue-600' : 'text-gray-700'
+            className={`px-2.5 py-1.5 text-sm rounded-md hover:bg-gray-100 transition-all duration-150 ${
+              editor.isActive('bulletList') ? 'bg-blue-50 text-blue-600 shadow-sm' : 'text-gray-700'
             }`}
-            title="无序列表"
+            title="无序列表 (- + 空格)"
           >
             •
           </button>
 
           <button
             onClick={() => editor.chain().focus().toggleOrderedList().run()}
-            className={`px-3 py-2 text-base rounded hover:bg-gray-100 transition ${
-              editor.isActive('orderedList') ? 'bg-blue-50 text-blue-600' : 'text-gray-700'
+            className={`px-2.5 py-1.5 text-sm rounded-md hover:bg-gray-100 transition-all duration-150 ${
+              editor.isActive('orderedList') ? 'bg-blue-50 text-blue-600 shadow-sm' : 'text-gray-700'
             }`}
-            title="有序列表"
+            title="有序列表 (1. + 空格)"
           >
             1.
           </button>
@@ -261,11 +311,32 @@ export default function NoteEditor({
 
       {/* 底部提示栏 */}
       {editable && (
-        <div className="border-t border-gray-100 bg-gray-50 px-4 py-2 text-xs text-gray-500">
-          💡 提示: 输入 <code className="px-1 py-0.5 bg-gray-200 rounded">[ ]</code> + 空格创建待办项 | 
-          <code className="px-1 py-0.5 bg-gray-200 rounded mx-1">Tab</code> 增加缩进 | 
-          <code className="px-1 py-0.5 bg-gray-200 rounded">Shift+Tab</code> 减少缩进
-          {autoSave && <span className="ml-4">✓ 自动保存</span>}
+        <div className="border-t border-gray-100 bg-gray-50 px-4 py-2.5 text-xs text-gray-500 leading-relaxed">
+          <div className="flex items-center gap-4 flex-wrap">
+            <span className="font-medium text-gray-600">💡 Markdown 快捷键:</span>
+            <span>
+              <code className="px-1.5 py-0.5 bg-gray-200 rounded text-gray-700">[]</code> 待办
+            </span>
+            <span>
+              <code className="px-1.5 py-0.5 bg-gray-200 rounded text-gray-700">#</code> 标题
+            </span>
+            <span>
+              <code className="px-1.5 py-0.5 bg-gray-200 rounded text-gray-700">-</code> 列表
+            </span>
+            <span>
+              <code className="px-1.5 py-0.5 bg-gray-200 rounded text-gray-700">1.</code> 有序
+            </span>
+            <span className="text-gray-400">|</span>
+            <span>
+              <code className="px-1.5 py-0.5 bg-gray-200 rounded text-gray-700">Tab</code> 缩进
+            </span>
+            {autoSave && (
+              <>
+                <span className="text-gray-400">|</span>
+                <span className="text-green-600 font-medium">✓ 自动保存</span>
+              </>
+            )}
+          </div>
         </div>
       )}
     </div>

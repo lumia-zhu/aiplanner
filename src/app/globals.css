@@ -69,6 +69,22 @@ body {
   animation: fade-in 0.3s ease-out;
 }
 
+/* 浮动工具栏动画 */
+@keyframes bubble-menu {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(4px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+.animate-bubble-menu {
+  animation: bubble-menu 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 /* 弹窗从按钮位置平滑放大动画 */
 @keyframes modal-scale-from-button {
   0% {
@@ -201,15 +217,24 @@ body {
 /* 基础编辑器样式 */
 .ProseMirror {
   outline: none;
-  color: #3f3f3f;  /* 文本颜色 */
+  color: #374151;  /* 文本颜色 - 稍深一些 */
+  line-height: 1.7;  /* 更舒适的行高 */
+  font-size: 15px;  /* 稍大的字体 */
+  transition: all 0.2s ease;
+}
+
+.ProseMirror:focus {
+  color: #1f2937;  /* 聚焦时文字更深 */
 }
 
 .ProseMirror p.is-editor-empty:first-child::before {
-  color: #adb5bd;
+  color: #9ca3af;
   content: attr(data-placeholder);
   float: left;
   height: 0;
   pointer-events: none;
+  font-size: 0.95em;
+  font-style: italic;
 }
 
 /* 标题样式 */
@@ -267,26 +292,34 @@ body {
 /* 任务列表样式 */
 .ProseMirror ul[data-type="taskList"] {
   list-style: none;
-  padding-left: 0;
+  margin: 0;
+  padding: 0;
 }
 
 .ProseMirror ul[data-type="taskList"] li {
   display: flex;
-  align-items: center;  /* 水平居中对齐 */
-  gap: 0.5rem;
-  line-height: 1.5;
+  align-items: flex-start;
+  line-height: 1.55;
 }
 
 .ProseMirror ul[data-type="taskList"] li > label {
   flex: 0 0 auto;
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  margin-right: 0.45rem;
+  margin-top: 0.7rem; /* 再次微调，确保与文字水平对齐 */
   user-select: none;
 }
 
 .ProseMirror ul[data-type="taskList"] li > div {
   flex: 1 1 auto;
   line-height: inherit;
+}
+
+/* 嵌套任务列表样式 */
+.ProseMirror ul[data-type="taskList"] ul[data-type="taskList"] {
+  margin: 0.25rem 0 0 1.5rem;
+  padding: 0;
 }
 
 /* 任务复选框样式 - 简洁黑色风格 */
@@ -349,9 +382,13 @@ body {
   margin: 1.5rem 0;
 }
 
-/* 选中文本样式 */
+/* 选中文本样式 - 优化为更柔和的蓝色 */
 .ProseMirror ::selection {
-  background-color: #bfdbfe;
+  background-color: #dbeafe;
+}
+
+.ProseMirror ::-moz-selection {
+  background-color: #dbeafe;
 }
 
 /* 链接样式 */
