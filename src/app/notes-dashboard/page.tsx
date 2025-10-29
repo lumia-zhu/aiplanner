@@ -11,10 +11,13 @@ import DateScopeSelector from '@/components/DateScopeSelector'
 import ChatSidebar from '@/components/ChatSidebar'
 import UserProfileModal from '@/components/UserProfileModal'
 import NotePreviewTooltip from '@/components/NotePreviewTooltip'
-import type { DateScope, UserProfile } from '@/types'
+import KeyboardShortcutsPanel from '@/components/KeyboardShortcutsPanel'
+import type { DateScope, UserProfile, ChatMessage } from '@/types'
 import { getDefaultDateScope } from '@/utils/dateUtils'
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns'
 import { getUserProfile, upsertUserProfile, type UserProfileInput } from '@/lib/userProfile'
+import { doubaoService } from '@/lib/doubaoService'
+import { saveChatMessage } from '@/lib/chatMessages'
 
 export default function NotesDashboardPage() {
   const router = useRouter()
@@ -65,6 +68,9 @@ export default function NotesDashboardPage() {
   // 用户资料弹窗
   const [showProfileModal, setShowProfileModal] = useState(false)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+  
+  // 快捷键帮助面板
+  const [showShortcutsPanel, setShowShortcutsPanel] = useState(false)
 
   // 加载用户资料
   const loadUserProfile = useCallback(async (userId: string) => {
@@ -205,6 +211,30 @@ export default function NotesDashboardPage() {
       loadNotesInRange(user.id, dateScope.viewType, selectedDate)
     }
   }, [user, dateScope.viewType, loadNotesInRange, selectedDate])
+
+  // 全局快捷键监听
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // ? 键显示/隐藏帮助面板
+      if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        // 检查是否在输入框中
+        const target = e.target as HTMLElement
+        if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA' && !target.isContentEditable) {
+          e.preventDefault()
+          setShowShortcutsPanel(prev => !prev)
+        }
+      }
+      
+      // Esc 键关闭帮助面板
+      if (e.key === 'Escape' && showShortcutsPanel) {
+        e.preventDefault()
+        setShowShortcutsPanel(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [showShortcutsPanel])
 
   // 处理笔记内容更新（实时更新统计，不保存）
   const handleNoteUpdate = useCallback((content: JSONContent) => {
@@ -347,13 +377,116 @@ export default function NotesDashboardPage() {
     setIsChatSidebarOpen(prev => !prev)
   }, [])
 
-  // 处理发送消息（简化版，笔记模式不需要任务识别）
+  // 处理发送消息
   const handleSendMessage = useCallback(async () => {
     if (!chatMessage.trim() && !selectedImage) return
+    if (!doubaoService.hasApiKey()) {
+      alert('请先在 .env.local 文件中配置 NEXT_PUBLIC_DOUBAO_API_KEY')
+      return
+    }
+
+    setIsSending(true)
+    setStreamingMessage('')
     
-    alert('笔记模式下暂不支持AI助手功能，请使用原 Dashboard 界面')
-    // TODO: 后续可以实现笔记相关的AI功能，如笔记总结、笔记搜索等
-  }, [chatMessage, selectedImage])
+    try {
+      const finalPrompt = chatMessage || '请分析这张图片'
+      
+      // 添加用户消息到聊天历史
+      const userMessage: ChatMessage = {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: finalPrompt
+          }
+        ]
+      }
+
+      // 处理图片
+      let imageBase64: string | undefined
+      if (selectedImage) {
+        imageBase64 = await new Promise<string>((resolve) => {
+          const reader = new FileReader()
+          reader.onloadend = () => {
+            resolve(reader.result as string)
+          }
+          reader.readAsDataURL(selectedImage)
+        })
+        
+        userMessage.content.push({
+          type: 'image_url',
+          image_url: {
+            url: imageBase64
+          }
+        })
+      }
+
+      const newMessages = [...chatMessages, userMessage]
+      setChatMessages(newMessages)
+
+      // 发送到豆包 API
+      const response = await doubaoService.sendMessage(
+        finalPrompt,
+        imageBase64,
+        chatMessages,
+        (chunk: string) => {
+          setStreamingMessage(prev => prev + chunk)
+        }
+      )
+
+      if (response.success && response.message) {
+        const aiMessage: ChatMessage = {
+          role: 'assistant',
+          content: [
+            {
+              type: 'text',
+              text: response.message
+            }
+          ]
+        }
+        
+        setStreamingMessage('')
+        setIsSending(false)
+        setChatMessages([...newMessages, aiMessage])
+        
+        // 保存到数据库
+        if (user) {
+          const chatDate = formatNoteDate(selectedDate)
+          await saveChatMessage(user.id, chatDate, 'user', userMessage.content)
+          await saveChatMessage(user.id, chatDate, 'assistant', aiMessage.content)
+        }
+      } else {
+        const errorMessage: ChatMessage = {
+          role: 'assistant',
+          content: [
+            {
+              type: 'text',
+              text: `抱歉，发生了错误: ${response.error || '未知错误'}`
+            }
+          ]
+        }
+        setChatMessages([...newMessages, errorMessage])
+      }
+
+    } catch (error) {
+      console.error('发送消息失败:', error)
+      const errorMessage: ChatMessage = {
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: '抱歉，发送消息时出现了问题，请稍后重试。'
+          }
+        ]
+      }
+      setChatMessages([...chatMessages, errorMessage])
+    } finally {
+      setChatMessage('')
+      setSelectedImage(null)
+      setIsSending(false)
+      setStreamingMessage('')
+    }
+  }, [chatMessage, selectedImage, chatMessages, user, selectedDate])
 
   // 处理清除聊天
   const handleClearChat = useCallback(() => {
@@ -531,7 +664,7 @@ export default function NotesDashboardPage() {
                   initialContent={currentNote}
                   onUpdate={handleNoteUpdate}
                   onSave={handleNoteSave}
-                  placeholder="开始记录你的想法..."
+                  placeholder="开始记录... (按 ? 查看快捷键)"
                 />
               </div>
 
@@ -605,6 +738,25 @@ export default function NotesDashboardPage() {
           isLoading={isLoadingPreview}
         />
       )}
+
+      {/* 快捷键帮助面板 */}
+      <KeyboardShortcutsPanel
+        isOpen={showShortcutsPanel}
+        onClose={() => setShowShortcutsPanel(false)}
+      />
+
+      {/* 快捷键帮助按钮 - 固定在左下角 */}
+      <button
+        onClick={() => setShowShortcutsPanel(true)}
+        className="fixed left-4 bottom-4 z-40 w-12 h-12 bg-gray-700 text-white rounded-full shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-300 flex items-center justify-center group"
+        title="键盘快捷键 (?)"
+      >
+        <span className="text-xl font-semibold">?</span>
+        {/* 悬停提示 */}
+        <span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-lg">
+          键盘快捷键
+        </span>
+      </button>
     </div>
   )
 }
