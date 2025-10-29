@@ -194,13 +194,13 @@ export default function NotesDashboardPage() {
             {/* 左侧：笔记管理区域 */}
             <div className="flex-1 overflow-y-auto custom-scrollbar transition-all duration-300 ease-in-out relative pb-24">
               
-              {/* 日期范围选择器 */}
-              <DateScopeSelector 
+              {/* 日期范围选择器 - 暂时隐藏 */}
+              {/* <DateScopeSelector 
                 scope={dateScope}
                 onScopeChange={handleDateScopeChange}
-              />
+              /> */}
 
-              {/* 日历视图 */}
+              {/* 日历视图 - 保留显示 */}
               <CalendarView 
                 tasks={[]}  // 笔记模式暂时不显示任务标记
                 selectedDate={selectedDate}

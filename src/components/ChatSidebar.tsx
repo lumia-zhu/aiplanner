@@ -809,8 +809,8 @@ const ChatSidebar = memo<ChatSidebarProps>(({
           </div>
         )}
         
-        {/* 任务识别开关 */}
-        <div className="mt-3 pt-3 border-t border-gray-100">
+        {/* 任务识别开关 - 暂时隐藏 */}
+        {/* <div className="mt-3 pt-3 border-t border-gray-100">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-gray-700">智能任务识别</span>
@@ -838,15 +838,15 @@ const ChatSidebar = memo<ChatSidebarProps>(({
           </div>
           
           {/* 模式提示 */}
-          {isTaskRecognitionMode && (
+          {/* {isTaskRecognitionMode && (
             <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700 leading-relaxed">
               <div className="flex items-start gap-2">
                 <span className="text-green-600">💡</span>
                 <span>任务识别模式已启用：在输入框中描述任务或上传图片，AI将自动识别并提取任务信息</span>
               </div>
             </div>
-          )}
-        </div>
+          )} */}
+        {/* </div> */}
       </div>
       </>
       )}
