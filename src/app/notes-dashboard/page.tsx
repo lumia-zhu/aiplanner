@@ -3,16 +3,17 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { getUserFromStorage, clearUserFromStorage, AuthUser } from '@/lib/auth'
-import { getNoteByDate, saveNote } from '@/lib/notes'
+import { getNoteByDate, saveNote, getNotesByDateRange, Note, formatNoteDate } from '@/lib/notes'
 import { JSONContent } from '@tiptap/react'
 import NoteEditor from '@/components/NoteEditor'
 import CalendarView from '@/components/CalendarView'
 import DateScopeSelector from '@/components/DateScopeSelector'
 import ChatSidebar from '@/components/ChatSidebar'
 import UserProfileModal from '@/components/UserProfileModal'
+import NotePreviewTooltip from '@/components/NotePreviewTooltip'
 import type { DateScope, UserProfile } from '@/types'
 import { getDefaultDateScope } from '@/utils/dateUtils'
-import { format } from 'date-fns'
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns'
 import { getUserProfile, upsertUserProfile, type UserProfileInput } from '@/lib/userProfile'
 
 export default function NotesDashboardPage() {
@@ -29,6 +30,16 @@ export default function NotesDashboardPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [taskStats, setTaskStats] = useState({ total: 0, completed: 0 })
+  
+  // 笔记缓存（用于显示圆点和预览）
+  const [notesCache, setNotesCache] = useState<Map<string, Note>>(new Map())
+  const [lastLoadedRange, setLastLoadedRange] = useState<{ start: string, end: string } | null>(null)
+  
+  // 悬停预览相关状态
+  const [hoveredDate, setHoveredDate] = useState<Date | null>(null)
+  const [hoveredNote, setHoveredNote] = useState<Note | null>(null)
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 })
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false)
   
   // AI 对话框状态
   const [isChatSidebarOpen, setIsChatSidebarOpen] = useState(() => {
@@ -113,6 +124,61 @@ export default function NotesDashboardPage() {
     }
   }, [calculateTaskStats])
 
+  // 加载日期范围内的笔记（用于圆点显示和预览）
+  const loadNotesInRange = useCallback(async (userId: string, viewType: 'week' | 'month', referenceDate: Date) => {
+    // 根据视图类型计算日期范围
+    let startDate: Date
+    let endDate: Date
+    
+    if (viewType === 'week') {
+      // 周视图：加载当前周（周一到周日）
+      startDate = startOfWeek(referenceDate, { weekStartsOn: 1 }) // 周一开始
+      endDate = endOfWeek(referenceDate, { weekStartsOn: 1 })
+    } else {
+      // 月视图：加载当前月
+      startDate = startOfMonth(referenceDate)
+      endDate = endOfMonth(referenceDate)
+    }
+    
+    // 检查是否需要重新加载（范围是否改变）
+    const startStr = formatNoteDate(startDate)
+    const endStr = formatNoteDate(endDate)
+    const rangeKey = `${startStr}_${endStr}`
+    const lastRangeKey = lastLoadedRange ? `${lastLoadedRange.start}_${lastLoadedRange.end}` : null
+    
+    if (rangeKey === lastRangeKey) {
+      console.log('📦 使用缓存，无需重新加载')
+      return // 范围未变化，直接返回，不触发任何状态更新
+    }
+    
+    console.log(`📦 加载笔记范围: ${startStr} ~ ${endStr}`)
+    
+    try {
+      // 批量加载笔记
+      const notes = await getNotesByDateRange(userId, startDate, endDate)
+      
+      // 过滤掉空笔记（只保留有实际内容的笔记）
+      const nonEmptyNotes = notes.filter(note => {
+        // 简单检查：如果 plain_text 为空或只有空格，认为是空笔记
+        return note.plain_text && note.plain_text.trim().length > 0
+      })
+      
+      // ⚠️ 不要创建新 Map，而是合并到现有缓存
+      setNotesCache(prevCache => {
+        const newCache = new Map(prevCache) // 保留旧数据
+        nonEmptyNotes.forEach(note => {
+          newCache.set(note.note_date, note)
+        })
+        return newCache
+      })
+      
+      setLastLoadedRange({ start: startStr, end: endStr })
+      console.log(`✅ 已加载 ${nonEmptyNotes.length} 条笔记 (${viewType}视图，过滤掉 ${notes.length - nonEmptyNotes.length} 条空笔记)`)
+    } catch (error) {
+      console.error('加载笔记范围失败:', error)
+    }
+  }, [lastLoadedRange])
+
   // 初始化：检查登录状态
   useEffect(() => {
     const userData = getUserFromStorage()
@@ -123,7 +189,8 @@ export default function NotesDashboardPage() {
     setUser(userData)
     loadUserProfile(userData.id)
     setIsLoading(false)
-  }, [router, loadUserProfile])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // 当用户或日期变化时加载笔记
   useEffect(() => {
@@ -132,32 +199,123 @@ export default function NotesDashboardPage() {
     }
   }, [user, selectedDate, loadNote])
 
+  // 当用户、视图类型或周/月变化时加载笔记范围（用于圆点和预览）
+  useEffect(() => {
+    if (user && dateScope) {
+      loadNotesInRange(user.id, dateScope.viewType, selectedDate)
+    }
+  }, [user, dateScope.viewType, loadNotesInRange, selectedDate])
+
   // 处理笔记内容更新（实时更新统计，不保存）
   const handleNoteUpdate = useCallback((content: JSONContent) => {
     calculateTaskStats(content) // 实时更新任务统计
   }, [calculateTaskStats])
 
+  // 检查笔记是否为空
+  const isNoteEmpty = useCallback((content: JSONContent): boolean => {
+    if (!content || !content.content) return true
+    
+    // 检查是否只有一个空段落
+    if (content.content.length === 1 && 
+        content.content[0].type === 'paragraph' && 
+        (!content.content[0].content || content.content[0].content.length === 0)) {
+      return true
+    }
+    
+    // 检查是否所有节点都没有实际内容
+    const hasContent = content.content.some(node => {
+      if (node.type === 'text' && node.text?.trim()) return true
+      if (node.content && node.content.length > 0) {
+        // 递归检查子节点
+        return node.content.some((child: any) => {
+          if (child.type === 'text' && child.text?.trim()) return true
+          if (child.content && child.content.length > 0) return true
+          return false
+        })
+      }
+      return false
+    })
+    
+    return !hasContent
+  }, [])
+
   // 保存笔记
   const handleNoteSave = useCallback(async (content: JSONContent) => {
     if (!user) return
 
+    // 检查笔记是否为空
+    if (isNoteEmpty(content)) {
+      console.log('📝 笔记为空，跳过保存')
+      const dateKey = formatNoteDate(selectedDate)
+      // 从缓存中移除空笔记
+      setNotesCache(prev => {
+        const newCache = new Map(prev)
+        newCache.delete(dateKey)
+        return newCache
+      })
+      return
+    }
+
     setIsSaving(true)
     try {
-      await saveNote(user.id, selectedDate, content)
+      const savedNote = await saveNote(user.id, selectedDate, content)
       setLastSaved(new Date())
-      console.log('✅ 笔记已保存')
+      
+      // 更新缓存，避免圆点消失
+      const dateKey = formatNoteDate(selectedDate)
+      setNotesCache(prev => {
+        const newCache = new Map(prev)
+        newCache.set(dateKey, savedNote)
+        return newCache
+      })
+      
+      console.log('✅ 笔记已保存并更新缓存')
     } catch (error) {
       console.error('保存笔记失败:', error)
       alert('保存笔记失败')
     } finally {
       setIsSaving(false)
     }
-  }, [user, selectedDate])
+  }, [user, selectedDate, isNoteEmpty])
 
   // 处理日期选择
   const handleDateSelect = useCallback((date: Date) => {
     setSelectedDate(date)
   }, [])
+
+  // 处理日期悬停
+  const handleDateHover = useCallback((date: Date | null, position?: { x: number; y: number }) => {
+    if (!date || !position) {
+      // 鼠标移开，清除悬停状态
+      setHoveredDate(null)
+      setHoveredNote(null)
+      return
+    }
+
+    setHoveredDate(date)
+    setTooltipPosition(position)
+
+    // 从缓存中查找笔记
+    const dateKey = formatNoteDate(date)
+    const cachedNote = notesCache.get(dateKey)
+
+    if (cachedNote) {
+      // 缓存命中，直接显示
+      setHoveredNote(cachedNote)
+      setIsLoadingPreview(false)
+    } else {
+      // 缓存未命中，显示加载状态
+      setHoveredNote(null)
+      setIsLoadingPreview(true)
+      
+      // 可选：异步加载笔记（如果需要支持缓存外的日期）
+      // 但通常周/月视图已经预加载了，所以这里可以不加载
+      // getNoteByDate(user.id, date).then(note => {
+      //   setHoveredNote(note)
+      //   setIsLoadingPreview(false)
+      // })
+    }
+  }, [notesCache])
 
   // 处理日期范围变化
   const handleDateScopeChange = useCallback((newScope: DateScope) => {
@@ -255,6 +413,8 @@ export default function NotesDashboardPage() {
                 selectedDate={selectedDate}
                 onDateSelect={handleDateSelect}
                 dateScope={dateScope}
+                notesMap={notesCache}  // 传递笔记缓存用于显示圆点
+                onDateHover={handleDateHover}  // 传递悬停回调
               />
 
               {/* 任务进度条 */}
@@ -389,6 +549,16 @@ export default function NotesDashboardPage() {
           userId={user.id}
           initialProfile={userProfile}
           onSave={handleUserProfileSave}
+        />
+      )}
+
+      {/* 笔记预览 Tooltip */}
+      {hoveredDate && (hoveredNote || isLoadingPreview) && (
+        <NotePreviewTooltip
+          date={hoveredDate}
+          note={hoveredNote}
+          position={tooltipPosition}
+          isLoading={isLoadingPreview}
         />
       )}
     </div>

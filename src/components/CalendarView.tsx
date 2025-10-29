@@ -3,6 +3,7 @@
 import React, { useState } from 'react'
 import { Task, DateScope } from '@/types'
 import { getStartOfDay } from '@/utils/dateUtils'
+import type { Note } from '@/lib/notes'
 
 interface CalendarViewProps {
   tasks: Task[]
@@ -13,6 +14,8 @@ interface CalendarViewProps {
   tempStartDate?: Date | null  // ⭐ 临时起始日期
   viewDate?: Date  // ⭐ 日历视图显示的日期（用于周视图和月视图）
   onViewDateChange?: (date: Date) => void  // ⭐ 新增：当用户切换月份时通知父组件
+  notesMap?: Map<string, Note>  // ⭐ 笔记缓存，用于显示圆点
+  onDateHover?: (date: Date | null, position?: { x: number; y: number }) => void  // ⭐ 日期悬停回调
 }
 
 interface CalendarDay {
@@ -30,7 +33,9 @@ export default function CalendarView({
   calendarSelectionMode = 'idle',
   tempStartDate = null,
   viewDate,  // ⭐ 新增：从外部控制日历显示的日期
-  onViewDateChange  // ⭐ 新增：月份切换回调
+  onViewDateChange,  // ⭐ 新增：月份切换回调
+  notesMap,  // ⭐ 笔记缓存
+  onDateHover  // ⭐ 日期悬停回调
 }: CalendarViewProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   // ⭐ 使用传入的 viewDate，如果没有则使用 dateScope.start 或当前日期
@@ -44,6 +49,25 @@ export default function CalendarView({
     const scopeStart = getStartOfDay(dateScope.start)
     const scopeEnd = getStartOfDay(dateScope.end)
     return dayStart >= scopeStart && dayStart <= scopeEnd
+  }
+
+  /**
+   * 检查指定日期是否有笔记
+   */
+  const hasNoteOnDate = (date: Date): boolean => {
+    if (!notesMap) return false
+    const dateStr = formatDateKey(date)
+    return notesMap.has(dateStr)
+  }
+
+  /**
+   * 格式化日期为 YYYY-MM-DD 格式（用于 Map key）
+   */
+  const formatDateKey = (date: Date): string => {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
   }
 
   // 获取当前周的日期范围（基于 currentDate）
@@ -190,6 +214,7 @@ export default function CalendarView({
                 const isToday = date.toDateString() === today.toDateString()
                 const isSelected = selectedDate && date.toDateString() === selectedDate.toDateString()
                 const inScope = isDateInScope(date)  // ⭐ 检查是否在范围内
+                const hasNote = hasNoteOnDate(date)  // ⭐ 检查是否有笔记
                 
                 return (
                   <div
@@ -202,6 +227,21 @@ export default function CalendarView({
                           : 'text-gray-700 hover:bg-gray-100'  // 其他日期：普通样式
                     }`}
                     onClick={() => onDateSelect?.(date)}
+                    onMouseEnter={(e) => {
+                      // 只有当日期有笔记时才触发悬停
+                      if (hasNote && onDateHover) {
+                        const rect = e.currentTarget.getBoundingClientRect()
+                        onDateHover(date, {
+                          x: rect.left + rect.width / 2,
+                          y: rect.bottom + 8
+                        })
+                      }
+                    }}
+                    onMouseLeave={() => {
+                      if (hasNote && onDateHover) {
+                        onDateHover(null)
+                      }
+                    }}
                   >
                     <div className="text-xs text-gray-500 mb-1">
                       {weekdays[index]}
@@ -209,6 +249,12 @@ export default function CalendarView({
                     <div className="text-sm font-medium">
                       {date.getDate()}
                     </div>
+                    {/* ⭐ 笔记圆点指示器 */}
+                    {hasNote && (
+                      <div className="flex justify-center mt-1">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                      </div>
+                    )}
                   </div>
                 )
               })}
@@ -231,6 +277,7 @@ export default function CalendarView({
               {monthDays.map((day, index) => {
                 const isSelected = selectedDate && day.date.toDateString() === selectedDate.toDateString()
                 const inScope = isDateInScope(day.date)  // ⭐ 检查是否在范围内
+                const hasNote = hasNoteOnDate(day.date)  // ⭐ 检查是否有笔记
                 
                 // 排序任务（未完成优先）
                 const sortedTasks = [...day.tasks].sort((a, b) => {
@@ -253,12 +300,31 @@ export default function CalendarView({
                       !day.isCurrentMonth ? 'text-gray-300' : 'text-gray-700'
                     }`}
                     onClick={() => onDateSelect?.(day.date)}
+                    onMouseEnter={(e) => {
+                      // 只有当日期有笔记时才触发悬停
+                      if (hasNote && onDateHover) {
+                        const rect = e.currentTarget.getBoundingClientRect()
+                        onDateHover(day.date, {
+                          x: rect.left + rect.width / 2,
+                          y: rect.bottom + 8
+                        })
+                      }
+                    }}
+                    onMouseLeave={() => {
+                      if (hasNote && onDateHover) {
+                        onDateHover(null)
+                      }
+                    }}
                   >
                     {/* 日期 */}
                     <div className="flex justify-between items-start">
                       <span className={`text-sm ${day.isToday || isSelected ? 'font-semibold' : 'font-medium'}`}>
                         {day.date.getDate()}
                       </span>
+                      {/* ⭐ 笔记圆点指示器（月视图） */}
+                      {hasNote && (
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                      )}
                     </div>
                   </div>
                 )
