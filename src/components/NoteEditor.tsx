@@ -73,7 +73,7 @@ export default function NoteEditor({
   initialContent,
   onSave,
   onUpdate,
-  placeholder = 'Start writing... Type [] for tasks, # for headings, - for lists',
+  placeholder = '开始记录你的想法... 输入 [] 创建待办，# 创建标题',
   editable = true,
   autoSave = true,
   autoSaveDelay = 1000

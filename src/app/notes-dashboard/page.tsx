@@ -55,19 +55,6 @@ export default function NotesDashboardPage() {
   const [showProfileModal, setShowProfileModal] = useState(false)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
 
-  // 初始化：检查登录状态
-  useEffect(() => {
-    const userData = getUserFromStorage()
-    if (!userData) {
-      router.push('/auth/login')
-      return
-    }
-    setUser(userData)
-    loadUserProfile(userData.id)
-    loadNote(userData.id, selectedDate)
-    setIsLoading(false)
-  }, [router, selectedDate])
-
   // 加载用户资料
   const loadUserProfile = useCallback(async (userId: string) => {
     try {
@@ -125,6 +112,25 @@ export default function NotesDashboardPage() {
       alert('加载笔记失败')
     }
   }, [calculateTaskStats])
+
+  // 初始化：检查登录状态
+  useEffect(() => {
+    const userData = getUserFromStorage()
+    if (!userData) {
+      router.push('/auth/login')
+      return
+    }
+    setUser(userData)
+    loadUserProfile(userData.id)
+    setIsLoading(false)
+  }, [router, loadUserProfile])
+
+  // 当用户或日期变化时加载笔记
+  useEffect(() => {
+    if (user) {
+      loadNote(user.id, selectedDate)
+    }
+  }, [user, selectedDate, loadNote])
 
   // 处理笔记内容更新（实时更新统计，不保存）
   const handleNoteUpdate = useCallback((content: JSONContent) => {
@@ -310,7 +316,7 @@ export default function NotesDashboardPage() {
                   <button
                     onClick={toggleChatSidebar}
                     className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
-                    style={{ backgroundColor: '#9B59B6' }}
+                    style={{ backgroundColor: '#4A90E2' }}
                     title="打开AI助手"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -335,7 +341,8 @@ export default function NotesDashboardPage() {
               {!isChatSidebarOpen && (
                 <button
                   onClick={toggleChatSidebar}
-                  className="fixed right-4 bottom-4 z-40 w-14 h-14 bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-full shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-300 flex items-center justify-center group"
+                  className="fixed right-4 bottom-4 z-40 w-14 h-14 text-white rounded-full shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-300 flex items-center justify-center group"
+                  style={{ backgroundColor: '#4A90E2' }}
                   title="展开AI助手 (Ctrl+B)"
                 >
                   {/* AI图标 */}
