@@ -347,6 +347,44 @@ export default function NotesDashboardPage() {
     setIsChatSidebarOpen(prev => !prev)
   }, [])
 
+  // 处理发送消息（简化版，笔记模式不需要任务识别）
+  const handleSendMessage = useCallback(async () => {
+    if (!chatMessage.trim() && !selectedImage) return
+    
+    alert('笔记模式下暂不支持AI助手功能，请使用原 Dashboard 界面')
+    // TODO: 后续可以实现笔记相关的AI功能，如笔记总结、笔记搜索等
+  }, [chatMessage, selectedImage])
+
+  // 处理清除聊天
+  const handleClearChat = useCallback(() => {
+    if (window.confirm('确定要清空当前日期的所有聊天记录吗？此操作无法撤销。')) {
+      setChatMessages([])
+    }
+  }, [])
+
+  // 处理拖拽进入
+  const handleDragEnter = useCallback(() => {
+    setIsDragOver(true)
+  }, [])
+
+  // 处理拖拽离开
+  const handleDragLeave = useCallback(() => {
+    setIsDragOver(false)
+  }, [])
+
+  // 处理拖拽放下
+  const handleDrop = useCallback(() => {
+    setIsDragOver(false)
+  }, [])
+
+  // 处理回车发送
+  const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSendMessage()
+    }
+  }, [handleSendMessage])
+
   if (isLoading || !user) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -536,6 +574,12 @@ export default function NotesDashboardPage() {
               recognizedTasks={recognizedTasks}
               showTaskPreview={showTaskPreview}
               setShowTaskPreview={setShowTaskPreview}
+              handleSendMessage={handleSendMessage}
+              handleClearChat={handleClearChat}
+              handleDragEnter={handleDragEnter}
+              handleDragLeave={handleDragLeave}
+              handleDrop={handleDrop}
+              handleKeyPress={handleKeyPress}
             />
           </div>
         </div>

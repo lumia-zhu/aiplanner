@@ -279,18 +279,15 @@ export default function CalendarView({
                 const inScope = isDateInScope(day.date)  // ⭐ 检查是否在范围内
                 const hasNote = hasNoteOnDate(day.date)  // ⭐ 检查是否有笔记
                 
-                // 排序任务（未完成优先）
-                const sortedTasks = [...day.tasks].sort((a, b) => {
-                  if (a.completed !== b.completed) {
-                    return a.completed ? 1 : -1
-                  }
-                  return 0
-                })
+                // 获取笔记内容
+                const dateKey = formatDateKey(day.date)
+                const note = notesMap?.get(dateKey)
+                const notePreview = note?.plain_text?.trim() || ''
                 
                 return (
                   <div
                     key={index}
-                    className={`relative h-20 p-2 cursor-pointer transition-all flex flex-col rounded ${
+                    className={`relative h-20 p-2 cursor-pointer transition-all flex flex-col rounded overflow-hidden ${
                       isSelected
                         ? 'bg-blue-50 text-gray-900'  // 选中日期：淡蓝色填充
                         : day.isToday 
@@ -317,15 +314,22 @@ export default function CalendarView({
                     }}
                   >
                     {/* 日期 */}
-                    <div className="flex justify-between items-start">
+                    <div className="flex justify-between items-start mb-1">
                       <span className={`text-sm ${day.isToday || isSelected ? 'font-semibold' : 'font-medium'}`}>
                         {day.date.getDate()}
                       </span>
                       {/* ⭐ 笔记圆点指示器（月视图） */}
                       {hasNote && (
-                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0"></div>
                       )}
                     </div>
+                    
+                    {/* 笔记内容预览 */}
+                    {notePreview && (
+                      <div className="text-xs text-gray-600 line-clamp-2 leading-tight">
+                        {notePreview}
+                      </div>
+                    )}
                   </div>
                 )
               })}
