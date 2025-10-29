@@ -5,7 +5,7 @@ import StarterKit from '@tiptap/starter-kit'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
 import Placeholder from '@tiptap/extension-placeholder'
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useState } from 'react'
 import type { JSONContent } from '@tiptap/core'
 
 interface NoteEditorProps {
@@ -25,6 +25,9 @@ export default function NoteEditor({
   autoSave = true,
   autoSaveDelay = 1000
 }: NoteEditorProps) {
+  
+  const [showBubbleMenu, setShowBubbleMenu] = useState(false)
+  const [bubbleMenuPosition, setBubbleMenuPosition] = useState({ top: 0, left: 0 })
   
   const editor = useEditor({
     immediatelyRender: false,
@@ -63,6 +66,25 @@ export default function NoteEditor({
     editorProps: {
       attributes: {
         class: 'prose prose-sm max-w-none focus:outline-none min-h-[400px] px-4 py-3'
+      },
+      handleKeyDown: (view, event) => {
+        // 处理 Tab 键缩进
+        if (event.key === 'Tab') {
+          event.preventDefault()
+          
+          if (event.shiftKey) {
+            // Shift+Tab: 减少缩进
+            return editor?.commands.liftListItem('taskItem') || 
+                   editor?.commands.liftListItem('listItem') || 
+                   false
+          } else {
+            // Tab: 增加缩进
+            return editor?.commands.sinkListItem('taskItem') || 
+                   editor?.commands.sinkListItem('listItem') || 
+                   false
+          }
+        }
+        return false
       }
     },
     onUpdate: ({ editor }) => {
@@ -91,129 +113,158 @@ export default function NoteEditor({
     }
   }, [editor, initialContent])
 
+  // 监听文本选择，显示浮动菜单
+  useEffect(() => {
+    if (!editor) return
+
+    const updateBubbleMenu = () => {
+      const { from, to } = editor.state.selection
+      const hasSelection = from !== to
+
+      if (hasSelection && editable) {
+        // 获取选中文本的位置
+        const { view } = editor
+        const start = view.coordsAtPos(from)
+        const end = view.coordsAtPos(to)
+        
+        // 计算菜单位置（选中文本上方居中）
+        const left = (start.left + end.left) / 2
+        const top = start.top - 50 // 菜单高度约 40px，留 10px 间距
+        
+        setBubbleMenuPosition({ top, left })
+        setShowBubbleMenu(true)
+      } else {
+        setShowBubbleMenu(false)
+      }
+    }
+
+    editor.on('selectionUpdate', updateBubbleMenu)
+    editor.on('update', updateBubbleMenu)
+
+    return () => {
+      editor.off('selectionUpdate', updateBubbleMenu)
+      editor.off('update', updateBubbleMenu)
+    }
+  }, [editor, editable])
+
   if (!editor) {
     return <div className="p-4 text-gray-500">加载编辑器...</div>
   }
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-      {/* 工具栏 */}
-      <div className="border-b border-gray-200 bg-gray-50 px-3 py-2 flex items-center gap-2 flex-wrap">
-        <button
-          onClick={() => editor.chain().focus().toggleTaskList().run()}
-          disabled={!editable}
-          className={`px-3 py-1 text-sm rounded hover:bg-gray-200 transition disabled:opacity-50 disabled:cursor-not-allowed ${
-            editor.isActive('taskList') ? 'bg-blue-100 text-blue-700 font-medium' : 'text-gray-700'
-          }`}
-          title="任务列表 (Ctrl+Shift+9)"
-        >
-          ☐ 待办
-        </button>
-
-        <div className="w-px h-5 bg-gray-300" />
-
-        <button
-          onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-          disabled={!editable}
-          className={`px-3 py-1 text-sm rounded hover:bg-gray-200 transition disabled:opacity-50 ${
-            editor.isActive('heading', { level: 1 }) ? 'bg-blue-100 text-blue-700 font-medium' : 'text-gray-700'
-          }`}
-        >
-          H1
-        </button>
-
-        <button
-          onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-          disabled={!editable}
-          className={`px-3 py-1 text-sm rounded hover:bg-gray-200 transition disabled:opacity-50 ${
-            editor.isActive('heading', { level: 2 }) ? 'bg-blue-100 text-blue-700 font-medium' : 'text-gray-700'
-          }`}
-        >
-          H2
-        </button>
-
-        <button
-          onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-          disabled={!editable}
-          className={`px-3 py-1 text-sm rounded hover:bg-gray-200 transition disabled:opacity-50 ${
-            editor.isActive('heading', { level: 3 }) ? 'bg-blue-100 text-blue-700 font-medium' : 'text-gray-700'
-          }`}
-        >
-          H3
-        </button>
-
-        <div className="w-px h-5 bg-gray-300" />
-
-        <button
-          onClick={() => editor.chain().focus().toggleBulletList().run()}
-          disabled={!editable}
-          className={`px-3 py-1 text-sm rounded hover:bg-gray-200 transition disabled:opacity-50 ${
-            editor.isActive('bulletList') ? 'bg-blue-100 text-blue-700 font-medium' : 'text-gray-700'
-          }`}
-        >
-          • 列表
-        </button>
-
-        <button
-          onClick={() => editor.chain().focus().toggleOrderedList().run()}
-          disabled={!editable}
-          className={`px-3 py-1 text-sm rounded hover:bg-gray-200 transition disabled:opacity-50 ${
-            editor.isActive('orderedList') ? 'bg-blue-100 text-blue-700 font-medium' : 'text-gray-700'
-          }`}
-        >
-          1. 有序
-        </button>
-
-        <div className="w-px h-5 bg-gray-300" />
-
-        <button
-          onClick={() => editor.chain().focus().toggleBold().run()}
-          disabled={!editable}
-          className={`px-3 py-1 text-sm rounded hover:bg-gray-200 transition font-bold disabled:opacity-50 ${
-            editor.isActive('bold') ? 'bg-blue-100 text-blue-700' : 'text-gray-700'
-          }`}
-        >
-          B
-        </button>
-
-        <button
-          onClick={() => editor.chain().focus().toggleItalic().run()}
-          disabled={!editable}
-          className={`px-3 py-1 text-sm rounded hover:bg-gray-200 transition italic disabled:opacity-50 ${
-            editor.isActive('italic') ? 'bg-blue-100 text-blue-700' : 'text-gray-700'
-          }`}
-        >
-          I
-        </button>
-
-        <div className="flex-1" />
-
-        <button
-          onClick={() => editor.commands.undo()}
-          disabled={!editor.can().undo() || !editable}
-          className="px-3 py-1 text-sm rounded hover:bg-gray-200 transition text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
-          title="撤销 (Ctrl+Z)"
-        >
-          ↶
-        </button>
-
-        <button
-          onClick={() => editor.commands.redo()}
-          disabled={!editor.can().redo() || !editable}
-          className="px-3 py-1 text-sm rounded hover:bg-gray-200 transition text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
-          title="重做 (Ctrl+Shift+Z)"
-        >
-          ↷
-        </button>
-      </div>
-
       {/* 编辑器主体 */}
       <EditorContent editor={editor} />
+
+      {/* 浮动工具栏 - 选中文本时显示 */}
+      {showBubbleMenu && (
+        <div
+          className="fixed z-50 bg-white border border-gray-200 text-gray-700 rounded-lg shadow-lg px-2 py-2 flex items-center gap-1.5 transition-opacity duration-200"
+          style={{
+            top: `${bubbleMenuPosition.top}px`,
+            left: `${bubbleMenuPosition.left}px`,
+            transform: 'translateX(-50%)',
+          }}
+        >
+          {/* 待办列表 - 移到最左边 */}
+          <button
+            onClick={() => editor.chain().focus().toggleTaskList().run()}
+            className={`px-3 py-2 text-base rounded hover:bg-gray-100 transition ${
+              editor.isActive('taskList') ? 'bg-blue-50 text-blue-600' : 'text-gray-700'
+            }`}
+            title="待办列表"
+          >
+            ☐
+          </button>
+
+          <div className="w-px h-6 bg-gray-300 mx-1" />
+
+          {/* 粗体 */}
+          <button
+            onClick={() => editor.chain().focus().toggleBold().run()}
+            className={`px-3 py-2 text-base rounded hover:bg-gray-100 transition font-bold ${
+              editor.isActive('bold') ? 'bg-blue-50 text-blue-600' : 'text-gray-700'
+            }`}
+            title="粗体 (Ctrl+B)"
+          >
+            B
+          </button>
+
+          {/* 斜体 */}
+          <button
+            onClick={() => editor.chain().focus().toggleItalic().run()}
+            className={`px-3 py-2 text-base rounded hover:bg-gray-100 transition italic ${
+              editor.isActive('italic') ? 'bg-blue-50 text-blue-600' : 'text-gray-700'
+            }`}
+            title="斜体 (Ctrl+I)"
+          >
+            I
+          </button>
+
+          <div className="w-px h-6 bg-gray-300 mx-1" />
+
+          {/* 标题 */}
+          <button
+            onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+            className={`px-3 py-2 text-sm rounded hover:bg-gray-100 transition ${
+              editor.isActive('heading', { level: 1 }) ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700'
+            }`}
+            title="一级标题"
+          >
+            H1
+          </button>
+
+          <button
+            onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+            className={`px-3 py-2 text-sm rounded hover:bg-gray-100 transition ${
+              editor.isActive('heading', { level: 2 }) ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700'
+            }`}
+            title="二级标题"
+          >
+            H2
+          </button>
+
+          <button
+            onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+            className={`px-3 py-2 text-sm rounded hover:bg-gray-100 transition ${
+              editor.isActive('heading', { level: 3 }) ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700'
+            }`}
+            title="三级标题"
+          >
+            H3
+          </button>
+
+          <div className="w-px h-6 bg-gray-300 mx-1" />
+
+          {/* 列表 */}
+          <button
+            onClick={() => editor.chain().focus().toggleBulletList().run()}
+            className={`px-3 py-2 text-base rounded hover:bg-gray-100 transition ${
+              editor.isActive('bulletList') ? 'bg-blue-50 text-blue-600' : 'text-gray-700'
+            }`}
+            title="无序列表"
+          >
+            •
+          </button>
+
+          <button
+            onClick={() => editor.chain().focus().toggleOrderedList().run()}
+            className={`px-3 py-2 text-base rounded hover:bg-gray-100 transition ${
+              editor.isActive('orderedList') ? 'bg-blue-50 text-blue-600' : 'text-gray-700'
+            }`}
+            title="有序列表"
+          >
+            1.
+          </button>
+        </div>
+      )}
 
       {/* 底部提示栏 */}
       {editable && (
         <div className="border-t border-gray-100 bg-gray-50 px-4 py-2 text-xs text-gray-500">
-          💡 提示: 输入 <code className="px-1 py-0.5 bg-gray-200 rounded">[ ]</code> + 空格创建待办项
+          💡 提示: 输入 <code className="px-1 py-0.5 bg-gray-200 rounded">[ ]</code> + 空格创建待办项 | 
+          <code className="px-1 py-0.5 bg-gray-200 rounded mx-1">Tab</code> 增加缩进 | 
+          <code className="px-1 py-0.5 bg-gray-200 rounded">Shift+Tab</code> 减少缩进
           {autoSave && <span className="ml-4">✓ 自动保存</span>}
         </div>
       )}
@@ -242,4 +293,5 @@ function debounce<T extends (...args: any[]) => any>(
     timeout = setTimeout(later, wait)
   }
 }
+
 

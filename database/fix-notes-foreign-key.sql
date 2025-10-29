@@ -31,3 +31,4 @@ JOIN information_schema.constraint_column_usage AS ccu
 WHERE tc.table_name = 'notes' 
   AND tc.constraint_type = 'FOREIGN KEY';
 
+
