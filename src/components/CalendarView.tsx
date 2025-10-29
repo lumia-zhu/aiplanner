@@ -196,14 +196,14 @@ export default function CalendarView({
                     key={index}
                     className={`text-center p-2 cursor-pointer transition-all rounded-lg ${
                       isSelected
-                        ? 'bg-sky-400 text-white font-semibold'  // 选中日期：天蓝色填充
+                        ? 'bg-blue-50 text-gray-900 font-semibold'  // 选中日期：淡蓝色填充
                         : isToday 
                           ? 'border-2 border-gray-400 text-gray-900 font-semibold'  // 当天：灰色边框
                           : 'text-gray-700 hover:bg-gray-100'  // 其他日期：普通样式
                     }`}
                     onClick={() => onDateSelect?.(date)}
                   >
-                    <div className={`text-xs mb-1 ${isSelected ? 'text-sky-100' : 'text-gray-500'}`}>
+                    <div className="text-xs text-gray-500 mb-1">
                       {weekdays[index]}
                     </div>
                     <div className="text-sm font-medium">
@@ -245,13 +245,12 @@ export default function CalendarView({
                     key={index}
                     className={`relative h-20 p-2 cursor-pointer transition-all flex flex-col rounded ${
                       isSelected
-                        ? 'bg-sky-400 text-white'  // 选中日期：天蓝色填充
+                        ? 'bg-blue-50 text-gray-900'  // 选中日期：淡蓝色填充
                         : day.isToday 
                           ? 'border-2 border-gray-400 text-gray-900'  // 当天：灰色边框
                           : 'hover:bg-gray-100'  // 其他日期：悬停效果
                     } ${
-                      !day.isCurrentMonth ? 'text-gray-300' : 
-                      isSelected ? 'text-white' : 'text-gray-700'
+                      !day.isCurrentMonth ? 'text-gray-300' : 'text-gray-700'
                     }`}
                     onClick={() => onDateSelect?.(day.date)}
                   >

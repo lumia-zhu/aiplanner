@@ -237,7 +237,7 @@ export default function NotesDashboardPage() {
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
                 <NoteEditor
                   initialContent={currentNote}
-                  onUpdate={handleNoteSave}
+                  onSave={handleNoteSave}
                   placeholder="开始记录你的想法..."
                 />
               </div>

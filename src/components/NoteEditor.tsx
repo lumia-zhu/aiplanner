@@ -147,6 +147,7 @@ export default function NoteEditor({
   // 防抖保存函数
   const debouncedSave = useCallback(
     debounce((content: JSONContent) => {
+      console.log('📝 NoteEditor: 触发自动保存', content)
       onSave?.(content)
     }, autoSaveDelay),
     [onSave, autoSaveDelay]
