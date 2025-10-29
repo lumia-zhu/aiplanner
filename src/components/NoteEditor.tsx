@@ -62,6 +62,7 @@ const TaskListMarkdown = Extension.create({
 interface NoteEditorProps {
   initialContent?: JSONContent
   onSave?: (content: JSONContent) => void
+  onUpdate?: (content: JSONContent) => void  // 新增：实时更新回调
   placeholder?: string
   editable?: boolean
   autoSave?: boolean
@@ -71,6 +72,7 @@ interface NoteEditorProps {
 export default function NoteEditor({
   initialContent,
   onSave,
+  onUpdate,
   placeholder = 'Start writing... Type [] for tasks, # for headings, - for lists',
   editable = true,
   autoSave = true,
@@ -137,9 +139,14 @@ export default function NoteEditor({
       }
     },
     onUpdate: ({ editor }) => {
+      const content = editor.getJSON()
+      
+      // 实时更新回调（不防抖）
+      onUpdate?.(content)
+      
+      // 自动保存（防抖）
       if (autoSave && onSave) {
-        // 使用防抖，避免频繁保存
-        debouncedSave(editor.getJSON())
+        debouncedSave(content)
       }
     },
   })

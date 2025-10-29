@@ -28,6 +28,7 @@ export default function NotesDashboardPage() {
   const [currentNote, setCurrentNote] = useState<JSONContent | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const [taskStats, setTaskStats] = useState({ total: 0, completed: 0 })
   
   // AI 对话框状态
   const [isChatSidebarOpen, setIsChatSidebarOpen] = useState(() => {
@@ -77,24 +78,58 @@ export default function NotesDashboardPage() {
     }
   }, [])
 
+  // 计算笔记中的任务统计
+  const calculateTaskStats = useCallback((content: JSONContent | null) => {
+    if (!content) {
+      setTaskStats({ total: 0, completed: 0 })
+      return
+    }
+
+    let total = 0
+    let completed = 0
+
+    const traverse = (node: any) => {
+      if (node.type === 'taskItem') {
+        total++
+        if (node.attrs?.checked) {
+          completed++
+        }
+      }
+      if (node.content && Array.isArray(node.content)) {
+        node.content.forEach(traverse)
+      }
+    }
+
+    traverse(content)
+    setTaskStats({ total, completed })
+  }, [])
+
   // 加载指定日期的笔记
   const loadNote = useCallback(async (userId: string, date: Date) => {
     try {
       const note = await getNoteByDate(userId, date)
       if (note) {
         setCurrentNote(note.content)
+        calculateTaskStats(note.content) // 计算任务统计
       } else {
         // 没有笔记，使用空白内容
-        setCurrentNote({
+        const emptyContent = {
           type: 'doc',
           content: [{ type: 'paragraph' }]
-        })
+        }
+        setCurrentNote(emptyContent)
+        calculateTaskStats(emptyContent)
       }
     } catch (error) {
       console.error('加载笔记失败:', error)
       alert('加载笔记失败')
     }
-  }, [])
+  }, [calculateTaskStats])
+
+  // 处理笔记内容更新（实时更新统计，不保存）
+  const handleNoteUpdate = useCallback((content: JSONContent) => {
+    calculateTaskStats(content) // 实时更新任务统计
+  }, [calculateTaskStats])
 
   // 保存笔记
   const handleNoteSave = useCallback(async (content: JSONContent) => {
@@ -169,17 +204,25 @@ export default function NotesDashboardPage() {
               <span className="text-gray-700">
                 欢迎, <span className="font-medium">{user.username}</span>
               </span>
+              {/* 个人资料图标按钮 */}
               <button
                 onClick={() => setShowProfileModal(true)}
-                className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                className="relative p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all group"
+                title="个人资料设置"
               >
-                个人资料
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                {/* 如果有个人资料，显示小绿点提示 */}
+                {userProfile && (
+                  <span className="absolute top-1 right-1 w-2 h-2 bg-green-500 rounded-full border border-white"></span>
+                )}
               </button>
               <button
                 onClick={handleLogout}
-                className="text-red-600 hover:text-red-800 text-sm font-medium"
+                className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors"
               >
-                登出
+                退出登录
               </button>
             </div>
           </div>
@@ -208,6 +251,37 @@ export default function NotesDashboardPage() {
                 dateScope={dateScope}
               />
 
+              {/* 任务进度条 */}
+              <div className="mb-6 bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-700">任务进度</span>
+                  <span className="text-sm text-gray-600">
+                    {taskStats.completed}/{taskStats.total}
+                  </span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-blue-500 to-green-500 rounded-full transition-all duration-500 ease-out"
+                    style={{
+                      width: taskStats.total > 0 ? `${(taskStats.completed / taskStats.total) * 100}%` : '0%'
+                    }}
+                  />
+                </div>
+                <div className="flex justify-between items-center mt-2">
+                  <span className="text-xs text-gray-500">
+                    {taskStats.total > 0 ? Math.round((taskStats.completed / taskStats.total) * 100) : 0}% 完成
+                  </span>
+                  {taskStats.total > 0 && taskStats.completed === taskStats.total && (
+                    <span className="text-xs text-green-600 font-medium flex items-center gap-1">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      全部完成！
+                    </span>
+                  )}
+                </div>
+              </div>
+
               {/* 日期标题和保存状态 */}
               <div className="flex justify-between items-center mb-6">
                 <div>
@@ -219,6 +293,20 @@ export default function NotesDashboardPage() {
                   </p>
                 </div>
                 <div className="flex items-center space-x-3">
+                  {/* 回到今天按钮 */}
+                  {selectedDate.toDateString() !== new Date().toDateString() && (
+                    <button
+                      onClick={() => setSelectedDate(new Date())}
+                      className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
+                      style={{ backgroundColor: '#3B82F6' }}
+                      title="回到今天"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      回到今天
+                    </button>
+                  )}
                   <button
                     onClick={toggleChatSidebar}
                     className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
@@ -237,6 +325,7 @@ export default function NotesDashboardPage() {
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
                 <NoteEditor
                   initialContent={currentNote}
+                  onUpdate={handleNoteUpdate}
                   onSave={handleNoteSave}
                   placeholder="开始记录你的想法..."
                 />
