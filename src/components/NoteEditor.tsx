@@ -410,29 +410,37 @@ export default function NoteEditor({
       const taskNode = resolvedPos.parent
       
       if (taskNode && taskNode.type.name === 'taskItem') {
-        // 在任务文本末尾插入标签
-        const endPos = pos + taskNode.nodeSize - 1
+        // 找到任务内容（paragraph）的末尾位置
+        let contentEndPos = pos + 1 // 跳过 taskItem 开始
+        
+        taskNode.forEach((child, offset) => {
+          if (child.type.name === 'paragraph') {
+            // 找到 paragraph 的末尾
+            contentEndPos = pos + offset + child.nodeSize
+          }
+        })
+        
+        // 在 paragraph 末尾插入标签（在 paragraph 内部，不是外部）
+        const insertPos = contentEndPos - 1 // paragraph 结束前
         
         editor
           .chain()
           .focus()
-          .setTextSelection(endPos)
-          .insertContent([
-            {
-              type: 'text',
-              text: ' ',
-              marks: [
-                {
-                  type: 'taskTag',
-                  attrs: {
-                    label: tag.label,
-                    emoji: tag.emoji,
-                    color: tag.color,
-                  },
+          .setTextSelection(insertPos)
+          .insertContent({
+            type: 'text',
+            text: ` ${tag.emoji} ${tag.label}`,
+            marks: [
+              {
+                type: 'taskTag',
+                attrs: {
+                  label: tag.label,
+                  emoji: tag.emoji,
+                  color: tag.color,
                 },
-              ],
-            },
-          ])
+              },
+            ],
+          })
           .run()
         
         console.log('✅ 标签已添加:', tag)
