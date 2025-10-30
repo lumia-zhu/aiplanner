@@ -5,7 +5,6 @@ import StarterKit from '@tiptap/starter-kit'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
 import Placeholder from '@tiptap/extension-placeholder'
-import Dropcursor from '@tiptap/extension-dropcursor'
 import { useEffect, useCallback, useState } from 'react'
 import type { JSONContent } from '@tiptap/core'
 import { Extension, InputRule, Node } from '@tiptap/core'
@@ -138,10 +137,6 @@ export default function NoteEditor({
       }),
       Placeholder.configure({
         placeholder
-      }),
-      Dropcursor.configure({
-        color: '#3B82F6',
-        width: 2,
       }),
       TaskTag,
       TaskListMarkdown,
@@ -348,13 +343,13 @@ export default function NoteEditor({
     }
   }, [editor])
 
-  // 处理拖拽手柄右键点击，显示标签菜单
+  // 处理拖拽手柄左键点击，显示标签菜单
   useEffect(() => {
     if (!editor) return
 
     const editorElement = editor.view.dom
 
-    const handleContextMenu = (e: MouseEvent) => {
+    const handleClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement
       
       // 检查是否点击了任务项的拖拽手柄区域
@@ -364,14 +359,15 @@ export default function NoteEditor({
         const rect = taskItem.getBoundingClientRect()
         const clickX = e.clientX - rect.left
         
-        // 如果点击在左侧 30px 区域（拖拽手柄区域）
-        if (clickX < 30) {
+        // 如果点击在左侧 25px 区域（拖拽手柄区域）
+        if (clickX >= 0 && clickX < 25) {
           e.preventDefault()
+          e.stopPropagation()
           
-          // 设置下拉菜单位置
+          // 设置下拉菜单位置（在手柄右侧显示）
           setTagDropdownPosition({
-            x: e.clientX,
-            y: e.clientY
+            x: rect.left + 30,
+            y: rect.top
           })
           
           // 保存当前任务元素
@@ -386,10 +382,10 @@ export default function NoteEditor({
       }
     }
 
-    editorElement.addEventListener('contextmenu', handleContextMenu)
+    editorElement.addEventListener('click', handleClick, true)
 
     return () => {
-      editorElement.removeEventListener('contextmenu', handleContextMenu)
+      editorElement.removeEventListener('click', handleClick, true)
     }
   }, [editor])
 
