@@ -479,6 +479,41 @@ body {
   animation: pulse-drop-cursor 1s ease-in-out infinite;
 }
 
+/* ============================================ */
+/* 任务标签样式 - Notion 彩色胶囊风格 */
+/* ============================================ */
+
+.ProseMirror span[data-task-tag] {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.625rem;
+  margin: 0 0.25rem;
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.ProseMirror span[data-task-tag]:hover {
+  opacity: 0.85;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+/* 标签删除提示 */
+.ProseMirror span[data-task-tag]:hover::after {
+  content: ' ×';
+  margin-left: 0.125rem;
+  font-weight: bold;
+  opacity: 0.9;
+}
+
 /* 代码块样式 */
 .ProseMirror code {
   background-color: #f3f4f6;

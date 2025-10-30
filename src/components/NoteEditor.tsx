@@ -10,6 +10,9 @@ import { useEffect, useCallback, useState } from 'react'
 import type { JSONContent } from '@tiptap/core'
 import { Extension, InputRule, Node } from '@tiptap/core'
 import { mergeAttributes } from '@tiptap/core'
+import { TaskTag } from '@/components/extensions/TaskTag'
+import TagDropdown from '@/components/TagDropdown'
+import type { PresetTag } from '@/constants/tags'
 
 // 自定义 TaskItem 支持拖拽
 const DraggableTaskItem = TaskItem.extend({
@@ -104,6 +107,12 @@ export default function NoteEditor({
   const [showBubbleMenu, setShowBubbleMenu] = useState(false)
   const [bubbleMenuPosition, setBubbleMenuPosition] = useState({ top: 0, left: 0 })
   
+  // 标签下拉菜单状态
+  const [showTagDropdown, setShowTagDropdown] = useState(false)
+  const [tagDropdownPosition, setTagDropdownPosition] = useState({ x: 0, y: 0 })
+  const [currentTaskElement, setCurrentTaskElement] = useState<HTMLElement | null>(null)
+  const [selectedTags, setSelectedTags] = useState<PresetTag[]>([])
+  
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
@@ -134,6 +143,7 @@ export default function NoteEditor({
         color: '#3B82F6',
         width: 2,
       }),
+      TaskTag,
       TaskListMarkdown,
     ],
     content: initialContent || {
@@ -338,6 +348,79 @@ export default function NoteEditor({
     }
   }, [editor])
 
+  // 处理拖拽手柄右键点击，显示标签菜单
+  useEffect(() => {
+    if (!editor) return
+
+    const editorElement = editor.view.dom
+
+    const handleContextMenu = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      
+      // 检查是否点击了任务项的拖拽手柄区域
+      const taskItem = target.closest('li[data-type="taskItem"]')
+      
+      if (taskItem) {
+        const rect = taskItem.getBoundingClientRect()
+        const clickX = e.clientX - rect.left
+        
+        // 如果点击在左侧 30px 区域（拖拽手柄区域）
+        if (clickX < 30) {
+          e.preventDefault()
+          
+          // 设置下拉菜单位置
+          setTagDropdownPosition({
+            x: e.clientX,
+            y: e.clientY
+          })
+          
+          // 保存当前任务元素
+          setCurrentTaskElement(taskItem as HTMLElement)
+          
+          // TODO: 提取当前任务的标签
+          setSelectedTags([])
+          
+          // 显示下拉菜单
+          setShowTagDropdown(true)
+        }
+      }
+    }
+
+    editorElement.addEventListener('contextmenu', handleContextMenu)
+
+    return () => {
+      editorElement.removeEventListener('contextmenu', handleContextMenu)
+    }
+  }, [editor])
+
+  // 处理标签选择
+  const handleSelectTag = useCallback((tag: PresetTag) => {
+    if (!editor || !currentTaskElement) return
+    
+    // 添加标签到选中列表
+    setSelectedTags(prev => [...prev, tag])
+    
+    // TODO: 将标签应用到任务文本
+    console.log('添加标签:', tag)
+  }, [editor, currentTaskElement])
+
+  // 处理标签移除
+  const handleRemoveTag = useCallback((tag: PresetTag) => {
+    if (!editor || !currentTaskElement) return
+    
+    // 从选中列表移除标签
+    setSelectedTags(prev => prev.filter(t => t.label !== tag.label))
+    
+    // TODO: 从任务文本移除标签
+    console.log('移除标签:', tag)
+  }, [editor, currentTaskElement])
+
+  // 关闭标签下拉菜单
+  const handleCloseTagDropdown = useCallback(() => {
+    setShowTagDropdown(false)
+    setCurrentTaskElement(null)
+  }, [])
+
   if (!editor) {
     return <div className="p-4 text-gray-500">加载编辑器...</div>
   }
@@ -449,6 +532,17 @@ export default function NoteEditor({
             1.
           </button>
         </div>
+      )}
+
+      {/* 标签下拉菜单 */}
+      {showTagDropdown && (
+        <TagDropdown
+          position={tagDropdownPosition}
+          selectedTags={selectedTags}
+          onSelectTag={handleSelectTag}
+          onRemoveTag={handleRemoveTag}
+          onClose={handleCloseTagDropdown}
+        />
       )}
 
       {/* 底部提示栏 */}
