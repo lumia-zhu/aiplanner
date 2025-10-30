@@ -11,7 +11,10 @@ import { Extension, InputRule, Node } from '@tiptap/core'
 import { mergeAttributes } from '@tiptap/core'
 import { TaskTag } from '@/components/extensions/TaskTag'
 import TagDropdown from '@/components/TagDropdown'
+import TaskActionMenu from '@/components/TaskActionMenu'
+import DateTimePicker from '@/components/DateTimePicker'
 import type { PresetTag } from '@/constants/tags'
+import type { DateTimeSetting } from '@/types/datetime'
 
 // 自定义 TaskItem 支持拖拽
 const DraggableTaskItem = TaskItem.extend({
@@ -26,6 +29,47 @@ const DraggableTaskItem = TaskItem.extend({
         renderHTML: attributes => {
           return {
             'data-drag-handle': '',
+          }
+        },
+      },
+      // 时间设置相关属性
+      datetimeMode: {
+        default: null,
+        parseHTML: element => element.getAttribute('data-datetime-mode'),
+        renderHTML: attributes => {
+          if (!attributes.datetimeMode) return {}
+          return {
+            'data-datetime-mode': attributes.datetimeMode,
+          }
+        },
+      },
+      deadlineTime: {
+        default: null,
+        parseHTML: element => element.getAttribute('data-deadline-time'),
+        renderHTML: attributes => {
+          if (!attributes.deadlineTime) return {}
+          return {
+            'data-deadline-time': attributes.deadlineTime,
+          }
+        },
+      },
+      intervalStart: {
+        default: null,
+        parseHTML: element => element.getAttribute('data-interval-start'),
+        renderHTML: attributes => {
+          if (!attributes.intervalStart) return {}
+          return {
+            'data-interval-start': attributes.intervalStart,
+          }
+        },
+      },
+      intervalEnd: {
+        default: null,
+        parseHTML: element => element.getAttribute('data-interval-end'),
+        renderHTML: attributes => {
+          if (!attributes.intervalEnd) return {}
+          return {
+            'data-interval-end': attributes.intervalEnd,
           }
         },
       },
@@ -106,11 +150,19 @@ export default function NoteEditor({
   const [showBubbleMenu, setShowBubbleMenu] = useState(false)
   const [bubbleMenuPosition, setBubbleMenuPosition] = useState({ top: 0, left: 0 })
   
+  // 任务操作菜单状态
+  const [showTaskActionMenu, setShowTaskActionMenu] = useState(false)
+  const [taskActionMenuPosition, setTaskActionMenuPosition] = useState({ x: 0, y: 0 })
+  
   // 标签下拉菜单状态
   const [showTagDropdown, setShowTagDropdown] = useState(false)
   const [tagDropdownPosition, setTagDropdownPosition] = useState({ x: 0, y: 0 })
   const [currentTaskElement, setCurrentTaskElement] = useState<HTMLElement | null>(null)
   const [selectedTags, setSelectedTags] = useState<PresetTag[]>([])
+  
+  // 时间选择器状态
+  const [showDateTimePicker, setShowDateTimePicker] = useState(false)
+  const [dateTimePickerPosition, setDateTimePickerPosition] = useState({ x: 0, y: 0 })
   
   const editor = useEditor({
     immediatelyRender: false,
@@ -368,8 +420,8 @@ export default function NoteEditor({
           e.preventDefault()
           e.stopPropagation()
           
-          // 设置下拉菜单位置（在手柄右侧显示）
-          setTagDropdownPosition({
+          // 设置任务操作菜单位置（在手柄右侧显示）
+          setTaskActionMenuPosition({
             x: rect.left + 35,
             y: rect.top
           })
@@ -380,8 +432,8 @@ export default function NoteEditor({
           // TODO: 提取当前任务的已有标签
           setSelectedTags([])
           
-          // 显示下拉菜单
-          setShowTagDropdown(true)
+          // 显示任务操作菜单
+          setShowTaskActionMenu(true)
         }
       }
     }
@@ -423,13 +475,14 @@ export default function NoteEditor({
         // 在 paragraph 末尾插入标签（在 paragraph 内部，不是外部）
         const insertPos = contentEndPos - 1 // paragraph 结束前
         
+        // 插入标签文本
         editor
           .chain()
           .focus()
           .setTextSelection(insertPos)
           .insertContent({
             type: 'text',
-            text: ` ${tag.emoji} ${tag.label}`,
+            text: tag.label, // 只插入标签名，不插入 emoji
             marks: [
               {
                 type: 'taskTag',
@@ -442,6 +495,18 @@ export default function NoteEditor({
             ],
           })
           .run()
+        
+        // 关键：立即移除标签 Mark，确保后续输入不继承标签样式
+        setTimeout(() => {
+          if (editor) {
+            editor
+              .chain()
+              .focus()
+              .unsetMark('taskTag') // 先取消标签 Mark
+              .insertContent(' ') // 再插入空格
+              .run()
+          }
+        }, 10)  // 稍微延迟一点，确保标签插入完成
         
         console.log('✅ 标签已添加:', tag)
       }
@@ -497,6 +562,401 @@ export default function NoteEditor({
     setShowTagDropdown(false)
     setCurrentTaskElement(null)
   }, [])
+
+  // 打开标签选择器（从任务操作菜单调用）
+  const handleOpenTagPicker = useCallback(() => {
+    if (!currentTaskElement) return
+    
+    const rect = currentTaskElement.getBoundingClientRect()
+    setTagDropdownPosition({
+      x: rect.left + 35,
+      y: rect.top
+    })
+    setShowTagDropdown(true)
+  }, [currentTaskElement])
+
+  // 打开时间选择器（从任务操作菜单调用）
+  const handleOpenDateTimePicker = useCallback(() => {
+    if (!currentTaskElement) return
+    
+    const rect = currentTaskElement.getBoundingClientRect()
+    setDateTimePickerPosition({
+      x: rect.left + 35,
+      y: rect.top
+    })
+    setShowDateTimePicker(true)
+  }, [currentTaskElement])
+
+  // 设置日期时间
+  const handleSetDateTime = useCallback((value: DateTimeSetting) => {
+    if (!editor || !currentTaskElement) return
+    
+    console.log('✅ 设置时间:', value)
+    
+    const pos = editor.view.posAtDOM(currentTaskElement, 0)
+    
+    if (value.mode === 'deadline') {
+      // 截止时间模式
+      editor.chain()
+        .focus()
+        .command(({ tr }) => {
+          const node = tr.doc.nodeAt(pos)
+          if (node && node.type.name === 'taskItem') {
+            tr.setNodeMarkup(pos, undefined, {
+              ...node.attrs,
+              datetimeMode: 'deadline',
+              deadlineTime: value.time.toISOString(),
+              intervalStart: null,
+              intervalEnd: null,
+            })
+            return true
+          }
+          return false
+        })
+        .run()
+      
+      // 更新显示 - 直接插入 DOM 元素
+      const formatted = formatDateTime(value.time)
+      currentTaskElement.setAttribute('data-datetime-mode', 'deadline')
+      currentTaskElement.setAttribute('data-deadline-time', value.time.toISOString())
+      
+      console.log('🔍 调试信息:')
+      console.log('  - 格式化时间:', formatted)
+      console.log('  - 任务元素:', currentTaskElement)
+      
+      const contentDiv = currentTaskElement.querySelector(':scope > div') as HTMLElement | null
+      console.log('  - contentDiv:', contentDiv)
+      
+      if (contentDiv) {
+        // 清除旧的时间徽章
+        const oldBadge = contentDiv.querySelector('.task-datetime-badge')
+        if (oldBadge) {
+          console.log('  - 清除旧徽章')
+          oldBadge.remove()
+        }
+        
+        // 找到最后一个 p 标签，插入到其内部
+        const paragraphs = contentDiv.querySelectorAll('p')
+        const targetP = paragraphs.length > 0 ? (paragraphs[paragraphs.length - 1] as HTMLElement) : null
+        
+        if (targetP) {
+          // 创建新的时间徽章
+          const badge = document.createElement('span')
+          badge.className = 'task-datetime-badge'
+          badge.textContent = ` 📅 ${formatted}`
+          badge.contentEditable = 'false'  // 禁止编辑
+          badge.style.cssText = `
+            margin-left: 0.75rem;
+            font-size: 1rem;
+            font-weight: normal;
+            color: #1f2937;
+            white-space: nowrap;
+            user-select: none;
+            font-family: inherit;
+          `
+          
+          // 插入到 p 标签的末尾（和文本在同一行）
+          targetP.appendChild(badge)
+          
+          // 在徽章后面插入一个零宽空格，确保光标位置正确
+          const zeroWidthSpace = document.createTextNode('\u200B')
+          targetP.appendChild(zeroWidthSpace)
+          
+          console.log('  ✅ 时间徽章已插入到 p 标签内!')
+          console.log('  - 徽章内容:', badge.textContent)
+          console.log('  - 徽章在 DOM 中:', document.body.contains(badge))
+        } else {
+          console.log('  ⚠️ 找不到目标 p 标签')
+        }
+      }
+    } else {
+      // 时间间隔模式
+      editor.chain()
+        .focus()
+        .command(({ tr }) => {
+          const node = tr.doc.nodeAt(pos)
+          if (node && node.type.name === 'taskItem') {
+            tr.setNodeMarkup(pos, undefined, {
+              ...node.attrs,
+              datetimeMode: 'interval',
+              deadlineTime: null,
+              intervalStart: value.startTime.toISOString(),
+              intervalEnd: value.endTime.toISOString(),
+            })
+            return true
+          }
+          return false
+        })
+        .run()
+      
+      // 更新显示 - 直接插入 DOM 元素
+      const formatted = formatTimeInterval(value.startTime, value.endTime)
+      currentTaskElement.setAttribute('data-datetime-mode', 'interval')
+      currentTaskElement.setAttribute('data-interval-start', value.startTime.toISOString())
+      currentTaskElement.setAttribute('data-interval-end', value.endTime.toISOString())
+      
+      console.log('🔍 调试信息 (时间间隔):')
+      console.log('  - 格式化时间:', formatted)
+      
+      const contentDiv = currentTaskElement.querySelector(':scope > div') as HTMLElement | null
+      if (contentDiv) {
+        // 清除旧的时间徽章
+        const oldBadge = contentDiv.querySelector('.task-datetime-badge')
+        if (oldBadge) {
+          console.log('  - 清除旧徽章')
+          oldBadge.remove()
+        }
+        
+        // 找到最后一个 p 标签，插入到其内部
+        const paragraphs = contentDiv.querySelectorAll('p')
+        const targetP = paragraphs.length > 0 ? (paragraphs[paragraphs.length - 1] as HTMLElement) : null
+        
+        if (targetP) {
+          // 创建新的时间徽章
+          const badge = document.createElement('span')
+          badge.className = 'task-datetime-badge'
+          badge.textContent = ` 📅 ${formatted}`
+          badge.contentEditable = 'false'  // 禁止编辑
+          badge.style.cssText = `
+            margin-left: 0.75rem;
+            font-size: 1rem;
+            font-weight: normal;
+            color: #1f2937;
+            white-space: nowrap;
+            user-select: none;
+            font-family: inherit;
+          `
+          
+          // 插入到 p 标签的末尾（和文本在同一行）
+          targetP.appendChild(badge)
+          
+          // 在徽章后面插入一个零宽空格，确保光标位置正确
+          const zeroWidthSpace = document.createTextNode('\u200B')
+          targetP.appendChild(zeroWidthSpace)
+          
+          console.log('  ✅ 时间徽章已插入到 p 标签内!')
+          console.log('  - 徽章内容:', badge.textContent)
+          console.log('  - 徽章在 DOM 中:', document.body.contains(badge))
+        } else {
+          console.log('  ⚠️ 找不到目标 p 标签')
+        }
+      }
+    }
+    
+    setShowDateTimePicker(false)
+    console.log('✅ 时间设置完成')
+  }, [editor, currentTaskElement])
+  
+  // 格式化单个时间
+  function formatDateTime(date: Date): string {
+    return date.toLocaleString('zh-CN', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).replace(/\//g, '/').replace(/\s/g, ' ')
+  }
+  
+  // 格式化时间间隔
+  function formatTimeInterval(start: Date, end: Date): string {
+    const startStr = start.toLocaleString('zh-CN', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).replace(/\//g, '/').replace(/\s/g, ' ')
+    
+    const endStr = end.toLocaleString('zh-CN', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).replace(/\//g, '/').replace(/\s/g, ' ')
+    
+    // 检查是否同一天
+    if (start.toDateString() === end.toDateString()) {
+      const date = start.toLocaleString('zh-CN', {
+        month: '2-digit',
+        day: '2-digit'
+      })
+      const startTime = start.toLocaleString('zh-CN', {
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+      const endTime = end.toLocaleString('zh-CN', {
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+      return `${date} ${startTime}-${endTime}`
+    }
+    
+    return `${startStr} - ${endStr}`
+  }
+
+  // 清理任务项中错误的时间徽章
+  useEffect(() => {
+    if (!editor) return
+
+    const cleanUpBadges = () => {
+      const editorElement = editor.view.dom
+      
+      // 清理所有不应该有时间徽章的任务
+      const allTasks = editorElement.querySelectorAll('li[data-drag-handle]')
+      allTasks.forEach((task) => {
+        const hasDatetime = task.hasAttribute('data-datetime-mode')
+        
+        if (!hasDatetime) {
+          // 这个任务不应该有时间，清除所有时间徽章
+          const badges = task.querySelectorAll('.task-datetime-badge')
+          badges.forEach(badge => badge.remove())
+        }
+      })
+    }
+
+    cleanUpBadges()
+    
+    const handler = () => cleanUpBadges()
+    editor.on('update', handler)
+
+    return () => {
+      editor.off('update', handler)
+    }
+  }, [editor])
+
+  // 同步所有任务项的时间显示 - 使用真实 DOM 元素
+  useEffect(() => {
+    console.log('⚡ useEffect 触发了，editor:', !!editor)
+    if (!editor) {
+      console.log('❌ editor 不存在，退出')
+      return
+    }
+
+    const updateDateTimeDisplays = () => {
+      console.log('🔄 开始更新时间显示...')
+      const editorElement = editor.view.dom
+      const taskItems = editorElement.querySelectorAll('li[data-datetime-mode]')
+      console.log('📋 找到任务数:', taskItems.length)
+
+      taskItems.forEach((item, index) => {
+        console.log(`\n处理任务 ${index + 1}:`)
+        const mode = item.getAttribute('data-datetime-mode')
+        console.log('  - 模式:', mode)
+        
+        const contentDiv = (item.querySelector(':scope > div') as HTMLElement | null) || (item.querySelector('div') as HTMLElement | null)
+        console.log('  - 找到 contentDiv:', !!contentDiv)
+        
+        if (!contentDiv) {
+          console.log('  ❌ 没有 contentDiv，跳过')
+          return
+        }
+        
+        // 清除旧的时间显示元素
+        const oldBadge = contentDiv.querySelector('.task-datetime-badge')
+        if (oldBadge) {
+          console.log('  - 清除旧徽章')
+          oldBadge.remove()
+        }
+
+        let formatted = ''
+        let icon = ''
+        let color = ''
+        const now = Date.now()
+
+        if (mode === 'deadline') {
+          const iso = item.getAttribute('data-deadline-time')
+          if (!iso) {
+            item.classList.remove('datetime-expired', 'datetime-active')
+            return
+          }
+
+          const deadline = new Date(iso)
+          if (Number.isNaN(deadline.getTime())) {
+            item.classList.remove('datetime-expired', 'datetime-active')
+            return
+          }
+
+          formatted = formatDateTime(deadline)
+          icon = '📅'
+          const isExpired = deadline.getTime() < now
+          color = isExpired ? '#dc2626' : '#f59e0b'
+          item.classList.toggle('datetime-expired', isExpired)
+          item.classList.remove('datetime-active')
+        } else if (mode === 'interval') {
+          const startIso = item.getAttribute('data-interval-start')
+          const endIso = item.getAttribute('data-interval-end')
+
+          if (!startIso || !endIso) {
+            item.classList.remove('datetime-expired', 'datetime-active')
+            return
+          }
+
+          const startDate = new Date(startIso)
+          const endDate = new Date(endIso)
+
+          if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+            item.classList.remove('datetime-expired', 'datetime-active')
+            return
+          }
+
+          formatted = formatTimeInterval(startDate, endDate)
+          icon = '⏰'
+
+          const nowTime = now
+          const isExpired = endDate.getTime() < nowTime
+          const isActive = !isExpired && nowTime >= startDate.getTime()
+
+          if (isExpired) {
+            color = '#dc2626'
+          } else if (isActive) {
+            color = '#0ea5e9'
+          } else {
+            color = '#10b981'
+          }
+
+          item.classList.toggle('datetime-expired', isExpired)
+          item.classList.toggle('datetime-active', isActive)
+        }
+
+        if (formatted) {
+          console.log('  ✅ 准备插入徽章:', `${icon} ${formatted}`)
+          
+          // 创建真实的 DOM 元素来显示时间
+          const badge = document.createElement('span')
+          badge.className = 'task-datetime-badge'
+          badge.textContent = ` ${icon} ${formatted}`
+          badge.style.cssText = `
+            margin-left: 0.75rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: ${color};
+            white-space: nowrap;
+          `
+          
+          // 插入到 contentDiv 的末尾
+          contentDiv.appendChild(badge)
+          console.log('  ✅ 徽章已插入，当前 contentDiv 子元素数:', contentDiv.children.length)
+          console.log('  ✅ 徽章是否在 DOM 中:', document.body.contains(badge))
+        } else {
+          console.log('  ⚠️ 没有格式化的时间，跳过插入')
+        }
+      })
+    }
+
+    console.log('🚀 初始调用 updateDateTimeDisplays')
+    updateDateTimeDisplays()
+
+    const handler = () => {
+      console.log('📝 编辑器 update 事件触发')
+      updateDateTimeDisplays()
+    }
+    editor.on('update', handler)
+    console.log('✅ 已注册 update 事件监听')
+
+    return () => {
+      console.log('🧹 清理 update 事件监听')
+      editor.off('update', handler)
+    }
+  }, [editor])
 
   // 处理点击标签删除
   useEffect(() => {
@@ -654,6 +1114,16 @@ export default function NoteEditor({
         </div>
       )}
 
+      {/* 任务操作菜单 */}
+      {showTaskActionMenu && (
+        <TaskActionMenu
+          position={taskActionMenuPosition}
+          onOpenTagPicker={handleOpenTagPicker}
+          onOpenDateTimePicker={handleOpenDateTimePicker}
+          onClose={() => setShowTaskActionMenu(false)}
+        />
+      )}
+
       {/* 标签下拉菜单 */}
       {showTagDropdown && (
         <TagDropdown
@@ -662,6 +1132,15 @@ export default function NoteEditor({
           onSelectTag={handleSelectTag}
           onRemoveTag={handleRemoveTag}
           onClose={handleCloseTagDropdown}
+        />
+      )}
+
+      {/* 时间选择器 */}
+      {showDateTimePicker && (
+        <DateTimePicker
+          position={dateTimePickerPosition}
+          onSelect={handleSetDateTime}
+          onClose={() => setShowDateTimePicker(false)}
         />
       )}
 

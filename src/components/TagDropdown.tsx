@@ -133,13 +133,13 @@ export default function TagDropdown({
                 {selected ? '✓' : ''}
               </span>
               
-              {/* 标签预览（彩色胶囊） */}
+              {/* 标签预览（# 前缀简洁风格） */}
               <span
-                className="px-2.5 py-1 rounded-md text-xs font-semibold text-white flex items-center gap-1"
-                style={{ backgroundColor: tag.color }}
+                className="text-sm font-medium flex items-center gap-1.5"
+                style={{ color: tag.color }}
               >
                 <span>{tag.emoji}</span>
-                <span>{tag.label}</span>
+                <span>#{tag.label}</span>
               </span>
             </button>
           )

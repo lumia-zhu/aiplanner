@@ -94,9 +94,11 @@ export const TaskTag = Mark.create<TaskTagOptions>({
       mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
         'data-task-tag': '',
         class: 'task-tag-mark',
-        style: `background-color: ${HTMLAttributes['data-color']}; color: white;`,
+        // 用 CSS 变量传递颜色，让 CSS 控制样式
+        style: `--tag-color: ${HTMLAttributes['data-color']};`,
       }),
-      `${HTMLAttributes['data-emoji']} ${HTMLAttributes['data-label']}`,
+      // 只显示标签名，不显示 emoji（# 符号由 CSS ::before 自动添加）
+      HTMLAttributes['data-label'],
     ]
   },
   

@@ -480,39 +480,83 @@ body {
 }
 
 /* ============================================ */
-/* 任务标签样式 - Notion 彩色胶囊风格 */
+/* 任务标签样式 - # 前缀简洁风格 */
 /* ============================================ */
 
 .ProseMirror span[data-task-tag] {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem 0.625rem;
+  display: inline;
   margin-left: 0.5rem;  /* 左侧间距 */
-  margin-right: 0.25rem;  /* 右侧间距 */
-  border-radius: 0.375rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: white;
+  margin-right: 0.375rem;  /* 右侧间距 */
+  font-size: 0.875rem;  /* 稍大一点，更清晰 */
+  font-weight: 600;  /* 加粗，确保可见性 */
+  color: var(--tag-color);  /* 使用莫兰迪色 */
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: opacity 0.2s;
   user-select: none;
-  vertical-align: middle;
-  white-space: nowrap;
+}
+
+/* 自动添加 # 符号（紧贴文字） */
+.ProseMirror span[data-task-tag]::before {
+  content: '#';
+  margin-right: 0;  /* 紧贴，不留间距 */
 }
 
 .ProseMirror span[data-task-tag]:hover {
-  opacity: 0.85;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  opacity: 0.7;  /* hover 时变淡 */
 }
 
 /* 标签删除提示 */
 .ProseMirror span[data-task-tag]:hover::after {
   content: ' ×';
-  margin-left: 0.125rem;
+  margin-left: 0.25rem;
   font-weight: bold;
-  opacity: 0.9;
+  opacity: 0.8;
+  color: #999;  /* 删除按钮用灰色 */
+}
+
+/* ============================================ */
+/* 任务时间显示样式 */
+/* ============================================ */
+
+/* 测试：最简单的选择器 */
+p[data-datetime-display]::after {
+  content: ' 🔴测试' !important;
+  color: red !important;
+  font-size: 20px !important;
+}
+
+/* 截止时间显示 - 强制优先级 */
+.ProseMirror ul[data-type="taskList"] li[data-datetime-mode="deadline"] p[data-datetime-display]::after {
+  content: ' 📅 ' attr(data-datetime-display) !important;
+  display: inline !important;
+  margin-left: 0.75rem !important;
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+  color: #f59e0b !important;  /* 琥珀色 */
+  white-space: nowrap !important;
+  vertical-align: baseline !important;
+}
+
+/* 时间间隔显示 - 强制优先级 */
+.ProseMirror ul[data-type="taskList"] li[data-datetime-mode="interval"] p[data-datetime-display]::after {
+  content: ' ⏰ ' attr(data-datetime-display) !important;
+  display: inline !important;
+  margin-left: 0.75rem !important;
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+  color: #10b981 !important;  /* 绿色 */
+  white-space: nowrap !important;
+  vertical-align: baseline !important;
+}
+
+/* 过期状态 */
+.ProseMirror ul[data-type="taskList"] li.datetime-expired p[data-datetime-display]::after {
+  color: #dc2626 !important;
+}
+
+/* 进行中状态 */
+.ProseMirror ul[data-type="taskList"] li.datetime-active[data-datetime-mode="interval"] p[data-datetime-display]::after {
+  color: #0ea5e9 !important;
 }
 
 /* 代码块样式 */
