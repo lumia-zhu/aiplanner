@@ -349,7 +349,11 @@ export default function NoteEditor({
 
     const editorElement = editor.view.dom
 
-    const handleClick = (e: MouseEvent) => {
+    const handleMouseDown = (e: MouseEvent) => {
+      if (e.button !== 0) {
+        return
+      }
+
       const target = e.target as HTMLElement
       
       // 检查是否点击了任务项的拖拽手柄区域
@@ -382,10 +386,10 @@ export default function NoteEditor({
       }
     }
 
-    editorElement.addEventListener('click', handleClick, true)
+    editorElement.addEventListener('mousedown', handleMouseDown, true)
 
     return () => {
-      editorElement.removeEventListener('click', handleClick, true)
+      editorElement.removeEventListener('mousedown', handleMouseDown, true)
     }
   }, [editor])
 
