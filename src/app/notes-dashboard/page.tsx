@@ -565,10 +565,10 @@ export default function NotesDashboardPage() {
       </nav>
 
       {/* 主要内容区域 */}
-      <main className="py-6 px-4 sm:px-6 lg:px-8 pt-20">
+      <main className="pt-20 py-6 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           {/* flex布局容器：在主内容区域内部分左右 */}
-          <div className="flex gap-6 h-[calc(100vh-8rem)]">
+          <div className="flex gap-6 h-[calc(100vh-12rem)]">
             {/* 左侧：笔记管理区域 */}
             <div className="flex-1 overflow-y-auto custom-scrollbar transition-all duration-300 ease-in-out relative pb-24">
               
@@ -644,6 +644,19 @@ export default function NotesDashboardPage() {
                       回到今天
                     </button>
                   )}
+                  {/* 矩阵模式按钮 */}
+                  <button
+                    onClick={() => alert('矩阵模式功能开发中')}
+                    className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
+                    style={{ backgroundColor: '#4A90E2' }}
+                    title="矩阵模式"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                    </svg>
+                    矩阵模式
+                  </button>
+                  {/* AI助手按钮 */}
                   <button
                     onClick={toggleChatSidebar}
                     className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"

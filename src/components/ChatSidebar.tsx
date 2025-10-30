@@ -232,7 +232,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
       </div>
       
       {/* 聊天消息区域 */}
-      <div ref={chatScrollRef} className="flex-1 p-4 overflow-y-auto bg-gray-50 relative">
+      <div ref={chatScrollRef} className="flex-1 p-4 overflow-y-auto bg-gray-50 relative min-h-0">
         {/* 拖拽提示覆盖层 */}
         {isDragOver && (
           <div className="absolute inset-0 bg-blue-100 bg-opacity-90 flex items-center justify-center z-10 rounded">
