@@ -357,27 +357,27 @@ export default function NoteEditor({
       const target = e.target as HTMLElement
       
       // 检查是否点击了任务项的拖拽手柄区域
-      const taskItem = target.closest('li[data-type="taskItem"]')
+      const taskItem = target.closest('li[data-drag-handle]') as HTMLElement | null
       
       if (taskItem) {
         const rect = taskItem.getBoundingClientRect()
         const clickX = e.clientX - rect.left
         
-        // 如果点击在左侧 25px 区域（拖拽手柄区域）
-        if (clickX >= 0 && clickX < 25) {
+        // 如果点击在左侧 30px 区域（拖拽手柄区域）
+        if (clickX >= 0 && clickX < 30) {
           e.preventDefault()
           e.stopPropagation()
           
           // 设置下拉菜单位置（在手柄右侧显示）
           setTagDropdownPosition({
-            x: rect.left + 30,
+            x: rect.left + 35,
             y: rect.top
           })
           
           // 保存当前任务元素
-          setCurrentTaskElement(taskItem as HTMLElement)
+          setCurrentTaskElement(taskItem)
           
-          // TODO: 提取当前任务的标签
+          // TODO: 提取当前任务的已有标签
           setSelectedTags([])
           
           // 显示下拉菜单
@@ -400,8 +400,46 @@ export default function NoteEditor({
     // 添加标签到选中列表
     setSelectedTags(prev => [...prev, tag])
     
-    // TODO: 将标签应用到任务文本
-    console.log('添加标签:', tag)
+    // 将标签应用到任务文本末尾
+    try {
+      // 找到当前任务在编辑器中的位置
+      const pos = editor.view.posAtDOM(currentTaskElement, 0)
+      
+      // 获取任务节点
+      const resolvedPos = editor.state.doc.resolve(pos)
+      const taskNode = resolvedPos.parent
+      
+      if (taskNode && taskNode.type.name === 'taskItem') {
+        // 在任务文本末尾插入标签
+        const endPos = pos + taskNode.nodeSize - 1
+        
+        editor
+          .chain()
+          .focus()
+          .setTextSelection(endPos)
+          .insertContent([
+            {
+              type: 'text',
+              text: ' ',
+              marks: [
+                {
+                  type: 'taskTag',
+                  attrs: {
+                    label: tag.label,
+                    emoji: tag.emoji,
+                    color: tag.color,
+                  },
+                },
+              ],
+            },
+          ])
+          .run()
+        
+        console.log('✅ 标签已添加:', tag)
+      }
+    } catch (error) {
+      console.error('❌ 添加标签失败:', error)
+    }
   }, [editor, currentTaskElement])
 
   // 处理标签移除
@@ -411,8 +449,39 @@ export default function NoteEditor({
     // 从选中列表移除标签
     setSelectedTags(prev => prev.filter(t => t.label !== tag.label))
     
-    // TODO: 从任务文本移除标签
-    console.log('移除标签:', tag)
+    // 从任务文本中移除标签
+    try {
+      const pos = editor.view.posAtDOM(currentTaskElement, 0)
+      const resolvedPos = editor.state.doc.resolve(pos)
+      const taskNode = resolvedPos.parent
+      
+      if (taskNode && taskNode.type.name === 'taskItem') {
+        // 遍历任务节点的内容，找到并删除匹配的标签
+        let found = false
+        taskNode.descendants((node, pos) => {
+          if (found) return false
+          
+          if (node.marks) {
+            node.marks.forEach(mark => {
+              if (mark.type.name === 'taskTag' && mark.attrs.label === tag.label) {
+                const absolutePos = resolvedPos.pos + pos + 1
+                editor
+                  .chain()
+                  .focus()
+                  .setTextSelection({ from: absolutePos, to: absolutePos + node.nodeSize })
+                  .deleteSelection()
+                  .run()
+                
+                found = true
+                console.log('✅ 标签已移除:', tag)
+              }
+            })
+          }
+        })
+      }
+    } catch (error) {
+      console.error('❌ 移除标签失败:', error)
+    }
   }, [editor, currentTaskElement])
 
   // 关闭标签下拉菜单
@@ -420,6 +489,49 @@ export default function NoteEditor({
     setShowTagDropdown(false)
     setCurrentTaskElement(null)
   }, [])
+
+  // 处理点击标签删除
+  useEffect(() => {
+    if (!editor) return
+
+    const editorElement = editor.view.dom
+
+    const handleTagClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      const tagElement = target.closest('span[data-task-tag]')
+      
+      if (tagElement) {
+        e.preventDefault()
+        e.stopPropagation()
+        
+        const label = tagElement.getAttribute('data-label')
+        
+        if (label && confirm(`确定要删除标签"${label}"吗？`)) {
+          // 找到标签在文档中的位置并删除
+          const pos = editor.view.posAtDOM(tagElement, 0)
+          const resolvedPos = editor.state.doc.resolve(pos)
+          const node = resolvedPos.parent
+          
+          if (node) {
+            editor
+              .chain()
+              .focus()
+              .setTextSelection({ from: pos, to: pos + node.nodeSize })
+              .deleteSelection()
+              .run()
+            
+            console.log('✅ 点击删除标签:', label)
+          }
+        }
+      }
+    }
+
+    editorElement.addEventListener('click', handleTagClick, true)
+
+    return () => {
+      editorElement.removeEventListener('click', handleTagClick, true)
+    }
+  }, [editor])
 
   if (!editor) {
     return <div className="p-4 text-gray-500">加载编辑器...</div>

@@ -10,15 +10,15 @@ export interface PresetTag {
 
 /**
  * 预设标签列表
- * 使用 Notion 风格的彩色胶囊设计
+ * 使用莫兰迪色系的彩色胶囊设计
  */
 export const PRESET_TAGS: PresetTag[] = [
-  { label: '学习', emoji: '📚', color: '#3B82F6' },  // 蓝色
-  { label: '工作', emoji: '💼', color: '#8B5CF6' },  // 紫色
-  { label: '娱乐', emoji: '🎮', color: '#EC4899' },  // 粉色
-  { label: '生活', emoji: '🏠', color: '#10B981' },  // 绿色
-  { label: '健康', emoji: '💪', color: '#F59E0B' },  // 橙色
-  { label: '重要', emoji: '🎯', color: '#EF4444' },  // 红色
+  { label: '学习', emoji: '📚', color: '#7FA1C3' },  // 莫兰迪蓝
+  { label: '工作', emoji: '💼', color: '#9B8BA6' },  // 莫兰迪紫
+  { label: '娱乐', emoji: '🎮', color: '#D4A5A5' },  // 莫兰迪粉
+  { label: '生活', emoji: '🏠', color: '#A8B8A5' },  // 莫兰迪绿
+  { label: '健康', emoji: '💪', color: '#D4B896' },  // 莫兰迪橙
+  { label: '重要', emoji: '🎯', color: '#C89B9C' },  // 莫兰迪红
 ]
 
 /**
