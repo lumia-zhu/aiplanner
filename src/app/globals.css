@@ -356,6 +356,70 @@ body {
   color: #9ca3af;
 }
 
+/* ============================================ */
+/* 拖拽手柄样式 */
+/* ============================================ */
+
+/* 为任务项添加拖拽手柄 */
+.ProseMirror ul[data-type="taskList"] li {
+  position: relative;
+  padding-left: 1.5rem; /* 为拖拽手柄留出空间 */
+}
+
+/* 拖拽手柄 - 默认隐藏 */
+.ProseMirror ul[data-type="taskList"] li::before {
+  content: '⋮⋮';
+  position: absolute;
+  left: -0.25rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+  color: #d1d5db;
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 0.2s ease, color 0.2s ease;
+  user-select: none;
+  line-height: 1;
+  letter-spacing: -2px;
+}
+
+/* 悬停时显示拖拽手柄 */
+.ProseMirror ul[data-type="taskList"] li:hover::before {
+  opacity: 1;
+  color: #9ca3af;
+}
+
+/* 拖拽手柄悬停效果 */
+.ProseMirror ul[data-type="taskList"] li::before:hover {
+  color: #6b7280;
+}
+
+/* 拖拽时的样式 */
+.ProseMirror ul[data-type="taskList"] li.dragging {
+  opacity: 0.5;
+  background-color: #f3f4f6;
+  border-radius: 0.25rem;
+}
+
+/* 拖拽光标样式 */
+.ProseMirror .ProseMirror-dropcursor {
+  position: absolute;
+  pointer-events: none;
+  border-left: 2px solid #3B82F6;
+  height: 1.2em;
+  margin-top: -0.1em;
+}
+
+/* 拖拽光标动画 */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.ProseMirror .ProseMirror-dropcursor {
+  animation: blink 1s ease-in-out infinite;
+}
+
 /* 代码块样式 */
 .ProseMirror code {
   background-color: #f3f4f6;

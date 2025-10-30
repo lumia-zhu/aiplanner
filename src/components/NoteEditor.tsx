@@ -5,9 +5,31 @@ import StarterKit from '@tiptap/starter-kit'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
 import Placeholder from '@tiptap/extension-placeholder'
+import Dropcursor from '@tiptap/extension-dropcursor'
 import { useEffect, useCallback, useState } from 'react'
 import type { JSONContent } from '@tiptap/core'
-import { Extension, InputRule } from '@tiptap/core'
+import { Extension, InputRule, Node } from '@tiptap/core'
+import { mergeAttributes } from '@tiptap/core'
+
+// 自定义 TaskItem 支持拖拽
+const DraggableTaskItem = TaskItem.extend({
+  draggable: true,
+  
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      'data-drag-handle': {
+        default: null,
+        parseHTML: element => element.getAttribute('data-drag-handle'),
+        renderHTML: attributes => {
+          return {
+            'data-drag-handle': '',
+          }
+        },
+      },
+    }
+  },
+})
 
 const TaskListMarkdown = Extension.create({
   name: 'taskListMarkdown',
@@ -99,11 +121,18 @@ export default function NoteEditor({
         },
       }),
       TaskList,
-      TaskItem.configure({
+      DraggableTaskItem.configure({
         nested: true,
+        HTMLAttributes: {
+          class: 'task-item-with-drag-handle',
+        },
       }),
       Placeholder.configure({
         placeholder
+      }),
+      Dropcursor.configure({
+        color: '#3B82F6',
+        width: 2,
       }),
       TaskListMarkdown,
     ],

@@ -32,3 +32,6 @@ WHERE tc.table_name = 'notes'
   AND tc.constraint_type = 'FOREIGN KEY';
 
 
+
+
+
