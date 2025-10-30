@@ -233,6 +233,111 @@ export default function NoteEditor({
     }
   }, [editor, editable])
 
+  // 添加拖拽动画效果
+  useEffect(() => {
+    if (!editor) return
+
+    const editorElement = editor.view.dom
+    let draggedElement: HTMLElement | null = null
+    let dragImage: HTMLElement | null = null
+
+    const handleDragStart = (e: DragEvent) => {
+      const target = e.target as HTMLElement
+      const taskItem = target.closest('li[data-type="taskItem"]')
+      
+      if (taskItem) {
+        draggedElement = taskItem as HTMLElement
+        
+        // 添加拖拽样式
+        draggedElement.classList.add('dragging')
+        
+        // 创建自定义拖拽预览
+        dragImage = draggedElement.cloneNode(true) as HTMLElement
+        dragImage.style.position = 'absolute'
+        dragImage.style.top = '-9999px'
+        dragImage.style.left = '-9999px'
+        dragImage.style.width = draggedElement.offsetWidth + 'px'
+        dragImage.style.opacity = '0.8'
+        dragImage.style.transform = 'rotate(2deg)'
+        dragImage.style.boxShadow = '0 8px 20px rgba(0, 0, 0, 0.2)'
+        dragImage.style.borderRadius = '0.375rem'
+        dragImage.style.backgroundColor = '#ffffff'
+        dragImage.style.padding = '0.5rem'
+        document.body.appendChild(dragImage)
+        
+        // 设置拖拽图像
+        e.dataTransfer!.effectAllowed = 'move'
+        e.dataTransfer!.setDragImage(dragImage, 0, 0)
+        
+        // 添加拖拽开始动画
+        requestAnimationFrame(() => {
+          if (draggedElement) {
+            draggedElement.style.transition = 'all 0.2s ease'
+          }
+        })
+      }
+    }
+
+    const handleDragEnd = (e: DragEvent) => {
+      if (draggedElement) {
+        // 移除拖拽样式
+        draggedElement.classList.remove('dragging')
+        draggedElement.style.transition = ''
+        draggedElement = null
+      }
+      
+      // 清理拖拽预览
+      if (dragImage && document.body.contains(dragImage)) {
+        document.body.removeChild(dragImage)
+        dragImage = null
+      }
+    }
+
+    const handleDragOver = (e: DragEvent) => {
+      e.preventDefault()
+      e.dataTransfer!.dropEffect = 'move'
+    }
+
+    // 添加拖拽进入效果
+    const handleDragEnter = (e: DragEvent) => {
+      const target = e.target as HTMLElement
+      const taskItem = target.closest('li[data-type="taskItem"]')
+      
+      if (taskItem && taskItem !== draggedElement) {
+        taskItem.classList.add('drag-over')
+      }
+    }
+
+    // 添加拖拽离开效果
+    const handleDragLeave = (e: DragEvent) => {
+      const target = e.target as HTMLElement
+      const taskItem = target.closest('li[data-type="taskItem"]')
+      
+      if (taskItem) {
+        taskItem.classList.remove('drag-over')
+      }
+    }
+
+    editorElement.addEventListener('dragstart', handleDragStart)
+    editorElement.addEventListener('dragend', handleDragEnd)
+    editorElement.addEventListener('dragover', handleDragOver)
+    editorElement.addEventListener('dragenter', handleDragEnter)
+    editorElement.addEventListener('dragleave', handleDragLeave)
+
+    return () => {
+      editorElement.removeEventListener('dragstart', handleDragStart)
+      editorElement.removeEventListener('dragend', handleDragEnd)
+      editorElement.removeEventListener('dragover', handleDragOver)
+      editorElement.removeEventListener('dragenter', handleDragEnter)
+      editorElement.removeEventListener('dragleave', handleDragLeave)
+      
+      // 清理可能残留的拖拽预览
+      if (dragImage && document.body.contains(dragImage)) {
+        document.body.removeChild(dragImage)
+      }
+    }
+  }, [editor])
+
   if (!editor) {
     return <div className="p-4 text-gray-500">加载编辑器...</div>
   }

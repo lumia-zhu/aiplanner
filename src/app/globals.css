@@ -363,61 +363,120 @@ body {
 /* 为任务项添加拖拽手柄 */
 .ProseMirror ul[data-type="taskList"] li {
   position: relative;
-  padding-left: 1.5rem; /* 为拖拽手柄留出空间 */
+  padding-left: 2rem; /* 为拖拽手柄留出更多空间 */
+  transition: background-color 0.2s ease, transform 0.2s ease;
 }
 
 /* 拖拽手柄 - 默认隐藏 */
 .ProseMirror ul[data-type="taskList"] li::before {
-  content: '⋮⋮';
+  content: '';
   position: absolute;
-  left: -0.25rem;
+  left: 0;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 14px;
-  color: #d1d5db;
+  width: 20px;
+  height: 20px;
   cursor: grab;
   opacity: 0;
-  transition: opacity 0.2s ease, color 0.2s ease;
+  transition: opacity 0.2s ease, transform 0.2s ease, background-color 0.2s ease;
   user-select: none;
-  line-height: 1;
-  letter-spacing: -2px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  /* 使用 SVG 背景图标 - 六个点的拖拽图标 */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%239ca3af'%3E%3Ccircle cx='9' cy='6' r='1.5'/%3E%3Ccircle cx='15' cy='6' r='1.5'/%3E%3Ccircle cx='9' cy='12' r='1.5'/%3E%3Ccircle cx='15' cy='12' r='1.5'/%3E%3Ccircle cx='9' cy='18' r='1.5'/%3E%3Ccircle cx='15' cy='18' r='1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 16px 16px;
 }
 
 /* 悬停时显示拖拽手柄 */
 .ProseMirror ul[data-type="taskList"] li:hover::before {
   opacity: 1;
-  color: #9ca3af;
 }
 
-/* 拖拽手柄悬停效果 */
-.ProseMirror ul[data-type="taskList"] li::before:hover {
-  color: #6b7280;
+/* 拖拽手柄悬停效果 - 放大并变色 */
+.ProseMirror ul[data-type="taskList"] li:hover::before:hover {
+  transform: translateY(-50%) scale(1.15);
+  background-color: rgba(156, 163, 175, 0.15);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236b7280'%3E%3Ccircle cx='9' cy='6' r='1.5'/%3E%3Ccircle cx='15' cy='6' r='1.5'/%3E%3Ccircle cx='9' cy='12' r='1.5'/%3E%3Ccircle cx='15' cy='12' r='1.5'/%3E%3Ccircle cx='9' cy='18' r='1.5'/%3E%3Ccircle cx='15' cy='18' r='1.5'/%3E%3C/svg%3E");
 }
 
-/* 拖拽时的样式 */
+/* 拖拽手柄按下效果 */
+.ProseMirror ul[data-type="taskList"] li::before:active {
+  cursor: grabbing;
+  transform: translateY(-50%) scale(1.05);
+  background-color: rgba(156, 163, 175, 0.25);
+}
+
+/* 任务项悬停效果 */
+.ProseMirror ul[data-type="taskList"] li:hover {
+  background-color: rgba(249, 250, 251, 0.8);
+  border-radius: 0.375rem;
+}
+
+/* 拖拽时的样式 - 增强视觉效果 */
 .ProseMirror ul[data-type="taskList"] li.dragging {
-  opacity: 0.5;
+  opacity: 0.4;
   background-color: #f3f4f6;
-  border-radius: 0.25rem;
+  border-radius: 0.375rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: scale(0.98);
+  transition: all 0.2s ease;
 }
 
-/* 拖拽光标样式 */
+/* 拖拽悬停在其他任务上的样式 */
+.ProseMirror ul[data-type="taskList"] li.drag-over {
+  background-color: rgba(59, 130, 246, 0.08);
+  border-radius: 0.375rem;
+  transform: translateY(-2px);
+  transition: all 0.2s ease;
+}
+
+/* 拖拽光标样式 - 单条蓝色实线 */
 .ProseMirror .ProseMirror-dropcursor {
-  position: absolute;
+  position: relative;
   pointer-events: none;
-  border-left: 2px solid #3B82F6;
-  height: 1.2em;
-  margin-top: -0.1em;
+  display: inline-block;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(to right, #3B82F6, #60A5FA);
+  border-radius: 1px;
+  box-shadow: 0 0 6px rgba(59, 130, 246, 0.5);
+  margin: 4px 0;
+  z-index: 10;
 }
 
-/* 拖拽光标动画 */
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+/* 拖拽光标 - 左侧圆点指示器 */
+.ProseMirror .ProseMirror-dropcursor::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 6px;
+  background: #3B82F6;
+  border-radius: 50%;
+  box-shadow: 0 0 6px rgba(59, 130, 246, 0.8);
+}
+
+/* 拖拽光标动画 - 脉冲效果 */
+@keyframes pulse-drop-cursor {
+  0%, 100% { 
+    opacity: 1; 
+    box-shadow: 0 0 6px rgba(59, 130, 246, 0.8);
+  }
+  50% { 
+    opacity: 0.6; 
+    box-shadow: 0 0 10px rgba(59, 130, 246, 1);
+  }
 }
 
 .ProseMirror .ProseMirror-dropcursor {
-  animation: blink 1s ease-in-out infinite;
+  animation: pulse-drop-cursor 1s ease-in-out infinite;
 }
 
 /* 代码块样式 */
