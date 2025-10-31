@@ -19,3 +19,4 @@ WHERE tablename IN ('daily_tasks', 'sticky_notes');
 -- daily_tasks: false (已禁用)
 -- sticky_notes: false (未启用)
 
+

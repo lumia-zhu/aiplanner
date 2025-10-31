@@ -7,6 +7,8 @@
 'use client'
 
 import TaskCard from './TaskCard'
+import { useDroppable } from '@dnd-kit/core'
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import type { Task } from '@/types'
 import type { TaskMatrixQuadrantConfig } from '@/types'
 
@@ -18,6 +20,7 @@ interface QuadrantProps {
   config: TaskMatrixQuadrantConfig        // 象限配置（标题、颜色等）
   tasks: Task[]                           // 象限内的任务列表
   onTaskComplete: (id: string) => void    // 任务完成回调
+  quadrantId: string                      // 象限ID（用于拖拽放置）
 }
 
 // ============================================
@@ -27,15 +30,28 @@ interface QuadrantProps {
 export default function Quadrant({ 
   config, 
   tasks, 
-  onTaskComplete 
+  onTaskComplete,
+  quadrantId,
 }: QuadrantProps) {
+  
+  // 设置为可放置区域
+  const { setNodeRef, isOver } = useDroppable({
+    id: quadrantId,
+  })
+  
+  // 任务ID列表（用于 SortableContext）
+  const taskIds = tasks.map(t => t.id)
   
   return (
     <div 
-      className="rounded-xl border-2 p-4 flex flex-col overflow-hidden transition-all duration-200"
+      ref={setNodeRef}
+      className={`
+        rounded-xl border-2 p-4 flex flex-col overflow-hidden transition-all duration-200
+        ${isOver ? 'ring-4 ring-blue-400 ring-opacity-50 scale-[1.02]' : ''}
+      `}
       style={{
         backgroundColor: config.bgColor,
-        borderColor: config.borderColor,
+        borderColor: isOver ? '#3b82f6' : config.borderColor,
       }}
     >
       {/* 象限标题 */}
@@ -71,26 +87,21 @@ export default function Quadrant({
       </div>
       
       {/* 任务列表 */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2">
-        {tasks.length > 0 ? (
-          tasks.map(task => (
-            <TaskCard
-              key={task.id}
-              task={{
-                id: task.id,
-                title: task.title,
-                timeRange: task.deadline_datetime 
-                  ? new Date(task.deadline_datetime).toLocaleTimeString('zh-CN', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })
-                  : undefined,
-                isCompleted: task.completed,
-              }}
-              onComplete={onTaskComplete}
-            />
-          ))
-        ) : (
+      <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
+        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2">
+          {tasks.length > 0 ? (
+            tasks.map(task => (
+              <TaskCard
+                key={task.id}
+                task={{
+                  id: task.id,
+                  title: task.title,
+                  isCompleted: task.completed,
+                }}
+                onComplete={onTaskComplete}
+              />
+            ))
+          ) : (
           /* 空状态 */
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <div className="text-3xl mb-2 opacity-30">{config.icon}</div>
@@ -102,8 +113,10 @@ export default function Quadrant({
             </p>
           </div>
         )}
-      </div>
+        </div>
+      </SortableContext>
     </div>
   )
 }
+
 

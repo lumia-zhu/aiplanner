@@ -65,3 +65,4 @@ WHERE tablename = 'daily_tasks';
 -- 3. UPDATE 策略需要 USING 和 WITH CHECK
 -- 4. SELECT 和 DELETE 策略只需要 USING
 
+

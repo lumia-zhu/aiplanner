@@ -1009,7 +1009,7 @@ export default function NoteEditor({
     <div className="flex flex-col h-full overflow-hidden">
       {/* 编辑器主体（可滚动区域） */}
       <div className="flex-1 overflow-y-auto">
-        <EditorContent editor={editor} />
+      <EditorContent editor={editor} />
 
       {/* 浮动工具栏 - 选中文本时显示 */}
       {showBubbleMenu && (

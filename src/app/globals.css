@@ -668,3 +668,15 @@ p[data-datetime-display]::after {
 .duration-200 {
   animation-duration: 200ms;
 }
+
+/* 视图切换淡入动画 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

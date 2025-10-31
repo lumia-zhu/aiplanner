@@ -7,6 +7,8 @@
 'use client'
 
 import TaskCard from './TaskCard'
+import { useDroppable } from '@dnd-kit/core'
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import type { Task } from '@/types'
 
 // ============================================
@@ -27,9 +29,23 @@ export default function UnclassifiedZone({
   onTaskComplete 
 }: UnclassifiedZoneProps) {
   
+  // 设置为可放置区域
+  const { setNodeRef, isOver } = useDroppable({
+    id: 'unclassified',
+  })
+  
+  // 任务ID列表（用于 SortableContext）
+  const taskIds = tasks.map(t => t.id)
+  
   return (
     <div className="w-72 flex-shrink-0">
-      <div className="bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 p-4 h-full flex flex-col">
+      <div 
+        ref={setNodeRef}
+        className={`
+          bg-gray-50 rounded-xl border-2 border-dashed p-4 h-full flex flex-col transition-all duration-200
+          ${isOver ? 'border-blue-400 bg-blue-50 ring-4 ring-blue-400 ring-opacity-30' : 'border-gray-300'}
+        `}
+      >
         {/* 标题区域 */}
         <div className="flex items-start gap-3 mb-4 pb-3 border-b border-gray-200">
           {/* 图标 */}
@@ -54,26 +70,21 @@ export default function UnclassifiedZone({
         </div>
         
         {/* 任务列表 */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2.5">
-          {tasks.length > 0 ? (
-            tasks.map(task => (
-              <TaskCard
-                key={task.id}
-                task={{
-                  id: task.id,
-                  title: task.title,
-                  timeRange: task.deadline_datetime 
-                    ? new Date(task.deadline_datetime).toLocaleTimeString('zh-CN', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })
-                    : undefined,
-                  isCompleted: task.completed,
-                }}
-                onComplete={onTaskComplete}
-              />
-            ))
-          ) : (
+        <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
+          <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2.5">
+            {tasks.length > 0 ? (
+              tasks.map(task => (
+                <TaskCard
+                  key={task.id}
+                  task={{
+                    id: task.id,
+                    title: task.title,
+                    isCompleted: task.completed,
+                  }}
+                  onComplete={onTaskComplete}
+                />
+              ))
+            ) : (
             /* 空状态 */
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <div className="text-4xl mb-3">✅</div>
@@ -83,7 +94,8 @@ export default function UnclassifiedZone({
               </p>
             </div>
           )}
-        </div>
+          </div>
+        </SortableContext>
         
         {/* 底部提示 */}
         {tasks.length > 0 && (
@@ -97,4 +109,5 @@ export default function UnclassifiedZone({
     </div>
   )
 }
+
 

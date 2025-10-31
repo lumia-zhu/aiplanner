@@ -6,8 +6,20 @@
 
 'use client'
 
+import { useState } from 'react'
 import UnclassifiedZone from './UnclassifiedZone'
 import Quadrant from './Quadrant'
+import CoordinateAxis from './CoordinateAxis'
+import {
+  DndContext,
+  DragOverlay,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  DragStartEvent,
+} from '@dnd-kit/core'
 import { QUADRANT_CONFIGS } from '@/types/task-matrix'
 import type { Task } from '@/types'
 import type { QuadrantType, TasksByQuadrant } from '@/types/task-matrix'
@@ -21,6 +33,8 @@ interface TaskMatrixProps {
   selectedDate: Date                         // 当前选中的日期
   onClose: () => void                        // 关闭回调
   onTaskComplete: (id: string) => void       // 任务完成回调
+  onTaskDrop: (taskId: string, targetQuadrant: QuadrantType) => void  // 任务拖拽放置回调
+  isEmbedded?: boolean                       // 是否为嵌入模式（默认 false，即弹窗模式）
 }
 
 // ============================================
@@ -32,7 +46,51 @@ export default function TaskMatrix({
   selectedDate,
   onClose,
   onTaskComplete,
+  onTaskDrop,
+  isEmbedded = false,
 }: TaskMatrixProps) {
+  
+  // 拖拽状态
+  const [activeTask, setActiveTask] = useState<Task | null>(null)
+  
+  // 配置拖拽传感器
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // 拖拽8px后才激活，避免误触
+      },
+    })
+  )
+  
+  // 拖拽开始
+  const handleDragStart = (event: DragStartEvent) => {
+    const { active } = event
+    const taskId = active.id as string
+    
+    // 查找被拖拽的任务
+    for (const quadrantTasks of Object.values(tasks)) {
+      const task = quadrantTasks.find((t: Task) => t.id === taskId)
+      if (task) {
+        setActiveTask(task)
+        break
+      }
+    }
+  }
+  
+  // 拖拽结束
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    
+    setActiveTask(null)
+    
+    if (!over) return
+    
+    const taskId = active.id as string
+    const targetQuadrant = over.id as QuadrantType
+    
+    // 调用父组件的回调
+    onTaskDrop(taskId, targetQuadrant)
+  }
   
   // 格式化日期显示
   const formatDate = (date: Date) => {
@@ -43,47 +101,55 @@ export default function TaskMatrix({
     })
   }
   
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-7xl h-[90vh] flex flex-col">
-        {/* 标题栏 */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-          <div className="flex items-center gap-3">
-            {/* 图标 */}
-            <span className="text-3xl">📊</span>
-            
-            {/* 标题和日期 */}
-            <div>
-              <h2 className="text-xl font-bold text-gray-800">
-                任务矩阵
-              </h2>
-              <p className="text-sm text-gray-500 mt-0.5">
-                {formatDate(selectedDate)}
-              </p>
+  // 矩阵主内容
+  const matrixContent = (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+    >
+      <div className="bg-white rounded-2xl shadow-2xl w-full h-full flex flex-col">
+        {/* 标题栏 - 仅在弹窗模式显示 */}
+        {!isEmbedded && (
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+            <div className="flex items-center gap-3">
+              {/* 图标 */}
+              <span className="text-3xl">📊</span>
+              
+              {/* 标题和日期 */}
+              <div>
+                <h2 className="text-xl font-bold text-gray-800">
+                  任务矩阵
+                </h2>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  {formatDate(selectedDate)}
+                </p>
+              </div>
             </div>
-          </div>
-          
-          {/* 关闭按钮 */}
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors p-2 rounded-lg hover:bg-gray-100"
-            title="关闭矩阵视图"
-          >
-            <svg 
-              className="w-6 h-6" 
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
+            
+            {/* 关闭按钮 */}
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 transition-colors p-2 rounded-lg hover:bg-gray-100"
+              title="关闭矩阵视图"
             >
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth={2} 
-                d="M6 18L18 6M6 6l12 12" 
-              />
-            </svg>
-          </button>
-        </div>
+              <svg 
+                className="w-6 h-6" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  strokeWidth={2} 
+                  d="M6 18L18 6M6 6l12 12" 
+                />
+              </svg>
+            </button>
+          </div>
+        )}
         
         {/* 主内容区 */}
         <div className="flex-1 flex gap-6 p-6 overflow-hidden">
@@ -95,17 +161,11 @@ export default function TaskMatrix({
           
           {/* 右侧：四象限矩阵 */}
           <div className="flex-1 flex flex-col min-w-0">
-            {/* 顶部标签：重要 ↑ */}
-            <div className="text-center mb-4">
-              <span className="text-sm text-gray-600 font-semibold bg-gray-100 px-4 py-1.5 rounded-full inline-block">
-                ↑ 重要
-              </span>
-            </div>
-            
-            {/* 四象限网格 */}
-            <div className="flex-1 grid grid-cols-2 grid-rows-2 gap-4 min-h-0">
+            {/* 四象限网格（带坐标轴） */}
+            <div className="flex-1 grid grid-cols-2 grid-rows-2 gap-4 min-h-0 relative">
               {/* 左上：重要不紧急 */}
               <Quadrant
+                quadrantId="not-urgent-important"
                 config={QUADRANT_CONFIGS['not-urgent-important']}
                 tasks={tasks['not-urgent-important'] || []}
                 onTaskComplete={onTaskComplete}
@@ -113,6 +173,7 @@ export default function TaskMatrix({
               
               {/* 右上：重要且紧急 */}
               <Quadrant
+                quadrantId="urgent-important"
                 config={QUADRANT_CONFIGS['urgent-important']}
                 tasks={tasks['urgent-important'] || []}
                 onTaskComplete={onTaskComplete}
@@ -120,6 +181,7 @@ export default function TaskMatrix({
               
               {/* 左下：不重要不紧急 */}
               <Quadrant
+                quadrantId="not-urgent-not-important"
                 config={QUADRANT_CONFIGS['not-urgent-not-important']}
                 tasks={tasks['not-urgent-not-important'] || []}
                 onTaskComplete={onTaskComplete}
@@ -127,20 +189,14 @@ export default function TaskMatrix({
               
               {/* 右下：紧急但不重要 */}
               <Quadrant
+                quadrantId="urgent-not-important"
                 config={QUADRANT_CONFIGS['urgent-not-important']}
                 tasks={tasks['urgent-not-important'] || []}
                 onTaskComplete={onTaskComplete}
               />
-            </div>
-            
-            {/* 底部标签：不紧急 ← → 紧急 */}
-            <div className="flex justify-between items-center mt-4 px-4">
-              <span className="text-sm text-gray-600 font-semibold bg-gray-100 px-4 py-1.5 rounded-full">
-                不紧急
-              </span>
-              <span className="text-sm text-gray-600 font-semibold bg-gray-100 px-4 py-1.5 rounded-full">
-                紧急 →
-              </span>
+              
+              {/* 坐标轴覆盖层 */}
+              <CoordinateAxis />
             </div>
           </div>
         </div>
@@ -157,7 +213,38 @@ export default function TaskMatrix({
           </div>
         </div>
       </div>
-    </div>
+      
+      {/* 拖拽预览 */}
+      <DragOverlay>
+        {activeTask && (
+          <div className="opacity-90 scale-105">
+            <div className="bg-white rounded-lg px-3 py-2.5 shadow-xl border-2 border-blue-500">
+              <div className="text-sm font-medium text-gray-800">
+                {activeTask.title}
+              </div>
+            </div>
+          </div>
+        )}
+      </DragOverlay>
+    </DndContext>
   )
+  
+  // 根据模式返回不同的包装
+  if (isEmbedded) {
+    // 嵌入模式：直接填充父容器，无遮罩
+    return (
+      <div className="w-full h-full">
+        {matrixContent}
+      </div>
+    )
+  } else {
+    // 弹窗模式：带遮罩层和居中
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        {matrixContent}
+      </div>
+    )
+  }
 }
+
 

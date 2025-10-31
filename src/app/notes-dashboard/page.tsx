@@ -21,9 +21,9 @@ import { getUserProfile, upsertUserProfile, type UserProfileInput } from '@/lib/
 import { doubaoService } from '@/lib/doubaoService'
 import { saveChatMessage } from '@/lib/chatMessages'
 import { getStickyNotesByDate, createStickyNote, updateStickyNote, deleteStickyNote, getMaxZIndex } from '@/lib/stickyNotes'
-import { getTaskMatrixByDate, ensureTaskMatrix } from '@/lib/taskMatrix'
+import { getTaskMatrixByDate, ensureTaskMatrix, updateTaskQuadrant } from '@/lib/taskMatrix'
 import { getDailyTasksByDate, toggleDailyTaskComplete } from '@/lib/dailyTasks'
-import { syncTasksFromNote } from '@/lib/taskSync'
+import { syncTasksFromNote, sanitizeTaskTitle } from '@/lib/taskSync'
 import type { DailyTask, QuadrantType } from '@/types'
 
 export default function NotesDashboardPage() {
@@ -84,7 +84,7 @@ export default function NotesDashboardPage() {
   const [isLoadingStickyNotes, setIsLoadingStickyNotes] = useState(false)
   
   // 任务矩阵相关状态
-  const [showTaskMatrix, setShowTaskMatrix] = useState(false)
+  const [viewMode, setViewMode] = useState<'editor' | 'matrix'>('editor')  // 视图模式：编辑器 或 矩阵
   const [tasksByQuadrant, setTasksByQuadrant] = useState<TasksByQuadrant>({})
 
   // 加载用户资料
@@ -191,10 +191,12 @@ export default function NotesDashboardPage() {
         const matrix = matrixData.find(m => m.taskId === dailyTask.id)
         
         // 映射 DailyTask 为显示格式（兼容 TaskCard 组件）
+        const cleanedTitle = sanitizeTaskTitle(dailyTask.title)
+        console.log('🧹 清理任务标题:', { original: dailyTask.title, cleaned: cleanedTitle })
         const displayTask: any = {
           id: dailyTask.id,
           user_id: dailyTask.userId,
-          title: dailyTask.title,
+          title: cleanedTitle,
           completed: dailyTask.completed,
           deadline: dailyTask.deadlineDatetime,
           timeRange: dailyTask.deadlineDatetime ? formatTimeRange(dailyTask.deadlineDatetime) : undefined,
@@ -770,6 +772,59 @@ export default function NotesDashboardPage() {
     }
   }, [])
 
+  // 处理任务拖拽放置
+  const handleTaskDrop = useCallback(async (taskId: string, targetQuadrant: QuadrantType) => {
+    if (!user) return
+    
+    try {
+      console.log('🎯 拖拽任务:', { taskId, targetQuadrant })
+      
+      // 更新数据库
+      await updateTaskQuadrant(taskId, targetQuadrant)
+      
+      // 更新本地状态
+      setTasksByQuadrant(prev => {
+        const newState: TasksByQuadrant = {
+          'unclassified': [],
+          'urgent-important': [],
+          'not-urgent-important': [],
+          'urgent-not-important': [],
+          'not-urgent-not-important': [],
+        }
+        
+        // 找到被移动的任务
+        let movedTask: any = null
+        for (const quadrant in prev) {
+          for (const task of prev[quadrant as QuadrantType]) {
+            if (task.id === taskId) {
+              movedTask = task
+            } else {
+              // 其他任务保持原位
+              newState[quadrant as QuadrantType].push(task)
+            }
+          }
+        }
+        
+        // 将移动的任务添加到目标象限
+        if (movedTask) {
+          newState[targetQuadrant].push(movedTask)
+        }
+        
+        return newState
+      })
+      
+      console.log('✅ 任务移动成功')
+      
+    } catch (error) {
+      console.error('❌ 移动任务失败:', error)
+      alert('移动任务失败')
+      // 失败时重新加载数据
+      if (user) {
+        loadTaskMatrix(user.id, selectedDate)
+      }
+    }
+  }, [user, selectedDate, loadTaskMatrix])
+
   if (isLoading || !user) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -832,18 +887,18 @@ export default function NotesDashboardPage() {
 
               {/* 上部区域：日历和进度条（固定高度，可滚动） */}
               <div className="flex-shrink-0 overflow-y-auto custom-scrollbar">
-                {/* 日历视图 - 保留显示 */}
-                <CalendarView 
-                  tasks={[]}  // 笔记模式暂时不显示任务标记
-                  selectedDate={selectedDate}
-                  onDateSelect={handleDateSelect}
-                  dateScope={dateScope}
-                  notesMap={notesCache}  // 传递笔记缓存用于显示圆点
-                  onDateHover={handleDateHover}  // 传递悬停回调
-                />
+              {/* 日历视图 - 保留显示 */}
+              <CalendarView 
+                tasks={[]}  // 笔记模式暂时不显示任务标记
+                selectedDate={selectedDate}
+                onDateSelect={handleDateSelect}
+                dateScope={dateScope}
+                notesMap={notesCache}  // 传递笔记缓存用于显示圆点
+                onDateHover={handleDateHover}  // 传递悬停回调
+              />
 
-                {/* 任务进度条 */}
-                <div className="mb-6 bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+              {/* 任务进度条 */}
+              <div className="mb-6 bg-white rounded-lg shadow-sm border border-gray-200 p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium text-gray-700">任务进度</span>
                   <span className="text-sm text-gray-600">
@@ -873,8 +928,8 @@ export default function NotesDashboardPage() {
                 </div>
               </div>
 
-                {/* 日期标题和保存状态 */}
-                <div className="flex justify-between items-center mb-6">
+              {/* 日期标题和保存状态 */}
+              <div className="flex justify-between items-center mb-6">
                 <div>
                   <h2 className="text-2xl font-bold text-gray-900 mb-2">
                     {format(selectedDate, 'yyyy年MM月dd日')}
@@ -898,17 +953,35 @@ export default function NotesDashboardPage() {
                       回到今天
                     </button>
                   )}
-                  {/* 矩阵模式按钮 */}
+                  {/* 视图切换按钮 */}
                   <button
-                    onClick={() => setShowTaskMatrix(true)}
+                    onClick={() => {
+                      if (viewMode === 'editor') {
+                        setViewMode('matrix')
+                        if (user) loadTaskMatrix(user.id, selectedDate)
+                      } else {
+                        setViewMode('editor')
+                      }
+                    }}
                     className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
-                    style={{ backgroundColor: '#4A90E2' }}
-                    title="矩阵模式"
+                    style={{ backgroundColor: viewMode === 'matrix' ? '#10B981' : '#4A90E2' }}
+                    title={viewMode === 'editor' ? '切换到矩阵模式' : '切换到笔记模式'}
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
-                    </svg>
-                    矩阵模式
+                    {viewMode === 'editor' ? (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                        </svg>
+                        矩阵模式
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        笔记模式
+                      </>
+                    )}
                   </button>
                   {/* AI助手按钮 */}
                   <button
@@ -935,30 +1008,55 @@ export default function NotesDashboardPage() {
                     便签
                   </button>
                 </div>
-              </div>
+                </div>
               </div>
 
-              {/* 笔记编辑器区域（占满剩余空间） */}
+              {/* 笔记编辑器 / 任务矩阵 切换区域（占满剩余空间） */}
               <div className="flex-1 flex flex-col min-h-0 mt-4 relative">
-                <div className="flex-1 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex flex-col">
-                  <NoteEditor
-                    initialContent={currentNote}
-                    onUpdate={handleNoteUpdate}
-                    onSave={handleNoteSave}
-                    placeholder="开始记录... (按 ? 查看快捷键)"
-                  />
-                  
-                  {/* 便签容器（绝对定位在编辑器上方） */}
-                  {stickyNotes.map(note => (
-                    <StickyNote
-                      key={note.id}
-                      note={note}
-                      onUpdate={handleUpdateStickyNote}
-                      onDelete={handleDeleteStickyNote}
-                      onClick={handleStickyNoteClick}
+                {viewMode === 'editor' ? (
+                  /* 笔记编辑器模式 */
+                  <div 
+                    className="flex-1 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex flex-col animate-fadeIn"
+                    style={{
+                      animation: 'fadeIn 0.3s ease-in-out'
+                    }}
+                  >
+                    <NoteEditor
+                      initialContent={currentNote}
+                      onUpdate={handleNoteUpdate}
+                      onSave={handleNoteSave}
+                      placeholder="开始记录... (按 ? 查看快捷键)"
                     />
-                  ))}
-                </div>
+                    
+                    {/* 便签容器（绝对定位在编辑器上方） */}
+                    {stickyNotes.map(note => (
+                      <StickyNote
+                        key={note.id}
+                        note={note}
+                        onUpdate={handleUpdateStickyNote}
+                        onDelete={handleDeleteStickyNote}
+                        onClick={handleStickyNoteClick}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  /* 任务矩阵模式 */
+                  <div 
+                    className="flex-1 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden animate-fadeIn"
+                    style={{
+                      animation: 'fadeIn 0.3s ease-in-out'
+                    }}
+                  >
+                    <TaskMatrix
+                      tasks={tasksByQuadrant}
+                      selectedDate={selectedDate}
+                      onClose={() => setViewMode('editor')}
+                      onTaskComplete={handleTaskComplete}
+                      onTaskDrop={handleTaskDrop}
+                      isEmbedded={true}
+                    />
+                  </div>
+                )}
               </div>
 
               {/* 浮动AI助手按钮 - 固定在屏幕右下角 */}
@@ -1037,16 +1135,6 @@ export default function NotesDashboardPage() {
         isOpen={showShortcutsPanel}
         onClose={() => setShowShortcutsPanel(false)}
       />
-
-      {/* 任务矩阵 */}
-      {showTaskMatrix && (
-        <TaskMatrix
-          tasks={tasksByQuadrant}
-          selectedDate={selectedDate}
-          onClose={() => setShowTaskMatrix(false)}
-          onTaskComplete={handleTaskComplete}
-        />
-      )}
 
       {/* 快捷键帮助按钮 - 固定在左下角 */}
       <button

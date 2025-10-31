@@ -151,3 +151,4 @@ ORDER BY ordinal_position;
 -- DROP FUNCTION IF EXISTS update_daily_tasks_updated_at();
 -- DROP TABLE IF EXISTS daily_tasks CASCADE;
 
+

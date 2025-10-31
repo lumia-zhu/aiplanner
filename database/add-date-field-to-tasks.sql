@@ -61,3 +61,4 @@ WHERE table_name = 'tasks' AND column_name = 'date';
 -- - date: '2025-10-31'
 -- - deadline_datetime: '2025-10-31T18:00:00Z'
 
+

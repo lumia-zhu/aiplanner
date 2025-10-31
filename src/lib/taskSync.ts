@@ -57,7 +57,7 @@ export function parseTasksFromNote(noteContent: string | any): ParsedTask[] {
 
       // 找到 taskItem 节点
       if (node.type === 'taskItem') {
-        const taskText = extractTextFromNode(node)
+        const taskText = sanitizeTaskTitle(extractTextFromNode(node))
         if (taskText) {
           tasks.push({
             title: taskText,
@@ -106,6 +106,28 @@ function extractTextFromNode(node: any): string {
 }
 
 /**
+ * 清理任务标题，只保留用户输入的纯文本部分
+ *  - 移除 "📅 10/31 18:00" 等时间标记
+ *  - 移除多余空白
+ */
+export function sanitizeTaskTitle(rawTitle: string): string {
+  if (!rawTitle) return ''
+
+  let cleaned = rawTitle
+
+  // 移除从📅开始的时间信息
+  cleaned = cleaned.replace(/\s*📅.*$/, '')
+
+  // 移除 #标签 或 @tag 之类的标记
+  cleaned = cleaned.replace(/[#@][^\s#@]+/g, '')
+
+  // 将多个空格压缩为单个空格
+  cleaned = cleaned.replace(/\s+/g, ' ').trim()
+
+  return cleaned
+}
+
+/**
  * 从 HTML 格式中提取任务（备用方案）
  */
 function parseTasksFromHtml(htmlContent: string): ParsedTask[] {
@@ -123,7 +145,7 @@ function parseTasksFromHtml(htmlContent: string): ParsedTask[] {
       const taskHtml = match[2]
       
       // 提取纯文本（移除 HTML 标签）
-      const taskText = taskHtml.replace(/<[^>]+>/g, '').trim()
+      const taskText = sanitizeTaskTitle(taskHtml.replace(/<[^>]+>/g, '').trim())
       
       if (taskText) {
         tasks.push({
