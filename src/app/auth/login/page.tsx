@@ -35,7 +35,7 @@ export default function LoginPage() {
       }
       
       saveUserToStorage(result.user)
-      router.push('/dashboard') // 登录成功后跳转到仪表板
+      router.push('/notes-dashboard') // 登录成功后跳转到笔记界面
     }
     
     setIsLoading(false)

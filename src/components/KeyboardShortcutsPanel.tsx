@@ -127,3 +127,8 @@ export default function KeyboardShortcutsPanel({ isOpen, onClose }: KeyboardShor
 
 
 
+
+
+
+
+

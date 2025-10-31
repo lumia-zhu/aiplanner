@@ -221,6 +221,8 @@ body {
   line-height: 1.7;  /* 更舒适的行高 */
   font-size: 15px;  /* 稍大的字体 */
   transition: all 0.2s ease;
+  padding: 1.5rem;  /* 内边距 */
+  min-height: 100%;  /* 占满容器高度 */
 }
 
 .ProseMirror:focus {

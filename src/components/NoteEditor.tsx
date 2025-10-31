@@ -1006,9 +1006,10 @@ export default function NoteEditor({
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-      {/* 编辑器主体 */}
-      <EditorContent editor={editor} />
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* 编辑器主体（可滚动区域） */}
+      <div className="flex-1 overflow-y-auto">
+        <EditorContent editor={editor} />
 
       {/* 浮动工具栏 - 选中文本时显示 */}
       {showBubbleMenu && (
@@ -1143,8 +1144,9 @@ export default function NoteEditor({
           onClose={() => setShowDateTimePicker(false)}
         />
       )}
+      </div>
 
-      {/* 底部提示栏 */}
+      {/* 底部提示栏（固定在底部） */}
       {editable && (
         <div className="border-t border-gray-100 bg-gray-50 px-4 py-2.5 text-xs text-gray-500 leading-relaxed">
           <div className="flex items-center gap-4 flex-wrap">

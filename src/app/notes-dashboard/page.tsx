@@ -570,7 +570,7 @@ export default function NotesDashboardPage() {
           {/* flex布局容器：在主内容区域内部分左右 */}
           <div className="flex gap-6 h-[calc(100vh-12rem)]">
             {/* 左侧：笔记管理区域 */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar transition-all duration-300 ease-in-out relative pb-24">
+            <div className="flex-1 flex flex-col transition-all duration-300 ease-in-out relative overflow-hidden">
               
               {/* 日期范围选择器 - 暂时隐藏 */}
               {/* <DateScopeSelector 
@@ -578,18 +578,20 @@ export default function NotesDashboardPage() {
                 onScopeChange={handleDateScopeChange}
               /> */}
 
-              {/* 日历视图 - 保留显示 */}
-              <CalendarView 
-                tasks={[]}  // 笔记模式暂时不显示任务标记
-                selectedDate={selectedDate}
-                onDateSelect={handleDateSelect}
-                dateScope={dateScope}
-                notesMap={notesCache}  // 传递笔记缓存用于显示圆点
-                onDateHover={handleDateHover}  // 传递悬停回调
-              />
+              {/* 上部区域：日历和进度条（固定高度，可滚动） */}
+              <div className="flex-shrink-0 overflow-y-auto custom-scrollbar">
+                {/* 日历视图 - 保留显示 */}
+                <CalendarView 
+                  tasks={[]}  // 笔记模式暂时不显示任务标记
+                  selectedDate={selectedDate}
+                  onDateSelect={handleDateSelect}
+                  dateScope={dateScope}
+                  notesMap={notesCache}  // 传递笔记缓存用于显示圆点
+                  onDateHover={handleDateHover}  // 传递悬停回调
+                />
 
-              {/* 任务进度条 */}
-              <div className="mb-6 bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                {/* 任务进度条 */}
+                <div className="mb-6 bg-white rounded-lg shadow-sm border border-gray-200 p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium text-gray-700">任务进度</span>
                   <span className="text-sm text-gray-600">
@@ -619,8 +621,8 @@ export default function NotesDashboardPage() {
                 </div>
               </div>
 
-              {/* 日期标题和保存状态 */}
-              <div className="flex justify-between items-center mb-6">
+                {/* 日期标题和保存状态 */}
+                <div className="flex justify-between items-center mb-6">
                 <div>
                   <h2 className="text-2xl font-bold text-gray-900 mb-2">
                     {format(selectedDate, 'yyyy年MM月dd日')}
@@ -670,15 +672,18 @@ export default function NotesDashboardPage() {
                   </button>
                 </div>
               </div>
+              </div>
 
-              {/* 笔记编辑器 */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
-                <NoteEditor
-                  initialContent={currentNote}
-                  onUpdate={handleNoteUpdate}
-                  onSave={handleNoteSave}
-                  placeholder="开始记录... (按 ? 查看快捷键)"
-                />
+              {/* 笔记编辑器区域（占满剩余空间） */}
+              <div className="flex-1 flex flex-col min-h-0 mt-4">
+                <div className="flex-1 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex flex-col">
+                  <NoteEditor
+                    initialContent={currentNote}
+                    onUpdate={handleNoteUpdate}
+                    onSave={handleNoteSave}
+                    placeholder="开始记录... (按 ? 查看快捷键)"
+                  />
+                </div>
               </div>
 
               {/* 浮动AI助手按钮 - 固定在屏幕右下角 */}

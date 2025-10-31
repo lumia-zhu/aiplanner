@@ -168,6 +168,51 @@ ORDER BY
 2. 配置环境变量
 3. 自动部署
 
+## 🏗️ 架构设计
+
+本项目采用**分层架构**设计，支持跨平台扩展：
+
+### 核心特性
+- ✅ **领域驱动设计** - 核心业务逻辑与平台无关
+- ✅ **依赖倒置** - 面向接口编程，易于测试和扩展
+- ✅ **适配器模式** - 支持多平台适配（Web、Mobile、Desktop）
+- ✅ **工厂模式** - 自动根据平台选择合适的实现
+
+### 架构文档
+- 📚 [完整架构设计文档](./docs/ARCHITECTURE.md) - 详细的技术方案
+- 🎓 [简化版架构指南](./docs/ARCHITECTURE_SIMPLE.md) - 通俗易懂的说明
+
+### 目录结构（规划中）
+```
+src/
+├── domain/              # 领域层：核心业务逻辑（平台无关）
+│   ├── models/         # 数据模型
+│   ├── rules/          # 业务规则
+│   └── interfaces/     # 接口定义
+├── application/         # 应用层：业务流程编排
+│   ├── services/       # 业务服务
+│   └── use-cases/      # 用例实现
+├── infrastructure/      # 基础设施层：技术实现
+│   ├── repositories/   # 数据访问
+│   ├── api/           # API 客户端
+│   └── adapters/      # 外部服务适配器
+├── presentation/        # 展示层：UI 组件
+│   ├── components/     # UI 组件
+│   └── containers/     # 页面容器
+└── platforms/          # 平台特定层：平台适配
+    ├── web/           # Web 平台
+    ├── mobile/        # 移动端平台
+    ├── desktop/       # 桌面端平台
+    └── extension/     # 浏览器插件
+```
+
+### 扩展性
+本架构设计允许项目轻松扩展到：
+- 📱 **React Native** 移动应用
+- 💻 **Electron/Tauri** 桌面应用
+- 🔌 **Browser Extension** 浏览器插件
+- 🌐 **多后端支持**（Supabase、Firebase、自建服务器）
+
 ## 🤝 贡献
 
 欢迎提交 Issue 和 Pull Request！
@@ -179,4 +224,5 @@ MIT License
 ---
 
 **开发时间**: 约 4-5 天  
-**适用场景**: 个人任务管理、小团队协作、原型验证
+**适用场景**: 个人任务管理、小团队协作、原型验证  
+**架构设计**: 2025-10-30 更新

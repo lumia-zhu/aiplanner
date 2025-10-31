@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>时间显示诊断</title>
+  <style>
+    body { font-family: monospace; padding: 20px; }
+    .section { margin: 20px 0; padding: 10px; border: 1px solid #ccc; }
+    .success { color: green; }
+    .error { color: red; }
+    .info { color: blue; }
+  </style>
+</head>
+<body>
+  <h1>时间显示功能诊断</h1>
+  
+  <div class="section">
+    <h2>步骤 1: 检查任务项结构</h2>
+    <button onclick="checkStructure()">运行检查</button>
+    <pre id="structure-result"></pre>
+  </div>
+  
+  <div class="section">
+    <h2>步骤 2: 检查属性是否存在</h2>
+    <button onclick="checkAttributes()">运行检查</button>
+    <pre id="attributes-result"></pre>
+  </div>
+  
+  <div class="section">
+    <h2>步骤 3: 检查 DOM 插入</h2>
+    <button onclick="checkDOMInsertion()">运行检查</button>
+    <pre id="dom-result"></pre>
+  </div>
+  
+  <div class="section">
+    <h2>步骤 4: 手动插入测试</h2>
+    <button onclick="manualInsert()">手动插入时间显示</button>
+    <pre id="manual-result"></pre>
+  </div>
+
+  <script>
+    function checkStructure() {
+      const result = document.getElementById('structure-result');
+      const editor = document.querySelector('.ProseMirror');
+      
+      if (!editor) {
+        result.textContent = '❌ 找不到编辑器';
+        result.className = 'error';
+        return;
+      }
+      
+      const taskItems = editor.querySelectorAll('li[data-drag-handle]');
+      result.textContent = `✅ 找到 ${taskItems.length} 个任务项\n\n`;
+      
+      taskItems.forEach((item, i) => {
+        result.textContent += `任务 ${i + 1}:\n`;
+        result.textContent += `  - 有 data-datetime-mode: ${item.hasAttribute('data-datetime-mode')}\n`;
+        result.textContent += `  - mode 值: ${item.getAttribute('data-datetime-mode')}\n`;
+        result.textContent += `  - 有 data-deadline-time: ${item.hasAttribute('data-deadline-time')}\n`;
+        result.textContent += `  - deadline 值: ${item.getAttribute('data-deadline-time')}\n`;
+        
+        const contentDiv = item.querySelector(':scope > div');
+        result.textContent += `  - 找到 contentDiv: ${!!contentDiv}\n`;
+        
+        if (contentDiv) {
+          const badge = contentDiv.querySelector('.task-datetime-badge');
+          result.textContent += `  - 找到 badge: ${!!badge}\n`;
+          if (badge) {
+            result.textContent += `  - badge 内容: ${badge.textContent}\n`;
+          }
+        }
+        result.textContent += '\n';
+      });
+      
+      result.className = 'success';
+    }
+    
+    function checkAttributes() {
+      const result = document.getElementById('attributes-result');
+      const editor = document.querySelector('.ProseMirror');
+      const taskItems = editor?.querySelectorAll('li[data-datetime-mode]');
+      
+      if (!taskItems || taskItems.length === 0) {
+        result.textContent = '❌ 找不到带时间的任务项';
+        result.className = 'error';
+        return;
+      }
+      
+      result.textContent = `✅ 找到 ${taskItems.length} 个带时间的任务\n\n`;
+      
+      taskItems.forEach((item, i) => {
+        result.textContent += `任务 ${i + 1}:\n`;
+        result.textContent += `  HTML: ${item.outerHTML.substring(0, 200)}...\n\n`;
+      });
+      
+      result.className = 'success';
+    }
+    
+    function checkDOMInsertion() {
+      const result = document.getElementById('dom-result');
+      const editor = document.querySelector('.ProseMirror');
+      const taskItems = editor?.querySelectorAll('li[data-datetime-mode]');
+      
+      if (!taskItems || taskItems.length === 0) {
+        result.textContent = '❌ 找不到带时间的任务项';
+        result.className = 'error';
+        return;
+      }
+      
+      let inserted = 0;
+      taskItems.forEach((item) => {
+        const contentDiv = item.querySelector(':scope > div');
+        if (contentDiv) {
+          const badge = contentDiv.querySelector('.task-datetime-badge');
+          if (badge) {
+            inserted++;
+          }
+        }
+      });
+      
+      result.textContent = `检查结果:\n`;
+      result.textContent += `  - 应该插入: ${taskItems.length} 个\n`;
+      result.textContent += `  - 实际插入: ${inserted} 个\n`;
+      
+      if (inserted === taskItems.length) {
+        result.textContent += '\n✅ 所有时间徽章都已插入！';
+        result.className = 'success';
+      } else {
+        result.textContent += '\n❌ 部分徽章未插入！';
+        result.className = 'error';
+      }
+    }
+    
+    function manualInsert() {
+      const result = document.getElementById('manual-result');
+      const editor = document.querySelector('.ProseMirror');
+      const taskItems = editor?.querySelectorAll('li[data-datetime-mode="deadline"]');
+      
+      if (!taskItems || taskItems.length === 0) {
+        result.textContent = '❌ 找不到带时间的任务项';
+        result.className = 'error';
+        return;
+      }
+      
+      taskItems.forEach((item) => {
+        const contentDiv = item.querySelector(':scope > div');
+        if (contentDiv) {
+          // 清除旧的
+          const old = contentDiv.querySelector('.manual-test-badge');
+          if (old) old.remove();
+          
+          // 插入新的
+          const badge = document.createElement('span');
+          badge.className = 'manual-test-badge';
+          badge.textContent = ' 🟢 手动测试';
+          badge.style.cssText = 'color: green; font-size: 20px; font-weight: bold;';
+          contentDiv.appendChild(badge);
+        }
+      });
+      
+      result.textContent = '✅ 已手动插入测试徽章，请查看编辑器';
+      result.className = 'success';
+    }
+  </script>
+</body>
+</html>
+
+
+
+
+
