@@ -3,6 +3,38 @@ import type { Task, SubtaskSuggestion } from '@/types'
 
 // 任务相关的数据库操作
 
+/**
+ * 获取用户某一天的所有任务
+ * @param userId - 用户ID
+ * @param date - 日期字符串 (YYYY-MM-DD)
+ * @returns 任务列表
+ */
+export async function getTasksByDate(
+  userId: string,
+  date: string
+): Promise<Task[]> {
+  try {
+    const supabase = createClient()
+    
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('date', date)
+      .order('created_at', { ascending: true })
+    
+    if (error) {
+      console.error('获取任务失败:', error)
+      throw new Error(`获取任务失败: ${error.message}`)
+    }
+    
+    return data || []
+  } catch (error) {
+    console.error('getTasksByDate 异常:', error)
+    return []
+  }
+}
+
 // 获取用户的所有任务（按优先级+截止时间排序）
 export async function getUserTasks(userId: string): Promise<{ tasks?: Task[]; error?: string }> {
   try {

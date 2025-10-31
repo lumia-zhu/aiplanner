@@ -591,3 +591,35 @@ export interface DateScopePresetOption {
 
 // 导出便签相关类型
 export type { StickyNote, StickyNoteColor, CreateStickyNoteInput, UpdateStickyNoteInput } from './sticky-note'
+
+// ============================================
+// 笔记任务功能相关类型
+// ============================================
+
+// 导出笔记任务相关类型
+export type {
+  DailyTask,
+  CreateDailyTaskInput,
+  UpdateDailyTaskInput,
+  ParsedTask,
+  TaskSyncResult,
+} from './daily-task'
+
+// ============================================
+// 任务矩阵功能相关类型
+// ============================================
+
+// 导出任务矩阵相关类型和配置
+export type {
+  QuadrantType,
+  TaskMatrix,
+  CreateTaskMatrixInput,
+  UpdateTaskMatrixInput,
+  TasksByQuadrant,
+  QuadrantStats,
+  MatrixStats,
+} from './task-matrix'
+
+export type { QuadrantConfig as TaskMatrixQuadrantConfig } from './task-matrix'
+
+export { QUADRANT_CONFIGS } from './task-matrix'

@@ -13,13 +13,18 @@ import UserProfileModal from '@/components/UserProfileModal'
 import NotePreviewTooltip from '@/components/NotePreviewTooltip'
 import KeyboardShortcutsPanel from '@/components/KeyboardShortcutsPanel'
 import StickyNote from '@/components/StickyNote'
-import type { DateScope, UserProfile, ChatMessage, StickyNote as StickyNoteType } from '@/types'
+import TaskMatrix from '@/components/TaskMatrix'
+import type { DateScope, UserProfile, ChatMessage, StickyNote as StickyNoteType, TasksByQuadrant } from '@/types'
 import { getDefaultDateScope } from '@/utils/dateUtils'
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns'
 import { getUserProfile, upsertUserProfile, type UserProfileInput } from '@/lib/userProfile'
 import { doubaoService } from '@/lib/doubaoService'
 import { saveChatMessage } from '@/lib/chatMessages'
 import { getStickyNotesByDate, createStickyNote, updateStickyNote, deleteStickyNote, getMaxZIndex } from '@/lib/stickyNotes'
+import { getTaskMatrixByDate, ensureTaskMatrix } from '@/lib/taskMatrix'
+import { getDailyTasksByDate, toggleDailyTaskComplete } from '@/lib/dailyTasks'
+import { syncTasksFromNote } from '@/lib/taskSync'
+import type { DailyTask, QuadrantType } from '@/types'
 
 export default function NotesDashboardPage() {
   const router = useRouter()
@@ -77,6 +82,10 @@ export default function NotesDashboardPage() {
   // 便签相关状态
   const [stickyNotes, setStickyNotes] = useState<StickyNoteType[]>([])
   const [isLoadingStickyNotes, setIsLoadingStickyNotes] = useState(false)
+  
+  // 任务矩阵相关状态
+  const [showTaskMatrix, setShowTaskMatrix] = useState(false)
+  const [tasksByQuadrant, setTasksByQuadrant] = useState<TasksByQuadrant>({})
 
   // 加载用户资料
   const loadUserProfile = useCallback(async (userId: string) => {
@@ -153,6 +162,92 @@ export default function NotesDashboardPage() {
     }
   }, [])
 
+  // 加载任务矩阵数据
+  const loadTaskMatrix = useCallback(async (userId: string, date: Date) => {
+    try {
+      const dateStr = formatNoteDate(date)
+      console.log(`📊 加载任务矩阵: ${dateStr}`)
+      
+      // 1. 获取当天的所有笔记任务（从 daily_tasks 表）
+      const dailyTasks = await getDailyTasksByDate(userId, dateStr)
+      console.log(`📝 找到 ${dailyTasks.length} 个笔记任务`)
+      
+      // 2. 获取任务的矩阵信息
+      const matrixData = await getTaskMatrixByDate(userId, dateStr)
+      console.log(`📊 找到 ${matrixData.length} 条矩阵记录`)
+      
+      // 3. 按象限分组任务
+      const grouped: TasksByQuadrant = {
+        'unclassified': [],
+        'urgent-important': [],
+        'not-urgent-important': [],
+        'urgent-not-important': [],
+        'not-urgent-not-important': [],
+      }
+      
+      // 4. 为每个任务匹配象限信息，并映射为显示格式
+      for (const dailyTask of dailyTasks) {
+        // 查找任务的矩阵信息
+        const matrix = matrixData.find(m => m.taskId === dailyTask.id)
+        
+        // 映射 DailyTask 为显示格式（兼容 TaskCard 组件）
+        const displayTask: any = {
+          id: dailyTask.id,
+          user_id: dailyTask.userId,
+          title: dailyTask.title,
+          completed: dailyTask.completed,
+          deadline: dailyTask.deadlineDatetime,
+          timeRange: dailyTask.deadlineDatetime ? formatTimeRange(dailyTask.deadlineDatetime) : undefined,
+          created_at: dailyTask.createdAt,
+          updated_at: dailyTask.updatedAt,
+        }
+        
+        // 如果没有矩阵信息，则初始化为待分类
+        if (!matrix) {
+          console.log(`⚠️ 任务 ${dailyTask.id} 没有矩阵信息，将自动初始化`)
+          await ensureTaskMatrix(userId, dailyTask.id)
+          grouped['unclassified'].push(displayTask)
+        } else {
+          // 按象限分组
+          const quadrant = matrix.quadrant as QuadrantType
+          if (!grouped[quadrant]) {
+            grouped[quadrant] = []
+          }
+          grouped[quadrant].push(displayTask)
+        }
+      }
+      
+      setTasksByQuadrant(grouped)
+      
+      // 统计信息
+      const stats = Object.entries(grouped).map(([quadrant, tasks]) => 
+        `${quadrant}: ${tasks.length}`
+      ).join(', ')
+      console.log(`✅ 任务分组完成: ${stats}`)
+      
+    } catch (error) {
+      console.error('加载任务矩阵失败:', error)
+      // 重置为空数据
+      setTasksByQuadrant({
+        'unclassified': [],
+        'urgent-important': [],
+        'not-urgent-important': [],
+        'urgent-not-important': [],
+        'not-urgent-not-important': [],
+      })
+    }
+  }, [])
+  
+  // 格式化时间范围显示
+  const formatTimeRange = (deadlineDatetime: string): string => {
+    try {
+      const date = new Date(deadlineDatetime)
+      return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+    } catch {
+      return ''
+    }
+  }
+
   // 加载日期范围内的笔记（用于圆点显示和预览）
   const loadNotesInRange = useCallback(async (userId: string, viewType: 'week' | 'month', referenceDate: Date) => {
     // 根据视图类型计算日期范围
@@ -228,12 +323,13 @@ export default function NotesDashboardPage() {
     }
   }, [user, selectedDate, loadNote])
 
-  // 当用户或日期变化时加载便签
+  // 当用户或日期变化时加载便签和任务矩阵
   useEffect(() => {
     if (user) {
       loadStickyNotes(user.id, selectedDate)
+      loadTaskMatrix(user.id, selectedDate)
     }
-  }, [user, selectedDate, loadStickyNotes])
+  }, [user, selectedDate, loadStickyNotes, loadTaskMatrix])
 
   // 当用户、视图类型或周/月变化时加载笔记范围（用于圆点和预览）
   useEffect(() => {
@@ -330,6 +426,19 @@ export default function NotesDashboardPage() {
       })
       
       console.log('✅ 笔记已保存并更新缓存')
+      
+      // 🔄 同步任务到 daily_tasks 表
+      try {
+        const syncResult = await syncTasksFromNote(user.id, dateKey, savedNote.content)
+        console.log(`✅ 任务同步完成: 创建 ${syncResult.created}, 更新 ${syncResult.updated}, 删除 ${syncResult.deleted}`)
+        
+        // 同步完成后，重新加载任务矩阵
+        await loadTaskMatrix(user.id, selectedDate)
+      } catch (syncError) {
+        console.error('❌ 任务同步失败:', syncError)
+        // 任务同步失败不影响笔记保存，只记录错误
+      }
+      
     } catch (error) {
       console.error('保存笔记失败:', error)
       alert('保存笔记失败')
@@ -623,6 +732,44 @@ export default function NotesDashboardPage() {
     }
   }, [handleSendMessage])
 
+  // 处理任务完成状态切换
+  const handleTaskComplete = useCallback(async (taskId: string) => {
+    try {
+      console.log('🔄 切换任务完成状态:', taskId)
+      
+      // 切换任务完成状态
+      const updatedTask = await toggleDailyTaskComplete(taskId)
+      
+      // 更新本地状态
+      setTasksByQuadrant(prev => {
+        const newState = { ...prev }
+        
+        // 遍历所有象限，找到并更新任务
+        for (const quadrant in newState) {
+          const tasks = newState[quadrant as QuadrantType]
+          if (tasks) {
+            const index = tasks.findIndex(t => t.id === taskId)
+            if (index !== -1) {
+              // 更新任务的完成状态
+              tasks[index] = {
+                ...tasks[index],
+                completed: updatedTask.completed
+              }
+            }
+          }
+        }
+        
+        return newState
+      })
+      
+      console.log('✅ 任务状态已更新:', updatedTask.completed)
+      
+    } catch (error) {
+      console.error('❌ 切换任务状态失败:', error)
+      alert('更新任务状态失败')
+    }
+  }, [])
+
   if (isLoading || !user) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -753,7 +900,7 @@ export default function NotesDashboardPage() {
                   )}
                   {/* 矩阵模式按钮 */}
                   <button
-                    onClick={() => alert('矩阵模式功能开发中')}
+                    onClick={() => setShowTaskMatrix(true)}
                     className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
                     style={{ backgroundColor: '#4A90E2' }}
                     title="矩阵模式"
@@ -890,6 +1037,16 @@ export default function NotesDashboardPage() {
         isOpen={showShortcutsPanel}
         onClose={() => setShowShortcutsPanel(false)}
       />
+
+      {/* 任务矩阵 */}
+      {showTaskMatrix && (
+        <TaskMatrix
+          tasks={tasksByQuadrant}
+          selectedDate={selectedDate}
+          onClose={() => setShowTaskMatrix(false)}
+          onTaskComplete={handleTaskComplete}
+        />
+      )}
 
       {/* 快捷键帮助按钮 - 固定在左下角 */}
       <button
