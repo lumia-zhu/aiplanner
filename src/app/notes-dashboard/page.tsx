@@ -772,18 +772,20 @@ export default function NotesDashboardPage() {
     }
   }, [])
 
-  // 处理任务拖拽放置
+  // 处理任务拖拽放置（乐观更新策略）
   const handleTaskDrop = useCallback(async (taskId: string, targetQuadrant: QuadrantType) => {
     if (!user) return
     
+    console.log('🎯 拖拽任务:', { taskId, targetQuadrant })
+    
+    // 保存旧状态（用于回滚）
+    let previousState: TasksByQuadrant | null = null
+    
     try {
-      console.log('🎯 拖拽任务:', { taskId, targetQuadrant })
-      
-      // 更新数据库
-      await updateTaskQuadrant(taskId, targetQuadrant)
-      
-      // 更新本地状态
+      // 【乐观更新】立即更新本地状态，不等待 API
       setTasksByQuadrant(prev => {
+        previousState = prev // 保存旧状态
+        
         const newState: TasksByQuadrant = {
           'unclassified': [],
           'urgent-important': [],
@@ -813,17 +815,23 @@ export default function NotesDashboardPage() {
         return newState
       })
       
-      console.log('✅ 任务移动成功')
+      // 【后台更新】异步更新数据库
+      await updateTaskQuadrant(taskId, targetQuadrant)
+      
+      console.log('✅ 任务移动成功（数据库已同步）')
       
     } catch (error) {
       console.error('❌ 移动任务失败:', error)
-      alert('移动任务失败')
-      // 失败时重新加载数据
-      if (user) {
-        loadTaskMatrix(user.id, selectedDate)
+      
+      // 【回滚】如果 API 失败，恢复旧状态
+      if (previousState) {
+        setTasksByQuadrant(previousState)
+        console.log('🔄 已回滚到原状态')
       }
+      
+      alert('移动任务失败，已恢复原状态')
     }
-  }, [user, selectedDate, loadTaskMatrix])
+  }, [user])
 
   if (isLoading || !user) {
     return (
