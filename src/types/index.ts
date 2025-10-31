@@ -584,3 +584,10 @@ export interface DateScopePresetOption {
   label: string                 // 显示标签
   description: string           // 预设描述
 }
+
+// ============================================
+// 便签功能相关类型
+// ============================================
+
+// 导出便签相关类型
+export type { StickyNote, StickyNoteColor, CreateStickyNoteInput, UpdateStickyNoteInput } from './sticky-note'

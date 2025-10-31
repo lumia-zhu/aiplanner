@@ -225,6 +225,14 @@ body {
   min-height: 100%;  /* 占满容器高度 */
 }
 
+/* 便签编辑器样式 - 减小内边距 */
+.ProseMirror.sticky-note-editor {
+  padding: 0;  /* 移除内边距，由外层容器控制 */
+  font-size: 14px;  /* 稍小的字体 */
+  line-height: 1.6;  /* 更紧凑的行高 */
+  min-height: auto;  /* 自动高度 */
+}
+
 .ProseMirror:focus {
   color: #1f2937;  /* 聚焦时文字更深 */
 }
@@ -559,6 +567,23 @@ p[data-datetime-display]::after {
 /* 进行中状态 */
 .ProseMirror ul[data-type="taskList"] li.datetime-active[data-datetime-mode="interval"] p[data-datetime-display]::after {
   color: #0ea5e9 !important;
+}
+
+/* 富文本格式样式 */
+.ProseMirror strong {
+  font-weight: bold;
+}
+
+.ProseMirror em {
+  font-style: italic;
+}
+
+.ProseMirror u {
+  text-decoration: underline;
+}
+
+.ProseMirror s {
+  text-decoration: line-through;
 }
 
 /* 代码块样式 */
