@@ -124,30 +124,16 @@ export default function MatrixSelector({
             <button
               key={config.id}
               onClick={() => handleDimensionSelect(config.id)}
-              className={`w-full px-4 py-3 text-left hover:bg-blue-50 transition-colors flex items-start gap-3 ${
-                config.id === currentDimension ? 'bg-blue-50' : ''
-              }`}
+              className="w-full px-4 py-3 text-left hover:bg-blue-50 transition-colors flex items-start gap-3"
             >
               {/* 图标 */}
               <span className="text-2xl flex-shrink-0 mt-0.5">{config.icon}</span>
               
               {/* 文字信息 */}
               <div className="flex-1 min-w-0">
-                {/* 标题行 */}
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-medium text-gray-900">{config.name}</span>
-                  
-                  {/* 状态标签 */}
-                  {config.status === 'coming-soon' && (
-                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                      即将推出
-                    </span>
-                  )}
-                  {config.id === currentDimension && (
-                    <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">
-                      当前
-                    </span>
-                  )}
+                {/* 标题 */}
+                <div className="font-medium text-gray-900 mb-1">
+                  {config.name}
                 </div>
                 
                 {/* 描述 */}
