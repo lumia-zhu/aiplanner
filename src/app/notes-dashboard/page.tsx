@@ -97,6 +97,26 @@ export default function NotesDashboardPage() {
   const [viewMode, setViewMode] = useState<'editor' | 'matrix'>('editor')  // 视图模式：编辑器 或 矩阵
   const [selectedMatrixDimension, setSelectedMatrixDimension] = useState<TaskMatrixDimension>('urgent-important')  // 当前选中的矩阵维度
   const [tasksByQuadrant, setTasksByQuadrant] = useState<TasksByQuadrant>({})
+  
+  // 任务进度条展开/收起状态（持久化到 localStorage）
+  const [isProgressExpanded, setIsProgressExpanded] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('taskProgressExpanded')
+      return saved !== null ? saved === 'true' : true  // 默认展开
+    }
+    return true
+  })
+  
+  // 切换任务进度条展开/收起
+  const toggleProgress = useCallback(() => {
+    setIsProgressExpanded(prev => {
+      const newValue = !prev
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('taskProgressExpanded', String(newValue))
+      }
+      return newValue
+    })
+  }, [])
 
   // 加载用户资料
   const loadUserProfile = useCallback(async (userId: string) => {
@@ -1019,34 +1039,71 @@ export default function NotesDashboardPage() {
                 onDateHover={handleDateHover}  // 传递悬停回调
               />
 
-              {/* 任务进度条 */}
-              <div className="mb-6 bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-700">任务进度</span>
+              {/* 任务进度条 - 可折叠 */}
+              <div className="mb-6 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                {/* 标题栏 - 可点击收起/展开 */}
+                <div 
+                  className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                  onClick={toggleProgress}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-700">任务进度</span>
+                    
+                    {/* 收起/展开图标 */}
+                    <svg 
+                      className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${
+                        isProgressExpanded ? 'rotate-0' : '-rotate-90'
+                      }`}
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        strokeWidth={2} 
+                        d="M19 9l-7 7-7-7" 
+                      />
+                    </svg>
+                  </div>
+                  
                   <span className="text-sm text-gray-600">
                     {taskStats.completed}/{taskStats.total}
                   </span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-blue-500 to-green-500 rounded-full transition-all duration-500 ease-out"
-                    style={{
-                      width: taskStats.total > 0 ? `${(taskStats.completed / taskStats.total) * 100}%` : '0%'
-                    }}
-                  />
-                </div>
-                <div className="flex justify-between items-center mt-2">
-                  <span className="text-xs text-gray-500">
-                    {taskStats.total > 0 ? Math.round((taskStats.completed / taskStats.total) * 100) : 0}% 完成
-                  </span>
-                  {taskStats.total > 0 && taskStats.completed === taskStats.total && (
-                    <span className="text-xs text-green-600 font-medium flex items-center gap-1">
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      全部完成！
-                    </span>
-                  )}
+                
+                {/* 进度条内容 - 可折叠 */}
+                <div 
+                  className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                    isProgressExpanded ? 'max-h-32 opacity-100' : 'max-h-0 opacity-0'
+                  }`}
+                >
+                  <div className="px-4 pb-4 space-y-2">
+                    {/* 进度条 */}
+                    <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-blue-500 to-green-500 rounded-full transition-all duration-500 ease-out"
+                        style={{
+                          width: taskStats.total > 0 ? `${(taskStats.completed / taskStats.total) * 100}%` : '0%'
+                        }}
+                      />
+                    </div>
+                    
+                    {/* 百分比和完成提示 */}
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-gray-500">
+                        {taskStats.total > 0 ? Math.round((taskStats.completed / taskStats.total) * 100) : 0}% 完成
+                      </span>
+                      {taskStats.total > 0 && taskStats.completed === taskStats.total && (
+                        <span className="text-xs text-green-600 font-medium flex items-center gap-1">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          全部完成！
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
               </div>
