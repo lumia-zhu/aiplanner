@@ -46,8 +46,14 @@ export default function NotesDashboardPage() {
   const [notesCache, setNotesCache] = useState<Map<string, Note>>(new Map())
   const [lastLoadedRange, setLastLoadedRange] = useState<{ start: string, end: string } | null>(null)
   
-  // 日历视图日期（追踪日历当前显示的月份）
+  // 日历视图日期（追踪日历当前显示的月份，用于用户浏览不同月份时加载笔记）
   const [calendarViewDate, setCalendarViewDate] = useState<Date>(selectedDate)
+  
+  // 处理日历月份切换（用户点击左右箭头浏览不同月份）
+  const handleCalendarViewDateChange = useCallback((newDate: Date) => {
+    console.log('📅 用户切换日历月份:', `${newDate.getFullYear()}-${newDate.getMonth() + 1}`)
+    setCalendarViewDate(newDate)
+  }, [])
   
   // 悬停预览相关状态
   const [hoveredDate, setHoveredDate] = useState<Date | null>(null)
@@ -255,6 +261,69 @@ export default function NotesDashboardPage() {
     }
   }
 
+  // 计算需要加载笔记的日期范围（覆盖前后N个月）
+  const calculateNotesDateRange = useCallback((referenceDate: Date, monthsAround: number = 1) => {
+    // 起始日期：referenceDate 的前 N 个月的第一天
+    const startDate = new Date(
+      referenceDate.getFullYear(),
+      referenceDate.getMonth() - monthsAround,
+      1
+    )
+    
+    // 结束日期：referenceDate 的后 N 个月的最后一天
+    const endDate = new Date(
+      referenceDate.getFullYear(),
+      referenceDate.getMonth() + monthsAround + 1,
+      0
+    )
+    
+    return { startDate, endDate }
+  }, [])
+
+  // 批量加载多个月的笔记（一次数据库查询）
+  const loadNotesForMultipleMonths = useCallback(async (
+    userId: string,
+    referenceDate: Date,
+    monthsAround: number = 1
+  ) => {
+    try {
+      console.log(`🔄 批量加载笔记: ${referenceDate.getFullYear()}-${referenceDate.getMonth() + 1} 前后 ${monthsAround} 个月`)
+      
+      // 1. 计算日期范围
+      const { startDate, endDate } = calculateNotesDateRange(referenceDate, monthsAround)
+      const startStr = formatNoteDate(startDate)
+      const endStr = formatNoteDate(endDate)
+      
+      console.log(`📦 加载笔记范围: ${startStr} ~ ${endStr}`)
+      
+      // 2. 批量加载笔记（一次数据库查询）
+      const notes = await getNotesByDateRange(userId, startDate, endDate)
+      
+      // 3. 过滤空笔记
+      const nonEmptyNotes = notes.filter(note => {
+        const hasPlainText = note.plain_text && note.plain_text.trim().length > 0
+        const hasContent = note.content && typeof note.content === 'object' && Object.keys(note.content).length > 0
+        return hasPlainText || hasContent
+      })
+      
+      // 4. 更新缓存（一次性更新）
+      setNotesCache(prevCache => {
+        const newCache = new Map(prevCache)
+        nonEmptyNotes.forEach(note => {
+          newCache.set(note.note_date, note)
+        })
+        return newCache
+      })
+      
+      // 5. 记录已加载的范围
+      setLastLoadedRange({ start: startStr, end: endStr })
+      
+      console.log(`✅ 批量加载完成: ${nonEmptyNotes.length} 条笔记 (过滤掉 ${notes.length - nonEmptyNotes.length} 条空笔记)`)
+    } catch (error) {
+      console.error('批量加载笔记失败:', error)
+    }
+  }, [calculateNotesDateRange])
+
   // 加载日期范围内的笔记（用于圆点显示和预览）
   const loadNotesInRange = useCallback(async (userId: string, viewType: 'week' | 'month', referenceDate: Date) => {
     // 根据视图类型计算日期范围
@@ -347,35 +416,30 @@ export default function NotesDashboardPage() {
     }
   }, [user, selectedDate, loadStickyNotes, loadTaskMatrix])
 
-  // 当用户登录或组件初始化时加载笔记范围（用于圆点和预览）
-  // 加载前后多个月的笔记，确保周视图和月视图都能显示圆点
+  // 当用户登录或日期变化时，批量加载前后N个月的笔记
+  // 这样可以支持跨月周视图和用户浏览不同月份
   useEffect(() => {
-    if (!user) {
-      console.log('⚠️ user 是 null，跳过加载')
-      return
+    if (user) {
+      console.log('📅 触发批量加载笔记 (selectedDate 变化)')
+      loadNotesForMultipleMonths(user.id, selectedDate, 1)  // 前后各1个月
     }
-    
-    const loadMultipleMonths = async () => {
-      console.log('🔄 开始加载多个月份的笔记...')
+  }, [user, selectedDate, loadNotesForMultipleMonths])
+  
+  // 当用户浏览日历的不同月份时（点击左右箭头），也加载对应月份的笔记
+  useEffect(() => {
+    if (user && calendarViewDate) {
+      // 检查 calendarViewDate 是否和 selectedDate 是同一个月
+      const isSameMonth = 
+        calendarViewDate.getFullYear() === selectedDate.getFullYear() &&
+        calendarViewDate.getMonth() === selectedDate.getMonth()
       
-      // 加载前1个月、当前月、后1个月的笔记
-      const today = new Date()
-      const months = [
-        new Date(today.getFullYear(), today.getMonth() - 1, 1),  // 上个月
-        new Date(today.getFullYear(), today.getMonth(), 1),      // 当前月
-        new Date(today.getFullYear(), today.getMonth() + 1, 1),  // 下个月
-      ]
-      
-      for (const month of months) {
-        console.log(`📅 加载 ${month.getFullYear()}-${month.getMonth() + 1} 月的笔记`)
-        await loadNotesInRange(user.id, 'month', month)
+      // 如果不是同一个月，说明用户在浏览其他月份，需要加载
+      if (!isSameMonth) {
+        console.log('📅 触发批量加载笔记 (calendarViewDate 变化 - 用户浏览其他月份)')
+        loadNotesForMultipleMonths(user.id, calendarViewDate, 1)  // 前后各1个月
       }
-      
-      console.log('✅ 多个月份笔记加载完成')
     }
-    
-    loadMultipleMonths()
-  }, [user, loadNotesInRange])
+  }, [user, calendarViewDate, selectedDate, loadNotesForMultipleMonths])
 
   // 全局快捷键监听
   useEffect(() => {
@@ -491,14 +555,13 @@ export default function NotesDashboardPage() {
     setSelectedDate(date)
     
     // ⭐ 同时更新日历视图日期，确保日历显示选中日期所在的月份
-    // 这样可以加载正确月份的笔记圆点
     const selectedMonth = date.getMonth()
     const viewMonth = calendarViewDate.getMonth()
     const selectedYear = date.getFullYear()
     const viewYear = calendarViewDate.getFullYear()
     
     if (selectedMonth !== viewMonth || selectedYear !== viewYear) {
-      console.log('📅 切换日历月份:', `${viewYear}-${viewMonth + 1}` , '→', `${selectedYear}-${selectedMonth + 1}`)
+      console.log('📅 用户选择日期，切换日历月份:', `${viewYear}-${viewMonth + 1}` , '→', `${selectedYear}-${selectedMonth + 1}`)
       setCalendarViewDate(date)
     }
   }, [calendarViewDate])
@@ -950,6 +1013,8 @@ export default function NotesDashboardPage() {
                 selectedDate={selectedDate}
                 onDateSelect={handleDateSelect}
                 dateScope={dateScope}
+                viewDate={calendarViewDate}  // 传递日历视图日期
+                onViewDateChange={handleCalendarViewDateChange}  // 传递月份切换回调
                 notesMap={notesCache}  // 传递笔记缓存用于显示圆点
                 onDateHover={handleDateHover}  // 传递悬停回调
               />
