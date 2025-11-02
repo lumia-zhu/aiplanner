@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Task, DateScope } from '@/types'
 import { getStartOfDay } from '@/utils/dateUtils'
 import type { Note } from '@/lib/notes'
@@ -41,6 +41,7 @@ export default function CalendarView({
   // ⭐ 使用传入的 viewDate，如果没有则使用 dateScope.start 或当前日期
   const currentDate = viewDate || dateScope.start || new Date()
 
+
   /**
    * 检查日期是否在dateScope范围内
    */
@@ -55,9 +56,12 @@ export default function CalendarView({
    * 检查指定日期是否有笔记
    */
   const hasNoteOnDate = (date: Date): boolean => {
-    if (!notesMap) return false
+    if (!notesMap) {
+      return false
+    }
     const dateStr = formatDateKey(date)
-    return notesMap.has(dateStr)
+    const hasNote = notesMap.has(dateStr)
+    return hasNote
   }
 
   /**
@@ -277,10 +281,10 @@ export default function CalendarView({
               {monthDays.map((day, index) => {
                 const isSelected = selectedDate && day.date.toDateString() === selectedDate.toDateString()
                 const inScope = isDateInScope(day.date)  // ⭐ 检查是否在范围内
+                const dateKey = formatDateKey(day.date)
                 const hasNote = hasNoteOnDate(day.date)  // ⭐ 检查是否有笔记
                 
                 // 获取笔记内容
-                const dateKey = formatDateKey(day.date)
                 const note = notesMap?.get(dateKey)
                 const notePreview = note?.plain_text?.trim() || ''
                 
@@ -320,7 +324,10 @@ export default function CalendarView({
                       </span>
                       {/* ⭐ 笔记圆点指示器（月视图） */}
                       {hasNote && (
-                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0"></div>
+                        <div 
+                          className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0"
+                          title={`有笔记: ${dateKey}`}
+                        ></div>
                       )}
                     </div>
                     

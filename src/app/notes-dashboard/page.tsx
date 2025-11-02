@@ -46,6 +46,9 @@ export default function NotesDashboardPage() {
   const [notesCache, setNotesCache] = useState<Map<string, Note>>(new Map())
   const [lastLoadedRange, setLastLoadedRange] = useState<{ start: string, end: string } | null>(null)
   
+  // 日历视图日期（追踪日历当前显示的月份）
+  const [calendarViewDate, setCalendarViewDate] = useState<Date>(selectedDate)
+  
   // 悬停预览相关状态
   const [hoveredDate, setHoveredDate] = useState<Date | null>(null)
   const [hoveredNote, setHoveredNote] = useState<Note | null>(null)
@@ -274,9 +277,14 @@ export default function NotesDashboardPage() {
     const rangeKey = `${startStr}_${endStr}`
     const lastRangeKey = lastLoadedRange ? `${lastLoadedRange.start}_${lastLoadedRange.end}` : null
     
-    if (rangeKey === lastRangeKey) {
+    if (rangeKey === lastRangeKey && notesCache.size > 0) {
       console.log('📦 使用缓存，无需重新加载')
-      return // 范围未变化，直接返回，不触发任何状态更新
+      console.log('   缓存大小:', notesCache.size)
+      return // 范围未变化且缓存不为空，直接返回
+    }
+    
+    if (rangeKey === lastRangeKey && notesCache.size === 0) {
+      console.log('⚠️ 缓存范围相同但缓存为空，强制重新加载')
     }
     
     console.log(`📦 加载笔记范围: ${startStr} ~ ${endStr}`)
@@ -287,8 +295,12 @@ export default function NotesDashboardPage() {
       
       // 过滤掉空笔记（只保留有实际内容的笔记）
       const nonEmptyNotes = notes.filter(note => {
-        // 简单检查：如果 plain_text 为空或只有空格，认为是空笔记
-        return note.plain_text && note.plain_text.trim().length > 0
+        // 检查是否有内容：
+        // 1. plain_text 有内容
+        // 2. 或者 content 字段存在（可能有任务列表、格式化内容等）
+        const hasPlainText = note.plain_text && note.plain_text.trim().length > 0
+        const hasContent = note.content && typeof note.content === 'object' && Object.keys(note.content).length > 0
+        return hasPlainText || hasContent
       })
       
       // ⚠️ 不要创建新 Map，而是合并到现有缓存
@@ -335,12 +347,35 @@ export default function NotesDashboardPage() {
     }
   }, [user, selectedDate, loadStickyNotes, loadTaskMatrix])
 
-  // 当用户、视图类型或周/月变化时加载笔记范围（用于圆点和预览）
+  // 当用户登录或组件初始化时加载笔记范围（用于圆点和预览）
+  // 加载前后多个月的笔记，确保周视图和月视图都能显示圆点
   useEffect(() => {
-    if (user && dateScope) {
-      loadNotesInRange(user.id, dateScope.viewType, selectedDate)
+    if (!user) {
+      console.log('⚠️ user 是 null，跳过加载')
+      return
     }
-  }, [user, dateScope.viewType, loadNotesInRange, selectedDate])
+    
+    const loadMultipleMonths = async () => {
+      console.log('🔄 开始加载多个月份的笔记...')
+      
+      // 加载前1个月、当前月、后1个月的笔记
+      const today = new Date()
+      const months = [
+        new Date(today.getFullYear(), today.getMonth() - 1, 1),  // 上个月
+        new Date(today.getFullYear(), today.getMonth(), 1),      // 当前月
+        new Date(today.getFullYear(), today.getMonth() + 1, 1),  // 下个月
+      ]
+      
+      for (const month of months) {
+        console.log(`📅 加载 ${month.getFullYear()}-${month.getMonth() + 1} 月的笔记`)
+        await loadNotesInRange(user.id, 'month', month)
+      }
+      
+      console.log('✅ 多个月份笔记加载完成')
+    }
+    
+    loadMultipleMonths()
+  }, [user, loadNotesInRange])
 
   // 全局快捷键监听
   useEffect(() => {
@@ -454,7 +489,19 @@ export default function NotesDashboardPage() {
   // 处理日期选择
   const handleDateSelect = useCallback((date: Date) => {
     setSelectedDate(date)
-  }, [])
+    
+    // ⭐ 同时更新日历视图日期，确保日历显示选中日期所在的月份
+    // 这样可以加载正确月份的笔记圆点
+    const selectedMonth = date.getMonth()
+    const viewMonth = calendarViewDate.getMonth()
+    const selectedYear = date.getFullYear()
+    const viewYear = calendarViewDate.getFullYear()
+    
+    if (selectedMonth !== viewMonth || selectedYear !== viewYear) {
+      console.log('📅 切换日历月份:', `${viewYear}-${viewMonth + 1}` , '→', `${selectedYear}-${selectedMonth + 1}`)
+      setCalendarViewDate(date)
+    }
+  }, [calendarViewDate])
 
   // 处理日期悬停
   const handleDateHover = useCallback((date: Date | null, position?: { x: number; y: number }) => {
