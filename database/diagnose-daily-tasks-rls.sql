@@ -65,3 +65,5 @@ ORDER BY cmd;
 -- ALTER TABLE daily_tasks ENABLE ROW LEVEL SECURITY;
 
 
+
+

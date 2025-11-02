@@ -20,3 +20,5 @@ WHERE tablename IN ('daily_tasks', 'sticky_notes');
 -- sticky_notes: false (未启用)
 
 
+
+

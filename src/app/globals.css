@@ -680,3 +680,7 @@ p[data-datetime-display]::after {
     transform: translateY(0);
   }
 }
+
+.animate-fadeIn {
+  animation: fadeIn 0.2s ease-out;
+}

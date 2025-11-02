@@ -623,3 +623,16 @@ export type {
 export type { QuadrantConfig as TaskMatrixQuadrantConfig } from './task-matrix'
 
 export { QUADRANT_CONFIGS } from './task-matrix'
+
+// ============================================
+// 矩阵维度选择器相关类型
+// ============================================
+
+// 导出矩阵维度相关类型和配置
+export type {
+  TaskMatrixDimension,
+  MatrixStatus,
+  TaskMatrixDimensionConfig,
+} from './matrix-types'
+
+export { MATRIX_DIMENSION_CONFIGS } from './matrix-types'

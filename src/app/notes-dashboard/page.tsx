@@ -14,7 +14,8 @@ import NotePreviewTooltip from '@/components/NotePreviewTooltip'
 import KeyboardShortcutsPanel from '@/components/KeyboardShortcutsPanel'
 import StickyNote from '@/components/StickyNote'
 import TaskMatrix from '@/components/TaskMatrix'
-import type { DateScope, UserProfile, ChatMessage, StickyNote as StickyNoteType, TasksByQuadrant } from '@/types'
+import MatrixSelector from '@/components/MatrixSelector'
+import type { DateScope, UserProfile, ChatMessage, StickyNote as StickyNoteType, TasksByQuadrant, TaskMatrixDimension } from '@/types'
 import { getDefaultDateScope } from '@/utils/dateUtils'
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns'
 import { getUserProfile, upsertUserProfile, type UserProfileInput } from '@/lib/userProfile'
@@ -85,6 +86,7 @@ export default function NotesDashboardPage() {
   
   // 任务矩阵相关状态
   const [viewMode, setViewMode] = useState<'editor' | 'matrix'>('editor')  // 视图模式：编辑器 或 矩阵
+  const [selectedMatrixDimension, setSelectedMatrixDimension] = useState<TaskMatrixDimension>('urgent-important')  // 当前选中的矩阵维度
   const [tasksByQuadrant, setTasksByQuadrant] = useState<TasksByQuadrant>({})
 
   // 加载用户资料
@@ -885,7 +887,7 @@ export default function NotesDashboardPage() {
           {/* flex布局容器：在主内容区域内部分左右 */}
           <div className="flex gap-6 h-[calc(100vh-12rem)]">
             {/* 左侧：笔记管理区域 */}
-            <div className="flex-1 flex flex-col transition-all duration-300 ease-in-out relative overflow-hidden">
+            <div className="flex-1 flex flex-col transition-all duration-300 ease-in-out relative overflow-visible">
               
               {/* 日期范围选择器 - 暂时隐藏 */}
               {/* <DateScopeSelector 
@@ -935,6 +937,7 @@ export default function NotesDashboardPage() {
                   )}
                 </div>
               </div>
+              </div>
 
               {/* 日期标题和保存状态 */}
               <div className="flex justify-between items-center mb-6">
@@ -961,9 +964,11 @@ export default function NotesDashboardPage() {
                       回到今天
                     </button>
                   )}
-                  {/* 视图切换按钮 */}
-                  <button
-                    onClick={() => {
+                  {/* 矩阵维度选择器 */}
+                  <MatrixSelector
+                    currentDimension={selectedMatrixDimension}
+                    onDimensionChange={setSelectedMatrixDimension}
+                    onToggleView={() => {
                       if (viewMode === 'editor') {
                         setViewMode('matrix')
                         if (user) loadTaskMatrix(user.id, selectedDate)
@@ -971,26 +976,8 @@ export default function NotesDashboardPage() {
                         setViewMode('editor')
                       }
                     }}
-                    className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
-                    style={{ backgroundColor: viewMode === 'matrix' ? '#10B981' : '#4A90E2' }}
-                    title={viewMode === 'editor' ? '切换到矩阵模式' : '切换到笔记模式'}
-                  >
-                    {viewMode === 'editor' ? (
-                      <>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
-                    </svg>
-                    矩阵模式
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                        笔记模式
-                      </>
-                    )}
-                  </button>
+                    isMatrixMode={viewMode === 'matrix'}
+                  />
                   {/* AI助手按钮 */}
                   <button
                     onClick={toggleChatSidebar}
@@ -1017,7 +1004,6 @@ export default function NotesDashboardPage() {
                       便签
                     </button>
                   )}
-                </div>
                 </div>
               </div>
 

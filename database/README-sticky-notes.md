@@ -102,3 +102,5 @@ WHERE note_date < (CURRENT_DATE - INTERVAL '30 days');
 - 确认 `color` 字段只使用 'yellow', 'blue', 'green', 'pink' 四个值之一
 
 
+
+
