@@ -977,10 +977,10 @@ export default function NotesDashboardPage() {
                   >
                     {viewMode === 'editor' ? (
                       <>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
-                        </svg>
-                        矩阵模式
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                    </svg>
+                    矩阵模式
                       </>
                     ) : (
                       <>
@@ -1003,18 +1003,20 @@ export default function NotesDashboardPage() {
                     </svg>
                     AI助手
                   </button>
-                  {/* 便签按钮 */}
-                  <button
-                    onClick={handleCreateStickyNote}
-                    className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
-                    style={{ backgroundColor: '#F59E0B' }}
-                    title="创建便签"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                    便签
-                  </button>
+                  {/* 便签按钮 - 仅在笔记模式下显示 */}
+                  {viewMode === 'editor' && (
+                    <button
+                      onClick={handleCreateStickyNote}
+                      className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
+                      style={{ backgroundColor: '#F59E0B' }}
+                      title="创建便签"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      便签
+                    </button>
+                  )}
                 </div>
                 </div>
               </div>
@@ -1029,12 +1031,12 @@ export default function NotesDashboardPage() {
                       animation: 'fadeIn 0.3s ease-in-out'
                     }}
                   >
-                    <NoteEditor
-                      initialContent={currentNote}
-                      onUpdate={handleNoteUpdate}
-                      onSave={handleNoteSave}
-                      placeholder="开始记录... (按 ? 查看快捷键)"
-                    />
+                <NoteEditor
+                  initialContent={currentNote}
+                  onUpdate={handleNoteUpdate}
+                  onSave={handleNoteSave}
+                  placeholder="开始记录... (按 ? 查看快捷键)"
+                />
                     
                     {/* 便签容器（绝对定位在编辑器上方） */}
                     {stickyNotes.map(note => (
