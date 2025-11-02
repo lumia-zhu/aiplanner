@@ -1093,6 +1093,7 @@ export default function NotesDashboardPage() {
                     <TaskMatrix
                       tasks={tasksByQuadrant}
                       selectedDate={selectedDate}
+                      selectedDimension={selectedMatrixDimension}
                       onClose={() => setViewMode('editor')}
                       onTaskComplete={handleTaskComplete}
                       onTaskDrop={handleTaskDrop}

@@ -47,16 +47,7 @@ export default function MatrixSelector({
 
   // 处理矩阵维度选择
   const handleDimensionSelect = (dimension: TaskMatrixDimension) => {
-    const config = MATRIX_DIMENSION_CONFIGS[dimension]
-    
-    // 如果是即将推出的矩阵，显示提示
-    if (config.status === 'coming-soon') {
-      alert(`${config.icon} ${config.name}矩阵即将推出！\n\n${config.description}\n\n敬请期待...`)
-      setIsOpen(false)
-      return
-    }
-
-    // 可用的矩阵：切换维度
+    // 切换维度
     onDimensionChange(dimension)
     
     // 如果当前不在矩阵模式，切换到矩阵模式

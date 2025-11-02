@@ -21,7 +21,8 @@ import {
   DragStartEvent,
 } from '@dnd-kit/core'
 import { QUADRANT_CONFIGS } from '@/types/task-matrix'
-import type { Task } from '@/types'
+import { MATRIX_DIMENSION_CONFIGS, MATRIX_QUADRANTS_CONFIGS } from '@/types'
+import type { Task, TaskMatrixDimension } from '@/types'
 import type { QuadrantType, TasksByQuadrant } from '@/types/task-matrix'
 
 // ============================================
@@ -31,6 +32,7 @@ import type { QuadrantType, TasksByQuadrant } from '@/types/task-matrix'
 interface TaskMatrixProps {
   tasks: TasksByQuadrant<Task>               // 按象限分组的任务
   selectedDate: Date                         // 当前选中的日期
+  selectedDimension: TaskMatrixDimension     // 当前选中的矩阵维度
   onClose: () => void                        // 关闭回调
   onTaskComplete: (id: string) => void       // 任务完成回调
   onTaskDrop: (taskId: string, targetQuadrant: QuadrantType) => void  // 任务拖拽放置回调
@@ -44,11 +46,16 @@ interface TaskMatrixProps {
 export default function TaskMatrix({
   tasks,
   selectedDate,
+  selectedDimension,
   onClose,
   onTaskComplete,
   onTaskDrop,
   isEmbedded = false,
 }: TaskMatrixProps) {
+  
+  // 获取当前矩阵维度的配置
+  const dimensionConfig = MATRIX_DIMENSION_CONFIGS[selectedDimension]
+  const quadrantsConfig = MATRIX_QUADRANTS_CONFIGS[selectedDimension]
   
   // 拖拽状态
   const [activeTask, setActiveTask] = useState<Task | null>(null)
@@ -114,16 +121,16 @@ export default function TaskMatrix({
         {!isEmbedded && (
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
             <div className="flex items-center gap-3">
-              {/* 图标 */}
-              <span className="text-3xl">📊</span>
+              {/* 图标 - 动态显示当前维度的图标 */}
+              <span className="text-3xl">{dimensionConfig.icon}</span>
               
               {/* 标题和日期 */}
               <div>
                 <h2 className="text-xl font-bold text-gray-800">
-                  任务矩阵
+                  {dimensionConfig.name}矩阵
                 </h2>
                 <p className="text-sm text-gray-500 mt-0.5">
-                  {formatDate(selectedDate)}
+                  {formatDate(selectedDate)} · {dimensionConfig.description}
                 </p>
               </div>
             </div>
@@ -163,40 +170,52 @@ export default function TaskMatrix({
           <div className="flex-1 flex flex-col min-w-0">
             {/* 四象限网格（带坐标轴） */}
             <div className="flex-1 grid grid-cols-2 grid-rows-2 gap-4 min-h-0 relative">
-              {/* 左上：重要不紧急 */}
+              {/* 左上象限 */}
               <Quadrant
                 quadrantId="not-urgent-important"
-                config={QUADRANT_CONFIGS['not-urgent-important']}
+                config={{
+                  type: 'not-urgent-important',
+                  ...quadrantsConfig['top-left']
+                }}
                 tasks={tasks['not-urgent-important'] || []}
                 onTaskComplete={onTaskComplete}
               />
               
-              {/* 右上：重要且紧急 */}
+              {/* 右上象限 */}
               <Quadrant
                 quadrantId="urgent-important"
-                config={QUADRANT_CONFIGS['urgent-important']}
+                config={{
+                  type: 'urgent-important',
+                  ...quadrantsConfig['top-right']
+                }}
                 tasks={tasks['urgent-important'] || []}
                 onTaskComplete={onTaskComplete}
               />
               
-              {/* 左下：不重要不紧急 */}
+              {/* 左下象限 */}
               <Quadrant
                 quadrantId="not-urgent-not-important"
-                config={QUADRANT_CONFIGS['not-urgent-not-important']}
+                config={{
+                  type: 'not-urgent-not-important',
+                  ...quadrantsConfig['bottom-left']
+                }}
                 tasks={tasks['not-urgent-not-important'] || []}
                 onTaskComplete={onTaskComplete}
               />
               
-              {/* 右下：紧急但不重要 */}
+              {/* 右下象限 */}
               <Quadrant
                 quadrantId="urgent-not-important"
-                config={QUADRANT_CONFIGS['urgent-not-important']}
+                config={{
+                  type: 'urgent-not-important',
+                  ...quadrantsConfig['bottom-right']
+                }}
                 tasks={tasks['urgent-not-important'] || []}
                 onTaskComplete={onTaskComplete}
               />
               
               {/* 坐标轴覆盖层 */}
-              <CoordinateAxis />
+              <CoordinateAxis axes={dimensionConfig.axes} />
             </div>
           </div>
         </div>

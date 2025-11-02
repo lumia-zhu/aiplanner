@@ -633,6 +633,8 @@ export type {
   TaskMatrixDimension,
   MatrixStatus,
   TaskMatrixDimensionConfig,
+  QuadrantDetailConfig,
+  MatrixQuadrantsConfig,
 } from './matrix-types'
 
-export { MATRIX_DIMENSION_CONFIGS } from './matrix-types'
+export { MATRIX_DIMENSION_CONFIGS, MATRIX_QUADRANTS_CONFIGS } from './matrix-types'
