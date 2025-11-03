@@ -90,6 +90,179 @@ export function formatNoteDate(date: Date): string {
 }
 
 /**
+ * 在笔记中追加一个任务项（用于从历史快速添加任务）
+ * @param userId - 用户ID
+ * @param date - 目标日期
+ * @param taskTitle - 任务标题（可能包含标签等）
+ */
+export async function appendTaskToNote(
+  userId: string,
+  date: Date,
+  taskTitle: string
+): Promise<Note> {
+  try {
+    const supabase = createClient()
+    const dateStr = formatNoteDate(date)
+    
+    console.log('📝 追加任务到笔记:', { dateStr, taskTitle })
+    
+    // 1. 获取当前日期的笔记（如果存在）
+    const existingNote = await getNoteByDate(userId, date)
+    
+    // 2. 创建新的 taskItem 节点（Tiptap 格式）
+    // 解析标题中的标签和优先级，创建对应的 mark 节点
+    const paragraphContent: JSONContent[] = []
+    
+    // 正则提取标签（#xxx）
+    const tagRegex = /#\s*([^\s#@]+)/g
+    const tags: Array<{ label: string; position: number }> = []
+    let match
+    while ((match = tagRegex.exec(taskTitle)) !== null) {
+      tags.push({
+        label: match[1],
+        position: match.index
+      })
+    }
+    
+    if (tags.length === 0) {
+      // 没有标签，直接创建文本节点
+      paragraphContent.push({
+        type: 'text',
+        text: taskTitle
+      })
+    } else {
+      // 有标签，需要分段创建节点
+      let lastIndex = 0
+      
+      tags.forEach(tag => {
+        // 添加标签前的文本
+        if (tag.position > lastIndex) {
+          const beforeText = taskTitle.substring(lastIndex, tag.position).trim()
+          if (beforeText) {
+            paragraphContent.push({
+              type: 'text',
+              text: beforeText + ' '
+            })
+          }
+        }
+        
+        // 添加标签节点（使用 taskTag mark）
+        paragraphContent.push({
+          type: 'text',
+          text: tag.label,
+          marks: [
+            {
+              type: 'taskTag',
+              attrs: {
+                label: tag.label,
+                color: '#7FA1C3',  // 默认蓝色
+                emoji: '🏷️'
+              }
+            }
+          ]
+        })
+        
+        // 更新位置（跳过 # 和标签文本）
+        lastIndex = tag.position + tag.label.length + 1
+      })
+      
+      // 添加标签后的文本（如果有）
+      if (lastIndex < taskTitle.length) {
+        const afterText = taskTitle.substring(lastIndex).trim()
+        if (afterText) {
+          paragraphContent.push({
+            type: 'text',
+            text: ' ' + afterText
+          })
+        }
+      }
+    }
+    
+    const newTaskItem: JSONContent = {
+      type: 'taskItem',
+      attrs: { checked: false },
+      content: [
+        {
+          type: 'paragraph',
+          content: paragraphContent
+        }
+      ]
+    }
+    
+    let updatedContent: JSONContent
+    
+    if (existingNote && existingNote.content) {
+      // 3a. 如果笔记已存在，查找或创建 taskList
+      const content = existingNote.content
+      
+      // 确保有顶层 doc 结构
+      if (!content.content || !Array.isArray(content.content)) {
+        // 如果没有 content 数组，创建基本结构
+        updatedContent = {
+          type: 'doc',
+          content: [
+            {
+              type: 'taskList',
+              content: [newTaskItem]
+            }
+          ]
+        }
+      } else {
+        // 查找现有的 taskList
+        let taskListFound = false
+        const newContent = content.content.map((node: any) => {
+          if (node.type === 'taskList') {
+            taskListFound = true
+            // 在现有 taskList 末尾追加新任务
+            return {
+              ...node,
+              content: [...(node.content || []), newTaskItem]
+            }
+          }
+          return node
+        })
+        
+        // 如果没有找到 taskList，在末尾添加一个
+        if (!taskListFound) {
+          newContent.push({
+            type: 'taskList',
+            content: [newTaskItem]
+          })
+        }
+        
+        updatedContent = {
+          ...content,
+          content: newContent
+        }
+      }
+    } else {
+      // 3b. 如果笔记不存在，创建新的笔记结构
+      updatedContent = {
+        type: 'doc',
+        content: [
+          {
+            type: 'taskList',
+            content: [newTaskItem]
+          }
+        ]
+      }
+    }
+    
+    console.log('📄 更新后的笔记结构:', JSON.stringify(updatedContent, null, 2))
+    
+    // 4. 使用 saveNote 保存（自动处理 upsert 和元数据）
+    const savedNote = await saveNote(userId, date, updatedContent)
+    
+    console.log('✅ 任务已追加到笔记:', savedNote.id)
+    return savedNote
+    
+  } catch (error) {
+    console.error('❌ 追加任务到笔记失败:', error)
+    throw error
+  }
+}
+
+/**
  * 获取指定日期的笔记
  */
 export async function getNoteByDate(userId: string, date: Date): Promise<Note | null> {

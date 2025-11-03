@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { getUserFromStorage, clearUserFromStorage, AuthUser } from '@/lib/auth'
 import { getNoteByDate, saveNote, getNotesByDateRange, Note, formatNoteDate } from '@/lib/notes'
@@ -24,7 +24,9 @@ import { saveChatMessage } from '@/lib/chatMessages'
 import { getStickyNotesByDate, createStickyNote, updateStickyNote, deleteStickyNote, getMaxZIndex } from '@/lib/stickyNotes'
 import { getTaskMatrixByDate, ensureTaskMatrix, updateTaskQuadrant } from '@/lib/taskMatrix'
 import { getDailyTasksByDate, toggleDailyTaskComplete } from '@/lib/dailyTasks'
-import { syncTasksFromNote, sanitizeTaskTitle } from '@/lib/taskSync'
+import { copyTaskToDate } from '@/lib/tasks'
+import { appendTaskToNote } from '@/lib/notes'
+import { syncTasksFromNote, sanitizeTaskTitle, parseTasksFromNote } from '@/lib/taskSync'
 import type { DailyTask, QuadrantType } from '@/types'
 
 export default function NotesDashboardPage() {
@@ -58,8 +60,10 @@ export default function NotesDashboardPage() {
   // 悬停预览相关状态
   const [hoveredDate, setHoveredDate] = useState<Date | null>(null)
   const [hoveredNote, setHoveredNote] = useState<Note | null>(null)
+  const [hoveredTasks, setHoveredTasks] = useState<DailyTask[]>([])  // 悬停日期的任务列表
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 })
   const [isLoadingPreview, setIsLoadingPreview] = useState(false)
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)  // 延迟关闭定时器
   
   // AI 对话框状态
   const [isChatSidebarOpen, setIsChatSidebarOpen] = useState(() => {
@@ -586,12 +590,67 @@ export default function NotesDashboardPage() {
     }
   }, [calendarViewDate])
 
+  // 辅助函数：从任务标题中提取标签、优先级和时间
+  const parseTaskMetadata = useCallback((taskTitle: string) => {
+    let cleanTitle = taskTitle
+    const tags: string[] = []
+    let priority: string | null = null
+    let timeInfo: string | null = null
+
+    // 1. 提取标签（#xxx 或 # xxx，支持空格）
+    const tagMatches = taskTitle.match(/#\s*[^\s#@]+/g)
+    if (tagMatches) {
+      tagMatches.forEach(tag => {
+        // 去掉 # 和可能的空格
+        const cleanTag = tag.replace(/^#\s*/, '').trim()
+        if (cleanTag) {
+          tags.push(cleanTag)
+        }
+      })
+      cleanTitle = cleanTitle.replace(/#\s*[^\s#@]+/g, '').trim()
+    }
+
+    // 2. 提取优先级（@high/@medium/@low）
+    const priorityMatch = taskTitle.match(/@(high|medium|low)/i)
+    if (priorityMatch) {
+      priority = priorityMatch[1].toLowerCase()
+      cleanTitle = cleanTitle.replace(/@(high|medium|low)/gi, '').trim()
+    }
+
+    // 3. 提取时间信息（📅 开头的部分）
+    // 匹配格式：📅 10/30 18:00 或 📅 10/30 09:00-18:00
+    const timeMatch = taskTitle.match(/📅\s*\d{1,2}\/\d{1,2}(\s+\d{1,2}:\d{2}(-\d{1,2}:\d{2})?)?/)
+    if (timeMatch) {
+      timeInfo = timeMatch[0]
+      cleanTitle = cleanTitle.replace(/📅\s*\d{1,2}\/\d{1,2}(\s+\d{1,2}:\d{2}(-\d{1,2}:\d{2})?)?/g, '').trim()
+    }
+
+    // 4. 清理多余空格
+    cleanTitle = cleanTitle.replace(/\s+/g, ' ').trim()
+
+    return {
+      cleanTitle,  // 纯净的任务标题
+      tags,        // 标签数组
+      priority,    // 优先级
+      timeInfo     // 时间信息
+    }
+  }, [])
+
   // 处理日期悬停
-  const handleDateHover = useCallback((date: Date | null, position?: { x: number; y: number }) => {
-    if (!date || !position) {
-      // 鼠标移开，清除悬停状态
-      setHoveredDate(null)
-      setHoveredNote(null)
+  const handleDateHover = useCallback(async (date: Date | null, position?: { x: number; y: number }) => {
+    // 清除之前的延迟关闭定时器
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current)
+      hoverTimeoutRef.current = null
+    }
+
+    if (!date || !position || !user) {
+      // 鼠标移开，延迟关闭预览框（给用户时间移动到预览框上）
+      hoverTimeoutRef.current = setTimeout(() => {
+        setHoveredDate(null)
+        setHoveredNote(null)
+        setHoveredTasks([])
+      }, 200) // 200ms 延迟
       return
     }
 
@@ -603,22 +662,134 @@ export default function NotesDashboardPage() {
     const cachedNote = notesCache.get(dateKey)
 
     if (cachedNote) {
-      // 缓存命中，直接显示
+      // 缓存命中，直接显示笔记
       setHoveredNote(cachedNote)
       setIsLoadingPreview(false)
+      
+      // 📌 修复：从笔记内容中提取任务（直接从笔记content解析，获取原始未清理的文本）
+      try {
+        // 手动遍历笔记内容，提取原始任务文本（不使用 sanitizeTaskTitle）
+        const extractRawTasks = (content: any) => {
+          const tasks: Array<{ title: string; completed: boolean; position: number }> = []
+          let position = 0
+
+          const traverse = (node: any) => {
+            if (!node) return
+
+            // 找到 taskItem 节点
+            if (node.type === 'taskItem') {
+              // 提取原始文本（包含标签标记）
+              const extractText = (n: any): string => {
+                let text = ''
+                
+                if (n.type === 'text') {
+                  let textContent = n.text || ''
+                  
+                  // ✨ 检查是否有 marks（标记），特别是 taskTag 类型
+                  if (n.marks && Array.isArray(n.marks)) {
+                    for (const mark of n.marks) {
+                      if (mark.type === 'taskTag' && mark.attrs?.label) {
+                        // 如果是 taskTag 标记，在文本前加上 #
+                        textContent = `#${mark.attrs.label}`
+                        break
+                      }
+                    }
+                  }
+                  
+                  return textContent
+                }
+                
+                if (n.content && Array.isArray(n.content)) {
+                  for (const child of n.content) {
+                    text += extractText(child)
+                  }
+                }
+                
+                return text
+              }
+
+              const rawText = extractText(node).trim()
+              
+              if (rawText) {
+                tasks.push({
+                  title: rawText,  // ✅ 保留原始文本，包含 #标签 和 @标记
+                  completed: node.attrs?.checked || false,
+                  position: position++
+                })
+              }
+            }
+
+            // 递归遍历子节点
+            if (node.content && Array.isArray(node.content)) {
+              for (const child of node.content) {
+                traverse(child)
+              }
+            }
+          }
+
+          traverse(content)
+          return tasks
+        }
+
+        const rawTasks = extractRawTasks(cachedNote.content)
+        console.log(`📋 从笔记内容中解析任务: ${dateKey}, ${rawTasks.length}个任务`)
+        
+        // 转换为DailyTask格式（用于预览框显示）
+        const dailyTasks: DailyTask[] = rawTasks.map((task, index) => {
+          // 📌 解析任务标题，提取标签、优先级、时间
+          const metadata = parseTaskMetadata(task.title)
+          
+          return {
+            id: `temp-${dateKey}-${index}`,  // 临时ID
+            user_id: user.id,
+            userId: user.id,
+            title: metadata.cleanTitle,  // ✅ 使用纯净标题
+            is_completed: task.completed,
+            completed: task.completed,
+            date: dateKey,
+            noteDate: dateKey,
+            note_date: dateKey,
+            notePosition: task.position,
+            note_position: task.position,
+            deadlineDatetime: task.deadlineDatetime,
+            deadline_datetime: task.deadlineDatetime,
+            createdAt: new Date().toISOString(),
+            created_at: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            tags: metadata.tags,           // ✅ 提取的标签
+            priority: metadata.priority,   // ✅ 提取的优先级
+            timeInfo: metadata.timeInfo    // ✅ 时间信息（供显示用）
+          } as any
+        })
+        
+        setHoveredTasks(dailyTasks)
+      } catch (error) {
+        console.error('解析笔记任务失败:', error)
+        setHoveredTasks([])
+      }
     } else {
       // 缓存未命中，显示加载状态
       setHoveredNote(null)
       setIsLoadingPreview(true)
-      
-      // 可选：异步加载笔记（如果需要支持缓存外的日期）
-      // 但通常周/月视图已经预加载了，所以这里可以不加载
-      // getNoteByDate(user.id, date).then(note => {
-      //   setHoveredNote(note)
-      //   setIsLoadingPreview(false)
-      // })
+      setHoveredTasks([])
     }
-  }, [notesCache])
+  }, [notesCache, user, parseTaskMetadata])
+
+  // 处理预览框鼠标进入（取消延迟关闭）
+  const handleTooltipMouseEnter = useCallback(() => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current)
+      hoverTimeoutRef.current = null
+    }
+  }, [])
+
+  // 处理预览框鼠标离开（立即关闭）
+  const handleTooltipMouseLeave = useCallback(() => {
+    setHoveredDate(null)
+    setHoveredNote(null)
+    setHoveredTasks([])
+  }, [])
 
   // 处理日期范围变化
   const handleDateScopeChange = useCallback((newScope: DateScope) => {
@@ -965,6 +1136,58 @@ export default function NotesDashboardPage() {
     }
   }, [user])
 
+  // 📌 处理从历史日期添加任务到今天
+  const handleAddTaskToToday = useCallback(async (task: DailyTask) => {
+    if (!user) return
+
+    try {
+      const today = new Date()
+      const todayStr = formatNoteDate(today)
+      
+      console.log('➕ 添加任务到今天:', { taskTitle: task.title, from: task.date, to: todayStr })
+
+      // 📌 注意：任务ID是临时的（"temp-xxx"），不能用于copyTaskToDate
+      // 直接使用任务标题在今天的笔记中追加任务
+
+      // 1. 构造任务标题（保留标签和优先级，但不保留时间）
+      let taskTitle = task.title
+      
+      // 添加标签
+      if (task.tags && task.tags.length > 0) {
+        taskTitle += ' ' + task.tags.map(tag => `#${tag}`).join(' ')
+      }
+      
+      // 添加优先级
+      if (task.priority) {
+        taskTitle += ` @${task.priority}`
+      }
+
+      // 2. 在今天的笔记中追加任务
+      await appendTaskToNote(user.id, today, taskTitle)
+      console.log('✅ 任务已添加到笔记:', taskTitle)
+
+      // 3. 刷新相关状态
+      // 如果添加到今天的日期，且今天就是当前选中的日期，需要重新加载
+      if (todayStr === formatNoteDate(selectedDate)) {
+        await loadNote(user.id, selectedDate)  // 重新加载当前笔记（会自动更新任务统计）
+      }
+      
+      // 刷新笔记缓存
+      await loadNotesForMultipleMonths(user.id, selectedDate, 1)
+      
+      // 如果在矩阵视图，刷新矩阵
+      if (viewMode === 'matrix') {
+        await loadTaskMatrix(user.id, selectedDate)
+      }
+      
+      console.log('✅ 状态已刷新')
+
+    } catch (error) {
+      console.error('❌ 添加任务到今天失败:', error)
+      throw error // 抛给上层处理（NotePreviewTooltip会显示错误）
+    }
+  }, [user, selectedDate, viewMode, loadNotesForMultipleMonths, loadNote, loadTaskMatrix])
+
   if (isLoading || !user) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -1047,7 +1270,7 @@ export default function NotesDashboardPage() {
                   onClick={toggleProgress}
                 >
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-gray-700">任务进度</span>
+                  <span className="text-sm font-medium text-gray-700">任务进度</span>
                     
                     {/* 收起/展开图标 */}
                     <svg 
@@ -1080,32 +1303,32 @@ export default function NotesDashboardPage() {
                 >
                   <div className="px-4 pb-4 space-y-2">
                     {/* 进度条 */}
-                    <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-blue-500 to-green-500 rounded-full transition-all duration-500 ease-out"
-                        style={{
-                          width: taskStats.total > 0 ? `${(taskStats.completed / taskStats.total) * 100}%` : '0%'
-                        }}
-                      />
-                    </div>
+                <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-blue-500 to-green-500 rounded-full transition-all duration-500 ease-out"
+                    style={{
+                      width: taskStats.total > 0 ? `${(taskStats.completed / taskStats.total) * 100}%` : '0%'
+                    }}
+                  />
+                </div>
                     
                     {/* 百分比和完成提示 */}
                     <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-500">
-                        {taskStats.total > 0 ? Math.round((taskStats.completed / taskStats.total) * 100) : 0}% 完成
-                      </span>
-                      {taskStats.total > 0 && taskStats.completed === taskStats.total && (
-                        <span className="text-xs text-green-600 font-medium flex items-center gap-1">
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                          全部完成！
-                        </span>
-                      )}
+                  <span className="text-xs text-gray-500">
+                    {taskStats.total > 0 ? Math.round((taskStats.completed / taskStats.total) * 100) : 0}% 完成
+                  </span>
+                  {taskStats.total > 0 && taskStats.completed === taskStats.total && (
+                    <span className="text-xs text-green-600 font-medium flex items-center gap-1">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      全部完成！
+                    </span>
+                  )}
                     </div>
                   </div>
                 </div>
-              </div>
+                </div>
               </div>
 
               {/* 日期标题和保存状态 */}
@@ -1161,17 +1384,17 @@ export default function NotesDashboardPage() {
                   </button>
                   {/* 便签按钮 - 仅在笔记模式下显示 */}
                   {viewMode === 'editor' && (
-                    <button
+                  <button
                       onClick={handleCreateStickyNote}
-                      className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
+                    className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
                       style={{ backgroundColor: '#F59E0B' }}
                       title="创建便签"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
+                    </svg>
                       便签
-                    </button>
+                  </button>
                   )}
                 </div>
               </div>
@@ -1291,8 +1514,12 @@ export default function NotesDashboardPage() {
         <NotePreviewTooltip
           date={hoveredDate}
           note={hoveredNote}
+          tasks={hoveredTasks}  // 📌 传递任务列表
           position={tooltipPosition}
           isLoading={isLoadingPreview}
+          onAddToToday={handleAddTaskToToday}  // 📌 传递回调函数
+          onMouseEnter={handleTooltipMouseEnter}  // 📌 鼠标进入预览框
+          onMouseLeave={handleTooltipMouseLeave}  // 📌 鼠标离开预览框
         />
       )}
 
