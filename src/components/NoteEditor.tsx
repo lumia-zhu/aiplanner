@@ -1161,12 +1161,6 @@ export default function NoteEditor({
             <span>
               <code className="px-1.5 py-0.5 bg-gray-200 rounded text-gray-700">Tab</code> 缩进
             </span>
-            {autoSave && (
-              <>
-                <span className="text-gray-400">|</span>
-                <span className="text-green-600 font-medium">✓ 自动保存</span>
-              </>
-            )}
           </div>
         </div>
       )}
