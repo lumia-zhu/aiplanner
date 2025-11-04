@@ -102,21 +102,21 @@ export default function NotesDashboardPage() {
   const [selectedMatrixDimension, setSelectedMatrixDimension] = useState<TaskMatrixDimension>('urgent-important')  // 当前选中的矩阵维度
   const [tasksByQuadrant, setTasksByQuadrant] = useState<TasksByQuadrant>({})
   
-  // 任务进度条展开/收起状态（持久化到 localStorage）
-  const [isProgressExpanded, setIsProgressExpanded] = useState(() => {
+  // 任务进度条显示/隐藏状态（持久化到 localStorage）
+  const [isProgressVisible, setIsProgressVisible] = useState(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('taskProgressExpanded')
-      return saved !== null ? saved === 'true' : true  // 默认展开
+      const saved = localStorage.getItem('taskProgressVisible')
+      return saved !== null ? saved === 'true' : true  // 默认显示
     }
     return true
   })
   
-  // 切换任务进度条展开/收起
-  const toggleProgress = useCallback(() => {
-    setIsProgressExpanded(prev => {
+  // 切换任务进度条显示/隐藏
+  const toggleProgressVisibility = useCallback(() => {
+    setIsProgressVisible(prev => {
       const newValue = !prev
       if (typeof window !== 'undefined') {
-        localStorage.setItem('taskProgressExpanded', String(newValue))
+        localStorage.setItem('taskProgressVisible', String(newValue))
       }
       return newValue
     })
@@ -1262,73 +1262,46 @@ export default function NotesDashboardPage() {
                 onDateHover={handleDateHover}  // 传递悬停回调
               />
 
-              {/* 任务进度条 - 可折叠 */}
-              <div className="mb-6 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                {/* 标题栏 - 可点击收起/展开 */}
-                <div 
-                  className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors"
-                  onClick={toggleProgress}
-                >
-                  <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-gray-700">任务进度</span>
-                    
-                    {/* 收起/展开图标 */}
-                    <svg 
-                      className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${
-                        isProgressExpanded ? 'rotate-0' : '-rotate-90'
-                      }`}
-                      fill="none" 
-                      stroke="currentColor" 
-                      viewBox="0 0 24 24"
-                    >
-                      <path 
-                        strokeLinecap="round" 
-                        strokeLinejoin="round" 
-                        strokeWidth={2} 
-                        d="M19 9l-7 7-7-7" 
-                      />
-                    </svg>
+              {/* 任务进度条 - 可完全隐藏 */}
+              {isProgressVisible && (
+                <div className="mb-6 bg-white rounded-lg shadow-sm border border-gray-200 p-4 animate-fadeIn">
+                  {/* 标题栏 - 不可点击 */}
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-medium text-gray-700">任务进度</span>
+                    <span className="text-sm text-gray-600">
+                      {taskStats.completed}/{taskStats.total}
+                    </span>
                   </div>
                   
-                  <span className="text-sm text-gray-600">
-                    {taskStats.completed}/{taskStats.total}
-                  </span>
-                </div>
-                
-                {/* 进度条内容 - 可折叠 */}
-                <div 
-                  className={`overflow-hidden transition-all duration-300 ease-in-out ${
-                    isProgressExpanded ? 'max-h-32 opacity-100' : 'max-h-0 opacity-0'
-                  }`}
-                >
-                  <div className="px-4 pb-4 space-y-2">
+                  {/* 进度条内容 */}
+                  <div className="space-y-2">
                     {/* 进度条 */}
-                <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-blue-500 to-green-500 rounded-full transition-all duration-500 ease-out"
-                    style={{
-                      width: taskStats.total > 0 ? `${(taskStats.completed / taskStats.total) * 100}%` : '0%'
-                    }}
-                  />
-                </div>
+                    <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-blue-500 to-green-500 rounded-full transition-all duration-500 ease-out"
+                        style={{
+                          width: taskStats.total > 0 ? `${(taskStats.completed / taskStats.total) * 100}%` : '0%'
+                        }}
+                      />
+                    </div>
                     
                     {/* 百分比和完成提示 */}
                     <div className="flex justify-between items-center">
-                  <span className="text-xs text-gray-500">
-                    {taskStats.total > 0 ? Math.round((taskStats.completed / taskStats.total) * 100) : 0}% 完成
-                  </span>
-                  {taskStats.total > 0 && taskStats.completed === taskStats.total && (
-                    <span className="text-xs text-green-600 font-medium flex items-center gap-1">
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      全部完成！
-                    </span>
-                  )}
+                      <span className="text-xs text-gray-500">
+                        {taskStats.total > 0 ? Math.round((taskStats.completed / taskStats.total) * 100) : 0}% 完成
+                      </span>
+                      {taskStats.total > 0 && taskStats.completed === taskStats.total && (
+                        <span className="text-xs text-green-600 font-medium flex items-center gap-1">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          全部完成！
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
-                </div>
+              )}
               </div>
 
               {/* 日期标题和保存状态 */}
@@ -1356,6 +1329,27 @@ export default function NotesDashboardPage() {
                       回到今天
                     </button>
                   )}
+                  {/* 进度条切换按钮 */}
+                  <button
+                    onClick={toggleProgressVisibility}
+                    className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
+                    style={{ backgroundColor: isProgressVisible ? '#10B981' : '#6B7280' }}
+                    title={isProgressVisible ? '隐藏任务进度' : '显示任务进度'}
+                  >
+                    {isProgressVisible ? (
+                      // 显示状态 - 眼睛图标
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    ) : (
+                      // 隐藏状态 - 眼睛斜线图标
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                      </svg>
+                    )}
+                    进度
+                  </button>
                   {/* 矩阵维度选择器 */}
                   <MatrixSelector
                     currentDimension={selectedMatrixDimension}

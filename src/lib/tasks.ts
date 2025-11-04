@@ -272,6 +272,80 @@ export async function toggleTaskComplete(taskId: string, completed: boolean): Pr
   return updateTask(taskId, { completed })
 }
 
+/**
+ * 复制任务到指定日期（保留标题、标签、优先级等属性）
+ * 用于从历史日期快速添加任务到今天
+ * @param taskId - 原任务ID
+ * @param targetDate - 目标日期（通常是今天）
+ * @param userId - 用户ID
+ * @returns 新创建的任务对象
+ */
+export async function copyTaskToDate(
+  taskId: string,
+  targetDate: Date,
+  userId: string
+): Promise<Task> {
+  try {
+    const supabase = createClient()
+    
+    // 1. 查询原任务详情
+    const { data: originalTask, error: fetchError } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('id', taskId)
+      .single()
+
+    if (fetchError || !originalTask) {
+      console.error('获取原任务失败:', fetchError)
+      throw new Error('获取原任务失败')
+    }
+
+    console.log('📋 复制任务:', { originalTitle: originalTask.title, targetDate })
+
+    // 2. 构造新任务对象（继承关键属性，重置日期和完成状态）
+    const targetDateStr = targetDate.toISOString().split('T')[0] // YYYY-MM-DD
+    const newTaskData = {
+      user_id: userId,
+      title: originalTask.title,              // ✅ 继承标题
+      description: originalTask.description,  // ✅ 继承描述
+      is_completed: false,                    // ⭐ 重置为未完成
+      completed: false,                       // ⭐ 重置为未完成
+      date: targetDateStr,                    // ⭐ 使用新日期
+      tags: originalTask.tags || [],          // ✅ 继承标签
+      priority: originalTask.priority,        // ✅ 继承优先级
+      estimated_duration: originalTask.estimated_duration, // ✅ 继承预估时长
+      created_at: new Date().toISOString(),
+      // ❌ 不继承这些字段：
+      // - deadline_datetime: 截止时间不继承
+      // - parent_id: 不继承父任务关系
+      // - subtask_order: 不继承子任务顺序
+    }
+
+    // 3. 插入数据库
+    const { data: createdTask, error: createError } = await supabase
+      .from('tasks')
+      .insert(newTaskData)
+      .select()
+      .single()
+
+    if (createError || !createdTask) {
+      console.error('创建新任务失败:', createError)
+      throw new Error('创建新任务失败')
+    }
+
+    console.log('✅ 任务复制成功:', { 
+      newTaskId: createdTask.id, 
+      title: createdTask.title,
+      date: createdTask.date 
+    })
+
+    return createdTask
+  } catch (error) {
+    console.error('copyTaskToDate 异常:', error)
+    throw error
+  }
+}
+
 // 检查任务是否过期
 export function isTaskOverdue(task: Task): boolean {
   if (!task.deadline_datetime || task.completed) return false
