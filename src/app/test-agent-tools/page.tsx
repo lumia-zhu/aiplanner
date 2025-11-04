@@ -181,6 +181,70 @@ export default function TestAgentToolsPage() {
     }
   }
 
+  // 测试 AnalyzeTasksTool
+  const testAnalyzeTasksTool = async () => {
+    if (!user) return
+
+    addResult('\n🧪 ========== 测试 AnalyzeTasksTool ==========')
+    
+    try {
+      const { AnalyzeTasksTool } = await import('@/lib/agent/tools/AnalyzeTasksTool')
+      const { LoadTaskContextTool } = await import('@/lib/agent/tools/LoadTaskContextTool')
+      
+      addResult('✅ 工具类导入成功')
+      
+      // 先加载任务上下文
+      addResult('\n🔄 加载任务上下文...')
+      const loadTool = new LoadTaskContextTool()
+      const loadResult = await loadTool.execute({ userId: user.id })
+      
+      if (loadResult.type !== 'success') {
+        addResult(`❌ 加载任务上下文失败: ${loadResult.message}`)
+        return
+      }
+      
+      addResult(`✅ 任务上下文加载成功: ${loadResult.data.todayTasks.length} 个今天的任务`)
+      
+      // 分析任务
+      addResult('\n🔄 分析任务...')
+      const analyzeTool = new AnalyzeTasksTool()
+      const result = await analyzeTool.execute({ 
+        tasks: loadResult.data.todayTasks
+      })
+      
+      if (result.type === 'success') {
+        addResult('✅ 工具执行成功！')
+        addResult(`\n📊 分析结果:`)
+        addResult(`  总任务: ${result.data.total}`)
+        addResult(`  已完成: ${result.data.completed}`)
+        addResult(`  紧急任务: ${result.data.urgent.length}`)
+        addResult(`  需要估算: ${result.data.needsEstimation.length}`)
+        addResult(`  需要澄清: ${result.data.needsClarification.length}`)
+        addResult(`  可拆解: ${result.data.canDecompose.length}`)
+        
+        addResult(`\n📈 优先级分布:`)
+        addResult(`  高: ${result.data.byPriority.high}`)
+        addResult(`  中: ${result.data.byPriority.medium}`)
+        addResult(`  低: ${result.data.byPriority.low}`)
+        
+        if (result.data.suggestions.length > 0) {
+          addResult(`\n💡 建议:`)
+          result.data.suggestions.forEach((suggestion: string) => {
+            addResult(`  ${suggestion}`)
+          })
+        }
+      } else {
+        addResult(`❌ 工具执行失败: ${result.message}`)
+      }
+      
+      addResult('\n🎉 测试完成！')
+      
+    } catch (error: any) {
+      addResult(`❌ 测试失败: ${error.message}`)
+      console.error('测试错误:', error)
+    }
+  }
+
   // 测试工具注册
   const testToolsRegistry = async () => {
     addResult('\n🧪 ========== 测试工具注册 ==========')
@@ -249,14 +313,21 @@ export default function TestAgentToolsPage() {
               onClick={testGetTasksTool}
               className="w-full bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700"
             >
-              测试 3: GetTasksTool ⭐ NEW
+              测试 3: GetTasksTool
+            </button>
+            
+            <button
+              onClick={testAnalyzeTasksTool}
+              className="w-full bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700"
+            >
+              测试 4: AnalyzeTasksTool ⭐ NEW
             </button>
             
             <button
               onClick={testAgentMemoryEnsureTaskContext}
               className="w-full bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
             >
-              测试 4: AgentMemory.ensureTaskContext
+              测试 5: AgentMemory.ensureTaskContext
             </button>
             
             <button
