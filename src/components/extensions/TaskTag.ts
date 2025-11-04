@@ -33,6 +33,10 @@ declare module '@tiptap/core' {
 export const TaskTag = Mark.create<TaskTagOptions>({
   name: 'taskTag',
   
+  // 🔑 关键配置：防止标签样式在输入时延续
+  inclusive: false,  // 光标在标签后输入时，不继承标签样式
+  excludes: '_',     // 不与其他 marks 共存
+  
   addOptions() {
     return {
       HTMLAttributes: {},

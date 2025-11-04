@@ -162,6 +162,12 @@ export async function appendTaskToNote(
           ]
         })
         
+        // 🔑 关键：在标签后添加一个普通空格（没有 mark），防止继续输入时继承标签样式
+        paragraphContent.push({
+          type: 'text',
+          text: ' '
+        })
+        
         // 更新位置（跳过 # 和标签文本）
         lastIndex = tag.position + tag.label.length + 1
       })
@@ -172,7 +178,7 @@ export async function appendTaskToNote(
         if (afterText) {
           paragraphContent.push({
             type: 'text',
-            text: ' ' + afterText
+            text: afterText  // 不需要前导空格，因为已经在标签后添加了
           })
         }
       }

@@ -684,3 +684,51 @@ p[data-datetime-display]::after {
 .animate-fadeIn {
   animation: fadeIn 0.2s ease-out;
 }
+
+/* ============================================ */
+/* 保存状态动画 */
+/* ============================================ */
+
+/* 旋转动画 - 保存中状态 */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* 淡入缩放动画 - 保存成功状态 */
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-scaleIn {
+  animation: scaleIn 0.3s ease-out;
+}
+
+/* 脉冲动画 - 保存失败状态 */
+@keyframes pulse-error {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.animate-pulse-error {
+  animation: pulse-error 2s ease-in-out infinite;
+}

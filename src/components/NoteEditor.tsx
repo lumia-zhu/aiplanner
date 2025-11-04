@@ -128,7 +128,7 @@ const TaskListMarkdown = Extension.create({
 })
 
 interface NoteEditorProps {
-  initialContent?: JSONContent
+  initialContent?: JSONContent | null
   onSave?: (content: JSONContent) => void
   onUpdate?: (content: JSONContent) => void  // 新增：实时更新回调
   placeholder?: string
@@ -475,38 +475,32 @@ export default function NoteEditor({
         // 在 paragraph 末尾插入标签（在 paragraph 内部，不是外部）
         const insertPos = contentEndPos - 1 // paragraph 结束前
         
-        // 插入标签文本
+        // 插入标签文本 + 普通空格（一次性插入，避免光标位置问题）
         editor
           .chain()
           .focus()
           .setTextSelection(insertPos)
-          .insertContent({
-            type: 'text',
-            text: tag.label, // 只插入标签名，不插入 emoji
-            marks: [
-              {
-                type: 'taskTag',
-                attrs: {
-                  label: tag.label,
-                  emoji: tag.emoji,
-                  color: tag.color,
+          .insertContent([
+            {
+              type: 'text',
+              text: tag.label, // 标签文本（带 taskTag mark）
+              marks: [
+                {
+                  type: 'taskTag',
+                  attrs: {
+                    label: tag.label,
+                    emoji: tag.emoji,
+                    color: tag.color,
+                  },
                 },
-              },
-            ],
-          })
+              ],
+            },
+            {
+              type: 'text',
+              text: ' ', // 普通空格（无 mark），防止继续输入时继承标签样式
+            }
+          ])
           .run()
-        
-        // 关键：立即移除标签 Mark，确保后续输入不继承标签样式
-        setTimeout(() => {
-          if (editor) {
-            editor
-              .chain()
-              .focus()
-              .unsetMark('taskTag') // 先取消标签 Mark
-              .insertContent(' ') // 再插入空格
-              .run()
-          }
-        }, 10)  // 稍微延迟一点，确保标签插入完成
         
         console.log('✅ 标签已添加:', tag)
       }
