@@ -119,6 +119,68 @@ export default function TestAgentToolsPage() {
     }
   }
 
+  // 测试 GetTasksTool
+  const testGetTasksTool = async () => {
+    if (!user) return
+
+    addResult('\n🧪 ========== 测试 GetTasksTool ==========')
+    
+    try {
+      const { GetTasksTool } = await import('@/lib/agent/tools/GetTasksTool')
+      
+      addResult('✅ 工具类导入成功')
+      
+      const tool = new GetTasksTool()
+      
+      addResult(`✅ 工具实例化成功: ${tool.name}`)
+      addResult(`📝 工具描述: ${tool.description}`)
+      
+      // 测试 1: 查询今天的任务
+      addResult('\n🔄 测试 1: 查询今天的任务...')
+      const result1 = await tool.execute({ 
+        userId: user.id,
+        includeCompleted: true  // 包含已完成任务
+      })
+      
+      if (result1.type === 'success') {
+        addResult('✅ 工具执行成功！')
+        addResult(`📊 任务数量: ${result1.data.count}`)
+        addResult(`📅 日期范围: ${result1.data.filters.dateRange.start} ~ ${result1.data.filters.dateRange.end}`)
+        
+        if (result1.data.tasks.length > 0) {
+          addResult('\n📋 任务列表（前3个）:')
+          result1.data.tasks.slice(0, 3).forEach((task: any, index: number) => {
+            addResult(`  ${index + 1}. ${task.title}`)
+            addResult(`     优先级: ${task.priority}, 完成: ${task.isCompleted}`)
+          })
+        }
+      } else {
+        addResult(`❌ 工具执行失败: ${result1.message}`)
+      }
+      
+      // 测试 2: 查询高优先级任务
+      addResult('\n🔄 测试 2: 查询高优先级任务...')
+      const result2 = await tool.execute({ 
+        userId: user.id,
+        priority: 'high',
+        includeCompleted: false
+      })
+      
+      if (result2.type === 'success') {
+        addResult('✅ 工具执行成功！')
+        addResult(`📊 高优先级任务数: ${result2.data.count}`)
+      } else {
+        addResult(`❌ 工具执行失败: ${result2.message}`)
+      }
+      
+      addResult('\n🎉 测试完成！')
+      
+    } catch (error: any) {
+      addResult(`❌ 测试失败: ${error.message}`)
+      console.error('测试错误:', error)
+    }
+  }
+
   // 测试工具注册
   const testToolsRegistry = async () => {
     addResult('\n🧪 ========== 测试工具注册 ==========')
@@ -184,10 +246,17 @@ export default function TestAgentToolsPage() {
             </button>
             
             <button
+              onClick={testGetTasksTool}
+              className="w-full bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700"
+            >
+              测试 3: GetTasksTool ⭐ NEW
+            </button>
+            
+            <button
               onClick={testAgentMemoryEnsureTaskContext}
               className="w-full bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
             >
-              测试 3: AgentMemory.ensureTaskContext
+              测试 4: AgentMemory.ensureTaskContext
             </button>
             
             <button
