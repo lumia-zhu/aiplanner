@@ -17,6 +17,8 @@ export interface StickyNote {
   height: number                // 便签高度
   color: StickyNoteColor        // 便签颜色
   zIndex: number                // 层级（叠放顺序）
+  isHidden: boolean             // 是否隐藏（true=已隐藏，false=正常显示）
+  isGlobal: boolean             // 是否全局显示（true=不受日期限制，false=仅在特定日期显示）
   createdAt: string             // 创建时间
   updatedAt: string             // 更新时间
 }

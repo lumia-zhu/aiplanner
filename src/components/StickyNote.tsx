@@ -13,6 +13,7 @@ interface StickyNoteProps {
   note: StickyNoteType           // 便签数据
   onUpdate: (id: string, updates: Partial<StickyNoteType>) => void  // 更新回调
   onDelete: (id: string) => void  // 删除回调
+  onHide?: (id: string) => void   // 隐藏回调
   onClick?: (id: string) => void  // 点击回调（用于置顶）
 }
 
@@ -49,7 +50,7 @@ const COLOR_STYLES: Record<StickyNoteColor, {
   },
 }
 
-export default function StickyNote({ note, onUpdate, onDelete, onClick }: StickyNoteProps) {
+export default function StickyNote({ note, onUpdate, onDelete, onHide, onClick }: StickyNoteProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [content, setContent] = useState(note.content)
   const [showColorPicker, setShowColorPicker] = useState(false)
@@ -89,9 +90,16 @@ export default function StickyNote({ note, onUpdate, onDelete, onClick }: Sticky
     }
   }
 
-  // 处理删除
+  // 处理隐藏
+  const handleHide = () => {
+    if (onHide) {
+      onHide(note.id)
+    }
+  }
+
+  // 处理删除（需要二次确认）
   const handleDelete = () => {
-    if (window.confirm('确定要删除这个便签吗？')) {
+    if (window.confirm('确定要永久删除这个便签吗？\n\n删除后将无法恢复！\n\n如果只是暂时不需要，建议使用"隐藏"功能。')) {
       onDelete(note.id)
     }
   }
@@ -295,13 +303,13 @@ export default function StickyNote({ note, onUpdate, onDelete, onClick }: Sticky
           {/* 工具按钮 */}
           <div className="flex items-center gap-1">
             {/* 颜色切换按钮 */}
-            <div className="relative">
+            <div className="relative flex items-center">
               <button
                 onClick={(e) => {
                   e.stopPropagation()
                   setShowColorPicker(!showColorPicker)
                 }}
-                className="p-1 hover:bg-white/50 rounded transition-colors"
+                className="p-1 hover:bg-gray-200/50 rounded transition-colors"
                 title="切换颜色"
               >
                 <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -357,11 +365,25 @@ export default function StickyNote({ note, onUpdate, onDelete, onClick }: Sticky
                 e.stopPropagation()
                 handleDelete()
               }}
-              className="p-1 hover:bg-red-100 rounded transition-colors"
-              title="删除便签"
+              className="p-1 hover:bg-gray-200/50 rounded transition-colors"
+              title="永久删除便签"
             >
-              <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+
+            {/* 隐藏按钮 */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                handleHide()
+              }}
+              className="p-1 hover:bg-gray-200/50 rounded transition-colors"
+              title="隐藏便签"
+            >
+              <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
               </svg>
             </button>
           </div>

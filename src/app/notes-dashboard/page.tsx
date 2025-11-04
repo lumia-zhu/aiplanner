@@ -13,6 +13,7 @@ import UserProfileModal from '@/components/UserProfileModal'
 import NotePreviewTooltip from '@/components/NotePreviewTooltip'
 import KeyboardShortcutsPanel from '@/components/KeyboardShortcutsPanel'
 import StickyNote from '@/components/StickyNote'
+import StickyNotesDropdown from '@/components/StickyNotesDropdown'
 import TaskMatrix from '@/components/TaskMatrix'
 import MatrixSelector from '@/components/MatrixSelector'
 import type { DateScope, UserProfile, ChatMessage, StickyNote as StickyNoteType, TasksByQuadrant, TaskMatrixDimension } from '@/types'
@@ -21,7 +22,7 @@ import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-f
 import { getUserProfile, upsertUserProfile, type UserProfileInput } from '@/lib/userProfile'
 import { doubaoService } from '@/lib/doubaoService'
 import { saveChatMessage } from '@/lib/chatMessages'
-import { getStickyNotesByDate, createStickyNote, updateStickyNote, deleteStickyNote, getMaxZIndex } from '@/lib/stickyNotes'
+import { getStickyNotes, createStickyNote, updateStickyNote, deleteStickyNote, getMaxZIndex, hideStickyNote, restoreStickyNote, getHiddenStickyNotes } from '@/lib/stickyNotes'
 import { getTaskMatrixByDate, ensureTaskMatrix, updateTaskQuadrant } from '@/lib/taskMatrix'
 import { getDailyTasksByDate, toggleDailyTaskComplete } from '@/lib/dailyTasks'
 import { copyTaskToDate } from '@/lib/tasks'
@@ -180,15 +181,14 @@ export default function NotesDashboardPage() {
     }
   }, [calculateTaskStats])
 
-  // 加载指定日期的便签
-  const loadStickyNotes = useCallback(async (userId: string, date: Date) => {
+  // 加载全局便签（不受日期限制）
+  const loadStickyNotes = useCallback(async (userId: string) => {
     setIsLoadingStickyNotes(true)
     try {
-      const dateStr = formatNoteDate(date)
-      console.log(`📋 加载便签: ${dateStr}`)
-      const notes = await getStickyNotesByDate(userId, dateStr)
+      console.log(`📋 加载全局便签`)
+      const notes = await getStickyNotes(userId)
       setStickyNotes(notes)
-      console.log(`✅ 加载了 ${notes.length} 个便签`)
+      console.log(`✅ 加载了 ${notes.length} 个全局便签`)
     } catch (error) {
       console.error('加载便签失败:', error)
       setStickyNotes([])
@@ -432,13 +432,19 @@ export default function NotesDashboardPage() {
     }
   }, [user, selectedDate, loadNote])
 
-  // 当用户或日期变化时加载便签和任务矩阵
+  // 当用户登录时加载全局便签（只加载一次，不受日期影响）
   useEffect(() => {
     if (user) {
-      loadStickyNotes(user.id, selectedDate)
+      loadStickyNotes(user.id)
+    }
+  }, [user, loadStickyNotes])
+
+  // 当日期变化时加载任务矩阵
+  useEffect(() => {
+    if (user) {
       loadTaskMatrix(user.id, selectedDate)
     }
-  }, [user, selectedDate, loadStickyNotes, loadTaskMatrix])
+  }, [user, selectedDate, loadTaskMatrix])
 
   // 当用户登录或日期变化时，批量加载前后N个月的笔记
   // 这样可以支持跨月周视图和用户浏览不同月份
@@ -800,6 +806,13 @@ export default function NotesDashboardPage() {
   const handleCreateStickyNote = useCallback(async () => {
     if (!user) return
     
+    // 检查当前可见便签数量（最多3个）
+    const visibleCount = stickyNotes.filter(note => !note.isHidden).length
+    if (visibleCount >= 3) {
+      alert('最多只能同时显示 3 个便签！\n\n请先隐藏或删除现有便签。')
+      return
+    }
+    
     try {
       const dateStr = formatNoteDate(selectedDate)
       const maxZ = await getMaxZIndex(user.id, dateStr)
@@ -807,10 +820,10 @@ export default function NotesDashboardPage() {
       const newNote = await createStickyNote(user.id, {
         noteDate: dateStr,
         content: '',
-        positionX: 100,
+        positionX: 50,       // 固定左上角位置
         positionY: 100,
-        width: 280,      // 默认宽度增大
-        height: 320,     // 默认高度增大
+        width: 280,
+        height: 320,
         color: 'yellow',
         zIndex: maxZ + 1,
       })
@@ -821,7 +834,7 @@ export default function NotesDashboardPage() {
       console.error('创建便签失败:', error)
       alert('创建便签失败')
     }
-  }, [user, selectedDate])
+  }, [user, selectedDate, stickyNotes])
 
   // 处理更新便签
   const handleUpdateStickyNote = useCallback(async (id: string, updates: Partial<StickyNoteType>) => {
@@ -834,6 +847,61 @@ export default function NotesDashboardPage() {
       alert('更新便签失败')
     }
   }, [])
+
+  // 处理隐藏便签（乐观更新）
+  const handleHideStickyNote = useCallback(async (id: string) => {
+    // 乐观更新：立即从UI移除
+    const noteToHide = stickyNotes.find(note => note.id === id)
+    setStickyNotes(prev => prev.filter(note => note.id !== id))
+    
+    try {
+      await hideStickyNote(id)
+      console.log('✅ 便签隐藏成功:', id)
+    } catch (error) {
+      console.error('隐藏便签失败:', error)
+      // 失败时回滚：恢复便签
+      if (noteToHide) {
+        setStickyNotes(prev => [...prev, noteToHide])
+      }
+      alert('隐藏便签失败')
+    }
+  }, [stickyNotes])
+
+  // 加载隐藏的便签列表
+  const handleLoadHiddenNotes = useCallback(async (): Promise<StickyNoteType[]> => {
+    if (!user) return []
+    
+    try {
+      const hiddenNotes = await getHiddenStickyNotes(user.id)
+      return hiddenNotes
+    } catch (error) {
+      console.error('加载隐藏便签失败:', error)
+      return []
+    }
+  }, [user])
+
+  // 恢复隐藏的便签
+  const handleRestoreStickyNote = useCallback(async (noteId: string) => {
+    if (!user) return
+    
+    // 检查当前可见便签数量
+    const visibleCount = stickyNotes.filter(note => !note.isHidden).length
+    if (visibleCount >= 3) {
+      alert('最多只能同时显示 3 个便签！\n\n请先隐藏或删除现有便签。')
+      throw new Error('便签数量已达上限')
+    }
+    
+    try {
+      // 恢复到固定位置（左上角）
+      const restoredNote = await restoreStickyNote(noteId, { x: 50, y: 100 })
+      setStickyNotes(prev => [...prev, restoredNote])
+      console.log('✅ 便签恢复成功:', noteId)
+    } catch (error) {
+      console.error('恢复便签失败:', error)
+      alert('恢复便签失败')
+      throw error
+    }
+  }, [user, stickyNotes])
 
   // 处理删除便签
   const handleDeleteStickyNote = useCallback(async (id: string) => {
@@ -1376,19 +1444,16 @@ export default function NotesDashboardPage() {
                     </svg>
                     AI助手
                   </button>
-                  {/* 便签按钮 - 仅在笔记模式下显示 */}
+                  {/* 便签下拉框 - 仅在笔记模式下显示 */}
                   {viewMode === 'editor' && (
-                  <button
-                      onClick={handleCreateStickyNote}
-                    className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
-                      style={{ backgroundColor: '#F59E0B' }}
-                      title="创建便签"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                      便签
-                  </button>
+                    <StickyNotesDropdown
+                      currentCount={stickyNotes.filter(n => !n.isHidden).length}
+                      maxCount={3}
+                      onCreateNew={handleCreateStickyNote}
+                      onLoadHidden={handleLoadHiddenNotes}
+                      onRestore={handleRestoreStickyNote}
+                      onDelete={handleDeleteStickyNote}
+                    />
                   )}
                 </div>
               </div>
@@ -1417,6 +1482,7 @@ export default function NotesDashboardPage() {
                         note={note}
                         onUpdate={handleUpdateStickyNote}
                         onDelete={handleDeleteStickyNote}
+                        onHide={handleHideStickyNote}
                         onClick={handleStickyNoteClick}
                       />
                     ))}
