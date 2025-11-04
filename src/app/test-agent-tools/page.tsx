@@ -245,6 +245,76 @@ export default function TestAgentToolsPage() {
     }
   }
 
+  // 测试 ClarifyTaskTool（交互式流程）
+  const testClarifyTaskTool = async () => {
+    if (!user) return
+
+    addResult('\n🧪 ========== 测试 ClarifyTaskTool ==========')
+    
+    try {
+      const { ClarifyTaskTool } = await import('@/lib/agent/tools/ClarifyTaskTool')
+      const { LoadTaskContextTool } = await import('@/lib/agent/tools/LoadTaskContextTool')
+      
+      addResult('✅ 工具类导入成功')
+      
+      // 先加载任务上下文
+      addResult('\n🔄 加载任务上下文...')
+      const loadTool = new LoadTaskContextTool()
+      const loadResult = await loadTool.execute({ userId: user.id })
+      
+      if (loadResult.type !== 'success' || loadResult.data.todayTasks.length === 0) {
+        addResult('⚠️  没有找到今天的任务，无法测试澄清功能')
+        return
+      }
+      
+      const firstTask = loadResult.data.todayTasks[0]
+      addResult(`✅ 找到任务: ${firstTask.title}`)
+      
+      // 第一轮：生成澄清问题
+      addResult('\n🔄 第一轮：生成澄清问题...')
+      const clarifyTool = new ClarifyTaskTool()
+      const result1 = await clarifyTool.execute({ task: firstTask })
+      
+      if (result1.type === 'need_input') {
+        addResult('✅ 工具正确返回 need_input（交互式流程）')
+        addResult(`\n💬 AI 的澄清问题:`)
+        addResult(result1.prompt)
+        
+        // 模拟用户回答
+        addResult('\n🔄 第二轮：模拟用户回答...')
+        const userAnswer = '这是一个重要的学习任务，需要讨论项目进展和下一步计划'
+        addResult(`用户回答: ${userAnswer}`)
+        
+        const result2 = await clarifyTool.execute({ 
+          task: firstTask, 
+          userContext: userAnswer 
+        })
+        
+        if (result2.type === 'success') {
+          addResult('✅ 澄清完成！')
+          addResult(`\n${result2.data.message}`)
+          
+          if (result2.data.suggestions) {
+            addResult('\n💡 后续建议:')
+            result2.data.suggestions.forEach((suggestion: string) => {
+              addResult(`  ${suggestion}`)
+            })
+          }
+        } else {
+          addResult(`❌ 第二轮执行失败: ${result2.message}`)
+        }
+      } else if (result1.type === 'error') {
+        addResult(`❌ 工具执行失败: ${result1.message}`)
+      }
+      
+      addResult('\n🎉 测试完成！')
+      
+    } catch (error: any) {
+      addResult(`❌ 测试失败: ${error.message}`)
+      console.error('测试错误:', error)
+    }
+  }
+
   // 测试工具注册
   const testToolsRegistry = async () => {
     addResult('\n🧪 ========== 测试工具注册 ==========')
@@ -320,14 +390,21 @@ export default function TestAgentToolsPage() {
               onClick={testAnalyzeTasksTool}
               className="w-full bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700"
             >
-              测试 4: AnalyzeTasksTool ⭐ NEW
+              测试 4: AnalyzeTasksTool
+            </button>
+            
+            <button
+              onClick={testClarifyTaskTool}
+              className="w-full bg-pink-600 text-white px-4 py-2 rounded hover:bg-pink-700"
+            >
+              测试 5: ClarifyTaskTool ⭐ NEW（交互式）
             </button>
             
             <button
               onClick={testAgentMemoryEnsureTaskContext}
               className="w-full bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
             >
-              测试 5: AgentMemory.ensureTaskContext
+              测试 6: AgentMemory.ensureTaskContext
             </button>
             
             <button

@@ -11,7 +11,7 @@ import type { AgentTool } from '../AgentTypes'
 import { LoadTaskContextTool } from './LoadTaskContextTool' // ✅ Step 2
 import { GetTasksTool } from './GetTasksTool' // ✅ Step 3
 import { AnalyzeTasksTool } from './AnalyzeTasksTool' // ✅ Step 4
-// import { ClarifyTaskTool } from './ClarifyTaskTool'
+import { ClarifyTaskTool } from './ClarifyTaskTool' // ✅ Step 5
 // import { DecomposeTaskTool } from './DecomposeTaskTool'
 // import { EstimateTimeTool } from './EstimateTimeTool'
 
@@ -37,7 +37,7 @@ export function getAllTools(): AgentTool[] {
     new LoadTaskContextTool(), // ✅ Step 2
     new GetTasksTool(), // ✅ Step 3
     new AnalyzeTasksTool(), // ✅ Step 4
-    // Step 5: new ClarifyTaskTool(),
+    new ClarifyTaskTool(), // ✅ Step 5
     // Step 6: new DecomposeTaskTool(),
     // Step 7: new EstimateTimeTool(),
   ]
