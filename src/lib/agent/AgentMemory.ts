@@ -24,6 +24,9 @@ export class AgentMemory implements IAgentMemory {
   // 任务上下文缓存（Long-term Memory）
   private taskContext: TaskContext | null = null
   
+  // 任务上下文加载时间戳（用于判断缓存是否过期）
+  private taskContextLoadedAt: number | null = null
+  
   constructor() {
     console.log('✅ AgentMemory 初始化')
   }
@@ -116,7 +119,51 @@ export class AgentMemory implements IAgentMemory {
     this.thoughts = []
     this.steps = []
     this.taskContext = null
+    this.taskContextLoadedAt = null
     console.log('🧹 所有记忆已清空（包括任务上下文）')
+  }
+  
+  /**
+   * 确保任务上下文已加载（如果缓存过期或不存在，则重新加载）
+   * 
+   * @param userId 用户 ID
+   * @param referenceDate 参考日期（默认为今天）
+   */
+  async ensureTaskContext(userId: string, referenceDate?: Date): Promise<void> {
+    const CACHE_DURATION = 5 * 60 * 1000 // 5分钟缓存
+
+    // 检查缓存是否有效
+    const now = Date.now()
+    const cacheAge = this.taskContextLoadedAt ? now - this.taskContextLoadedAt : Infinity
+    
+    if (this.taskContext && cacheAge < CACHE_DURATION) {
+      console.log(`✅ 任务上下文缓存有效（${Math.floor(cacheAge / 1000)}秒前加载），跳过重新加载`)
+      return
+    }
+
+    // 缓存过期或不存在，重新加载
+    console.log('🔄 任务上下文缓存过期或不存在，重新加载...')
+    
+    try {
+      // 动态导入工具（避免循环依赖）
+      const { LoadTaskContextTool } = await import('./tools/LoadTaskContextTool')
+      
+      const tool = new LoadTaskContextTool()
+      const result = await tool.execute({ 
+        userId, 
+        referenceDate: referenceDate || new Date() 
+      })
+
+      if (result.type === 'success') {
+        this.updateTaskContext(result.data)
+        this.taskContextLoadedAt = now
+        console.log('✅ 任务上下文自动加载成功')
+      } else {
+        console.error('❌ 任务上下文加载失败:', result.message)
+      }
+    } catch (error: any) {
+      console.error('❌ 任务上下文加载异常:', error)
+    }
   }
 }
 

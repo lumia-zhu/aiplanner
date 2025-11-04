@@ -8,7 +8,7 @@
 import type { AgentTool } from '../AgentTypes'
 
 // Phase 2: 工具类导入（将在各个 Step 中逐步取消注释）
-// import { LoadTaskContextTool } from './LoadTaskContextTool'
+import { LoadTaskContextTool } from './LoadTaskContextTool' // ✅ Step 2
 // import { GetTasksTool } from './GetTasksTool'
 // import { AnalyzeTasksTool } from './AnalyzeTasksTool'
 // import { ClarifyTaskTool } from './ClarifyTaskTool'
@@ -34,7 +34,7 @@ export function getAllTools(): AgentTool[] {
 
   // Phase 2: 逐步添加工具实例
   toolsCache = [
-    // Step 2: new LoadTaskContextTool(),
+    new LoadTaskContextTool(), // ✅ Step 2
     // Step 3: new GetTasksTool(),
     // Step 4: new AnalyzeTasksTool(),
     // Step 5: new ClarifyTaskTool(),
