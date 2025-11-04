@@ -1,8 +1,9 @@
 'use client'
 
-import React, { memo, useRef } from 'react'
+import React, { memo, useRef, useState, useEffect } from 'react'
 import { doubaoService, type ChatMessage } from '@/lib/doubaoService'
 import type { Task, WorkflowMode, PrioritySortFeeling, SingleTaskAction, SubtaskSuggestion } from '@/types'
+import { getAgentConfig } from '@/lib/agent/AgentConfig'
 import WorkflowOptions from './WorkflowOptions'
 import FeelingOptions from './FeelingOptions'
 import SingleTaskActionOptions from './SingleTaskActionOptions'
@@ -163,6 +164,25 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   chatScrollRef
 }) => {
   
+  // ⭐ Agent 模式状态管理
+  const [isAgentMode, setIsAgentMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('ai_assistant_mode')
+      if (saved) {
+        return saved === 'agent'
+      }
+    }
+    return getAgentConfig().enabled
+  })
+
+  // 持久化 Agent 模式状态
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('ai_assistant_mode', isAgentMode ? 'agent' : 'normal')
+      console.log(`🔧 AI 助手模式切换为: ${isAgentMode ? 'Agent 模式' : '普通模式'}`)
+    }
+  }, [isAgentMode])
+  
   // ⭐ 判断是否应该禁用输入框（引导用户使用按钮）
   const shouldDisableInput = (() => {
     // 特殊输入模式不禁用
@@ -201,35 +221,74 @@ const ChatSidebar = memo<ChatSidebarProps>(({
       {isOpen && (
         <>
       {/* 聊天头部 */}
-      <div className="p-4 border-b border-gray-100 flex-shrink-0">
-        <div className="flex items-center justify-between">
-              {/* 折叠按钮 */}
-              <button
-                onClick={onToggle}
-                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors -ml-1"
-                title="收起AI助手"
-              >
-                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-              
-              <div className="flex items-center gap-2 flex-1 ml-2">
-            <div className={`w-2 h-2 rounded-full ${doubaoService.hasApiKey() ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
-            <span className="text-sm font-medium" style={{ color: '#3f3f3f' }}>
-              AI 助手 {!doubaoService.hasApiKey() && '(需要配置API Key)'}
-            </span>
-          </div>
-          {chatMessages.length > 0 && (
+      <div className="border-b border-gray-100 flex-shrink-0">
+        {/* 第一行：折叠按钮 + 标题 + 清空对话 */}
+        <div className="p-4 pb-3">
+          <div className="flex items-center justify-between">
+            {/* 折叠按钮 */}
             <button
-              onClick={handleClearChat}
-              className="text-xs text-gray-500 hover:text-red-600 underline"
+              onClick={onToggle}
+              className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors -ml-1"
+              title="收起AI助手"
             >
-              清空对话
+              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
             </button>
-          )}
+            
+            <div className="flex items-center gap-2 flex-1 ml-2">
+              <div className={`w-2 h-2 rounded-full ${doubaoService.hasApiKey() ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+              <span className="text-sm font-medium" style={{ color: '#3f3f3f' }}>
+                AI 助手 {!doubaoService.hasApiKey() && '(需要配置API Key)'}
+              </span>
+            </div>
+            {chatMessages.length > 0 && (
+              <button
+                onClick={handleClearChat}
+                className="text-xs text-gray-500 hover:text-red-600 underline"
+              >
+                清空对话
+              </button>
+            )}
+          </div>
+        </div>
+        
+        {/* 第二行：Agent 模式切换开关 */}
+        <div className="px-4 pb-3 flex items-center justify-between">
+          <span className={`text-xs font-medium ${
+            isAgentMode ? 'text-blue-600' : 'text-gray-500'
+          }`}>
+            {isAgentMode ? '🤖 Agent 模式' : '💬 普通模式'}
+          </span>
+          
+          <button
+            onClick={() => setIsAgentMode(!isAgentMode)}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              isAgentMode ? 'bg-blue-600' : 'bg-gray-300'
+            }`}
+            title={isAgentMode ? '切换到普通模式' : '切换到 Agent 模式（开发中）'}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                isAgentMode ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
         </div>
       </div>
+      
+      {/* Agent 模式提示条 */}
+      {isAgentMode && (
+        <div className="px-4 py-2 bg-blue-50 border-l-4 border-blue-500 text-sm">
+          <p className="text-blue-700">
+            <span className="font-semibold">🤖 Agent 模式</span>
+            <span className="ml-2 text-blue-600">（Phase 1 完成，核心功能开发中...）</span>
+          </p>
+          <p className="text-blue-600 text-xs mt-1">
+            Agent 将能感知你的任务、主动分析并提供建议。当前为占位功能，请切换到普通模式使用。
+          </p>
+        </div>
+      )}
       
       {/* 聊天消息区域 */}
       <div ref={chatScrollRef} className="flex-1 p-4 overflow-y-auto bg-gray-50 relative min-h-0">
