@@ -530,6 +530,79 @@ export default function TestAgentToolsPage() {
     }
   }
 
+  // Test EstimateTimeTool - Step 7
+  const testEstimateTimeTool = async () => {
+    if (!user) return
+
+    addResult('\n🧪 ========== Step 7: EstimateTimeTool 测试 ==========')
+    
+    try {
+      const { EstimateTimeTool } = await import('@/lib/agent/tools/EstimateTimeTool')
+      const { LoadTaskContextTool } = await import('@/lib/agent/tools/LoadTaskContextTool')
+      
+      addResult('✅ 工具类导入成功')
+      
+      // 加载任务上下文
+      addResult('\n🔄 加载任务上下文...')
+      const loadTool = new LoadTaskContextTool()
+      const loadResult = await loadTool.execute({ userId: user.id })
+      
+      if (loadResult.type !== 'success' || loadResult.data.todayTasks.length === 0) {
+        addResult('⚠️  没有找到今天的任务，无法测试时间估算功能')
+        return
+      }
+      
+      // 找一个没有时间估算的任务
+      const taskToEstimate = loadResult.data.todayTasks.find(t => !t.estimated_duration) || loadResult.data.todayTasks[0]
+      
+      addResult(`✅ 找到任务: "${taskToEstimate.title}"`)
+      
+      if (taskToEstimate.estimated_duration) {
+        addResult(`   现有估算: ${taskToEstimate.estimated_duration} 分钟`)
+      } else {
+        addResult('   现有估算: 无')
+      }
+      
+      // 执行时间估算
+      addResult('\n🔄 执行时间估算...')
+      const estimateTool = new EstimateTimeTool()
+      const result = await estimateTool.execute({ 
+        task: taskToEstimate,
+        userContext: '这是一个常规任务，我以前做过类似的' // 可选的用户补充信息
+      })
+      
+      if (result.type === 'success') {
+        addResult('✅ 时间估算完成！')
+        addResult(`\n${result.data.message}`)
+        
+        addResult('\n⏱️  估算详情:')
+        addResult(`  时长: ${result.data.estimatedMinutes} 分钟 (${result.data.estimatedHours} 小时)`)
+        addResult(`  理由: ${result.data.reasoning}`)
+        
+        if (result.data.breakdown) {
+          addResult(`  分配: ${result.data.breakdown}`)
+        }
+        
+        if (result.data.suggestions) {
+          addResult('\n💡 后续建议:')
+          result.data.suggestions.forEach((suggestion: string) => {
+            addResult(`  ${suggestion}`)
+          })
+        }
+        
+        addResult('\n🎉 Step 7 测试通过！')
+        addResult('✅ EstimateTimeTool 开发完成！')
+        addResult('\n🎊 Phase 2 所有工具开发完成！')
+      } else if (result.type === 'error') {
+        addResult(`❌ 工具执行失败: ${result.message}`)
+      }
+      
+    } catch (error: any) {
+      addResult(`❌ 测试失败: ${error.message}`)
+      console.error('测试错误:', error)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -614,7 +687,14 @@ export default function TestAgentToolsPage() {
               onClick={testDecomposeToolComplete}
               className="w-full bg-emerald-600 text-white px-4 py-2 rounded hover:bg-emerald-700"
             >
-              🚧 Step 6.3: DecomposeTaskTool 完整测试（两轮对话）⭐
+              ✅ Step 6.3: DecomposeTaskTool 完整测试（两轮对话）
+            </button>
+            
+            <button
+              onClick={testEstimateTimeTool}
+              className="w-full bg-amber-600 text-white px-4 py-2 rounded hover:bg-amber-700"
+            >
+              🚧 Step 7: EstimateTimeTool 测试 ⭐ 最后一个！
             </button>
             
             <button

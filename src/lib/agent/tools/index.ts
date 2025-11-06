@@ -13,7 +13,7 @@ import { GetTasksTool } from './GetTasksTool' // ✅ Step 3
 import { AnalyzeTasksTool } from './AnalyzeTasksTool' // ✅ Step 4
 import { ClarifyTaskTool } from './ClarifyTaskTool' // ✅ Step 5
 import { DecomposeTaskTool } from './DecomposeTaskTool' // ✅ Step 6
-// import { EstimateTimeTool } from './EstimateTimeTool'
+import { EstimateTimeTool } from './EstimateTimeTool' // ✅ Step 7
 
 /**
  * 工具实例缓存
@@ -39,7 +39,7 @@ export function getAllTools(): AgentTool[] {
     new AnalyzeTasksTool(), // ✅ Step 4
     new ClarifyTaskTool(), // ✅ Step 5
     new DecomposeTaskTool(), // ✅ Step 6
-    // Step 7: new EstimateTimeTool(),
+    new EstimateTimeTool(), // ✅ Step 7
   ]
 
   const toolNames = toolsCache.map(t => t.name).join(', ')
