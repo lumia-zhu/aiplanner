@@ -108,9 +108,21 @@ export interface TaskContext {
     
     /** 按月份分组的任务数 */
     byMonth: {
-      previousMonth: number
-      currentMonth: number
-      nextMonth: number
+      previousMonth: {
+        date: string
+        total: number
+        completed: number
+      }
+      currentMonth: {
+        date: string
+        total: number
+        completed: number
+      }
+      nextMonth: {
+        date: string
+        total: number
+        completed: number
+      }
     }
   }
   
@@ -181,6 +193,14 @@ export type AgentResponse =
     }
 
 // ==================== ReAct 相关类型 ====================
+
+/**
+ * 对话消息
+ */
+export interface ChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
 
 /**
  * Thought: Agent 的思考过程

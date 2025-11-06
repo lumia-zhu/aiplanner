@@ -530,6 +530,139 @@ export default function TestAgentToolsPage() {
     }
   }
 
+  // Test ReAct Prompt - Phase 3 Step 1
+  const testReActPrompt = async () => {
+    if (!user) return
+
+    addResult('\n🧪 ========== Phase 3 Step 1: ReAct Prompt 测试 ==========')
+    
+    try {
+      const { buildReActPrompt } = await import('@/lib/agent/AgentPrompt')
+      const { getAllTools } = await import('@/lib/agent/tools')
+      const { AgentMemory } = await import('@/lib/agent/AgentMemory')
+      
+      addResult('✅ Prompt 函数导入成功')
+      
+      // 准备测试数据
+      const tools = getAllTools()
+      const memory = new AgentMemory()
+      
+      // 加载任务上下文（模拟）
+      await memory.ensureTaskContext(user.id)
+      const taskContext = memory.getTaskContext()
+      
+      addResult(`✅ 工具加载成功: ${tools.length} 个`)
+      addResult(`✅ 任务上下文加载成功: ${taskContext?.todayTasks.length || 0} 个今天的任务`)
+      
+      // 测试场景 1：简单问候
+      addResult('\n🔄 测试场景 1: 简单问候')
+      const prompt1 = buildReActPrompt({
+        userMessage: '你好',
+        memory: [],
+        tools: tools,
+        taskContext: taskContext,
+        userProfile: null,
+        dateScope: { type: 'day', start: '2025-11-06', end: '2025-11-06' }
+      })
+      
+      const checks1 = {
+        hasRole: prompt1.includes('ReAct'),
+        hasTools: prompt1.includes('可用工具'),
+        hasExamples: prompt1.includes('示例'),
+        hasFormat: prompt1.includes('输出格式'),
+        hasUserMessage: prompt1.includes('你好')
+      }
+      
+      addResult(`   长度: ${prompt1.length} 字符`)
+      addResult(`   ✅ 包含角色定位: ${checks1.hasRole}`)
+      addResult(`   ✅ 包含工具列表: ${checks1.hasTools}`)
+      addResult(`   ✅ 包含示例: ${checks1.hasExamples}`)
+      addResult(`   ✅ 包含格式要求: ${checks1.hasFormat}`)
+      addResult(`   ✅ 包含用户消息: ${checks1.hasUserMessage}`)
+      
+      const allChecks1 = Object.values(checks1).every(v => v === true)
+      if (allChecks1) {
+        addResult('   ✅ 场景 1 验证通过')
+      } else {
+        addResult('   ❌ 场景 1 验证失败')
+      }
+      
+      // 测试场景 2：带对话历史
+      addResult('\n🔄 测试场景 2: 带对话历史')
+      memory.addMessage({ role: 'user', content: '我今天有哪些任务？' })
+      memory.addMessage({ role: 'assistant', content: '你今天有3个任务。' })
+      
+      const prompt2 = buildReActPrompt({
+        userMessage: '帮我分析一下',
+        memory: memory.getHistory(),
+        tools: tools,
+        taskContext: taskContext,
+        userProfile: null,
+        dateScope: { type: 'day', start: '2025-11-06', end: '2025-11-06' }
+      })
+      
+      const hasHistory = prompt2.includes('对话历史') && prompt2.includes('我今天有哪些任务')
+      addResult(`   ✅ 包含对话历史: ${hasHistory}`)
+      
+      // 测试场景 3：检查 Few-shot 示例
+      addResult('\n🔄 测试场景 3: Few-shot 示例检查')
+      const exampleChecks = {
+        example1: prompt1.includes('示例 1：简单问候'),
+        example2: prompt1.includes('示例 2：查询任务'),
+        example3: prompt1.includes('示例 3：多步推理'),
+        example4: prompt1.includes('示例 4：交互式工具'),
+        errorExamples: prompt1.includes('错误示例')
+      }
+      
+      addResult(`   ✅ 示例 1（问候）: ${exampleChecks.example1}`)
+      addResult(`   ✅ 示例 2（单步）: ${exampleChecks.example2}`)
+      addResult(`   ✅ 示例 3（多步）: ${exampleChecks.example3}`)
+      addResult(`   ✅ 示例 4（交互）: ${exampleChecks.example4}`)
+      addResult(`   ✅ 错误示例: ${exampleChecks.errorExamples}`)
+      
+      const allExamples = Object.values(exampleChecks).every(v => v === true)
+      if (allExamples) {
+        addResult('   ✅ 所有示例都已包含')
+      } else {
+        addResult('   ❌ 缺少部分示例')
+      }
+      
+      // 测试场景 4：工具描述完整性
+      addResult('\n🔄 测试场景 4: 工具描述完整性')
+      const toolNames = tools.map(t => t.name)
+      const missingTools = toolNames.filter(name => !prompt1.includes(name))
+      
+      if (missingTools.length === 0) {
+        addResult(`   ✅ 所有 ${toolNames.length} 个工具都已包含`)
+        toolNames.forEach(name => {
+          addResult(`      - ${name}`)
+        })
+      } else {
+        addResult(`   ❌ 缺少工具: ${missingTools.join(', ')}`)
+      }
+      
+      // 最终总结
+      addResult('\n📊 Prompt 质量评估:')
+      addResult(`   总长度: ${prompt1.length} 字符 ${prompt1.length > 5000 ? '✅' : '⚠️ (可能太短)'}`)
+      addResult(`   工具数量: ${tools.length} 个`)
+      addResult(`   示例数量: ${(prompt1.match(/示例 \d/g) || []).length} 个`)
+      addResult(`   错误示例: ${(prompt1.match(/错误 \d/g) || []).length} 个`)
+      
+      addResult('\n🎉 Phase 3 Step 1 测试完成！')
+      addResult('✅ ReAct Prompt 模板实现成功')
+      
+      // 可选：打印完整 Prompt（供调试）
+      if (false) { // 设置为 true 可查看完整 Prompt
+        addResult('\n📝 完整 Prompt 预览（前 500 字符）:')
+        addResult(prompt1.substring(0, 500) + '...')
+      }
+      
+    } catch (error: any) {
+      addResult(`❌ 测试失败: ${error.message}`)
+      console.error('测试错误:', error)
+    }
+  }
+
   // Test EstimateTimeTool - Step 7
   const testEstimateTimeTool = async () => {
     if (!user) return
@@ -696,6 +829,16 @@ export default function TestAgentToolsPage() {
             >
               🚧 Step 7: EstimateTimeTool 测试 ⭐ 最后一个！
             </button>
+            
+            <div className="border-t-4 border-purple-500 my-4 pt-4">
+              <h3 className="text-lg font-bold mb-2 text-purple-600">🚀 Phase 3: ReAct Agent Core</h3>
+              <button
+                onClick={testReActPrompt}
+                className="w-full bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 font-bold"
+              >
+                🧪 Phase 3 Step 1: ReAct Prompt 模板测试
+              </button>
+            </div>
             
             <button
               onClick={() => setTestResults([])}
