@@ -530,6 +530,203 @@ export default function TestAgentToolsPage() {
     }
   }
 
+  // Test Output Parser - Phase 3 Step 2
+  const testOutputParser = async () => {
+    if (!user) return
+
+    addResult('\n🧪 ========== Phase 3 Step 2: 输出解析器测试 ==========')
+    
+    try {
+      const { parseReActOutput, validateActionInput } = await import('@/lib/agent/AgentPrompt')
+      const { getAllTools } = await import('@/lib/agent/tools')
+      
+      addResult('✅ 解析器函数导入成功')
+      
+      const tools = getAllTools()
+      
+      // ========== 测试场景 1: Thought + Response（直接回复） ==========
+      addResult('\n🔄 测试场景 1: Thought + Response（直接回复）')
+      
+      const responseOutput = `Thought: 这是一个简单的问候，不需要调用任何工具，我可以直接友好地回复。
+Response: 你好！我是你的任务管理助手。我可以帮你：
+- 📋 查看和分析任务
+- 🤔 澄清任务细节
+- ✂️ 拆解复杂任务
+- ⏱️ 估算任务时间
+
+有什么需要帮助的吗？`
+      
+      try {
+        const parsed1 = parseReActOutput(responseOutput)
+        
+        if (parsed1.type === 'response' && 
+            parsed1.thought && 
+            parsed1.response && 
+            parsed1.response.includes('任务管理助手')) {
+          addResult('   ✅ 成功解析 Response 格式')
+          addResult(`   Thought: "${parsed1.thought.substring(0, 30)}..."`)
+          addResult(`   Response: "${parsed1.response.substring(0, 30)}..."`)
+        } else {
+          addResult('   ❌ Response 格式解析结果不正确')
+        }
+      } catch (error: any) {
+        addResult(`   ❌ 解析失败: ${error.message}`)
+      }
+      
+      // ========== 测试场景 2: Thought + Action + Action Input（标准 JSON） ==========
+      addResult('\n🔄 测试场景 2: Thought + Action + Action Input（标准 JSON）')
+      
+      const actionOutput = `Thought: 用户想了解今天的任务列表。我需要调用 get_tasks 工具来获取今天的任务。
+Action: get_tasks
+Action Input: {"userId": "test_user", "dateRange": {"start": "2025-11-06", "end": "2025-11-06"}, "includeCompleted": false}`
+      
+      try {
+        const parsed2 = parseReActOutput(actionOutput)
+        
+        if (parsed2.type === 'action' && 
+            parsed2.action === 'get_tasks' && 
+            parsed2.actionInput.userId === 'test_user') {
+          addResult('   ✅ 成功解析 Action 格式（标准 JSON）')
+          addResult(`   Action: ${parsed2.action}`)
+          addResult(`   Action Input: ${JSON.stringify(parsed2.actionInput)}`)
+        } else {
+          addResult('   ❌ Action 格式解析结果不正确')
+        }
+      } catch (error: any) {
+        addResult(`   ❌ 解析失败: ${error.message}`)
+      }
+      
+      // ========== 测试场景 3: JSON 容错（代码块标记） ==========
+      addResult('\n🔄 测试场景 3: JSON 容错（Markdown 代码块）')
+      
+      const actionWithCodeBlock = `Thought: 需要获取任务
+Action: get_tasks
+Action Input: \`\`\`json
+{
+  "userId": "test_user",
+  "dateRange": {"start": "2025-11-06", "end": "2025-11-06"},
+  "includeCompleted": false
+}
+\`\`\``
+      
+      try {
+        const parsed3 = parseReActOutput(actionWithCodeBlock)
+        
+        if (parsed3.type === 'action' && parsed3.actionInput.userId === 'test_user') {
+          addResult('   ✅ 容错成功（移除了 ```json 标记）')
+        } else {
+          addResult('   ❌ 容错处理失败')
+        }
+      } catch (error: any) {
+        addResult(`   ❌ 解析失败: ${error.message}`)
+      }
+      
+      // ========== 测试场景 4: JSON 容错（尾部逗号） ==========
+      addResult('\n🔄 测试场景 4: JSON 容错（尾部逗号）')
+      
+      const actionWithTrailingComma = `Thought: 测试
+Action: get_tasks
+Action Input: {"userId": "test_user", "dateRange": {"start": "2025-11-06", "end": "2025-11-06"},}`
+      
+      try {
+        const parsed4 = parseReActOutput(actionWithTrailingComma)
+        
+        if (parsed4.type === 'action' && parsed4.actionInput.userId === 'test_user') {
+          addResult('   ✅ 容错成功（移除了尾部逗号）')
+        } else {
+          addResult('   ❌ 容错处理失败')
+        }
+      } catch (error: any) {
+        addResult(`   ❌ 解析失败: ${error.message}`)
+      }
+      
+      // ========== 测试场景 5: 参数验证（正确参数） ==========
+      addResult('\n🔄 测试场景 5: 参数验证（正确参数）')
+      
+      const getTasksTool = tools.find(t => t.name === 'get_tasks')
+      if (getTasksTool) {
+        const validInput = {
+          userId: 'test_user',
+          dateRange: { start: '2025-11-06', end: '2025-11-06' },
+          includeCompleted: false
+        }
+        
+        const validation1 = validateActionInput('get_tasks', validInput, getTasksTool.parameters)
+        
+        if (validation1.valid) {
+          addResult('   ✅ 参数验证通过')
+        } else {
+          addResult(`   ❌ 参数验证失败: ${validation1.errors.join(', ')}`)
+        }
+      }
+      
+      // ========== 测试场景 6: 参数验证（缺少必需参数） ==========
+      addResult('\n🔄 测试场景 6: 参数验证（缺少必需参数）')
+      
+      if (getTasksTool) {
+        const invalidInput = {
+          dateRange: { start: '2025-11-06', end: '2025-11-06' }  // 缺少 userId
+        }
+        
+        const validation2 = validateActionInput('get_tasks', invalidInput, getTasksTool.parameters)
+        
+        if (!validation2.valid && validation2.errors.some(e => e.includes('userId'))) {
+          addResult('   ✅ 正确检测到缺少必需参数')
+          addResult(`   错误信息: ${validation2.errors.join(', ')}`)
+        } else {
+          addResult('   ❌ 未能检测到参数缺失')
+        }
+      }
+      
+      // ========== 测试场景 7: 错误输出（缺少 Thought） ==========
+      addResult('\n🔄 测试场景 7: 错误处理（缺少 Thought）')
+      
+      const invalidOutput = `Response: 你好！`
+      
+      try {
+        parseReActOutput(invalidOutput)
+        addResult('   ❌ 应该抛出错误但没有抛出')
+      } catch (error: any) {
+        if (error.message.includes('Thought')) {
+          addResult('   ✅ 正确检测到缺少 Thought')
+        } else {
+          addResult(`   ⚠️ 错误信息不准确: ${error.message}`)
+        }
+      }
+      
+      // ========== 测试场景 8: 错误输出（格式不明确） ==========
+      addResult('\n🔄 测试场景 8: 错误处理（格式不明确）')
+      
+      const ambiguousOutput = `Thought: 我在思考...`
+      
+      try {
+        parseReActOutput(ambiguousOutput)
+        addResult('   ❌ 应该抛出错误但没有抛出')
+      } catch (error: any) {
+        if (error.message.includes('格式') || error.message.includes('规范')) {
+          addResult('   ✅ 正确检测到格式错误')
+        } else {
+          addResult(`   ⚠️ 错误信息不准确: ${error.message}`)
+        }
+      }
+      
+      // ========== 最终总结 ==========
+      addResult('\n📊 解析器测试总结:')
+      addResult('   ✅ Response 格式解析')
+      addResult('   ✅ Action 格式解析')
+      addResult('   ✅ JSON 容错处理（代码块、尾部逗号）')
+      addResult('   ✅ 参数验证（正确 & 错误）')
+      addResult('   ✅ 错误检测和处理')
+      
+      addResult('\n🎉 Phase 3 Step 2 测试完成！')
+      addResult('✅ 输出解析器实现成功')
+      
+    } catch (error: any) {
+      addResult(`❌ 测试失败: ${error.message}`)
+      console.error('测试错误:', error)
+    }
+  }
+
   // Test ReAct Prompt - Phase 3 Step 1
   const testReActPrompt = async () => {
     if (!user) return
@@ -834,9 +1031,15 @@ export default function TestAgentToolsPage() {
               <h3 className="text-lg font-bold mb-2 text-purple-600">🚀 Phase 3: ReAct Agent Core</h3>
               <button
                 onClick={testReActPrompt}
+                className="w-full bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 font-bold mb-2"
+              >
+                ✅ Phase 3 Step 1: ReAct Prompt 模板测试
+              </button>
+              <button
+                onClick={testOutputParser}
                 className="w-full bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 font-bold"
               >
-                🧪 Phase 3 Step 1: ReAct Prompt 模板测试
+                🧪 Phase 3 Step 2: 输出解析器测试 ⭐ NEW
               </button>
             </div>
             

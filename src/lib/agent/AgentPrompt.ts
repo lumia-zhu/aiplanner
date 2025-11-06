@@ -7,7 +7,7 @@
  * Phase 3 Step 1
  */
 
-import { ChatMessage, AgentTool, TaskContext, UserProfile, DateScope } from './AgentTypes'
+import { ChatMessage, AgentTool, TaskContext, UserProfile, DateScope, ParsedOutput } from './AgentTypes'
 import { format } from 'date-fns'
 
 /**
@@ -223,7 +223,7 @@ Response: 你好！我是你的任务管理助手。我可以帮你：
 \`\`\`
 Thought: 用户想了解今天的任务列表。我需要调用 get_tasks 工具来获取今天的任务。
 Action: get_tasks
-Action Input: {"userId": "user_id_placeholder", "dateRange": "today", "includeCompleted": false}
+Action Input: {"userId": "user_id_placeholder", "dateRange": {"start": "2025-11-06", "end": "2025-11-06"}, "includeCompleted": false}
 \`\`\`
 
 **观察结果**：找到 3 个任务
@@ -249,7 +249,7 @@ Response: 你今天有 3 个任务：
 \`\`\`
 Thought: 用户想了解任务的整体情况。我先获取今天的任务列表，然后再分析。
 Action: get_tasks
-Action Input: {"userId": "user_id_placeholder", "dateRange": "today", "includeCompleted": false}
+Action Input: {"userId": "user_id_placeholder", "dateRange": {"start": "2025-11-06", "end": "2025-11-06"}, "includeCompleted": false}
 \`\`\`
 
 **观察结果**：找到 5 个任务
@@ -325,12 +325,18 @@ Action: get_tasks, analyze_tasks
 
 ---
 
-**错误 3：Action Input 不是 JSON**
+**错误 3：Action Input 不是有效的 JSON**
 \`\`\`
 Action: get_tasks
 Action Input: 获取今天的任务
 \`\`\`
-❌ Action Input 必须是有效的 JSON 格式！`
+❌ Action Input 必须是有效的 JSON 格式！
+
+**正确示例**：
+\`\`\`
+Action: get_tasks
+Action Input: {"userId": "user_id", "dateRange": {"start": "2025-11-06", "end": "2025-11-06"}}
+\`\`\``
 }
 
 /**
@@ -350,6 +356,231 @@ function buildHistorySection(memory: ChatMessage[]): string {
   })
 
   return section
+}
+
+// ==================== 输出解析器（Phase 3 Step 2） ====================
+
+/**
+ * 解析 ReAct 输出
+ * 
+ * 支持两种格式：
+ * 1. Thought + Response（直接回复用户）
+ * 2. Thought + Action + Action Input（调用工具）
+ * 
+ * @param text LLM 的原始输出文本
+ * @returns 解析后的结构化数据
+ */
+export function parseReActOutput(text: string): ParsedOutput {
+  console.log('🔍 开始解析 LLM 输出...')
+  console.log(`📝 原始输出长度: ${text.length} 字符`)
+  
+  // 预处理：去除首尾空白
+  const trimmedText = text.trim()
+  
+  // 提取 Thought（必需）
+  const thoughtMatch = trimmedText.match(/Thought:\s*(.+?)(?=\n(?:Action|Response):|$)/is)
+  if (!thoughtMatch) {
+    console.error('❌ 未找到 Thought')
+    throw new Error('解析失败: 输出中缺少 Thought 部分')
+  }
+  
+  const thought = thoughtMatch[1].trim()
+  console.log(`✅ 提取到 Thought: "${thought.substring(0, 50)}..."`)
+  
+  // 判断是 Response 还是 Action
+  const hasResponse = /Response:\s*/i.test(trimmedText)
+  const hasAction = /Action:\s*/i.test(trimmedText)
+  
+  // ========== 格式 1: Thought + Response ==========
+  if (hasResponse && !hasAction) {
+    console.log('📋 格式识别: Thought + Response（直接回复）')
+    
+    const responseMatch = trimmedText.match(/Response:\s*(.+?)$/is)
+    if (!responseMatch) {
+      throw new Error('解析失败: 找到 Response 标记但无法提取内容')
+    }
+    
+    const response = responseMatch[1].trim()
+    console.log(`✅ 提取到 Response: "${response.substring(0, 50)}..."`)
+    
+    return {
+      type: 'response',
+      thought: thought,
+      response: response
+    }
+  }
+  
+  // ========== 格式 2: Thought + Action + Action Input ==========
+  if (hasAction) {
+    console.log('🔧 格式识别: Thought + Action + Action Input（调用工具）')
+    
+    // 提取 Action
+    const actionMatch = trimmedText.match(/Action:\s*(.+?)(?=\n|$)/i)
+    if (!actionMatch) {
+      throw new Error('解析失败: 找到 Action 标记但无法提取内容')
+    }
+    
+    const action = actionMatch[1].trim()
+    console.log(`✅ 提取到 Action: "${action}"`)
+    
+    // 提取 Action Input
+    const actionInputMatch = trimmedText.match(/Action Input:\s*(.+?)$/is)
+    if (!actionInputMatch) {
+      throw new Error('解析失败: 找到 Action 但缺少 Action Input')
+    }
+    
+    const actionInputRaw = actionInputMatch[1].trim()
+    console.log(`📝 原始 Action Input: ${actionInputRaw.substring(0, 100)}...`)
+    
+    // 解析 JSON（容错处理）
+    const actionInput = parseActionInputJSON(actionInputRaw)
+    console.log(`✅ Action Input 解析成功`)
+    
+    return {
+      type: 'action',
+      thought: thought,
+      action: action,
+      actionInput: actionInput
+    }
+  }
+  
+  // ========== 格式错误 ==========
+  console.error('❌ 无法识别输出格式（既没有 Response 也没有 Action）')
+  throw new Error('解析失败: 输出格式不符合 ReAct 规范（需要 Thought + Response 或 Thought + Action）')
+}
+
+/**
+ * 解析 Action Input 的 JSON
+ * 
+ * 容错处理：
+ * - 移除 Markdown 代码块标记
+ * - 处理单引号 JSON
+ * - 处理尾部逗号
+ * - 处理转义字符
+ */
+function parseActionInputJSON(raw: string): any {
+  let jsonString = raw.trim()
+  
+  // 1. 移除 Markdown 代码块标记
+  if (jsonString.startsWith('```json')) {
+    jsonString = jsonString.replace(/^```json\s*/, '').replace(/\s*```$/, '')
+    console.log('   🔧 移除了 ```json 代码块标记')
+  } else if (jsonString.startsWith('```')) {
+    jsonString = jsonString.replace(/^```\s*/, '').replace(/\s*```$/, '')
+    console.log('   🔧 移除了 ``` 代码块标记')
+  }
+  
+  jsonString = jsonString.trim()
+  
+  // 2. 尝试直接解析
+  try {
+    const parsed = JSON.parse(jsonString)
+    console.log('   ✅ JSON 解析成功（无需容错）')
+    return parsed
+  } catch (firstError: any) {
+    console.log(`   ⚠️ 直接解析失败: ${firstError.message}`)
+  }
+  
+  // 3. 容错处理 1：移除尾部逗号
+  let fixedString = jsonString.replace(/,(\s*[}\]])/g, '$1')
+  try {
+    const parsed = JSON.parse(fixedString)
+    console.log('   ✅ JSON 解析成功（移除了尾部逗号）')
+    return parsed
+  } catch (secondError: any) {
+    console.log(`   ⚠️ 容错 1 失败: ${secondError.message}`)
+  }
+  
+  // 4. 容错处理 2：将单引号替换为双引号（简单情况）
+  fixedString = jsonString.replace(/'/g, '"')
+  try {
+    const parsed = JSON.parse(fixedString)
+    console.log('   ✅ JSON 解析成功（单引号 → 双引号）')
+    return parsed
+  } catch (thirdError: any) {
+    console.log(`   ⚠️ 容错 2 失败: ${thirdError.message}`)
+  }
+  
+  // 5. 容错处理 3：两种方法组合
+  fixedString = jsonString.replace(/'/g, '"').replace(/,(\s*[}\]])/g, '$1')
+  try {
+    const parsed = JSON.parse(fixedString)
+    console.log('   ✅ JSON 解析成功（组合容错）')
+    return parsed
+  } catch (fourthError: any) {
+    console.log(`   ⚠️ 容错 3 失败: ${fourthError.message}`)
+  }
+  
+  // 6. 所有方法都失败
+  console.error('   ❌ 所有 JSON 解析方法都失败')
+  console.error(`   原始内容: ${raw.substring(0, 200)}...`)
+  throw new Error(`无法解析 Action Input 为 JSON: ${raw.substring(0, 100)}...`)
+}
+
+/**
+ * 验证工具参数
+ * 
+ * 检查：
+ * 1. 必需参数是否都存在
+ * 2. 参数类型是否匹配（基础检查）
+ * 
+ * @param toolName 工具名称
+ * @param actionInput 工具参数
+ * @param parameterSchema 参数 schema（从工具定义中获取）
+ * @returns 验证结果 { valid: boolean, errors: string[] }
+ */
+export function validateActionInput(
+  toolName: string,
+  actionInput: any,
+  parameterSchema: any
+): { valid: boolean; errors: string[] } {
+  console.log(`🔍 验证工具参数: ${toolName}`)
+  
+  const errors: string[] = []
+  
+  // 1. 检查 actionInput 是否为对象
+  if (typeof actionInput !== 'object' || actionInput === null) {
+    errors.push('Action Input 必须是一个 JSON 对象')
+    return { valid: false, errors }
+  }
+  
+  // 2. 检查必需参数
+  const required = parameterSchema.required || []
+  for (const field of required) {
+    if (!(field in actionInput)) {
+      errors.push(`缺少必需参数: ${field}`)
+    }
+  }
+  
+  // 3. 基础类型检查（可选，仅检查明显错误）
+  const properties = parameterSchema.properties || {}
+  for (const [field, schema] of Object.entries(properties) as any) {
+    if (field in actionInput) {
+      const value = actionInput[field]
+      const expectedType = schema.type
+      
+      // 简单类型检查
+      if (expectedType === 'string' && typeof value !== 'string') {
+        errors.push(`参数 ${field} 应为 string 类型，实际为 ${typeof value}`)
+      } else if (expectedType === 'number' && typeof value !== 'number') {
+        errors.push(`参数 ${field} 应为 number 类型，实际为 ${typeof value}`)
+      } else if (expectedType === 'boolean' && typeof value !== 'boolean') {
+        errors.push(`参数 ${field} 应为 boolean 类型，实际为 ${typeof value}`)
+      } else if (expectedType === 'object' && (typeof value !== 'object' || value === null)) {
+        errors.push(`参数 ${field} 应为 object 类型`)
+      } else if (expectedType === 'array' && !Array.isArray(value)) {
+        errors.push(`参数 ${field} 应为 array 类型`)
+      }
+    }
+  }
+  
+  if (errors.length === 0) {
+    console.log(`✅ 参数验证通过`)
+    return { valid: true, errors: [] }
+  } else {
+    console.error(`❌ 参数验证失败: ${errors.join(', ')}`)
+    return { valid: false, errors }
+  }
 }
 
 
