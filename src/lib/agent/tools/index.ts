@@ -12,7 +12,7 @@ import { LoadTaskContextTool } from './LoadTaskContextTool' // ✅ Step 2
 import { GetTasksTool } from './GetTasksTool' // ✅ Step 3
 import { AnalyzeTasksTool } from './AnalyzeTasksTool' // ✅ Step 4
 import { ClarifyTaskTool } from './ClarifyTaskTool' // ✅ Step 5
-// import { DecomposeTaskTool } from './DecomposeTaskTool'
+import { DecomposeTaskTool } from './DecomposeTaskTool' // ✅ Step 6
 // import { EstimateTimeTool } from './EstimateTimeTool'
 
 /**
@@ -38,7 +38,7 @@ export function getAllTools(): AgentTool[] {
     new GetTasksTool(), // ✅ Step 3
     new AnalyzeTasksTool(), // ✅ Step 4
     new ClarifyTaskTool(), // ✅ Step 5
-    // Step 6: new DecomposeTaskTool(),
+    new DecomposeTaskTool(), // ✅ Step 6
     // Step 7: new EstimateTimeTool(),
   ]
 

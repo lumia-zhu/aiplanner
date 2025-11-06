@@ -105,3 +105,5 @@ WHERE note_date < (CURRENT_DATE - INTERVAL '30 days');
 
 
 
+
+

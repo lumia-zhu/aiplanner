@@ -341,6 +341,195 @@ export default function TestAgentToolsPage() {
     }
   }
 
+  // Test DecomposeTaskTool - Step 6.1 基础验证
+  const testDecomposeToolBasics = async () => {
+    addResult('\n🧪 ========== Step 6.1: DecomposeTaskTool 基础验证 ==========')
+    
+    try {
+      addResult('🔄 正在导入 DecomposeTaskTool...')
+      const { DecomposeTaskTool } = await import('@/lib/agent/tools/DecomposeTaskTool')
+      
+      addResult('✅ 工具类导入成功')
+      
+      const tool = new DecomposeTaskTool()
+      
+      addResult(`✅ 工具实例化成功: ${tool.name}`)
+      addResult(`📝 工具描述: ${tool.description}`)
+      
+      // 验证接口
+      const hasRequiredFields = 
+        typeof tool.name === 'string' &&
+        typeof tool.description === 'string' &&
+        typeof tool.execute === 'function' &&
+        tool.parameters !== undefined
+      
+      if (hasRequiredFields) {
+        addResult('✅ 工具接口验证通过 (name, description, execute, parameters)')
+      } else {
+        addResult('❌ 工具接口不完整')
+      }
+      
+      // 验证参数 schema
+      const params = tool.parameters
+      if (params.type === 'object' && params.properties && params.required) {
+        addResult('✅ 参数 schema 结构正确')
+        addResult(`   必需参数: ${params.required.join(', ')}`)
+        addResult(`   可选参数: ${Object.keys(params.properties).filter(k => !params.required.includes(k)).join(', ') || '无'}`)
+      } else {
+        addResult('❌ 参数 schema 结构不正确')
+      }
+      
+      addResult('\n🎉 Step 6.1 基础验证通过！')
+      addResult('📝 下一步：实现第一轮逻辑（生成拆解问题）')
+      
+    } catch (error: any) {
+      addResult(`❌ 测试失败: ${error.message}`)
+      console.error('测试错误:', error)
+    }
+  }
+
+  // Test DecomposeTaskTool - Step 6.2 第一轮逻辑（生成拆解问题）
+  const testDecomposeToolRound1 = async () => {
+    if (!user) return
+
+    addResult('\n🧪 ========== Step 6.2: DecomposeTaskTool 第一轮测试 ==========')
+    
+    try {
+      const { DecomposeTaskTool } = await import('@/lib/agent/tools/DecomposeTaskTool')
+      const { LoadTaskContextTool } = await import('@/lib/agent/tools/LoadTaskContextTool')
+      
+      addResult('✅ 工具类导入成功')
+      
+      // 加载任务上下文
+      addResult('\n🔄 加载任务上下文...')
+      const loadTool = new LoadTaskContextTool()
+      const loadResult = await loadTool.execute({ userId: user.id })
+      
+      if (loadResult.type !== 'success' || loadResult.data.todayTasks.length === 0) {
+        addResult('⚠️  没有找到今天的任务，无法测试拆解功能')
+        return
+      }
+      
+      // 找一个标题较长的任务（可能需要拆解）
+      const taskToDecompose = loadResult.data.todayTasks.find(t => t.title.length > 10) || loadResult.data.todayTasks[0]
+      
+      addResult(`✅ 找到任务: "${taskToDecompose.title}"`)
+      
+      // 第一轮：生成拆解问题
+      addResult('\n🔄 第一轮：生成拆解问题...')
+      const decomposeTool = new DecomposeTaskTool()
+      const result = await decomposeTool.execute({ task: taskToDecompose })
+      
+      if (result.type === 'need_input') {
+        addResult('✅ 工具正确返回 need_input（交互式流程）')
+        addResult(`\n💬 AI 的拆解问题:`)
+        addResult(result.prompt)
+        
+        // 验证 context
+        if (result.context && result.context.taskId && result.context.step === 'decomposition_questions') {
+          addResult('\n✅ context 结构正确:')
+          addResult(`   taskId: ${result.context.taskId}`)
+          addResult(`   step: ${result.context.step}`)
+        } else {
+          addResult('\n❌ context 结构不正确')
+        }
+        
+        addResult('\n🎉 Step 6.2 第一轮测试通过！')
+        addResult('📝 下一步：实现第二轮逻辑（执行拆解）')
+      } else if (result.type === 'error') {
+        addResult(`❌ 工具执行失败: ${result.message}`)
+      } else {
+        addResult(`❌ 预期返回 need_input，实际返回: ${result.type}`)
+      }
+      
+    } catch (error: any) {
+      addResult(`❌ 测试失败: ${error.message}`)
+      console.error('测试错误:', error)
+    }
+  }
+
+  // Test DecomposeTaskTool - Step 6.3 完整流程（两轮对话）
+  const testDecomposeToolComplete = async () => {
+    if (!user) return
+
+    addResult('\n🧪 ========== Step 6.3: DecomposeTaskTool 完整测试 ==========')
+    
+    try {
+      const { DecomposeTaskTool } = await import('@/lib/agent/tools/DecomposeTaskTool')
+      const { LoadTaskContextTool } = await import('@/lib/agent/tools/LoadTaskContextTool')
+      
+      addResult('✅ 工具类导入成功')
+      
+      // 加载任务上下文
+      addResult('\n🔄 加载任务上下文...')
+      const loadTool = new LoadTaskContextTool()
+      const loadResult = await loadTool.execute({ userId: user.id })
+      
+      if (loadResult.type !== 'success' || loadResult.data.todayTasks.length === 0) {
+        addResult('⚠️  没有找到今天的任务，无法测试拆解功能')
+        return
+      }
+      
+      // 找一个标题较长的任务（可能需要拆解）
+      const taskToDecompose = loadResult.data.todayTasks.find(t => t.title.length > 10) || loadResult.data.todayTasks[0]
+      
+      addResult(`✅ 找到任务: "${taskToDecompose.title}"`)
+      
+      // 第一轮：生成拆解问题
+      addResult('\n🔄 第一轮：生成拆解问题...')
+      const decomposeTool = new DecomposeTaskTool()
+      const result1 = await decomposeTool.execute({ task: taskToDecompose })
+      
+      if (result1.type === 'need_input') {
+        addResult('✅ 工具正确返回 need_input（交互式流程）')
+        addResult(`\n💬 AI 的拆解问题:`)
+        addResult(result1.prompt)
+        
+        // 模拟用户回答
+        addResult('\n🔄 第二轮：模拟用户回答...')
+        const userAnswer = '这个任务需要分成准备、执行、总结三个阶段，每个阶段都要认真完成'
+        addResult(`用户回答: ${userAnswer}`)
+        
+        const result2 = await decomposeTool.execute({ 
+          task: taskToDecompose, 
+          userContext: userAnswer 
+        })
+        
+        if (result2.type === 'success') {
+          addResult('✅ 拆解完成！')
+          addResult(`\n${result2.data.message}`)
+          
+          if (result2.data.subtasks && result2.data.subtasks.length > 0) {
+            addResult('\n📋 子任务列表:')
+            result2.data.subtasks.forEach((subtask: any, index: number) => {
+              addResult(`  ${index + 1}. ${subtask.title} (预计 ${subtask.estimatedMinutes} 分钟)`)
+            })
+            
+            addResult(`\n⏱️  总预计时间: ${result2.data.totalEstimatedMinutes} 分钟`)
+          }
+          
+          if (result2.data.suggestions) {
+            addResult('\n💡 后续建议:')
+            result2.data.suggestions.forEach((suggestion: string) => {
+              addResult(`  ${suggestion}`)
+            })
+          }
+          
+          addResult('\n🎉 Step 6.3 完整测试通过！')
+          addResult('✅ DecomposeTaskTool 开发完成！')
+        } else {
+          addResult(`❌ 第二轮执行失败: ${result2.message}`)
+        }
+      } else if (result1.type === 'error') {
+        addResult(`❌ 工具执行失败: ${result1.message}`)
+      }
+      
+    } catch (error: any) {
+      addResult(`❌ 测试失败: ${error.message}`)
+      console.error('测试错误:', error)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -405,6 +594,27 @@ export default function TestAgentToolsPage() {
               className="w-full bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
             >
               测试 6: AgentMemory.ensureTaskContext
+            </button>
+            
+            <button
+              onClick={testDecomposeToolBasics}
+              className="w-full bg-teal-600 text-white px-4 py-2 rounded hover:bg-teal-700"
+            >
+              ✅ Step 6.1: DecomposeTaskTool 基础验证
+            </button>
+            
+            <button
+              onClick={testDecomposeToolRound1}
+              className="w-full bg-cyan-600 text-white px-4 py-2 rounded hover:bg-cyan-700"
+            >
+              ✅ Step 6.2: DecomposeTaskTool 第一轮测试（生成问题）
+            </button>
+            
+            <button
+              onClick={testDecomposeToolComplete}
+              className="w-full bg-emerald-600 text-white px-4 py-2 rounded hover:bg-emerald-700"
+            >
+              🚧 Step 6.3: DecomposeTaskTool 完整测试（两轮对话）⭐
             </button>
             
             <button

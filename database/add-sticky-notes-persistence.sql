@@ -42,3 +42,5 @@ WHERE table_name = 'sticky_notes'
   AND column_name IN ('is_hidden', 'is_global', 'created_at', 'updated_at')
 ORDER BY ordinal_position;
 
+
+
