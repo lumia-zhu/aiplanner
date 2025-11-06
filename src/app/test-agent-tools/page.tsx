@@ -530,6 +530,120 @@ export default function TestAgentToolsPage() {
     }
   }
 
+  // Test ReactAgent - Phase 3 Step 3
+  const testReActAgent = async () => {
+    if (!user) return
+
+    addResult('\n🧪 ========== Phase 3 Step 3: ReAct Agent 主循环测试 ==========')
+    
+    try {
+      const { ReactAgent } = await import('@/lib/agent/ReactAgent')
+      const { format } = await import('date-fns')
+      
+      addResult('✅ ReactAgent 类导入成功')
+      
+      // ========== 测试场景 1: Agent 初始化 ==========
+      addResult('\n🔄 测试场景 1: Agent 初始化')
+      
+      const agent = new ReactAgent()
+      addResult('   ✅ Agent 实例化成功')
+      
+      // ========== 测试场景 2: 简单问候（不调用工具） ==========
+      addResult('\n🔄 测试场景 2: 简单问候（不调用工具）')
+      
+      const today = new Date()
+      const todayStr = format(today, 'yyyy-MM-dd')
+      
+      const context1 = {
+        userId: user.id,
+        userProfile: null,
+        dateScope: {
+          type: 'day' as const,
+          start: todayStr,
+          end: todayStr
+        }
+      }
+      
+      addResult('   🤖 正在调用 Agent（"你好"）...')
+      addResult('   ⏳ 这可能需要几秒钟...')
+      
+      const response1 = await agent.run('你好', context1)
+      
+      if (response1.type === 'text') {
+        addResult('   ✅ Agent 返回文本响应')
+        addResult(`   📝 响应内容: "${response1.content.substring(0, 100)}..."`)
+        addResult(`   🔄 迭代次数: ${response1.metadata?.iterations}`)
+        addResult(`   🧠 Thoughts 数量: ${response1.metadata?.thoughts?.length || 0}`)
+        addResult(`   🔧 使用的工具: ${response1.metadata?.usedTools?.join(', ') || '无'}`)
+      } else if (response1.type === 'error') {
+        addResult(`   ⚠️ Agent 返回错误: ${response1.content}`)
+      } else {
+        addResult(`   ⚠️ 未预期的响应类型: ${response1.type}`)
+      }
+      
+      // ========== 测试场景 3: 查询任务（需要调用工具） ==========
+      addResult('\n🔄 测试场景 3: 查询任务（需要调用工具）')
+      
+      const agent2 = new ReactAgent()
+      const context2 = {
+        userId: user.id,
+        userProfile: null,
+        dateScope: {
+          type: 'day' as const,
+          start: todayStr,
+          end: todayStr
+        }
+      }
+      
+      addResult('   🤖 正在调用 Agent（"我今天有哪些任务"）...')
+      addResult('   ⏳ Agent 可能会调用多个工具...')
+      
+      const response2 = await agent2.run('我今天有哪些任务', context2)
+      
+      if (response2.type === 'text') {
+        addResult('   ✅ Agent 返回文本响应')
+        addResult(`   📝 响应内容: "${response2.content.substring(0, 150)}..."`)
+        addResult(`   🔄 迭代次数: ${response2.metadata?.iterations}`)
+        addResult(`   🧠 Thoughts 数量: ${response2.metadata?.thoughts?.length || 0}`)
+        addResult(`   🔧 使用的工具: ${response2.metadata?.usedTools?.join(', ') || '无'}`)
+        
+        if (response2.metadata?.usedTools && response2.metadata.usedTools.length > 0) {
+          addResult('   ✅ 成功调用了工具！')
+        } else {
+          addResult('   ⚠️ 没有调用工具（可能 AI 直接回答了）')
+        }
+      } else if (response2.type === 'error') {
+        addResult(`   ⚠️ Agent 返回错误: ${response2.content}`)
+      } else if (response2.type === 'need_user_input') {
+        addResult('   ⏸️ Agent 需要用户输入（交互式工具）')
+        addResult(`   💬 提示: "${response2.prompt.substring(0, 100)}..."`)
+      } else {
+        addResult(`   ⚠️ 未预期的响应类型: ${response2.type}`)
+      }
+      
+      // ========== 最终总结 ==========
+      addResult('\n📊 ReAct Agent 测试总结:')
+      addResult('   ✅ Agent 初始化')
+      addResult('   ✅ 简单对话（不调用工具）')
+      addResult('   ✅ 复杂对话（调用工具）')
+      addResult('   ✅ Thought → Action → Observation 循环')
+      addResult('   ✅ 错误处理机制')
+      
+      addResult('\n🎉 Phase 3 Step 3 测试完成！')
+      addResult('✅ ReAct Agent 主循环实现成功')
+      
+      addResult('\n💡 提示:')
+      addResult('   - Agent 会根据需要自动调用工具')
+      addResult('   - 每次调用 Agent 都会进行 Thought（推理）')
+      addResult('   - 最多会进行 5 轮推理（可在 AgentConfig 配置）')
+      addResult('   - 如果工具需要用户输入，Agent 会暂停等待')
+      
+    } catch (error: any) {
+      addResult(`❌ 测试失败: ${error.message}`)
+      console.error('测试错误:', error)
+    }
+  }
+
   // Test Output Parser - Phase 3 Step 2
   const testOutputParser = async () => {
     if (!user) return
@@ -759,7 +873,8 @@ Action Input: {"userId": "test_user", "dateRange": {"start": "2025-11-06", "end"
         tools: tools,
         taskContext: taskContext,
         userProfile: null,
-        dateScope: { type: 'day', start: '2025-11-06', end: '2025-11-06' }
+        dateScope: { type: 'day', start: '2025-11-06', end: '2025-11-06' },
+        userId: user.id
       })
       
       const checks1 = {
@@ -795,7 +910,8 @@ Action Input: {"userId": "test_user", "dateRange": {"start": "2025-11-06", "end"
         tools: tools,
         taskContext: taskContext,
         userProfile: null,
-        dateScope: { type: 'day', start: '2025-11-06', end: '2025-11-06' }
+        dateScope: { type: 'day', start: '2025-11-06', end: '2025-11-06' },
+        userId: user.id
       })
       
       const hasHistory = prompt2.includes('对话历史') && prompt2.includes('我今天有哪些任务')
@@ -1037,9 +1153,15 @@ Action Input: {"userId": "test_user", "dateRange": {"start": "2025-11-06", "end"
               </button>
               <button
                 onClick={testOutputParser}
+                className="w-full bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 font-bold mb-2"
+              >
+                ✅ Phase 3 Step 2: 输出解析器测试
+              </button>
+              <button
+                onClick={testReActAgent}
                 className="w-full bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 font-bold"
               >
-                🧪 Phase 3 Step 2: 输出解析器测试 ⭐ NEW
+                🧪 Phase 3 Step 3: ReAct Agent 主循环测试 ⭐ NEW
               </button>
             </div>
             

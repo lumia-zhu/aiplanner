@@ -20,6 +20,7 @@ export interface BuildReActPromptParams {
   taskContext: TaskContext | null
   userProfile: UserProfile | null
   dateScope: DateScope
+  userId: string
 }
 
 /**
@@ -32,7 +33,7 @@ export interface BuildReActPromptParams {
  * 4. 严格的输出格式
  */
 export function buildReActPrompt(params: BuildReActPromptParams): string {
-  const { userMessage, memory, tools, taskContext, userProfile, dateScope } = params
+  const { userMessage, memory, tools, taskContext, userProfile, dateScope, userId } = params
 
   // 1. 系统角色设定（基于 ReAct 范式）
   const rolePrompt = `你是一个智能任务管理助手，采用 ReAct (Reasoning and Acting) 范式工作。
@@ -56,7 +57,7 @@ export function buildReActPrompt(params: BuildReActPromptParams): string {
 - ⏱️ 估算任务所需时间`
 
   // 2. 当前上下文
-  const contextPrompt = buildContextSection(taskContext, userProfile, dateScope)
+  const contextPrompt = buildContextSection(taskContext, userProfile, dateScope, userId)
 
   // 3. 可用工具
   const toolsPrompt = buildToolsSection(tools)
@@ -128,9 +129,14 @@ Response: [给用户的回复内容]
 function buildContextSection(
   taskContext: TaskContext | null,
   userProfile: UserProfile | null,
-  dateScope: DateScope
+  dateScope: DateScope,
+  userId: string
 ): string {
   let section = `## 当前上下文\n\n`
+
+  // 用户ID（重要！工具调用时需要使用）
+  section += `**⚠️ 重要：当前用户 ID**：\`${userId}\`\n`
+  section += `> 在调用任何工具时，请使用这个真实的用户 ID，不要使用示例中的占位符！\n\n`
 
   // 用户信息
   if (userProfile) {
@@ -461,13 +467,26 @@ export function parseReActOutput(text: string): ParsedOutput {
 function parseActionInputJSON(raw: string): any {
   let jsonString = raw.trim()
   
-  // 1. 移除 Markdown 代码块标记
+  // 1. 移除 Markdown 代码块标记（分别处理开头和结尾）
+  let removed = false
+  
+  // 移除开头的代码块标记
   if (jsonString.startsWith('```json')) {
-    jsonString = jsonString.replace(/^```json\s*/, '').replace(/\s*```$/, '')
-    console.log('   🔧 移除了 ```json 代码块标记')
+    jsonString = jsonString.replace(/^```json\s*/, '')
+    removed = true
   } else if (jsonString.startsWith('```')) {
-    jsonString = jsonString.replace(/^```\s*/, '').replace(/\s*```$/, '')
-    console.log('   🔧 移除了 ``` 代码块标记')
+    jsonString = jsonString.replace(/^```\s*/, '')
+    removed = true
+  }
+  
+  // 移除结尾的代码块标记（独立处理）
+  if (jsonString.endsWith('```')) {
+    jsonString = jsonString.replace(/\s*```$/, '')
+    removed = true
+  }
+  
+  if (removed) {
+    console.log('   🔧 移除了代码块标记')
   }
   
   jsonString = jsonString.trim()
@@ -559,9 +578,20 @@ export function validateActionInput(
       const value = actionInput[field]
       const expectedType = schema.type
       
-      // 简单类型检查
+      // 跳过 null 或 undefined 的可选参数
+      if (value === null || value === undefined) {
+        continue
+      }
+      
+      // 简单类型检查（放宽规则）
       if (expectedType === 'string' && typeof value !== 'string') {
-        errors.push(`参数 ${field} 应为 string 类型，实际为 ${typeof value}`)
+        // 如果不是必需参数，且值不是字符串，跳过（容错）
+        const isRequired = required.includes(field)
+        if (isRequired) {
+          errors.push(`参数 ${field} 应为 string 类型，实际为 ${typeof value}`)
+        } else {
+          console.log(`   ⚠️ 可选参数 ${field} 类型不匹配（预期 string，实际 ${typeof value}），跳过验证`)
+        }
       } else if (expectedType === 'number' && typeof value !== 'number') {
         errors.push(`参数 ${field} 应为 number 类型，实际为 ${typeof value}`)
       } else if (expectedType === 'boolean' && typeof value !== 'boolean') {
