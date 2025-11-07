@@ -13,6 +13,11 @@ import ClarificationConfirmOptions from './ClarificationConfirmOptions'
 import TimeEstimationInput from './TimeEstimationInput'
 import EstimationConfirmOptions from './EstimationConfirmOptions'
 import InteractiveButtons from './InteractiveButtons'
+import AgentThoughtCard from './AgentThoughtCard'
+import AgentActionCard from './AgentActionCard'
+import AgentObservationCard from './AgentObservationCard'
+import AgentNeedInputCard from './AgentNeedInputCard'
+import AgentLoadingIndicator from './AgentLoadingIndicator'
 
 // 任务识别相关类型
 interface RecognizedTask {
@@ -86,6 +91,10 @@ interface ChatSidebarProps {
   onEstimationCancel?: () => void
   estimationInitial?: number | null  // 初始估计分钟数（用于显示确认按钮）
   
+  // ⭐ Agent 相关回调
+  onAgentInputSubmit?: (userInput: string, context: any) => void  // Agent 交互式输入提交
+  isAgentRunning?: boolean  // Agent 是否正在运行
+  
   // 事件处理函数
   handleSendMessage: () => void
   handleClearChat: () => void
@@ -149,6 +158,8 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   onEstimationConfirm,
   onEstimationCancel,
   estimationInitial,
+  onAgentInputSubmit,  // ⭐ Agent 交互式输入
+  isAgentRunning,  // ⭐ Agent 运行状态
   handleSendMessage,
   handleClearChat,
   handleDragEnter,
@@ -400,6 +411,60 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                               onEstimationConfirm={onEstimationConfirm}
                               currentTasks={currentTasks}
                             />
+                          )}
+                          
+                          {/* ⭐ Agent 消息类型渲染 */}
+                          {/* Agent Thought 卡片 */}
+                          {content.interactive.type === 'agent-thought' && (
+                            <AgentThoughtCard data={content.interactive.data} />
+                          )}
+                          
+                          {/* Agent Action 卡片 */}
+                          {content.interactive.type === 'agent-action' && (
+                            <AgentActionCard data={content.interactive.data} />
+                          )}
+                          
+                          {/* Agent Observation 卡片 */}
+                          {content.interactive.type === 'agent-observation' && (
+                            <AgentObservationCard data={content.interactive.data} />
+                          )}
+                          
+                          {/* Agent Need Input 卡片 */}
+                          {content.interactive.type === 'agent-need-input' && (
+                            <AgentNeedInputCard 
+                              data={content.interactive.data}
+                              isActive={content.interactive.isActive !== false}
+                              onSubmit={(userInput) => {
+                                if (onAgentInputSubmit && content.interactive?.data.context) {
+                                  onAgentInputSubmit(userInput, content.interactive.data.context)
+                                }
+                              }}
+                            />
+                          )}
+                          
+                          {/* Agent Loading 指示器 */}
+                          {content.interactive.type === 'agent-loading' && (
+                            <AgentLoadingIndicator data={content.interactive.data} />
+                          )}
+                          
+                          {/* Agent Error 卡片 */}
+                          {content.interactive.type === 'agent-error' && (
+                            <div className="my-2 p-3 bg-red-50 border-l-4 border-red-500 rounded-r-lg">
+                              <div className="flex items-start gap-2">
+                                <svg className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                                        d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-semibold text-red-700 mb-1">
+                                    ❌ Agent 执行错误
+                                  </p>
+                                  <p className="text-sm text-red-600">
+                                    {content.interactive.data.error || '未知错误'}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
                           )}
                         </div>
                       )}
