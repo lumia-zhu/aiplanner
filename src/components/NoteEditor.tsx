@@ -482,18 +482,18 @@ export default function NoteEditor({
           .setTextSelection(insertPos)
           .insertContent([
             {
-              type: 'text',
+            type: 'text',
               text: tag.label, // 标签文本（带 taskTag mark）
-              marks: [
-                {
-                  type: 'taskTag',
-                  attrs: {
-                    label: tag.label,
-                    emoji: tag.emoji,
-                    color: tag.color,
-                  },
+            marks: [
+              {
+                type: 'taskTag',
+                attrs: {
+                  label: tag.label,
+                  emoji: tag.emoji,
+                  color: tag.color,
                 },
-              ],
+              },
+            ],
             },
             {
               type: 'text',

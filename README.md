@@ -4,6 +4,7 @@
 
 ## ✨ 功能特色
 
+### 基础功能
 - 🔐 **用户认证系统** - 简单的用户名+密码注册登录
 - 📝 **任务管理** - 完整的增删改查功能
 - 🎯 **优先级管理** - 高/中/低三级优先级，彩色标签显示
@@ -12,6 +13,14 @@
 - 🔄 **智能排序** - 按优先级+截止日期自动排序
 - 📱 **响应式设计** - 适配桌面和移动端
 - 🎨 **现代化UI** - 蓝色主题，简洁美观
+
+### AI Agent 功能 ⭐ NEW (2025-11-07)
+- 🤖 **ReAct Agent** - 基于推理和行动（Reasoning + Acting）范式的智能助手
+- 🧠 **长期记忆** - 自动加载 3 个月的任务上下文，理解用户习惯
+- 🛠️ **工具生态** - 6 个专业工具（查询、分析、澄清、拆解、估时、上下文加载）
+- 💬 **交互式流程** - 支持多轮对话和暂停/恢复机制
+- 🎯 **智能推理** - 自动选择合适的工具完成复杂任务
+- 📊 **任务分析** - 自动识别任务风险并提供优化建议
 
 ## 🛠️ 技术栈
 
@@ -223,6 +232,44 @@ MIT License
 
 ---
 
-**开发时间**: 约 4-5 天  
+## 📈 开发历史
+
+### Phase 3: ReAct Agent 核心实现 (2025-11-07) ✅
+**目标**: 实现完整的 ReAct（Reasoning + Acting）循环  
+**成果**:
+- ✅ 实现 AgentPrompt.ts - Prompt 模板和输出解析器
+- ✅ 实现 ReactAgent.ts - Agent 核心逻辑和 ReAct 主循环
+- ✅ 实现 AgentMemory.ts - 短期和长期记忆管理
+- ✅ 所有测试场景 100% 通过
+- ✅ 平均响应时间 2-4 秒（目标 < 5 秒）
+
+**详细报告**: [PHASE3_COMPLETION_REPORT.md](./PHASE3_COMPLETION_REPORT.md)
+
+### Phase 2: 工具层开发 (2025-11-06) ✅
+**目标**: 构建 Agent 的工具生态系统  
+**成果**:
+- ✅ LoadTaskContextTool - 加载 3 个月任务上下文
+- ✅ GetTasksTool - 查询任务（支持多种过滤条件）
+- ✅ AnalyzeTasksTool - 分析任务并提供建议
+- ✅ ClarifyTaskTool - 交互式任务澄清
+- ✅ DecomposeTaskTool - 任务拆解
+- ✅ EstimateTimeTool - 时间估算
+
+**详细报告**: [PHASE2_EXECUTION_PLAN.md](./PHASE2_EXECUTION_PLAN.md)
+
+### Phase 1: 基础设施搭建 (2025-11-05) ✅
+**目标**: 建立 Agent 框架和 UI 模式切换  
+**成果**:
+- ✅ 创建 Agent 目录结构
+- ✅ 定义核心类型和接口
+- ✅ 在 ChatSidebar 中添加 Agent 模式切换
+- ✅ 配置 Agent 参数管理
+
+**详细报告**: [PHASE1_COMPLETION_REPORT.md](./PHASE1_COMPLETION_REPORT.md)
+
+---
+
+**开发时间**: 约 4-5 天 + AI Agent (3 天)  
 **适用场景**: 个人任务管理、小团队协作、原型验证  
-**架构设计**: 2025-10-30 更新
+**架构设计**: 2025-10-30 更新  
+**AI Agent**: 2025-11-07 完成
