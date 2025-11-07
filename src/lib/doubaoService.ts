@@ -72,12 +72,79 @@ export type InteractiveMessageType =
   | 'clarification-confirm'  // 澄清确认按钮
   | 'estimation-confirm'     // 估时确认按钮
   | 'action-options'         // 动作选项（保留兼容）
+  // ⭐ Agent 专用消息类型（Phase 4）
+  | 'agent-thought'          // Agent 的思考过程
+  | 'agent-action'           // Agent 调用的工具
+  | 'agent-observation'      // 工具返回的结果
+  | 'agent-need-input'       // Agent 需要用户输入
+  | 'agent-error'            // Agent 执行错误
+  | 'agent-loading'          // Agent 加载中
 
 // 交互式消息数据接口
 export interface InteractiveMessage {
   type: InteractiveMessageType
   data: any  // 根据type不同，data结构不同
   isActive?: boolean  // 是否可交互（默认true，确认后变为false）
+}
+
+// ⭐ Agent 消息数据接口（Phase 4）
+
+/**
+ * Agent 思考消息数据
+ */
+export interface AgentThoughtData {
+  thought: string           // 思考内容
+  iteration: number         // 当前迭代次数
+  timestamp: string         // 时间戳（ISO 8601 格式）
+}
+
+/**
+ * Agent 行动消息数据
+ */
+export interface AgentActionData {
+  toolName: string          // 工具名称（如 'get_tasks'）
+  toolDescription: string   // 工具描述（用于展示，如 '查询用户任务'）
+  parameters: any           // 工具参数（JSON 对象）
+  timestamp: string         // 时间戳
+}
+
+/**
+ * Agent 观察消息数据
+ */
+export interface AgentObservationData {
+  toolName: string          // 工具名称
+  success: boolean          // 执行是否成功
+  result: any               // 工具返回结果（JSON）
+  error?: string            // 错误信息（如果失败）
+  timestamp: string         // 时间戳
+}
+
+/**
+ * Agent 需要用户输入消息数据
+ */
+export interface AgentNeedInputData {
+  toolName: string          // 请求输入的工具名称
+  prompt: string            // 提示用户输入的文本
+  placeholder?: string      // 输入框占位符
+  context: any              // Agent 状态上下文（用于恢复 Agent 执行）
+  timestamp: string         // 时间戳
+}
+
+/**
+ * Agent 错误消息数据
+ */
+export interface AgentErrorData {
+  error: string             // 错误信息
+  iteration?: number        // 发生错误时的迭代次数
+  timestamp: string         // 时间戳
+}
+
+/**
+ * Agent 加载中消息数据
+ */
+export interface AgentLoadingData {
+  iteration?: number        // 当前迭代次数（用于进度条）
+  message?: string          // 加载提示文本（可选）
 }
 
 interface ChatMessage {
