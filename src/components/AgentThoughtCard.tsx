@@ -50,7 +50,7 @@ export default function AgentThoughtCard({ data }: AgentThoughtCardProps) {
           </p>
           
           {/* 时间戳 */}
-          <div className="text-xs text-purple-400 mt-2">
+          <div className="text-xs text-purple-400 mt-2" suppressHydrationWarning>
             {new Date(data.timestamp).toLocaleTimeString('zh-CN', { 
               hour: '2-digit', 
               minute: '2-digit',

@@ -105,9 +105,12 @@ export default function AgentObservationCard({ data }: AgentObservationCardProps
           )}
           
           {/* 时间戳 */}
-          <div className={`text-xs mt-2 ${
-            data.success ? 'text-green-400' : 'text-red-400'
-          }`}>
+          <div 
+            className={`text-xs mt-2 ${
+              data.success ? 'text-green-400' : 'text-red-400'
+            }`}
+            suppressHydrationWarning
+          >
             {new Date(data.timestamp).toLocaleTimeString('zh-CN', { 
               hour: '2-digit', 
               minute: '2-digit',
