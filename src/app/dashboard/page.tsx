@@ -29,6 +29,11 @@ import { getGuidanceMessage } from '@/lib/guidanceService'
 import type { UserProfile, UserProfileInput, MatrixState } from '@/types'
 import { getMatrixTypeByFeeling, getMatrixConfig } from '@/types'
 import { useWorkflowAssistant } from '@/hooks/useWorkflowAssistant'
+import { ReactAgent } from '@/lib/agent/ReactAgent'
+import { AgentMemory } from '@/lib/agent/AgentMemory'
+import { getAllTools } from '@/lib/agent/tools'
+import type { AgentResumeContext } from '@/lib/agent/AgentTypes'
+import { format } from 'date-fns'
 
 // 任务识别相关类型
 interface RecognizedTask {
@@ -220,6 +225,12 @@ export default function DashboardPage() {
     onWorkflowEnd: handleWorkflowEnd  // ⭐ 传入关闭侧边栏的回调
   })
   
+  // ⭐ Agent 相关状态
+  const [agentInstance, setAgentInstance] = useState<ReactAgent | null>(null)
+  const [agentMemory] = useState(() => new AgentMemory())
+  const [agentResumeContext, setAgentResumeContext] = useState<AgentResumeContext | null>(null)
+  const [isAgentRunning, setIsAgentRunning] = useState(false)
+  
   // 监听工作流状态,自动打开对应矩阵
   useEffect(() => {
     if (workflowMode === 'priority-matrix' && selectedFeeling) {
@@ -243,6 +254,16 @@ export default function DashboardPage() {
       return () => clearTimeout(timer)
     }
   }, [workflowMode, selectedFeeling])
+  
+  // ⭐ 初始化 Agent（只初始化一次）
+  useEffect(() => {
+    if (!agentInstance) {
+      const tools = getAllTools()
+      const agent = new ReactAgent(doubaoService, tools, agentMemory)
+      setAgentInstance(agent)
+      console.log('✅ ReactAgent 初始化成功')
+    }
+  }, [agentInstance, agentMemory])
   
   // 监听任务选择,发送任务拆解交互式消息
   useEffect(() => {
@@ -1709,6 +1730,297 @@ export default function DashboardPage() {
     }
   }
 
+  // ⭐⭐⭐ Agent 相关函数 ⭐⭐⭐
+  
+  // 处理 Agent 模式的消息发送
+  const handleAgentMessage = async () => {
+    if (!agentInstance || !user) return
+    
+    console.log('🤖 Agent 模式：开始处理消息')
+    setIsAgentRunning(true)
+    
+    // 1. 添加用户消息到聊天历史
+    const userMessage: ChatMessage = {
+      role: 'user',
+      content: [{ type: 'text', text: chatMessage }]
+    }
+    setChatMessages(prev => [...prev, userMessage])
+    
+    // 2. 添加加载指示器
+    const loadingMessage: ChatMessage = {
+      role: 'assistant',
+      content: [{
+        type: 'interactive',
+        interactive: {
+          type: 'agent-loading',
+          data: { iteration: 0, message: 'Agent 正在思考...' },
+          isActive: true
+        }
+      }]
+    }
+    setChatMessages(prev => [...prev, loadingMessage])
+    
+    try {
+      // 3. 调用 Agent
+      const result = await agentInstance.run(chatMessage, {
+        userId: user.id,
+        userProfile: userProfile || null,
+        dateScope: {
+          type: 'day',
+          start: format(selectedDate, 'yyyy-MM-dd'),
+          end: format(selectedDate, 'yyyy-MM-dd')
+        }
+      })
+      
+      // 4. 移除加载指示器
+      setChatMessages(prev => prev.filter(msg => {
+        const interactive = msg.content.find(c => c.type === 'interactive')?.interactive
+        return interactive?.type !== 'agent-loading'
+      }))
+      
+      // 5. 处理 Agent 返回结果
+      await handleAgentResult(result)
+      
+    } catch (error: any) {
+      console.error('❌ Agent 执行失败:', error)
+      
+      // 移除加载指示器
+      setChatMessages(prev => prev.filter(msg => {
+        const interactive = msg.content.find(c => c.type === 'interactive')?.interactive
+        return interactive?.type !== 'agent-loading'
+      }))
+      
+      // 添加错误消息
+      const errorMessage: ChatMessage = {
+        role: 'assistant',
+        content: [{
+          type: 'interactive',
+          interactive: {
+            type: 'agent-error',
+            data: {
+              error: error.message || '未知错误',
+              timestamp: new Date().toISOString()
+            },
+            isActive: false
+          }
+        }]
+      }
+      setChatMessages(prev => [...prev, errorMessage])
+    } finally {
+      setIsAgentRunning(false)
+    }
+  }
+  
+  // 处理 Agent 返回结果
+  const handleAgentResult = async (result: any) => {
+    console.log('📊 Agent 返回结果:', result)
+    
+    // 根据返回类型处理
+    switch (result.type) {
+      case 'text':
+        // 普通文本回复
+        await addAgentTextResponse(result)
+        break
+        
+      case 'need_input':
+        // 需要用户输入（交互式工具）
+        await addAgentNeedInputCard(result)
+        break
+        
+      default:
+        console.warn('未知的 Agent 返回类型:', result.type)
+    }
+  }
+  
+  // 添加文本回复（包含 Thought、Action、Observation）
+  const addAgentTextResponse = async (result: any) => {
+    const messages: ChatMessage[] = []
+    
+    // 1. 添加所有的 Thought 卡片
+    for (let i = 0; i < result.metadata.thoughts.length; i++) {
+      messages.push({
+        role: 'assistant',
+        content: [{
+          type: 'interactive',
+          interactive: {
+            type: 'agent-thought',
+            data: {
+              thought: result.metadata.thoughts[i],
+              iteration: i + 1,
+              timestamp: new Date().toISOString()
+            },
+            isActive: false
+          }
+        }]
+      })
+    }
+    
+    // 2. 添加所有的 Action 和 Observation 卡片
+    for (const step of result.metadata.steps) {
+      // Action 卡片
+      messages.push({
+        role: 'assistant',
+        content: [{
+          type: 'interactive',
+          interactive: {
+            type: 'agent-action',
+            data: {
+              toolName: step.tool,
+              toolDescription: step.toolDescription || step.tool,
+              parameters: step.parameters,
+              timestamp: new Date().toISOString()
+            },
+            isActive: false
+          }
+        }]
+      })
+      
+      // Observation 卡片
+      messages.push({
+        role: 'assistant',
+        content: [{
+          type: 'interactive',
+          interactive: {
+            type: 'agent-observation',
+            data: {
+              toolName: step.tool,
+              success: step.success !== false,
+              result: step.observation,
+              error: step.error,
+              timestamp: new Date().toISOString()
+            },
+            isActive: false
+          }
+        }]
+      })
+    }
+    
+    // 3. 添加最终文本回复
+    messages.push({
+      role: 'assistant',
+      content: [{ type: 'text', text: result.content }]
+    })
+    
+    // 4. 批量添加所有消息
+    setChatMessages(prev => [...prev, ...messages])
+  }
+  
+  // 添加交互式输入卡片
+  const addAgentNeedInputCard = async (result: any) => {
+    const needInputMessage: ChatMessage = {
+      role: 'assistant',
+      content: [{
+        type: 'interactive',
+        interactive: {
+          type: 'agent-need-input',
+          data: {
+            toolName: result.pendingTool || 'unknown',
+            prompt: result.prompt || '请提供更多信息',
+            placeholder: '请输入您的回答...',
+            context: result.resumeContext,
+            timestamp: new Date().toISOString()
+          },
+          isActive: true
+        }
+      }]
+    }
+    
+    setChatMessages(prev => [...prev, needInputMessage])
+    
+    // 保存恢复上下文
+    setAgentResumeContext(result.resumeContext)
+  }
+  
+  // 处理 Agent 交互式输入提交
+  const handleAgentInputSubmit = async (userInput: string, context: any) => {
+    if (!agentInstance || !user) return
+    
+    console.log('🔄 Agent 恢复执行，用户输入:', userInput)
+    setIsAgentRunning(true)
+    
+    // 1. 禁用当前的 need-input 卡片
+    setChatMessages(prev => prev.map(msg => {
+      const interactive = msg.content.find(c => c.type === 'interactive')?.interactive
+      if (interactive?.type === 'agent-need-input' && interactive.isActive) {
+        return {
+          ...msg,
+          content: msg.content.map(c => 
+            c.type === 'interactive' 
+              ? { ...c, interactive: { ...c.interactive!, isActive: false } }
+              : c
+          )
+        }
+      }
+      return msg
+    }))
+    
+    // 2. 添加用户输入消息
+    const userMessage: ChatMessage = {
+      role: 'user',
+      content: [{ type: 'text', text: userInput }]
+    }
+    setChatMessages(prev => [...prev, userMessage])
+    
+    // 3. 添加加载指示器
+    const loadingMessage: ChatMessage = {
+      role: 'assistant',
+      content: [{
+        type: 'interactive',
+        interactive: {
+          type: 'agent-loading',
+          data: { iteration: context.currentIteration || 0, message: 'Agent 正在处理...' },
+          isActive: true
+        }
+      }]
+    }
+    setChatMessages(prev => [...prev, loadingMessage])
+    
+    try {
+      // 4. 调用 Agent.resume()
+      const result = await agentInstance.resume(userInput, context)
+      
+      // 5. 移除加载指示器
+      setChatMessages(prev => prev.filter(msg => {
+        const interactive = msg.content.find(c => c.type === 'interactive')?.interactive
+        return interactive?.type !== 'agent-loading'
+      }))
+      
+      // 6. 处理结果
+      await handleAgentResult(result)
+      
+      // 7. 清空恢复上下文
+      setAgentResumeContext(null)
+      
+    } catch (error: any) {
+      console.error('❌ Agent 恢复执行失败:', error)
+      
+      setChatMessages(prev => prev.filter(msg => {
+        const interactive = msg.content.find(c => c.type === 'interactive')?.interactive
+        return interactive?.type !== 'agent-loading'
+      }))
+      
+      const errorMessage: ChatMessage = {
+        role: 'assistant',
+        content: [{
+          type: 'interactive',
+          interactive: {
+            type: 'agent-error',
+            data: {
+              error: error.message || '未知错误',
+              timestamp: new Date().toISOString()
+            },
+            isActive: false
+          }
+        }]
+      }
+      setChatMessages(prev => [...prev, errorMessage])
+    } finally {
+      setIsAgentRunning(false)
+    }
+  }
+  
+  // ⭐⭐⭐ End of Agent Functions ⭐⭐⭐
+  
   // 处理发送消息
   const handleSendMessage = async () => {
     if (!chatMessage.trim() && !selectedImage) return
@@ -1717,10 +2029,27 @@ export default function DashboardPage() {
       return
     }
 
+    // ⭐ 检查是否为 Agent 模式
+    const isAgentMode = typeof window !== 'undefined' 
+      ? localStorage.getItem('ai_assistant_mode') === 'agent'
+      : false
+
     setIsSending(true)
     setStreamingMessage('')
     
     try {
+      // ⭐ Agent 模式：使用 ReactAgent 处理（但不包括任务识别模式）
+      if (isAgentMode && !isTaskRecognitionMode && agentInstance && user) {
+        await handleAgentMessage()
+        // Agent 模式清理
+        setChatMessage('')
+        setSelectedImage(null)
+        setIsSending(false)
+        setStreamingMessage('')
+        return  // Agent 模式处理完成，直接返回
+      }
+      
+      // 普通模式或任务识别模式：使用原有逻辑
       // 根据模式生成不同的prompt
       let finalPrompt = chatMessage || '请分析这张图片'
       
@@ -2827,6 +3156,8 @@ CRITICAL: ONLY JSON RESPONSE - START WITH { END WITH }`
               onEstimationConfirm={handleEstimationConfirm}
               onEstimationCancel={cancelEstimation}
               estimationInitial={estimationInitial}
+              onAgentInputSubmit={handleAgentInputSubmit}  // ⭐ Agent 交互式输入
+              isAgentRunning={isAgentRunning}  // ⭐ Agent 运行状态
               handleSendMessage={handleSendMessage}
               handleClearChat={handleClearChat}
               handleDragEnter={handleDragEnter}
