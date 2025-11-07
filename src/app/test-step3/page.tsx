@@ -1,20 +1,35 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { ReactAgent } from '@/lib/agent/ReactAgent'
 import { AgentMemory } from '@/lib/agent/AgentMemory'
 import { getAllTools } from '@/lib/agent/tools'
 import { doubaoService } from '@/lib/doubaoService'
+import { getUserFromStorage, AuthUser } from '@/lib/auth'
 
 export default function TestStep3Page() {
+  const router = useRouter()
+  const [user, setUser] = useState<AuthUser | null>(null)
   const [agentInstance, setAgentInstance] = useState<ReactAgent | null>(null)
   const [agentMemory] = useState(() => new AgentMemory())
   const [testResults, setTestResults] = useState<string[]>([])
   const [isAgentMode, setIsAgentMode] = useState(false)
 
+  // 检查用户登录状态
+  useEffect(() => {
+    const currentUser = getUserFromStorage()
+    if (!currentUser) {
+      router.push('/auth/login')
+    } else {
+      setUser(currentUser)
+      addTestResult(`✅ 用户已登录: ${currentUser.email}`)
+    }
+  }, [router])
+
   // 测试 Agent 初始化
   useEffect(() => {
-    if (!agentInstance) {
+    if (!agentInstance && user) {
       try {
         const tools = getAllTools()
         const agent = new ReactAgent(doubaoService, tools, agentMemory)
@@ -27,7 +42,7 @@ export default function TestStep3Page() {
         console.error('❌ ReactAgent 初始化失败:', error)
       }
     }
-  }, [agentInstance, agentMemory])
+  }, [agentInstance, agentMemory, user])
 
   // 检查 Agent 模式
   useEffect(() => {
@@ -57,15 +72,25 @@ export default function TestStep3Page() {
       return
     }
 
+    if (!user) {
+      addTestResult('❌ 用户未登录')
+      return
+    }
+
     try {
       addTestResult('🧪 测试基本调用: "你好"')
+      addTestResult(`ℹ️ 使用用户 ID: ${user.id}`)
+      
+      const today = new Date()
+      const dateStr = today.toISOString().split('T')[0]
+      
       const result = await agentInstance.run('你好', {
-        userId: 'test_user',
+        userId: user.id,
         userProfile: null,
         dateScope: {
           type: 'day',
-          start: '2025-11-07',
-          end: '2025-11-07'
+          start: dateStr,
+          end: dateStr
         }
       })
       
@@ -100,6 +125,12 @@ export default function TestStep3Page() {
           <h2 className="text-lg font-semibold mb-4">📊 Agent 状态</h2>
           <div className="space-y-2">
             <div className="flex items-center gap-2">
+              <span className="text-gray-700">用户登录:</span>
+              <span className={`font-semibold ${user ? 'text-green-600' : 'text-red-600'}`}>
+                {user ? `✅ ${user.email}` : '❌ 未登录'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
               <span className="text-gray-700">Agent 实例:</span>
               <span className={`font-semibold ${agentInstance ? 'text-green-600' : 'text-red-600'}`}>
                 {agentInstance ? '✅ 已初始化' : '❌ 未初始化'}
@@ -132,7 +163,7 @@ export default function TestStep3Page() {
             </button>
             <button
               onClick={testBasicCall}
-              disabled={!agentInstance}
+              disabled={!agentInstance || !user}
               className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
             >
               测试 Agent 调用
@@ -170,6 +201,7 @@ export default function TestStep3Page() {
             📖 测试说明
           </h3>
           <ol className="list-decimal list-inside space-y-2 text-blue-800">
+            <li><strong>重要：</strong> 请确保已登录（未登录会自动跳转到登录页）</li>
             <li>检查 Agent 实例是否成功初始化</li>
             <li>尝试切换 Agent 模式和普通模式</li>
             <li>点击"测试 Agent 调用"按钮，发送简单消息</li>
@@ -184,9 +216,10 @@ export default function TestStep3Page() {
             ✅ 成功标准
           </h3>
           <ul className="list-disc list-inside space-y-2 text-green-800">
+            <li>✅ 用户已登录并显示 email</li>
             <li>✅ Agent 实例初始化成功（无错误）</li>
             <li>✅ 能够切换 Agent 模式和普通模式</li>
-            <li>✅ Agent 能够响应简单消息</li>
+            <li>✅ Agent 能够响应简单消息（返回类型: text）</li>
             <li>✅ 控制台没有 TypeScript 错误或运行时错误</li>
           </ul>
         </div>
