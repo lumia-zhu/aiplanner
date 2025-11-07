@@ -288,16 +288,37 @@ const ChatSidebar = memo<ChatSidebarProps>(({
         </div>
       </div>
       
-      {/* Agent 模式提示条 */}
+      {/* ⭐ Agent 模式提示条（优化版） */}
       {isAgentMode && (
-        <div className="px-4 py-2 bg-blue-50 border-l-4 border-blue-500 text-sm">
-          <p className="text-blue-700">
-            <span className="font-semibold">🤖 Agent 模式</span>
-            <span className="ml-2 text-blue-600">（Phase 1 完成，核心功能开发中...）</span>
-          </p>
-          <p className="text-blue-600 text-xs mt-1">
-            Agent 将能感知你的任务、主动分析并提供建议。当前为占位功能，请切换到普通模式使用。
-          </p>
+        <div className="px-4 py-3 bg-gradient-to-r from-purple-50 to-blue-50 border-l-4 border-purple-500">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0 mt-0.5">
+              <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                      d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+              </svg>
+            </div>
+            
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-purple-700 mb-1">
+                🤖 Agent 模式已启用
+              </p>
+              <p className="text-xs text-gray-600 leading-relaxed mb-2">
+                Agent 会自动分析你的需求，调用合适的工具，并展示推理过程
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <span className="px-2 py-1 bg-white rounded text-xs text-gray-700 border border-purple-200">
+                  我今天有哪些任务？
+                </span>
+                <span className="px-2 py-1 bg-white rounded text-xs text-gray-700 border border-purple-200">
+                  帮我分析任务
+                </span>
+                <span className="px-2 py-1 bg-white rounded text-xs text-gray-700 border border-purple-200">
+                  拆解这个任务
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       )}
       
@@ -726,27 +747,32 @@ const ChatSidebar = memo<ChatSidebarProps>(({
               }
             }}
             onPaste={handlePaste}
+            disabled={shouldDisableInput || isSending || (isAgentRunning && !shouldDisableInput)}
             placeholder={
-              shouldDisableInput
-                ? "💡 请点击上方按钮选择操作"
-                : workflowMode === 'task-context-input'
-                  ? "请描述任务的背景信息..."
-                  : workflowMode === 'task-clarification-input'
-                    ? "请回答上面的问题..."
-                    : isTaskRecognitionMode 
-                      ? "描述任务内容或上传包含任务的图片..." 
-                      : doubaoService.hasApiKey() ? "输入消息或粘贴图片(Ctrl+V)..." : "请先配置API Key"
+              isAgentRunning
+                ? "🤖 Agent 正在思考，请稍候..."
+                : shouldDisableInput
+                  ? "💡 请点击上方按钮选择操作"
+                  : workflowMode === 'task-context-input'
+                    ? "请描述任务的背景信息..."
+                    : workflowMode === 'task-clarification-input'
+                      ? "请回答上面的问题..."
+                      : isTaskRecognitionMode 
+                        ? "描述任务内容或上传包含任务的图片..." 
+                        : doubaoService.hasApiKey() ? "输入消息或粘贴图片(Ctrl+V)..." : "请先配置API Key"
             }
             className={`flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent text-sm transition-all duration-200 resize-none h-10 ${
-              shouldDisableInput
-                ? 'bg-gray-100 border-gray-200 text-gray-400 placeholder-gray-400 cursor-not-allowed'
-                : workflowMode === 'task-context-input'
-                  ? 'border-blue-500 focus:ring-blue-500 bg-blue-50 ring-4 ring-blue-300/50 shadow-lg animate-pulse text-gray-900 placeholder-gray-500'
-                  : workflowMode === 'task-clarification-input'
-                    ? 'border-purple-500 focus:ring-purple-500 bg-purple-50 ring-4 ring-purple-300/50 shadow-lg animate-pulse text-gray-900 placeholder-gray-500'
-                    : isTaskRecognitionMode 
-                      ? 'border-green-300 focus:ring-green-500 bg-green-50 text-gray-900 placeholder-gray-500' 
-                      : 'border-gray-300 focus:ring-blue-500 bg-white text-gray-900 placeholder-gray-500'
+              isAgentRunning && !shouldDisableInput
+                ? 'bg-purple-50 border-purple-300 text-gray-400 placeholder-gray-500 cursor-not-allowed'
+                : shouldDisableInput
+                  ? 'bg-gray-100 border-gray-200 text-gray-400 placeholder-gray-400 cursor-not-allowed'
+                  : workflowMode === 'task-context-input'
+                    ? 'border-blue-500 focus:ring-blue-500 bg-blue-50 ring-4 ring-blue-300/50 shadow-lg animate-pulse text-gray-900 placeholder-gray-500'
+                    : workflowMode === 'task-clarification-input'
+                      ? 'border-purple-500 focus:ring-purple-500 bg-purple-50 ring-4 ring-purple-300/50 shadow-lg animate-pulse text-gray-900 placeholder-gray-500'
+                      : isTaskRecognitionMode 
+                        ? 'border-green-300 focus:ring-green-500 bg-green-50 text-gray-900 placeholder-gray-500' 
+                        : 'border-gray-300 focus:ring-blue-500 bg-white text-gray-900 placeholder-gray-500'
             }`}
             rows={1}
             style={{ 
