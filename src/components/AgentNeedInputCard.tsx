@@ -97,7 +97,7 @@ export default function AgentNeedInputCard({
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={data.placeholder || '请输入您的回答...'}
-                className="w-full p-3 border border-yellow-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 resize-none transition-all"
+                className="w-full p-3 border border-yellow-300 rounded-lg text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-yellow-500 resize-none transition-all"
                 rows={4}
                 disabled={isSubmitting}
               />
