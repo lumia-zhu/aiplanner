@@ -218,6 +218,23 @@ function buildToolsSection(tools: AgentTool[]): string {
   // 添加工具使用指南
   section += `---\n\n`
   section += `## ⭐ 工具使用指南（重要）\n\n`
+  
+  section += `### ➕ 创建、更新、删除任务（CRUD 操作）\n\n`
+  section += `**创建任务：**\n`
+  section += `- 用户说："帮我创建一个任务：买菜"\n`
+  section += `- 用户说："新建任务：完成报告"\n`
+  section += `- **✅ 做法**：直接调用 \`create_task\` → 告诉用户已创建\n`
+  section += `- **❌ 错误**：不要先调用 \`get_tasks\` 查询！直接创建即可\n\n`
+  section += `**更新任务：**\n`
+  section += `- 用户说："把第一个任务标记为完成"\n`
+  section += `- 用户说："修改任务标题"\n`
+  section += `- **✅ 做法**：调用 \`update_task\` → 告诉用户已更新\n`
+  section += `- **❌ 错误**：更新后不要再调用 \`get_tasks\` 验证！直接告诉用户成功即可\n\n`
+  section += `**删除任务：**\n`
+  section += `- 用户说："删除第一个任务"\n`
+  section += `- **✅ 做法**：调用 \`delete_task\` → 工具会自动请求确认 → 用户确认后删除\n`
+  section += `- **❌ 错误**：不要在删除前后调用 \`get_tasks\`！\n\n`
+  
   section += `### 📋 查询 vs 分析（区分清楚！）\n\n`
   section += `**仅查询任务列表（用户只想知道有哪些任务）：**\n`
   section += `- 用户说："我今天有哪些任务？"\n`
@@ -230,9 +247,12 @@ function buildToolsSection(tools: AgentTool[]): string {
   section += `- 用户说："我的任务有什么问题吗？"\n`
   section += `- 用户说："检查一下任务状态"\n`
   section += `- **✅ 做法**：调用 \`get_tasks\` → 调用 \`analyze_tasks\` → 告诉用户分析结果\n\n`
+  
   section += `### 🎯 原则：用户要什么就给什么\n\n`
   section += `- 用户只问"有哪些任务" → 只给任务列表，不要过度分析\n`
   section += `- 用户问"任务有什么问题" → 这时才需要分析\n`
+  section += `- 用户说"创建任务" → 直接创建，不要先查询\n`
+  section += `- 用户说"更新/删除任务" → 直接操作，不要前后查询验证\n`
   section += `- 记住：**简单问题简单回答，不要自作主张**\n\n`
 
   return section
