@@ -67,27 +67,49 @@ export function buildReActPrompt(params: BuildReActPromptParams): string {
 
 ⚠️ **你必须严格按照以下格式输出，不要添加任何其他文字：**
 
-### 格式 A：需要调用工具
+### ⚠️ 重要：区分两种输出格式
+
+**你只能选择下面两种格式之一，不能混用！**
+
+---
+
+### 格式 A：需要调用工具（当需要获取数据或执行操作时）
 \`\`\`
 Thought: [你的分析和推理过程，思考为什么需要这个工具]
 Action: [工具名称，必须是上面列出的工具之一]
 Action Input: [JSON 格式的参数，必须符合工具的参数 schema]
 \`\`\`
 
-### 格式 B：可以直接回复用户
+**注意**：
+- ✅ Action 后面跟的是工具名称（如 \`get_tasks\`、\`create_task\`）
+- ✅ Action Input 必须是 JSON 对象
+- ❌ **不要写 "Action: Response: ..."**（Response 不是工具名！）
+
+---
+
+### 格式 B：可以直接回复用户（当已经有足够信息时）
 \`\`\`
 Thought: [你的分析，说明为什么现在可以回复用户]
 Response: [给用户的回复内容]
 \`\`\`
 
+**注意**：
+- ✅ Response 是直接给用户的回复文本
+- ✅ 当执行完工具后，看到 Observation，下一步应该输出 Response
+- ❌ **不要写 "Action: Response"**（这是两种不同的格式！）
+
+---
+
 ### 关键规则
 
-1. ✅ **每次只输出一个 Thought**，以及一个 Action 或一个 Response
-2. ✅ **Action Input 必须是有效的 JSON**，可以使用 JSON.stringify() 验证
-3. ✅ **Action 必须是可用工具列表中的名称**，不能自创工具名
-4. ✅ **Thought 要简洁明了**，说明你的推理过程
-5. ❌ **不要在 Thought/Action/Response 之外添加任何解释文字**
-6. ❌ **不要一次输出多个 Action**，每次只调用一个工具
+1. ✅ **每次只输出一个 Thought**，以及**一个 Action 或一个 Response**
+2. ✅ **Action 和 Response 是互斥的**：要么调用工具（Action），要么回复用户（Response）
+3. ✅ **Action Input 必须是有效的 JSON**，可以使用 JSON.stringify() 验证
+4. ✅ **Action 必须是可用工具列表中的名称**，不能自创工具名
+5. ✅ **执行完工具后，下一次应该输出 Response**，不要继续调用工具
+6. ❌ **不要在 Thought/Action/Response 之外添加任何解释文字**
+7. ❌ **不要一次输出多个 Action**，每次只调用一个工具
+8. ❌ **不要混淆格式**：不要写 "Action: Response: ..."
 
 ### ⭐ 何时应该停止推理并回复用户
 
@@ -371,7 +393,48 @@ Response: 你这两周（2025-10-24 到 2025-11-07）没有未完成的任务哦
 
 ---
 
-### 📘 示例 3：多步推理（查询 + 分析）
+### 📘 示例 3：创建任务（单步调用 → 立即回复）
+
+**用户消息**：帮我创建一个任务：和导师meeting
+
+**第 1 轮输出**：
+\`\`\`
+Thought: 用户要创建一个新任务，任务标题是"和导师meeting"。我需要调用 create_task 工具。
+Action: create_task
+Action Input: {"userId": "user_id_placeholder", "taskTitle": "和导师meeting", "priority": "medium"}
+\`\`\`
+
+**观察结果**：任务创建成功
+
+**第 2 轮输出**（⭐ 创建成功后立即回复，不要再调用 get_tasks 验证）：
+\`\`\`
+Thought: 任务已经成功创建，现在可以告诉用户了。
+Response: ✅ 已为您创建任务：和导师meeting
+
+任务已添加到今天的待办事项中！
+\`\`\`
+
+**❌ 错误示例（不要这样输出）**：
+\`\`\`
+Thought: 任务已创建，让我验证一下。
+Action: get_tasks  ← 错误！不要验证！
+\`\`\`
+
+**❌ 错误示例（格式混淆）**：
+\`\`\`
+Thought: 可以回复用户了
+Action: Response: ✅ 已创建  ← 错误！这是混淆格式！
+\`\`\`
+
+**✅ 正确格式（注意没有 "Action:" 这一行）**：
+\`\`\`
+Thought: 可以回复用户了
+Response: ✅ 已创建任务  ← 正确！直接 Response，不是 Action
+\`\`\`
+
+---
+
+### 📘 示例 4：多步推理（查询 + 分析）
 
 **用户消息**：帮我看看任务情况
 
