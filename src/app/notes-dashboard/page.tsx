@@ -29,8 +29,14 @@ import { copyTaskToDate } from '@/lib/tasks'
 import { appendTaskToNote } from '@/lib/notes'
 import { syncTasksFromNote, sanitizeTaskTitle, parseTasksFromNote } from '@/lib/taskSync'
 import type { DailyTask, QuadrantType } from '@/types'
+// ⭐ Agent imports
+import { ReactAgent } from '@/lib/agent/ReactAgent'
+import { AgentMemory } from '@/lib/agent/AgentMemory'
+import { getAllTools } from '@/lib/agent/tools'
+import type { AgentResumeContext } from '@/lib/agent/AgentTypes'
 
 export default function NotesDashboardPage() {
+  console.log('🚀🚀🚀 NotesDashboardPage 组件开始渲染！')
   const router = useRouter()
   const [user, setUser] = useState<AuthUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -83,6 +89,21 @@ export default function NotesDashboardPage() {
   const [isDragOver, setIsDragOver] = useState(false)
   const [isImageProcessing, setIsImageProcessing] = useState(false)
   
+  // ⭐ Agent 相关状态
+  const [agentInstance, setAgentInstance] = useState<ReactAgent | null>(null)
+  const [agentMemory] = useState(() => {
+    console.log('📝 创建 AgentMemory 实例')
+    return new AgentMemory()
+  })
+  const [agentResumeContext, setAgentResumeContext] = useState<AgentResumeContext | null>(null)
+  const [isAgentRunning, setIsAgentRunning] = useState(false)
+  
+  console.log('💾 当前 Agent 状态:', {
+    agentInstance: agentInstance ? '已存在' : 'null',
+    agentMemory: agentMemory ? '已存在' : 'null',
+    isAgentRunning
+  })
+  
   // 任务识别相关状态（笔记模式暂不使用，但 ChatSidebar 需要）
   const [isTaskRecognitionMode, setIsTaskRecognitionMode] = useState(false)
   const [recognizedTasks, setRecognizedTasks] = useState<any[]>([])
@@ -134,6 +155,31 @@ export default function NotesDashboardPage() {
       return () => clearTimeout(timer)
     }
   }, [saveStatus])
+  
+  // ⭐ 初始化 Agent（只初始化一次）
+  useEffect(() => {
+    console.log('🎯 useEffect 被触发了！agentInstance =', agentInstance ? '已存在' : 'null')
+    console.log('🎯 agentMemory =', agentMemory)
+    
+    if (!agentInstance) {
+      try {
+        console.log('🔧 开始初始化 ReactAgent...')
+        console.log('🔧 Step 1: 调用 getAllTools()')
+        const tools = getAllTools()
+        console.log(`📦 Step 2: 加载了 ${tools.length} 个工具:`, tools.map(t => t.name))
+        console.log('🔧 Step 3: 创建 ReactAgent 实例')
+        const agent = new ReactAgent(doubaoService, tools, agentMemory)
+        console.log('🔧 Step 4: 设置 agentInstance')
+        setAgentInstance(agent)
+        console.log('✅ ReactAgent 初始化成功！')
+      } catch (error) {
+        console.error('❌ ReactAgent 初始化失败:', error)
+        console.error('❌ 错误堆栈:', error instanceof Error ? error.stack : error)
+      }
+    } else {
+      console.log('⏭️ agentInstance 已存在，跳过初始化')
+    }
+  }, [agentMemory])
 
   // 加载用户资料
   const loadUserProfile = useCallback(async (userId: string) => {
@@ -979,6 +1025,327 @@ export default function NotesDashboardPage() {
     setIsChatSidebarOpen(prev => !prev)
   }, [])
 
+  // ⭐⭐⭐ Agent Message Handling Functions ⭐⭐⭐
+  
+  // 处理 Agent 模式的消息
+  const handleAgentMessage = async () => {
+    if (!agentInstance || !user) {
+      console.error('❌ Agent 未初始化或用户未登录')
+      return
+    }
+    
+    console.log('🤖 Agent 模式：开始处理消息')
+    setIsAgentRunning(true)
+    
+    // 1. 添加用户消息
+    const userMessage: ChatMessage = {
+      role: 'user',
+      content: [{ type: 'text', text: chatMessage }]
+    }
+    setChatMessages(prev => [...prev, userMessage])
+    
+    // 2. 添加加载指示器
+    const loadingMessage: ChatMessage = {
+      role: 'assistant',
+      content: [{
+        type: 'interactive',
+        interactive: {
+          type: 'agent-loading',
+          data: { iteration: 1, message: 'Agent 正在思考...' },
+          isActive: true
+        }
+      }]
+    }
+    setChatMessages(prev => [...prev, loadingMessage])
+    
+    try {
+      // 3. 构建 Agent Context
+      const agentContext = {
+        userId: user.id,
+        userProfile: userProfile,
+        dateScope: dateScope,
+        taskContext: null  // 将由 Agent 自动加载
+      }
+      
+      console.log('📦 Agent Context:', agentContext)
+      
+      // 4. 调用 Agent
+      const result = await agentInstance.run(chatMessage, agentContext)
+      console.log('📊 Agent 返回结果:', result)
+      
+      // 4. 移除加载指示器
+      setChatMessages(prev => prev.filter(msg => {
+        const interactive = msg.content.find(c => c.type === 'interactive')?.interactive
+        return interactive?.type !== 'agent-loading'
+      }))
+      
+      // 5. 处理 Agent 返回结果
+      await handleAgentResult(result)
+      
+    } catch (error: any) {
+      console.error('❌ Agent 执行失败:', error)
+      
+      // 移除加载指示器
+      setChatMessages(prev => prev.filter(msg => {
+        const interactive = msg.content.find(c => c.type === 'interactive')?.interactive
+        return interactive?.type !== 'agent-loading'
+      }))
+      
+      // 添加错误消息
+      const errorMessage: ChatMessage = {
+        role: 'assistant',
+        content: [{
+          type: 'interactive',
+          interactive: {
+            type: 'agent-error',
+            data: {
+              error: error.message || '未知错误',
+              timestamp: new Date().toISOString()
+            },
+            isActive: false
+          }
+        }]
+      }
+      setChatMessages(prev => [...prev, errorMessage])
+    } finally {
+      setIsAgentRunning(false)
+    }
+  }
+  
+  // 处理 Agent 返回结果
+  const handleAgentResult = async (result: any) => {
+    console.log('📊 Agent 返回结果:', result)
+    
+    // 根据返回类型处理
+    switch (result.type) {
+      case 'text':
+        // 普通文本回复
+        await addAgentTextResponse(result)
+        break
+        
+      case 'need_input':
+        // 需要用户输入（交互式工具）
+        await addAgentNeedInputCard(result)
+        break
+        
+      case 'error':
+        // Agent 执行出错（如达到最大迭代次数）
+        const errorMessage: ChatMessage = {
+          role: 'assistant',
+          content: [{
+            type: 'interactive',
+            interactive: {
+              type: 'agent-error',
+              data: {
+                error: result.error || '执行超时或达到最大迭代次数',
+                iteration: result.iteration || 0,
+                timestamp: new Date().toISOString()
+              },
+              isActive: false
+            }
+          }]
+        }
+        setChatMessages(prev => [...prev, errorMessage])
+        break
+        
+      default:
+        console.warn('未知的 Agent 返回类型:', result.type)
+    }
+  }
+  
+  // 添加文本回复（包含 Thought、Action、Observation）
+  const addAgentTextResponse = async (result: any) => {
+    const messages: ChatMessage[] = []
+    
+    // 1. 添加所有的 Thought 卡片
+    if (result.metadata?.thoughts && Array.isArray(result.metadata.thoughts)) {
+      for (let i = 0; i < result.metadata.thoughts.length; i++) {
+        messages.push({
+          role: 'assistant',
+          content: [{
+            type: 'interactive',
+            interactive: {
+              type: 'agent-thought',
+              data: {
+                thought: result.metadata.thoughts[i],
+                iteration: i + 1,
+                timestamp: new Date().toISOString()
+              },
+              isActive: false
+            }
+          }]
+        })
+      }
+    }
+    
+    // 2. 添加所有的 Action 和 Observation 卡片
+    if (result.metadata?.steps && Array.isArray(result.metadata.steps)) {
+      for (const step of result.metadata.steps) {
+        // Action 卡片
+        messages.push({
+          role: 'assistant',
+          content: [{
+            type: 'interactive',
+            interactive: {
+              type: 'agent-action',
+              data: {
+                toolName: step.tool,
+                toolDescription: step.toolDescription || step.tool,
+                parameters: step.parameters,
+                timestamp: new Date().toISOString()
+              },
+              isActive: false
+            }
+          }]
+        })
+        
+        // Observation 卡片
+        messages.push({
+          role: 'assistant',
+          content: [{
+            type: 'interactive',
+            interactive: {
+              type: 'agent-observation',
+              data: {
+                toolName: step.tool,
+                success: step.success !== false,
+                result: step.observation,
+                error: step.error,
+                timestamp: new Date().toISOString()
+              },
+              isActive: false
+            }
+          }]
+        })
+      }
+    }
+    
+    // 3. 添加最终文本回复
+    messages.push({
+      role: 'assistant',
+      content: [{ type: 'text', text: result.content }]
+    })
+    
+    // 4. 批量添加所有消息
+    setChatMessages(prev => [...prev, ...messages])
+  }
+  
+  // 添加交互式输入卡片
+  const addAgentNeedInputCard = async (result: any) => {
+    const needInputMessage: ChatMessage = {
+      role: 'assistant',
+      content: [{
+        type: 'interactive',
+        interactive: {
+          type: 'agent-need-input',
+          data: {
+            toolName: result.pendingTool || 'unknown',
+            prompt: result.prompt || '请提供更多信息',
+            placeholder: '请输入您的回答...',
+            context: result.resumeContext,
+            timestamp: new Date().toISOString()
+          },
+          isActive: true
+        }
+      }]
+    }
+    
+    setChatMessages(prev => [...prev, needInputMessage])
+    
+    // 保存恢复上下文
+    setAgentResumeContext(result.resumeContext)
+  }
+  
+  // 处理 Agent 交互式输入提交
+  const handleAgentInputSubmit = async (userInput: string, context: any) => {
+    if (!agentInstance || !user) return
+    
+    console.log('🔄 Agent 恢复执行，用户输入:', userInput)
+    setIsAgentRunning(true)
+    
+    // 1. 禁用当前的 need-input 卡片
+    setChatMessages(prev => prev.map(msg => {
+      const interactive = msg.content.find(c => c.type === 'interactive')?.interactive
+      if (interactive?.type === 'agent-need-input' && interactive.isActive) {
+        return {
+          ...msg,
+          content: msg.content.map(c => 
+            c.type === 'interactive' 
+              ? { ...c, interactive: { ...c.interactive!, isActive: false } }
+              : c
+          )
+        }
+      }
+      return msg
+    }))
+    
+    // 2. 添加用户输入消息
+    const userMessage: ChatMessage = {
+      role: 'user',
+      content: [{ type: 'text', text: userInput }]
+    }
+    setChatMessages(prev => [...prev, userMessage])
+    
+    // 3. 添加加载指示器
+    const loadingMessage: ChatMessage = {
+      role: 'assistant',
+      content: [{
+        type: 'interactive',
+        interactive: {
+          type: 'agent-loading',
+          data: { iteration: context.currentIteration || 0, message: 'Agent 正在处理...' },
+          isActive: true
+        }
+      }]
+    }
+    setChatMessages(prev => [...prev, loadingMessage])
+    
+    try {
+      // 4. 调用 Agent.resume()
+      const result = await agentInstance.resume(userInput, context)
+      
+      // 5. 移除加载指示器
+      setChatMessages(prev => prev.filter(msg => {
+        const interactive = msg.content.find(c => c.type === 'interactive')?.interactive
+        return interactive?.type !== 'agent-loading'
+      }))
+      
+      // 6. 处理结果
+      await handleAgentResult(result)
+      
+      // 7. 清空恢复上下文
+      setAgentResumeContext(null)
+      
+    } catch (error: any) {
+      console.error('❌ Agent 恢复执行失败:', error)
+      
+      setChatMessages(prev => prev.filter(msg => {
+        const interactive = msg.content.find(c => c.type === 'interactive')?.interactive
+        return interactive?.type !== 'agent-loading'
+      }))
+      
+      const errorMessage: ChatMessage = {
+        role: 'assistant',
+        content: [{
+          type: 'interactive',
+          interactive: {
+            type: 'agent-error',
+            data: {
+              error: error.message || '未知错误',
+              timestamp: new Date().toISOString()
+            },
+            isActive: false
+          }
+        }]
+      }
+      setChatMessages(prev => [...prev, errorMessage])
+    } finally {
+      setIsAgentRunning(false)
+    }
+  }
+  
+  // ⭐⭐⭐ End of Agent Functions ⭐⭐⭐
+
   // 处理发送消息
   const handleSendMessage = useCallback(async () => {
     if (!chatMessage.trim() && !selectedImage) return
@@ -987,10 +1354,31 @@ export default function NotesDashboardPage() {
       return
     }
 
+    // ⭐ 检查是否为 Agent 模式
+    const isAgentMode = typeof window !== 'undefined' 
+      ? localStorage.getItem('ai_assistant_mode') === 'agent'
+      : false
+    
+    console.log('🎯 当前模式:', isAgentMode ? 'Agent' : 'Normal')
+
     setIsSending(true)
     setStreamingMessage('')
     
     try {
+      // ⭐ Agent 模式：使用 ReactAgent 处理
+      if (isAgentMode && agentInstance && user) {
+        console.log('🤖 使用 Agent 模式处理消息')
+        await handleAgentMessage()
+        // Agent 模式清理
+        setChatMessage('')
+        setSelectedImage(null)
+        setIsSending(false)
+        setStreamingMessage('')
+        return  // Agent 模式处理完成，直接返回
+      }
+      
+      // ⭐ 普通模式：使用原有逻辑
+      console.log('💬 使用普通模式处理消息')
       const finalPrompt = chatMessage || '请分析这张图片'
       
       // 添加用户消息到聊天历史
@@ -1088,7 +1476,7 @@ export default function NotesDashboardPage() {
       setIsSending(false)
       setStreamingMessage('')
     }
-  }, [chatMessage, selectedImage, chatMessages, user, selectedDate])
+  }, [chatMessage, selectedImage, chatMessages, user, selectedDate, agentInstance, isAgentRunning])
 
   // 处理清除聊天
   const handleClearChat = useCallback(() => {
@@ -1619,6 +2007,8 @@ export default function NotesDashboardPage() {
               handleDragLeave={handleDragLeave}
               handleDrop={handleDrop}
               handleKeyPress={handleKeyPress}
+              onAgentInputSubmit={handleAgentInputSubmit}
+              isAgentRunning={isAgentRunning}
             />
           </div>
         </div>

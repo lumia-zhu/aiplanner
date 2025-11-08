@@ -64,6 +64,8 @@ import {
 } from '@dnd-kit/sortable'
 
 export default function DashboardPage() {
+  console.log('🚀🚀🚀 DashboardPage 组件开始渲染！')
+  
   const [user, setUser] = useState<AuthUser | null>(null)
   const [tasks, setTasks] = useState<Task[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -227,9 +229,18 @@ export default function DashboardPage() {
   
   // ⭐ Agent 相关状态
   const [agentInstance, setAgentInstance] = useState<ReactAgent | null>(null)
-  const [agentMemory] = useState(() => new AgentMemory())
+  const [agentMemory] = useState(() => {
+    console.log('📝 创建 AgentMemory 实例')
+    return new AgentMemory()
+  })
   const [agentResumeContext, setAgentResumeContext] = useState<AgentResumeContext | null>(null)
   const [isAgentRunning, setIsAgentRunning] = useState(false)
+  
+  console.log('💾 当前 Agent 状态:', {
+    agentInstance: agentInstance ? '已存在' : 'null',
+    agentMemory: agentMemory ? '已存在' : 'null',
+    isAgentRunning
+  })
   
   // 监听工作流状态,自动打开对应矩阵
   useEffect(() => {
@@ -257,13 +268,28 @@ export default function DashboardPage() {
   
   // ⭐ 初始化 Agent（只初始化一次）
   useEffect(() => {
+    console.log('🎯 useEffect 被触发了！agentInstance =', agentInstance ? '已存在' : 'null')
+    console.log('🎯 agentMemory =', agentMemory)
+    
     if (!agentInstance) {
-      const tools = getAllTools()
-      const agent = new ReactAgent(doubaoService, tools, agentMemory)
-      setAgentInstance(agent)
-      console.log('✅ ReactAgent 初始化成功')
+      try {
+        console.log('🔧 开始初始化 ReactAgent...')
+        console.log('🔧 Step 1: 调用 getAllTools()')
+        const tools = getAllTools()
+        console.log(`📦 Step 2: 加载了 ${tools.length} 个工具:`, tools.map(t => t.name))
+        console.log('🔧 Step 3: 创建 ReactAgent 实例')
+        const agent = new ReactAgent(doubaoService, tools, agentMemory)
+        console.log('🔧 Step 4: 设置 agentInstance')
+        setAgentInstance(agent)
+        console.log('✅ ReactAgent 初始化成功！')
+      } catch (error) {
+        console.error('❌ ReactAgent 初始化失败:', error)
+        console.error('❌ 错误堆栈:', error instanceof Error ? error.stack : error)
+      }
+    } else {
+      console.log('⏭️ agentInstance 已存在，跳过初始化')
     }
-  }, [agentInstance, agentMemory])
+  }, [agentMemory])  // 移除 agentInstance 依赖，避免循环
   
   // 监听任务选择,发送任务拆解交互式消息
   useEffect(() => {
