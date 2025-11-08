@@ -15,6 +15,11 @@ import { ClarifyTaskTool } from './ClarifyTaskTool' // ✅ Step 5
 import { DecomposeTaskTool } from './DecomposeTaskTool' // ✅ Step 6
 import { EstimateTimeTool } from './EstimateTimeTool' // ✅ Step 7
 
+// Phase 5: CRUD 工具（P0 核心功能）
+import { CreateTaskTool } from './CreateTaskTool' // ✅ Phase 5 Step 3
+import { UpdateTaskTool } from './UpdateTaskTool' // ✅ Phase 5 Step 4
+import { DeleteTaskTool } from './DeleteTaskTool' // ✅ Phase 5 Step 5
+
 /**
  * 工具实例缓存
  * 避免重复创建工具实例，提升性能
@@ -40,6 +45,10 @@ export function getAllTools(): AgentTool[] {
     new ClarifyTaskTool(), // ✅ Step 5
     new DecomposeTaskTool(), // ✅ Step 6
     new EstimateTimeTool(), // ✅ Step 7
+    // Phase 5: CRUD 工具
+    new CreateTaskTool(), // ✅ Phase 5 Step 3
+    new UpdateTaskTool(), // ✅ Phase 5 Step 4
+    new DeleteTaskTool(), // ✅ Phase 5 Step 5
   ]
 
   const toolNames = toolsCache.map(t => t.name).join(', ')
