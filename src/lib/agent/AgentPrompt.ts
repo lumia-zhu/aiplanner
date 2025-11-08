@@ -131,8 +131,12 @@ Response: [给用户的回复内容]
   // 6. 对话历史
   const historyPrompt = buildHistorySection(memory)
 
-  // 7. 当前用户消息
-  const currentPrompt = `## 当前用户消息
+  // 7. 当前用户消息或后续迭代提示
+  let currentPrompt = ''
+  
+  if (userMessage) {
+    // 第一次迭代：显示用户消息和意图识别指南
+    currentPrompt = `## 当前用户消息
 
 用户说：${userMessage}
 
@@ -172,6 +176,37 @@ Response: [给用户的回复内容]
 - **简单问题简单回答**，不要过度思考
 
 现在，请开始你的推理和行动（严格按照上述格式输出）：`
+  } else {
+    // 后续迭代：提示根据 Observation 继续
+    currentPrompt = `## 继续推理
+
+⚠️ **重要（当前为后续迭代）：**
+
+你刚才调用了一个工具，工具已经执行完毕。**请查看上面"对话历史"中的最后一条 Observation**。
+
+🎯 **现在你应该做什么？**
+
+1. ✅ **如果 Observation 显示工具执行成功**：
+   - **立即输出 Response（给用户最终答案）**
+   - **格式**：
+     \`\`\`
+     Thought: [简短说明可以回复用户了]
+     Response: [给用户的回复内容]
+     \`\`\`
+   - ❌ **不要再调用其他工具验证**
+   - ❌ **不要重复调用同一个工具**
+
+2. ✅ **如果 Observation 显示需要更多信息**：
+   - 调用下一个工具获取信息
+   - 但记住：不要为了"确认"而重复调用同一个工具
+
+3. ❌ **绝对不要做的事**：
+   - 不要忽略 Observation，重新分析用户原始消息
+   - 不要重复执行刚才已经成功的操作
+   - 不要在 CRUD 操作成功后再调用 get_tasks 验证
+
+现在，请根据上面的 Observation，输出你的下一步（严格按照 ReAct 格式）：`
+  }
 
   // 组合所有部分
   const fullPrompt = [
