@@ -16,6 +16,7 @@ import StickyNote from '@/components/StickyNote'
 import StickyNotesDropdown from '@/components/StickyNotesDropdown'
 import TaskMatrix from '@/components/TaskMatrix'
 import MatrixSelector from '@/components/MatrixSelector'
+import ViewModeToggle from '@/components/ViewModeToggle'
 import type { DateScope, UserProfile, UserProfileInput, ChatMessage, StickyNote as StickyNoteType, TasksByQuadrant, TaskMatrixDimension } from '@/types'
 import { getDefaultDateScope } from '@/utils/dateUtils'
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns'
@@ -1989,20 +1990,7 @@ export default function NotesDashboardPage() {
                     )}
                     进度
                   </button>
-                  {/* 矩阵维度选择器 */}
-                  <MatrixSelector
-                    currentDimension={selectedMatrixDimension}
-                    onDimensionChange={setSelectedMatrixDimension}
-                    onToggleView={() => {
-                      if (viewMode === 'editor') {
-                        setViewMode('matrix')
-                        if (user) loadTaskMatrix(user.id, selectedDate)
-                      } else {
-                        setViewMode('editor')
-                      }
-                    }}
-                    isMatrixMode={viewMode === 'matrix'}
-                  />
+                  
                   {/* AI助手按钮 */}
                   <button
                     onClick={toggleChatSidebar}
@@ -2015,6 +2003,7 @@ export default function NotesDashboardPage() {
                     </svg>
                     AI助手
                   </button>
+                  
                   {/* 便签下拉框 - 仅在笔记模式下显示 */}
                   {viewMode === 'editor' && (
                     <StickyNotesDropdown
@@ -2024,6 +2013,27 @@ export default function NotesDashboardPage() {
                       onLoadHidden={handleLoadHiddenNotes}
                       onRestore={handleRestoreStickyNote}
                       onDelete={handleDeleteStickyNote}
+                    />
+                  )}
+                  
+                  {/* ⭐ 视图模式切换 - 放在最右侧 */}
+                  <ViewModeToggle
+                    currentMode={viewMode}
+                    onModeChange={(mode) => {
+                      setViewMode(mode)
+                      if (mode === 'matrix' && user) {
+                        loadTaskMatrix(user.id, selectedDate)
+                      }
+                    }}
+                  />
+                  
+                  {/* ⭐ 矩阵维度选择器 - 仅在矩阵模式下显示，紧跟在 tab 后面 */}
+                  {viewMode === 'matrix' && (
+                    <MatrixSelector
+                      currentDimension={selectedMatrixDimension}
+                      onDimensionChange={setSelectedMatrixDimension}
+                      onToggleView={() => {}} // 不再需要切换功能
+                      isMatrixMode={true}
                     />
                   )}
                 </div>
