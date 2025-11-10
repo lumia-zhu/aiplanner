@@ -306,11 +306,15 @@ export default function NotesDashboardPage() {
           updated_at: dailyTask.updatedAt,
         }
         
-        // 如果没有矩阵信息，则初始化为待分类
+        // 如果没有矩阵信息，则自动初始化到默认象限
         if (!matrix) {
-          console.log(`⚠️ 任务 ${dailyTask.id} 没有矩阵信息，将自动初始化`)
-          await ensureTaskMatrix(userId, dailyTask.id)
-          grouped['unclassified'].push(displayTask)
+          console.log(`⚠️ 任务 ${dailyTask.id} 没有矩阵信息，将自动初始化到默认象限`)
+          const newMatrix = await ensureTaskMatrix(userId, dailyTask.id)
+          const quadrant = newMatrix.quadrant as QuadrantType
+          if (!grouped[quadrant]) {
+            grouped[quadrant] = []
+          }
+          grouped[quadrant].push(displayTask)
         } else {
           // 按象限分组
           const quadrant = matrix.quadrant as QuadrantType
@@ -1567,13 +1571,16 @@ export default function NotesDashboardPage() {
 
   // 处理任务完成状态切换
   const handleTaskComplete = useCallback(async (taskId: string) => {
+    if (!user) return
+    
     try {
       console.log('🔄 切换任务完成状态:', taskId)
       
-      // 切换任务完成状态
+      // 1. 切换任务完成状态（更新 daily_tasks 表）
       const updatedTask = await toggleDailyTaskComplete(taskId)
+      console.log('✅ 数据库已更新:', updatedTask)
       
-      // 更新本地状态
+      // 2. 更新矩阵本地状态
       setTasksByQuadrant(prev => {
         const newState = { ...prev }
         
@@ -1594,18 +1601,69 @@ export default function NotesDashboardPage() {
         
         return newState
       })
+      console.log('✅ 矩阵本地状态已更新')
       
-      console.log('✅ 任务状态已更新:', updatedTask.completed)
+      // 3. 同步更新笔记内容
+      try {
+        console.log('📝 开始同步更新笔记中的任务状态...')
+        console.log('   任务所属笔记日期:', updatedTask.noteDate)
+        console.log('   任务在笔记中的位置:', updatedTask.notePosition)
+        
+        // 获取任务所在日期的笔记
+        const taskNoteDate = new Date(updatedTask.noteDate)
+        const note = await getNoteByDate(user.id, taskNoteDate)
+        
+        if (note && note.content) {
+          console.log('📝 找到笔记，开始更新内容')
+          
+          // 动态导入 updateTaskInNote 函数
+          const { updateTaskInNote } = await import('@/lib/noteTaskOperations')
+          const newContent = updateTaskInNote(
+            note.content,
+            updatedTask.notePosition,
+            { checked: updatedTask.completed }
+          )
+          
+          // 保存到数据库
+          await saveNote(user.id, taskNoteDate, newContent)
+          console.log('✅ 笔记已保存到数据库')
+          
+          // 如果是当前日期，更新本地编辑器状态
+          if (updatedTask.noteDate === formatNoteDate(selectedDate)) {
+            console.log('📝 更新本地编辑器状态（因为是当前日期）')
+            setCurrentNote(newContent)
+            // 更新任务统计
+            calculateTaskStats(newContent)
+          }
+          
+          console.log('✅ 笔记同步完成')
+        } else {
+          console.warn('⚠️ 未找到笔记内容，跳过同步')
+        }
+      } catch (noteError) {
+        console.error('❌ 同步笔记失败:', noteError)
+        console.warn('⚠️ 任务状态已更新，但笔记同步失败')
+        // 不阻止流程，任务状态已经更新成功
+      }
+      
+      console.log('✅ 任务状态切换完成:', updatedTask.completed)
       
     } catch (error) {
       console.error('❌ 切换任务状态失败:', error)
       alert('更新任务状态失败')
     }
-  }, [])
+  }, [user, selectedDate, calculateTaskStats])
 
   // 处理任务拖拽放置（乐观更新策略）
   const handleTaskDrop = useCallback(async (taskId: string, targetQuadrant: QuadrantType) => {
     if (!user) return
+    
+    // ⭐ 验证：不允许拖拽到 'unclassified' 象限
+    if (targetQuadrant === 'unclassified') {
+      console.warn('⚠️ 不允许将任务拖拽到待分类区域')
+      alert('不能将任务拖拽到待分类区域，请拖拽到四个象限之一')
+      return
+    }
     
     console.log('🎯 拖拽任务:', { taskId, targetQuadrant })
     
@@ -1633,13 +1691,15 @@ export default function NotesDashboardPage() {
               movedTask = task
             } else {
               // 其他任务保持原位
-              newState[quadrant as QuadrantType].push(task)
+              if (newState[quadrant as QuadrantType]) {
+                newState[quadrant as QuadrantType].push(task)
+              }
             }
           }
         }
         
         // 将移动的任务添加到目标象限
-        if (movedTask) {
+        if (movedTask && newState[targetQuadrant]) {
           newState[targetQuadrant].push(movedTask)
         }
         

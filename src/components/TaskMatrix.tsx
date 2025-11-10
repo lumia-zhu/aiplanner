@@ -93,7 +93,41 @@ export default function TaskMatrix({
     if (!over) return
     
     const taskId = active.id as string
-    const targetQuadrant = over.id as QuadrantType
+    const overId = over.id as string
+    
+    // ⭐ 判断 over.id 是象限 ID 还是任务 ID
+    const validQuadrants = ['unclassified', 'urgent-important', 'not-urgent-important', 'urgent-not-important', 'not-urgent-not-important']
+    let targetQuadrant: QuadrantType
+    
+    if (validQuadrants.includes(overId)) {
+      // over.id 是象限 ID
+      targetQuadrant = overId as QuadrantType
+    } else {
+      // over.id 是任务 ID，需要找到该任务所在的象限
+      let foundQuadrant: QuadrantType | null = null
+      
+      for (const [quadrant, taskList] of Object.entries(tasks)) {
+        if (taskList.some((task: Task) => task.id === overId)) {
+          foundQuadrant = quadrant as QuadrantType
+          break
+        }
+      }
+      
+      if (!foundQuadrant) {
+        console.warn('⚠️ 无法确定目标象限，取消拖拽')
+        return
+      }
+      
+      targetQuadrant = foundQuadrant
+    }
+    
+    // ⭐ 验证：不允许拖拽到 'unclassified'
+    if (targetQuadrant === 'unclassified') {
+      console.warn('⚠️ 不允许拖拽到待分类区域')
+      return
+    }
+    
+    console.log('🎯 拖拽任务:', { taskId, targetQuadrant })
     
     // 调用父组件的回调
     onTaskDrop(taskId, targetQuadrant)
