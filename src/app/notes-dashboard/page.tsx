@@ -2089,11 +2089,11 @@ export default function NotesDashboardPage() {
                 )}
               </div>
 
-              {/* 浮动AI助手按钮 - 固定在屏幕右下角 */}
+              {/* 浮动AI助手按钮 - 固定在编辑器右下角 */}
               {!isChatSidebarOpen && (
                 <button
                   onClick={toggleChatSidebar}
-                  className="fixed right-4 bottom-4 z-40 w-14 h-14 text-white rounded-full shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-300 flex items-center justify-center group"
+                  className="fixed right-20 bottom-6 z-40 w-14 h-14 text-white rounded-full shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-300 flex items-center justify-center group"
                   style={{ backgroundColor: '#4A90E2' }}
                   title="展开AI助手 (Ctrl+B)"
                 >
