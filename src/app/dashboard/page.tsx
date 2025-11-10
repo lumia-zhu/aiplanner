@@ -32,7 +32,7 @@ import { useWorkflowAssistant } from '@/hooks/useWorkflowAssistant'
 import { ReactAgent } from '@/lib/agent/ReactAgent'
 import { AgentMemory } from '@/lib/agent/AgentMemory'
 import { getAllTools } from '@/lib/agent/tools'
-import type { AgentResumeContext } from '@/lib/agent/AgentTypes'
+import type { AgentContext } from '@/lib/agent/AgentTypes'
 import { format } from 'date-fns'
 
 // 任务识别相关类型
@@ -233,7 +233,7 @@ export default function DashboardPage() {
     console.log('📝 创建 AgentMemory 实例')
     return new AgentMemory()
   })
-  const [agentResumeContext, setAgentResumeContext] = useState<AgentResumeContext | null>(null)
+  const [agentResumeContext, setAgentResumeContext] = useState<any | null>(null)
   const [isAgentRunning, setIsAgentRunning] = useState(false)
   
   console.log('💾 当前 Agent 状态:', {
@@ -278,7 +278,7 @@ export default function DashboardPage() {
         const tools = getAllTools()
         console.log(`📦 Step 2: 加载了 ${tools.length} 个工具:`, tools.map(t => t.name))
         console.log('🔧 Step 3: 创建 ReactAgent 实例')
-        const agent = new ReactAgent(doubaoService, tools, agentMemory)
+        const agent = new ReactAgent()
         console.log('🔧 Step 4: 设置 agentInstance')
         setAgentInstance(agent)
         console.log('✅ ReactAgent 初始化成功！')
@@ -1792,9 +1792,10 @@ export default function DashboardPage() {
         userId: user.id,
         userProfile: userProfile || null,
         dateScope: {
-          type: 'day',
-          start: format(selectedDate, 'yyyy-MM-dd'),
-          end: format(selectedDate, 'yyyy-MM-dd')
+          start: selectedDate,
+          end: selectedDate,
+          includeOverdue: false,
+          preset: 'today'
         }
       })
       

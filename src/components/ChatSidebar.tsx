@@ -207,8 +207,8 @@ const ChatSidebar = memo<ChatSidebarProps>(({
       'single-task-action',         // 单任务操作选项（澄清/拆解/估时）
       'task-selection',             // 任务选择（选择要操作的任务）
       'priority-feeling',           // ⭐ 优先级排序：询问感觉（截止日期临近/任务太多太乱/大脑一片空白）
-      'clarification-confirm',      // 澄清确认
-      'estimation-confirm',         // 估时确认
+      'clarification-edit',         // 澄清确认
+      'task-estimation-buffer',     // 估时确认
     ]
     
     return workflowMode ? buttonGuidedModes.includes(workflowMode) : false
@@ -465,7 +465,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                           
                           {/* Agent Loading 指示器 */}
                           {content.interactive.type === 'agent-loading' && (
-                            <AgentLoadingIndicator data={content.interactive.data} />
+                            <AgentLoadingIndicator />
                           )}
                           
                           {/* Agent Error 卡片 */}
@@ -781,7 +781,6 @@ const ChatSidebar = memo<ChatSidebarProps>(({
               maxHeight: '40px',
               verticalAlign: 'top'
             }}
-            disabled={shouldDisableInput || ((!doubaoService.hasApiKey() || isSending) && workflowMode !== 'task-context-input' && workflowMode !== 'task-clarification-input')}
           />
 
           {/* 语音按钮 */}
@@ -901,7 +900,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
             </label>
             <textarea
               value={editableText}
-              onChange={(e) => setEditableText(e.target.value)}
+              onChange={(e) => setEditableText?.(e.target.value)}
               onKeyDown={(e) => {
                 // 按Enter键时，插入新的列表项（带点号）
                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -919,7 +918,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                   // 如果当前行以 "• " 开头，在下一行也添加 "• "
                   if (currentLine.trim().startsWith('•')) {
                     const newText = text.substring(0, end) + '\n• ' + text.substring(end)
-                    setEditableText(newText)
+                    setEditableText?.(newText)
                     
                     // 设置光标位置到新列表项后面
                     setTimeout(() => {
@@ -928,7 +927,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                   } else {
                     // 否则正常换行
                     const newText = text.substring(0, end) + '\n' + text.substring(end)
-                    setEditableText(newText)
+                    setEditableText?.(newText)
                     
                     setTimeout(() => {
                       textarea.selectionStart = textarea.selectionEnd = end + 1
@@ -943,7 +942,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
             <div className="flex gap-3 mt-3">
               <button
                 onClick={handleConfirmEdit}
-                disabled={!editableText.trim() || isSending}
+                disabled={!editableText?.trim() || isSending}
                 className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-green-600 border border-green-600 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSending ? '解析中...' : '✅ 确认修改'}

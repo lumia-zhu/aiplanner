@@ -586,6 +586,36 @@ export interface DateScopePresetOption {
 }
 
 // ============================================
+// 聊天消息相关类型
+// ============================================
+
+// 导入 InteractiveMessage 类型
+import type { InteractiveMessage } from '@/lib/doubaoService'
+
+/**
+ * 消息内容项类型
+ */
+export interface MessageContent {
+  type: 'text' | 'image_url' | 'interactive'
+  text?: string
+  image_url?: {
+    url: string
+  }
+  interactive?: InteractiveMessage
+}
+
+/**
+ * 聊天消息类型
+ */
+export interface ChatMessage {
+  id?: string
+  user_id?: string
+  role: 'user' | 'assistant'
+  content: MessageContent[]
+  created_at?: string
+}
+
+// ============================================
 // 便签功能相关类型
 // ============================================
 

@@ -16,10 +16,10 @@ import StickyNote from '@/components/StickyNote'
 import StickyNotesDropdown from '@/components/StickyNotesDropdown'
 import TaskMatrix from '@/components/TaskMatrix'
 import MatrixSelector from '@/components/MatrixSelector'
-import type { DateScope, UserProfile, ChatMessage, StickyNote as StickyNoteType, TasksByQuadrant, TaskMatrixDimension } from '@/types'
+import type { DateScope, UserProfile, UserProfileInput, ChatMessage, StickyNote as StickyNoteType, TasksByQuadrant, TaskMatrixDimension } from '@/types'
 import { getDefaultDateScope } from '@/utils/dateUtils'
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns'
-import { getUserProfile, upsertUserProfile, type UserProfileInput } from '@/lib/userProfile'
+import { getUserProfile, upsertUserProfile } from '@/lib/userProfile'
 import { doubaoService } from '@/lib/doubaoService'
 import { saveChatMessage } from '@/lib/chatMessages'
 import { getStickyNotes, createStickyNote, updateStickyNote, deleteStickyNote, getMaxZIndex, hideStickyNote, restoreStickyNote, getHiddenStickyNotes } from '@/lib/stickyNotes'
@@ -33,7 +33,7 @@ import type { DailyTask, QuadrantType } from '@/types'
 import { ReactAgent } from '@/lib/agent/ReactAgent'
 import { AgentMemory } from '@/lib/agent/AgentMemory'
 import { getAllTools } from '@/lib/agent/tools'
-import type { AgentResumeContext } from '@/lib/agent/AgentTypes'
+import type { AgentContext } from '@/lib/agent/AgentTypes'
 
 export default function NotesDashboardPage() {
   console.log('🚀🚀🚀 NotesDashboardPage 组件开始渲染！')
@@ -95,7 +95,7 @@ export default function NotesDashboardPage() {
     console.log('📝 创建 AgentMemory 实例')
     return new AgentMemory()
   })
-  const [agentResumeContext, setAgentResumeContext] = useState<AgentResumeContext | null>(null)
+  const [agentResumeContext, setAgentResumeContext] = useState<any | null>(null)
   const [isAgentRunning, setIsAgentRunning] = useState(false)
   
   console.log('💾 当前 Agent 状态:', {
@@ -108,6 +108,9 @@ export default function NotesDashboardPage() {
   const [isTaskRecognitionMode, setIsTaskRecognitionMode] = useState(false)
   const [recognizedTasks, setRecognizedTasks] = useState<any[]>([])
   const [showTaskPreview, setShowTaskPreview] = useState(false)
+  
+  // Chat 滚动 ref
+  const chatScrollRef = useRef<HTMLDivElement | null>(null)
   
   // 用户资料弹窗
   const [showProfileModal, setShowProfileModal] = useState(false)
@@ -123,7 +126,13 @@ export default function NotesDashboardPage() {
   // 任务矩阵相关状态
   const [viewMode, setViewMode] = useState<'editor' | 'matrix'>('editor')  // 视图模式：编辑器 或 矩阵
   const [selectedMatrixDimension, setSelectedMatrixDimension] = useState<TaskMatrixDimension>('urgent-important')  // 当前选中的矩阵维度
-  const [tasksByQuadrant, setTasksByQuadrant] = useState<TasksByQuadrant>({})
+  const [tasksByQuadrant, setTasksByQuadrant] = useState<TasksByQuadrant>({
+    'unclassified': [],
+    'urgent-important': [],
+    'not-urgent-important': [],
+    'urgent-not-important': [],
+    'not-urgent-not-important': [],
+  })
   
   // 任务进度条显示/隐藏状态（持久化到 localStorage）
   const [isProgressVisible, setIsProgressVisible] = useState(() => {
@@ -168,7 +177,7 @@ export default function NotesDashboardPage() {
         const tools = getAllTools()
         console.log(`📦 Step 2: 加载了 ${tools.length} 个工具:`, tools.map(t => t.name))
         console.log('🔧 Step 3: 创建 ReactAgent 实例')
-        const agent = new ReactAgent(doubaoService, tools, agentMemory)
+        const agent = new ReactAgent()
         console.log('🔧 Step 4: 设置 agentInstance')
         setAgentInstance(agent)
         console.log('✅ ReactAgent 初始化成功！')
@@ -818,8 +827,6 @@ export default function NotesDashboardPage() {
             note_date: dateKey,
             notePosition: task.position,
             note_position: task.position,
-            deadlineDatetime: task.deadlineDatetime,
-            deadline_datetime: task.deadlineDatetime,
             createdAt: new Date().toISOString(),
             created_at: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
@@ -1010,10 +1017,14 @@ export default function NotesDashboardPage() {
   const handleUserProfileSave = useCallback(async (profileInput: UserProfileInput) => {
     if (!user) return
     try {
-      const updatedProfile = await upsertUserProfile(user.id, profileInput)
-      setUserProfile(updatedProfile)
-      setShowProfileModal(false)
-      alert('个人资料已更新！')
+      const result = await upsertUserProfile(user.id, profileInput)
+      if (result.success && result.data) {
+        setUserProfile(result.data)
+        setShowProfileModal(false)
+        alert('个人资料已更新！')
+      } else {
+        throw new Error(result.error || '更新失败')
+      }
     } catch (error) {
       console.error('更新用户资料失败:', error)
       alert('更新用户资料失败')
@@ -1022,7 +1033,53 @@ export default function NotesDashboardPage() {
 
   // 切换 AI 侧边栏
   const toggleChatSidebar = useCallback(() => {
-    setIsChatSidebarOpen(prev => !prev)
+    setIsChatSidebarOpen((prev: boolean) => !prev)
+  }, [])
+
+  // ⭐ Chat 相关辅助函数（为 ChatSidebar props 提供）
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }, [])
+
+  const handleImageSelect = useCallback(async (file: File) => {
+    if (file && file.type.startsWith('image/')) {
+      setSelectedImage(file)
+    }
+  }, [])
+
+  const handleVoiceClick = useCallback(() => {
+    alert('语音转文字功能即将推出，敬请期待！')
+  }, [])
+
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const items = Array.from(e.clipboardData.items)
+    const imageItem = items.find(item => item.type.startsWith('image/'))
+    
+    if (imageItem) {
+      const file = imageItem.getAsFile()
+      if (file) {
+        handleImageSelect(file)
+        e.preventDefault()
+      }
+    }
+  }, [handleImageSelect])
+
+  const handleAddSelectedTasks = useCallback(() => {
+    // 笔记模式暂不使用任务识别功能
+    console.log('笔记模式暂不支持任务识别')
+  }, [])
+
+  const handleToggleAllTasks = useCallback((checked: boolean) => {
+    setRecognizedTasks(tasks => 
+      tasks.map(task => ({ ...task, isSelected: checked }))
+    )
+  }, [])
+
+  const handleToggleTask = useCallback((taskId: string, checked: boolean) => {
+    setRecognizedTasks(tasks => 
+      tasks.map(t => t.id === taskId ? { ...t, isSelected: checked } : t)
+    )
   }, [])
 
   // ⭐⭐⭐ Agent Message Handling Functions ⭐⭐⭐
@@ -1060,11 +1117,11 @@ export default function NotesDashboardPage() {
     
     try {
       // 3. 构建 Agent Context
-      const agentContext = {
+      const agentContext: AgentContext = {
         userId: user.id,
         userProfile: userProfile,
         dateScope: dateScope,
-        taskContext: null  // 将由 Agent 自动加载
+        taskContext: undefined  // 将由 Agent 自动加载
       }
       
       console.log('📦 Agent Context:', agentContext)
@@ -1075,7 +1132,7 @@ export default function NotesDashboardPage() {
       
       // 4. 移除加载指示器
       setChatMessages(prev => prev.filter(msg => {
-        const interactive = msg.content.find(c => c.type === 'interactive')?.interactive
+        const interactive = msg.content.find((c: any) => c.type === 'interactive')?.interactive
         return interactive?.type !== 'agent-loading'
       }))
       
@@ -1087,7 +1144,7 @@ export default function NotesDashboardPage() {
       
       // 移除加载指示器
       setChatMessages(prev => prev.filter(msg => {
-        const interactive = msg.content.find(c => c.type === 'interactive')?.interactive
+        const interactive = msg.content.find((c: any) => c.type === 'interactive')?.interactive
         return interactive?.type !== 'agent-loading'
       }))
       
@@ -1265,11 +1322,11 @@ export default function NotesDashboardPage() {
     
     // 1. 禁用当前的 need-input 卡片
     setChatMessages(prev => prev.map(msg => {
-      const interactive = msg.content.find(c => c.type === 'interactive')?.interactive
+      const interactive = msg.content.find((c: any) => c.type === 'interactive')?.interactive
       if (interactive?.type === 'agent-need-input' && interactive.isActive) {
         return {
           ...msg,
-          content: msg.content.map(c => 
+          content: msg.content.map((c: any) => 
             c.type === 'interactive' 
               ? { ...c, interactive: { ...c.interactive!, isActive: false } }
               : c
@@ -1306,7 +1363,7 @@ export default function NotesDashboardPage() {
       
       // 5. 移除加载指示器
       setChatMessages(prev => prev.filter(msg => {
-        const interactive = msg.content.find(c => c.type === 'interactive')?.interactive
+        const interactive = msg.content.find((c: any) => c.type === 'interactive')?.interactive
         return interactive?.type !== 'agent-loading'
       }))
       
@@ -1320,7 +1377,7 @@ export default function NotesDashboardPage() {
       console.error('❌ Agent 恢复执行失败:', error)
       
       setChatMessages(prev => prev.filter(msg => {
-        const interactive = msg.content.find(c => c.type === 'interactive')?.interactive
+        const interactive = msg.content.find((c: any) => c.type === 'interactive')?.interactive
         return interactive?.type !== 'agent-loading'
       }))
       
@@ -2005,8 +2062,15 @@ export default function NotesDashboardPage() {
               handleClearChat={handleClearChat}
               handleDragEnter={handleDragEnter}
               handleDragLeave={handleDragLeave}
+              handleDragOver={handleDragOver}
               handleDrop={handleDrop}
-              handleKeyPress={handleKeyPress}
+              handleAddSelectedTasks={handleAddSelectedTasks}
+              handleToggleAllTasks={handleToggleAllTasks}
+              handleToggleTask={handleToggleTask}
+              handleImageSelect={handleImageSelect}
+              handleVoiceClick={handleVoiceClick}
+              handlePaste={handlePaste}
+              chatScrollRef={chatScrollRef}
               onAgentInputSubmit={handleAgentInputSubmit}
               isAgentRunning={isAgentRunning}
             />

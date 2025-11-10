@@ -18,6 +18,8 @@ export interface DailyTask {
   notePosition: number          // 在笔记中的位置
   createdAt: string             // 创建时间
   updatedAt: string             // 更新时间
+  tags?: string[]               // 任务标签（可选）
+  priority?: 'low' | 'medium' | 'high'  // 优先级（可选）
 }
 
 /**
