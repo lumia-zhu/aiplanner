@@ -22,7 +22,7 @@ import { getDefaultDateScope } from '@/utils/dateUtils'
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns'
 import { getUserProfile, upsertUserProfile } from '@/lib/userProfile'
 import { doubaoService } from '@/lib/doubaoService'
-import { saveChatMessage } from '@/lib/chatMessages'
+import { saveChatMessage, getChatMessages } from '@/lib/chatMessages'
 import { getStickyNotes, createStickyNote, updateStickyNote, deleteStickyNote, getMaxZIndex, hideStickyNote, restoreStickyNote, getHiddenStickyNotes } from '@/lib/stickyNotes'
 import { getTaskMatrixByDate, ensureTaskMatrix, updateTaskQuadrant } from '@/lib/taskMatrix'
 import { getDailyTasksByDate, toggleDailyTaskComplete } from '@/lib/dailyTasks'
@@ -166,10 +166,10 @@ export default function NotesDashboardPage() {
     }
   }, [saveStatus])
   
-  // ⭐ 初始化 Agent（只初始化一次）
+  // ⭐ 初始化 Agent（只在组件挂载时运行一次）
   useEffect(() => {
-    console.log('🎯 useEffect 被触发了！agentInstance =', agentInstance ? '已存在' : 'null')
-    console.log('🎯 agentMemory =', agentMemory)
+    console.log('🎯 Agent 初始化 useEffect 被触发')
+    console.log('🎯 当前 agentInstance 状态:', agentInstance ? '已存在' : 'null')
     
     if (!agentInstance) {
       try {
@@ -189,7 +189,8 @@ export default function NotesDashboardPage() {
     } else {
       console.log('⏭️ agentInstance 已存在，跳过初始化')
     }
-  }, [agentMemory])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])  // 空依赖数组：只在组件挂载时运行一次
 
   // 加载用户资料
   const loadUserProfile = useCallback(async (userId: string) => {
@@ -248,6 +249,34 @@ export default function NotesDashboardPage() {
       alert('加载笔记失败')
     }
   }, [calculateTaskStats])
+
+  // 加载指定日期的聊天记录
+  const loadChatMessages = useCallback(async (userId: string, date: Date) => {
+    try {
+      const chatDate = formatNoteDate(date) // 格式化为 YYYY-MM-DD
+      console.log(`💬 加载聊天记录: ${chatDate}`)
+      
+      const result = await getChatMessages(userId, chatDate)
+      
+      if (result.success && result.messages) {
+        console.log(`✅ 成功加载 ${result.messages.length} 条聊天记录`)
+        // 将数据库格式转换为组件需要的格式
+        const formattedMessages = result.messages.map(msg => ({
+          role: msg.role,
+          content: msg.content,
+          timestamp: new Date().toISOString() // 可以从数据库读取实际时间戳
+        }))
+        setChatMessages(formattedMessages)
+      } else {
+        console.log('📭 没有找到聊天记录，使用空数组')
+        setChatMessages([])
+      }
+    } catch (error) {
+      console.error('❌ 加载聊天记录失败:', error)
+      // 加载失败时使用空数组，不影响用户使用
+      setChatMessages([])
+    }
+  }, [])
 
   // 加载全局便签（不受日期限制）
   const loadStickyNotes = useCallback(async (userId: string) => {
@@ -503,6 +532,13 @@ export default function NotesDashboardPage() {
       loadNote(user.id, selectedDate)
     }
   }, [user, selectedDate, loadNote])
+
+  // 加载聊天记录（当用户登录或日期变化时）
+  useEffect(() => {
+    if (user) {
+      loadChatMessages(user.id, selectedDate)
+    }
+  }, [user, selectedDate, loadChatMessages])
 
   // 当用户登录时加载全局便签（只加载一次，不受日期影响）
   useEffect(() => {
@@ -1106,6 +1142,16 @@ export default function NotesDashboardPage() {
     }
     setChatMessages(prev => [...prev, userMessage])
     
+    // 💾 保存用户消息到数据库
+    try {
+      const chatDate = formatNoteDate(selectedDate)
+      await saveChatMessage(user.id, chatDate, 'user', userMessage.content)
+      console.log('✅ 用户消息已保存到数据库')
+    } catch (error) {
+      console.error('❌ 保存用户消息失败:', error)
+      // 保存失败不影响继续使用
+    }
+    
     // 2. 添加加载指示器
     const loadingMessage: ChatMessage = {
       role: 'assistant',
@@ -1169,6 +1215,17 @@ export default function NotesDashboardPage() {
         }]
       }
       setChatMessages(prev => [...prev, errorMessage])
+      
+      // 💾 保存错误消息到数据库
+      if (user) {
+        try {
+          const chatDate = formatNoteDate(selectedDate)
+          await saveChatMessage(user.id, chatDate, 'assistant', errorMessage.content)
+          console.log('✅ 异常错误消息已保存到数据库')
+        } catch (saveError) {
+          console.error('❌ 保存异常错误消息失败:', saveError)
+        }
+      }
     } finally {
       setIsAgentRunning(false)
     }
@@ -1208,6 +1265,17 @@ export default function NotesDashboardPage() {
           }]
         }
         setChatMessages(prev => [...prev, errorMessage])
+        
+        // 💾 保存错误消息到数据库
+        if (user) {
+          try {
+            const chatDate = formatNoteDate(selectedDate)
+            await saveChatMessage(user.id, chatDate, 'assistant', errorMessage.content)
+            console.log('✅ 错误消息已保存到数据库')
+          } catch (error) {
+            console.error('❌ 保存错误消息失败:', error)
+          }
+        }
         break
         
       default:
@@ -1290,6 +1358,20 @@ export default function NotesDashboardPage() {
     
     // 4. 批量添加所有消息
     setChatMessages(prev => [...prev, ...messages])
+    
+    // 💾 保存所有 AI 消息到数据库
+    if (user) {
+      try {
+        const chatDate = formatNoteDate(selectedDate)
+        for (const message of messages) {
+          await saveChatMessage(user.id, chatDate, 'assistant', message.content)
+        }
+        console.log(`✅ ${messages.length} 条 AI 消息已保存到数据库`)
+      } catch (error) {
+        console.error('❌ 保存 AI 消息失败:', error)
+        // 保存失败不影响继续使用
+      }
+    }
   }
   
   // 添加交互式输入卡片
@@ -1313,6 +1395,18 @@ export default function NotesDashboardPage() {
     }
     
     setChatMessages(prev => [...prev, needInputMessage])
+    
+    // 💾 保存交互式输入卡片到数据库
+    if (user) {
+      try {
+        const chatDate = formatNoteDate(selectedDate)
+        await saveChatMessage(user.id, chatDate, 'assistant', needInputMessage.content)
+        console.log('✅ 交互式输入卡片已保存到数据库')
+      } catch (error) {
+        console.error('❌ 保存交互式输入卡片失败:', error)
+        // 保存失败不影响继续使用
+      }
+    }
     
     // 保存恢复上下文
     setAgentResumeContext(result.resumeContext)
@@ -1954,54 +2048,54 @@ export default function NotesDashboardPage() {
                     )}
                   </div>
                 </div>
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center gap-4 flex-wrap">
                   {/* 回到今天按钮 */}
                   {selectedDate.toDateString() !== new Date().toDateString() && (
                     <button
                       onClick={() => setSelectedDate(new Date())}
-                      className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
+                      className="text-white px-5 py-2.5 rounded-xl hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2.5 shadow-md hover:shadow-lg hover:scale-105 active:scale-95"
                       style={{ backgroundColor: '#3B82F6' }}
                       title="回到今天"
                     >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                       </svg>
-                      回到今天
+                      <span className="text-sm">回到今天</span>
                     </button>
                   )}
                   {/* 进度条切换按钮 */}
                   <button
                     onClick={toggleProgressVisibility}
-                    className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
+                    className="text-white px-5 py-2.5 rounded-xl hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2.5 shadow-md hover:shadow-lg hover:scale-105 active:scale-95"
                     style={{ backgroundColor: isProgressVisible ? '#10B981' : '#6B7280' }}
                     title={isProgressVisible ? '隐藏任务进度' : '显示任务进度'}
                   >
                     {isProgressVisible ? (
                       // 显示状态 - 眼睛图标
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                       </svg>
                     ) : (
                       // 隐藏状态 - 眼睛斜线图标
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
                       </svg>
                     )}
-                    进度
+                    <span className="text-sm">进度</span>
                   </button>
                   
                   {/* AI助手按钮 */}
                   <button
                     onClick={toggleChatSidebar}
-                    className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
+                    className="text-white px-5 py-2.5 rounded-xl hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2.5 shadow-md hover:shadow-lg hover:scale-105 active:scale-95"
                     style={{ backgroundColor: '#4A90E2' }}
                     title="打开AI助手"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                     </svg>
-                    AI助手
+                    <span className="text-sm">AI助手</span>
                   </button>
                   
                   {/* 便签下拉框 - 仅在笔记模式下显示 */}
@@ -2044,7 +2138,7 @@ export default function NotesDashboardPage() {
                 {viewMode === 'editor' ? (
                   /* 笔记编辑器模式 */
                   <div 
-                    className="flex-1 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex flex-col animate-fadeIn"
+                    className="flex-1 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex flex-col animate-fadeIn relative"
                     style={{
                       animation: 'fadeIn 0.3s ease-in-out'
                     }}
@@ -2067,6 +2161,22 @@ export default function NotesDashboardPage() {
                         onClick={handleStickyNoteClick}
                       />
                     ))}
+                    
+                    {/* 浮动AI助手按钮 - 在编辑器右下角（工具栏上方） */}
+                    {!isChatSidebarOpen && (
+                      <button
+                        onClick={toggleChatSidebar}
+                        className="absolute right-6 bottom-16 z-40 w-14 h-14 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-300 flex items-center justify-center group"
+                        title="展开AI助手 (Ctrl+B)"
+                      >
+                        {/* 机器人emoji图标 */}
+                        <span className="text-3xl">🤖</span>
+                        {/* 悬停提示 */}
+                        <span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-lg">
+                          AI助手
+                        </span>
+                      </button>
+                    )}
                   </div>
                 ) : (
                   /* 任务矩阵模式 */
@@ -2088,25 +2198,6 @@ export default function NotesDashboardPage() {
                   </div>
                 )}
               </div>
-
-              {/* 浮动AI助手按钮 - 固定在编辑器右下角 */}
-              {!isChatSidebarOpen && (
-                <button
-                  onClick={toggleChatSidebar}
-                  className="fixed right-20 bottom-6 z-40 w-14 h-14 text-white rounded-full shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-300 flex items-center justify-center group"
-                  style={{ backgroundColor: '#4A90E2' }}
-                  title="展开AI助手 (Ctrl+B)"
-                >
-                  {/* AI图标 */}
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                  </svg>
-                  {/* 悬停提示 */}
-                  <span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-lg">
-                    AI助手
-                  </span>
-                </button>
-              )}
             </div>
 
             {/* 右侧：AI聊天侧边栏 */}

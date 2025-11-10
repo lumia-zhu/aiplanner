@@ -17,8 +17,11 @@ import { EstimateTimeTool } from './EstimateTimeTool' // ✅ Step 7
 
 // Phase 5: CRUD 工具（P0 核心功能）
 import { CreateTaskTool } from './CreateTaskTool' // ✅ Phase 5 Step 3
+import { CreateRecurringTasksTool } from './CreateRecurringTasksTool' // ✅ 批量创建工具
 import { UpdateTaskTool } from './UpdateTaskTool' // ✅ Phase 5 Step 4
+import { UpdateRecurringTasksTool } from './UpdateRecurringTasksTool' // ✅ 批量更新工具
 import { DeleteTaskTool } from './DeleteTaskTool' // ✅ Phase 5 Step 5
+import { DeleteRecurringTasksTool } from './DeleteRecurringTasksTool' // ✅ 批量删除工具
 
 /**
  * 工具实例缓存
@@ -47,8 +50,11 @@ export function getAllTools(): AgentTool[] {
     new EstimateTimeTool(), // ✅ Step 7
     // Phase 5: CRUD 工具
     new CreateTaskTool(), // ✅ Phase 5 Step 3
+    new CreateRecurringTasksTool(), // ✅ 批量创建工具
     new UpdateTaskTool(), // ✅ Phase 5 Step 4
+    new UpdateRecurringTasksTool(), // ✅ 批量更新工具
     new DeleteTaskTool(), // ✅ Phase 5 Step 5
+    new DeleteRecurringTasksTool(), // ✅ 批量删除工具
   ]
 
   const toolNames = toolsCache.map(t => t.name).join(', ')

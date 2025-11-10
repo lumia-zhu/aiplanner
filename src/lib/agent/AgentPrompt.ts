@@ -7,7 +7,8 @@
  * Phase 3 Step 1
  */
 
-import { ChatMessage, AgentTool, TaskContext, UserProfile, DateScope, ParsedOutput } from './AgentTypes'
+import { ChatMessage, AgentTool, TaskContext, ParsedOutput } from './AgentTypes'
+import type { UserProfile, DateScope } from '@/types'
 import { format } from 'date-fns'
 
 /**
@@ -49,12 +50,21 @@ export function buildReActPrompt(params: BuildReActPromptParams): string {
 
 ## 你的能力
 
+- ➕ **创建任务**：直接在用户的笔记中创建新任务
+- ✏️ **更新任务**：修改任务标题或完成状态
+- 🗑️ **删除任务**：删除不需要的任务
 - 📋 查询和分析任务
 - 🔍 识别需要处理的问题（紧急、缺少估算、需要澄清等）
 - 💡 提供智能建议
 - 🤔 通过提问帮助用户澄清任务
 - ✂️ 拆解复杂任务为子任务
-- ⏱️ 估算任务所需时间`
+- ⏱️ 估算任务所需时间
+
+## ⚠️ 重要原则
+
+- ✅ **用户要求创建/删除/修改任务时，必须实际执行操作**，不要只给建议
+- ✅ **看到"创建"、"添加"、"新建"等词时，立即调用 create_task 工具**
+- ❌ 不要给"如何创建任务"的示例，而是真正创建任务`
 
   // 2. 当前上下文
   const contextPrompt = buildContextSection(taskContext, userProfile, dateScope, userId)
@@ -148,17 +158,35 @@ Response: [给用户的回复内容]
 
 🔍 **如果用户说的是以下关键词，立即识别为对应操作：**
 
-✅ **创建任务**（关键词：创建、新建、添加、帮我建、记一个）
+✅ **创建单个任务**（关键词：创建、新建、添加、帮我建、记一个）
    → 直接调用 \`create_task\` → 立即返回 Final Answer
    → ❌ 不要先调用 \`get_tasks\` 查询！
 
-✅ **更新任务**（关键词：更新、修改、改、标记为完成、完成了）
+✅ **批量创建任务**（关键词：每天、这周、下周、本月、从X到Y）
+   → 直接调用 \`create_recurring_tasks\` → 立即返回 Final Answer
+   → 单任务示例："这周每天创建吃饭任务" = {taskTitles: "吃饭", dateRange: "this_week"}
+   → 多任务示例："这周每天创建吃饭、睡觉、锻炼" = {taskTitles: ["吃饭", "睡觉", "锻炼"], dateRange: "this_week"}
+   → ❌ 不要多次调用 \`create_task\`！
+
+✅ **更新单个任务**（关键词：更新、修改、改，针对特定某个任务）
    → 直接调用 \`update_task\` → 立即返回 Final Answer
    → ❌ 不要前后调用 \`get_tasks\` 验证！
 
-✅ **删除任务**（关键词：删除、删掉、移除、去掉）
+✅ **批量更新任务**（关键词：把...都改成、把...标记为、所有...的任务）
+   → 直接调用 \`update_recurring_tasks\` → 立即返回 Final Answer
+   → 示例1："把这周所有'锻炼'任务改成'跑步'" = {searchKeyword: "锻炼", dateRange: "this_week", updateFields: {newTitle: "跑步"}}
+   → 示例2："把本月所有'吃饭'任务标记为完成" = {searchKeyword: "吃饭", dateRange: "this_month", updateFields: {completed: true}}
+   → ❌ 不要多次调用 \`update_task\`！
+
+✅ **删除单个任务**（关键词：删除、删掉，针对特定某个任务）
    → 直接调用 \`delete_task\` → 立即返回 Final Answer
    → ❌ 不要前后调用 \`get_tasks\`！
+
+✅ **批量删除任务**（关键词：删除所有、删掉所有、清理）
+   → 直接调用 \`delete_recurring_tasks\` → 立即返回 Final Answer
+   → 示例1："删除这周所有'锻炼'任务" = {searchKeyword: "锻炼", dateRange: "this_week"}
+   → 示例2："删除本月所有已完成的'吃饭'任务" = {searchKeyword: "吃饭", dateRange: "this_month", onlyCompleted: true}
+   → ❌ 不要多次调用 \`delete_task\`！
 
 ✅ **查询任务**（关键词：有哪些、查看、看看、列出、有没有）
    → 调用 \`get_tasks\` → 立即返回任务列表
@@ -245,14 +273,13 @@ function buildContextSection(
   // 用户信息
   if (userProfile) {
     section += `**用户信息**：\n`
-    section += `- 姓名：${userProfile.name || '未设置'}\n`
     if (userProfile.major) section += `- 专业：${userProfile.major}\n`
     if (userProfile.grade) section += `- 年级：${userProfile.grade}\n`
     section += `\n`
   }
 
   // 日期范围
-  section += `**当前日期范围**：${dateScope.type === 'day' ? '今天' : dateScope.type === 'week' ? '本周' : '本月'}\n`
+  section += `**当前日期范围**：${dateScope.preset === 'today' ? '今天' : dateScope.preset === 'week' ? '本周' : dateScope.preset === 'month' ? '本月' : '自定义'}\n`
   section += `- 开始：${dateScope.start}\n`
   section += `- 结束：${dateScope.end}\n\n`
 
@@ -469,6 +496,206 @@ Response: ✅ 已创建任务  ← 正确！直接 Response，不是 Action
 
 ---
 
+### 📘 示例 3.5：批量创建任务（这周每天都创建 - 单任务）
+
+**用户消息**：帮我在这一周每天都创建一个吃饭的任务
+
+**第 1 轮输出**：
+\`\`\`
+Thought: 用户想在这一周的每一天都创建"吃饭"任务。关键词"这一周每天"表明这是批量创建场景，应该调用 create_recurring_tasks 工具。
+Action: create_recurring_tasks
+Action Input: {"userId": "user_id_placeholder", "taskTitles": "吃饭", "dateRange": "this_week"}
+\`\`\`
+
+**观察结果**：成功为 7 天创建了任务
+
+**第 2 轮输出**（⭐ 批量创建成功后立即回复）：
+\`\`\`
+Thought: 已经成功在这一周的每一天创建了"吃饭"任务，现在可以告诉用户了。
+Response: ✅ 已为您创建任务：
+吃饭
+📅 日期范围：2025-11-10 至 2025-11-16
+📊 成功创建：7 个任务项
+
+任务已添加到本周每一天的待办事项中！
+\`\`\`
+
+---
+
+### 📘 示例 3.6：批量创建任务（这周每天都创建 - 多任务）
+
+**用户消息**：帮我在这一周每天都创建：吃饭、睡觉、锻炼
+
+**第 1 轮输出**：
+\`\`\`
+Thought: 用户想在这一周的每一天都创建3个任务："吃饭"、"睡觉"、"锻炼"。关键词"这一周每天"和多个任务标题（用顿号或逗号分隔）表明需要批量创建多个任务。我应该将任务标题提取为数组，调用 create_recurring_tasks 工具。
+Action: create_recurring_tasks
+Action Input: {"userId": "user_id_placeholder", "taskTitles": ["吃饭", "睡觉", "锻炼"], "dateRange": "this_week"}
+\`\`\`
+
+**观察结果**：成功为 7 天 × 3 任务 = 21 个任务项
+
+**第 2 轮输出**（⭐ 批量创建成功后立即回复）：
+\`\`\`
+Thought: 已经成功在这一周的每一天创建了3个任务，现在可以告诉用户了。
+Response: ✅ 已为您创建任务：
+  1. 吃饭
+  2. 睡觉
+  3. 锻炼
+📅 日期范围：2025-11-10 至 2025-11-16
+📊 成功创建：21 个任务项
+
+任务已添加到本周每一天的待办事项中！
+\`\`\`
+
+**❌ 错误示例（不要多次调用 create_task）**：
+\`\`\`
+Thought: 用户要在这周每天创建任务，我应该调用 7 次 create_task。
+Action: create_task  ← 错误！应该用 create_recurring_tasks！
+Action Input: {"userId": "...", "taskTitle": "吃饭", "targetDate": "2025-11-10"}
+\`\`\`
+
+**✅ 批量创建关键词识别：**
+- "每天" → 批量创建
+- "这周" → dateRange: "this_week"
+- "下周" → dateRange: "next_week"
+- "本月" → dateRange: "this_month"
+- 多个任务用"、"或","分隔 → taskTitles: ["任务1", "任务2", "任务3"]
+
+---
+
+### 📘 示例 3.7：批量更新任务（修改标题）
+
+**用户消息**：把这周所有"锻炼"任务改成"跑步"
+
+**第 1 轮输出**：
+\`\`\`
+Thought: 用户想要批量修改任务标题。关键词"把...所有...改成"表明这是批量更新场景，应该调用 update_recurring_tasks 工具。搜索关键词是"锻炼"，新标题是"跑步"，日期范围是"this_week"。
+Action: update_recurring_tasks
+Action Input: {"userId": "user_id_placeholder", "searchKeyword": "锻炼", "dateRange": "this_week", "updateFields": {"newTitle": "跑步"}}
+\`\`\`
+
+**观察结果**：成功更新了 5 个任务
+
+**第 2 轮输出**（⭐ 批量更新成功后立即回复）：
+\`\`\`
+Thought: 已经成功把这周所有"锻炼"任务改成了"跑步"，现在可以告诉用户了。
+Response: ✅ 批量更新完成！
+🔍 搜索关键词：锻炼
+📅 日期范围：2025-11-10 至 2025-11-16
+📊 总共更新：5 个任务
+📝 新标题：跑步
+
+所有匹配的任务已成功更新！
+\`\`\`
+
+---
+
+### 📘 示例 3.8：批量更新任务（标记完成）
+
+**用户消息**：把本月所有"吃饭"任务标记为完成
+
+**第 1 轮输出**：
+\`\`\`
+Thought: 用户想要批量标记任务为完成状态。关键词"把...所有...标记为完成"表明这是批量更新场景，应该调用 update_recurring_tasks 工具。搜索关键词是"吃饭"，更新字段是完成状态=true，日期范围是"this_month"。
+Action: update_recurring_tasks
+Action Input: {"userId": "user_id_placeholder", "searchKeyword": "吃饭", "dateRange": "this_month", "updateFields": {"completed": true}}
+\`\`\`
+
+**观察结果**：成功更新了 12 个任务
+
+**第 2 轮输出**（⭐ 批量更新成功后立即回复）：
+\`\`\`
+Thought: 已经成功把本月所有"吃饭"任务标记为完成，现在可以告诉用户了。
+Response: ✅ 批量更新完成！
+🔍 搜索关键词：吃饭
+📅 日期范围：2025-11-01 至 2025-11-30
+📊 总共更新：12 个任务
+✓ 完成状态：已完成
+
+所有匹配的任务已成功标记为完成！
+\`\`\`
+
+**❌ 错误示例（不要多次调用 update_task）**：
+\`\`\`
+Thought: 用户要把这周所有任务标记为完成，我应该先查询任务，然后逐个更新。
+Action: get_tasks  ← 错误！应该直接用 update_recurring_tasks！
+\`\`\`
+
+**✅ 批量更新关键词识别：**
+- "把...都改成" → 批量更新标题
+- "把...标记为完成/未完成" → 批量更新完成状态
+- "所有...的任务" → 批量操作
+- "这周/下周/本月" → dateRange 参数
+
+---
+
+### 📘 示例 3.9：批量删除任务
+
+**用户消息**：删除这周所有"锻炼"任务
+
+**第 1 轮输出**：
+\`\`\`
+Thought: 用户想要批量删除任务。关键词"删除...所有"表明这是批量删除场景，应该调用 delete_recurring_tasks 工具。搜索关键词是"锻炼"，日期范围是"this_week"。
+Action: delete_recurring_tasks
+Action Input: {"userId": "user_id_placeholder", "searchKeyword": "锻炼", "dateRange": "this_week"}
+\`\`\`
+
+**观察结果**：成功删除了 5 个任务
+
+**第 2 轮输出**（⭐ 批量删除成功后立即回复）：
+\`\`\`
+Thought: 已经成功删除这周所有"锻炼"任务，现在可以告诉用户了。
+Response: ✅ 批量删除完成！
+🔍 搜索关键词：锻炼
+📅 日期范围：2025-11-10 至 2025-11-16
+📊 总共删除：5 个任务
+
+所有匹配的任务已成功删除！
+\`\`\`
+
+---
+
+### 📘 示例 3.10：批量删除已完成的任务
+
+**用户消息**：删除本月所有已完成的"吃饭"任务
+
+**第 1 轮输出**：
+\`\`\`
+Thought: 用户想要批量删除已完成的任务。关键词"删除...所有已完成的"表明这是批量删除场景，且只删除已完成的任务。搜索关键词是"吃饭"，日期范围是"this_month"，onlyCompleted 设置为 true。
+Action: delete_recurring_tasks
+Action Input: {"userId": "user_id_placeholder", "searchKeyword": "吃饭", "dateRange": "this_month", "onlyCompleted": true}
+\`\`\`
+
+**观察结果**：成功删除了 8 个已完成的任务
+
+**第 2 轮输出**（⭐ 批量删除成功后立即回复）：
+\`\`\`
+Thought: 已经成功删除本月所有已完成的"吃饭"任务，现在可以告诉用户了。
+Response: ✅ 批量删除完成！
+🔍 搜索关键词：吃饭
+📅 日期范围：2025-11-01 至 2025-11-30
+📊 总共删除：8 个任务
+✓ 删除范围：仅已完成的任务
+
+所有匹配的已完成任务已成功删除！
+\`\`\`
+
+**❌ 错误示例（不要多次调用 delete_task）**：
+\`\`\`
+Thought: 用户要删除这周所有任务，我应该先查询任务，然后逐个删除。
+Action: get_tasks  ← 错误！应该直接用 delete_recurring_tasks！
+\`\`\`
+
+**✅ 批量删除关键词识别：**
+- "删除所有" → 批量删除
+- "删掉所有" → 批量删除
+- "清理" → 批量删除
+- "已完成的" → onlyCompleted: true
+- "这周/下周/本月" → dateRange 参数
+
+---
+
 ### 📘 示例 4：多步推理（查询 + 分析）
 
 **用户消息**：帮我看看任务情况
@@ -619,9 +846,14 @@ export function parseReActOutput(text: string): ParsedOutput {
   const hasResponse = /Response:\s*/i.test(trimmedText)
   const hasAction = /Action:\s*/i.test(trimmedText)
   
+  // ⭐ 详细输出格式判断结果
+  console.log('🔍 格式检测结果:')
+  console.log(`   - hasResponse: ${hasResponse}`)
+  console.log(`   - hasAction: ${hasAction}`)
+  
   // ========== 格式 1: Thought + Response ==========
   if (hasResponse && !hasAction) {
-    console.log('📋 格式识别: Thought + Response（直接回复）')
+    console.log('📋 格式识别: Thought + Response（直接回复）✅')
     
     const responseMatch = trimmedText.match(/Response:\s*(.+?)$/is)
     if (!responseMatch) {

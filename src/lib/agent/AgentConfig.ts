@@ -14,7 +14,7 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = {
   enabled: process.env.NEXT_PUBLIC_AGENT_MODE === 'true',
   
   // 最大迭代次数（防止死循环）
-  maxIterations: 5,
+  maxIterations: 10,
   
   // LLM 配置
   llm: {

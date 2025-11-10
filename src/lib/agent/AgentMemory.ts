@@ -52,7 +52,19 @@ export class AgentMemory implements IAgentMemory {
    */
   addStep(step: { action: string; input: any; observation: any }): void {
     console.log('🔄 添加 ReAct 步骤:', step.action)
-    // TODO: Phase 3 实现完整的步骤记录
+    
+    // 1. 保存步骤到历史记录
+    this.steps.push(step)
+    
+    // 2. 将 Observation 作为 assistant 消息添加到对话历史
+    // 这样 LLM 在下一轮迭代时能看到工具执行结果
+    const observationText = `Observation: ${JSON.stringify(step.observation, null, 2)}`
+    this.addMessage({
+      role: 'assistant',
+      content: observationText
+    })
+    
+    console.log('✅ ReAct 步骤已记录，Observation 已添加到对话历史')
   }
   
   /**

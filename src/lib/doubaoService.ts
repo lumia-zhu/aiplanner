@@ -165,7 +165,7 @@ interface ChatResponse {
   error?: string
 }
 
-class DoubaoService {
+export class DoubaoService {
   private getApiKey(): string | null {
     return process.env.NEXT_PUBLIC_DOUBAO_API_KEY || null
   }
