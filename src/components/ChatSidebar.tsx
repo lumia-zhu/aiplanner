@@ -288,40 +288,6 @@ const ChatSidebar = memo<ChatSidebarProps>(({
         </div>
       </div>
       
-      {/* ⭐ Agent 模式提示条（优化版） */}
-      {isAgentMode && (
-        <div className="px-4 py-3 bg-gradient-to-r from-purple-50 to-blue-50 border-l-4 border-purple-500">
-          <div className="flex items-start gap-3">
-            <div className="flex-shrink-0 mt-0.5">
-              <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                      d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-              </svg>
-            </div>
-            
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-purple-700 mb-1">
-                🤖 Agent 模式已启用
-              </p>
-              <p className="text-xs text-gray-600 leading-relaxed mb-2">
-                Agent 会自动分析你的需求，调用合适的工具，并展示推理过程
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <span className="px-2 py-1 bg-white rounded text-xs text-gray-700 border border-purple-200">
-                  我今天有哪些任务？
-                </span>
-                <span className="px-2 py-1 bg-white rounded text-xs text-gray-700 border border-purple-200">
-                  帮我分析任务
-                </span>
-                <span className="px-2 py-1 bg-white rounded text-xs text-gray-700 border border-purple-200">
-                  拆解这个任务
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      
       {/* 聊天消息区域 */}
       <div ref={chatScrollRef} className="flex-1 p-4 overflow-y-auto bg-gray-50 relative min-h-0">
         {/* 拖拽提示覆盖层 */}
@@ -338,17 +304,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
         )}
         
         <div className="space-y-3">
-          {chatMessages.length === 0 ? (
-            /* 欢迎消息 */
-            <div className="flex items-start gap-3">
-              <img src="/ai-avatar.svg" alt="AI" className="w-8 h-8 rounded-full flex-shrink-0" />
-              <div className="bg-white rounded-lg px-3 py-2 shadow-sm flex-1">
-                <p className="text-sm" style={{ color: '#3f3f3f' }}>
-                  你好！我是AI助手，可以帮你管理任务、分析图片。{!doubaoService.hasApiKey() ? '请先配置API Key。' : '你可以直接粘贴图片(Ctrl+V)或拖拽图片到这里，有什么可以帮助你的吗？'}
-                </p>
-              </div>
-            </div>
-          ) : (
+          {chatMessages.length === 0 ? null : (
             /* 聊天消息 */
             chatMessages.map((message, index) => (
               <div key={index} className={`flex items-start gap-3 ${message.role === 'user' ? 'flex-row-reverse' : ''}`}>

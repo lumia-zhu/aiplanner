@@ -53,15 +53,23 @@ export default function CalendarView({
   }
 
   /**
-   * 检查指定日期是否有笔记
+   * 检查指定日期是否有笔记（且内容不为空）
    */
   const hasNoteOnDate = (date: Date): boolean => {
     if (!notesMap) {
       return false
     }
     const dateStr = formatDateKey(date)
-    const hasNote = notesMap.has(dateStr)
-    return hasNote
+    const note = notesMap.get(dateStr)
+    
+    // ⭐ 不仅检查笔记是否存在，还要检查内容是否为空
+    if (!note) {
+      return false
+    }
+    
+    // 检查 plain_text 是否有内容
+    const hasContent = note.plain_text && note.plain_text.trim().length > 0
+    return hasContent
   }
 
   /**

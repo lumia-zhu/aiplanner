@@ -20,7 +20,7 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = {
   llm: {
     model: 'doubao-seed-1-6-vision-250815',
     temperature: 0.7,
-    maxTokens: 1000
+    maxTokens: 1500  // ⭐ 设置为 1500，支持返回约 20-30 个任务，平衡输出质量和成本
   },
   
   // 可用工具列表（Phase 2 会实现这些工具）

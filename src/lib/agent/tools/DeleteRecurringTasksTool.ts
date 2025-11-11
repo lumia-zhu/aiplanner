@@ -10,7 +10,7 @@ import { addDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInt
 
 interface DeleteRecurringTasksParams {
   userId: string
-  searchKeyword: string  // 查找关键词（任务标题包含此关键词的任务将被删除）
+  searchKeyword?: string  // ⭐ 查找关键词（可选）。如果提供，只删除标题包含此关键词的任务；如果不提供或为空，删除所有任务
   dateRange: 'today' | 'this_week' | 'next_week' | 'this_month' | 'custom'
   startDate?: string  // YYYY-MM-DD，仅当 dateRange='custom' 时使用
   endDate?: string    // YYYY-MM-DD，仅当 dateRange='custom' 时使用
@@ -27,7 +27,7 @@ interface DeleteRecurringTasksParams {
  */
 export class DeleteRecurringTasksTool implements AgentTool {
   name = 'delete_recurring_tasks'
-  description = '在多个日期批量删除符合条件的任务。可以删除包含特定关键词的任务，也可以只删除已完成的任务。适用于"这周"、"下周"、"本月"等场景。'
+  description = '在多个日期批量删除任务。⚠️ 重要：searchKeyword 是可选的！只有当用户说"删除所有XX任务"（指定了任务类型）时才传searchKeyword；如果用户说"删除所有任务"（没有指定任务类型），则不传searchKeyword。'
   
   parameters: ParameterSchema = {
     type: 'object',
@@ -38,7 +38,7 @@ export class DeleteRecurringTasksTool implements AgentTool {
       },
       searchKeyword: {
         type: 'string',
-        description: '搜索关键词（必需）。只有任务标题包含此关键词的任务会被删除。例如："锻炼"、"吃饭"、"工作"'
+        description: '⭐ 搜索关键词（可选）。⚠️ 仅当用户指定了具体的任务类型时才传此参数！例如："删除所有锻炼任务" → searchKeyword="锻炼"；"删除所有任务" → 不传searchKeyword。❌ 不要把"所有任务"、"全部任务"当作searchKeyword！'
       },
       dateRange: {
         type: 'string',
@@ -58,7 +58,7 @@ export class DeleteRecurringTasksTool implements AgentTool {
         description: '是否只删除已完成的任务（可选，默认 false）。如果为 true，只删除已完成的任务；如果为 false，删除所有匹配的任务'
       }
     },
-    required: ['userId', 'searchKeyword', 'dateRange']
+    required: ['userId', 'dateRange']  // ⭐ searchKeyword 不再是必填
   }
 
   async execute(params: DeleteRecurringTasksParams): Promise<ToolResult> {
@@ -70,13 +70,9 @@ export class DeleteRecurringTasksTool implements AgentTool {
         onlyCompleted: params.onlyCompleted || false
       })
 
-      // 1. 验证参数
-      if (!params.searchKeyword || params.searchKeyword.trim().length === 0) {
-        return {
-          type: 'error',
-          message: '搜索关键词不能为空'
-        }
-      }
+      // 1. 验证参数（searchKeyword 现在是可选的）
+      const searchKeyword = params.searchKeyword?.trim() || ''  // 空字符串表示匹配所有任务
+      const matchAll = searchKeyword === ''  // 是否匹配所有任务
 
       // 2. 计算日期范围
       let startDate: Date
@@ -168,7 +164,8 @@ export class DeleteRecurringTasksTool implements AgentTool {
           
           const updatedContent = this.deleteTasksInContent(
             note.content,
-            params.searchKeyword,
+            searchKeyword,
+            matchAll,
             params.onlyCompleted || false,
             (count) => {
               deletedCount = count
@@ -214,7 +211,9 @@ export class DeleteRecurringTasksTool implements AgentTool {
       const failCount = results.length - successCount
 
       let message = `✅ 批量删除完成！\n`
-      message += `🔍 搜索关键词：${params.searchKeyword}\n`
+      message += matchAll 
+        ? `🔍 删除范围：所有任务\n`
+        : `🔍 搜索关键词：${searchKeyword}\n`
       message += `📅 日期范围：${formatNoteDate(startDate)} 至 ${formatNoteDate(endDate)}\n`
       message += `📊 总共删除：${totalDeleted} 个任务\n`
       
@@ -232,7 +231,8 @@ export class DeleteRecurringTasksTool implements AgentTool {
         type: 'success',
         message,
         data: {
-          searchKeyword: params.searchKeyword,
+          searchKeyword: searchKeyword || '(所有任务)',
+          matchAll,
           dateRange: params.dateRange,
           startDate: formatNoteDate(startDate),
           endDate: formatNoteDate(endDate),
@@ -260,6 +260,7 @@ export class DeleteRecurringTasksTool implements AgentTool {
   private deleteTasksInContent(
     content: any,
     searchKeyword: string,
+    matchAll: boolean,  // ⭐ 新增：是否匹配所有任务
     onlyCompleted: boolean,
     onDeleteCount: (count: number) => void
   ): any {
@@ -276,8 +277,10 @@ export class DeleteRecurringTasksTool implements AgentTool {
             // 提取任务标题
             const taskTitle = this.extractTaskTitle(child)
             
-            // 检查是否匹配关键词
-            if (taskTitle && taskTitle.includes(searchKeyword)) {
+            // ⭐ 检查是否匹配（匹配所有任务 或 标题包含关键词）
+            const isMatch = matchAll || (taskTitle && taskTitle.includes(searchKeyword))
+            
+            if (isMatch) {
               // 如果设置了只删除已完成的任务，检查完成状态
               if (onlyCompleted) {
                 const isCompleted = child.attrs?.checked === true
@@ -335,4 +338,5 @@ export class DeleteRecurringTasksTool implements AgentTool {
     return null
   }
 }
+
 

@@ -33,6 +33,49 @@ export class ReactAgent {
   }
 
   /**
+   * 智能修正批量操作工具的参数
+   * 
+   * 修正场景：
+   * - searchKeyword="所有任务" → 删除 searchKeyword
+   * - searchKeyword="全部任务" → 删除 searchKeyword
+   * - searchKeyword="所有的任务" → 删除 searchKeyword
+   */
+  private correctBatchOperationParams(toolName: string, params: any): any {
+    console.log(`🔍 [智能修正] 工具: ${toolName}`)
+    console.log(`🔍 [智能修正] 原始参数:`, JSON.stringify(params, null, 2))
+    
+    const batchTools = ['delete_recurring_tasks', 'update_recurring_tasks']
+    
+    if (!batchTools.includes(toolName)) {
+      console.log(`🔍 [智能修正] 不是批量操作工具，跳过修正`)
+      return params
+    }
+
+    const keyword = params.searchKeyword?.trim()
+    console.log(`🔍 [智能修正] searchKeyword="${keyword}"`)
+    
+    // 检测常见的"所有任务"表述
+    const allTasksPatterns = [
+      '所有任务',
+      '全部任务',
+      '所有的任务',
+      '全部的任务',
+      '所有',
+      '全部',
+    ]
+    
+    if (keyword && allTasksPatterns.includes(keyword)) {
+      console.warn(`🚨 [智能修正] 检测到错误的 searchKeyword="${keyword}"，自动删除此参数！`)
+      const { searchKeyword, ...rest } = params
+      console.log(`✅ [智能修正] 修正后参数:`, JSON.stringify(rest, null, 2))
+      return rest  // 返回不包含 searchKeyword 的对象
+    }
+    
+    console.log(`🔍 [智能修正] searchKeyword 正常，无需修正`)
+    return params
+  }
+
+  /**
    * 运行 Agent（主入口）
    */
   async run(message: string, context: AgentContext): Promise<AgentResponse> {
@@ -143,8 +186,14 @@ export class ReactAgent {
             continue
           }
 
+          // ⭐ 智能修正：批量操作工具的 searchKeyword 参数
+          const correctedInput = this.correctBatchOperationParams(parsed.action!, parsed.actionInput)
+          if (correctedInput !== parsed.actionInput) {
+            console.log(`🔧 参数自动修正:`, JSON.stringify(correctedInput, null, 2))
+          }
+
           // 执行工具
-          const toolResult = await tool.execute(parsed.actionInput)
+          const toolResult = await tool.execute(correctedInput)
           console.log('📤 工具结果:', toolResult.type)
 
           // 处理工具结果
@@ -183,6 +232,30 @@ export class ReactAgent {
               observation: toolResult.data || { message: toolResult.message }
             })
             
+            // ⭐ 对于明确的操作类工具（创建/更新/删除），成功后立即返回，不再让 LLM 思考
+            const immediateReturnTools = [
+              'create_task',
+              'update_task', 
+              'delete_task',
+              'create_recurring_tasks',
+              'update_recurring_tasks',
+              'delete_recurring_tasks',
+            ]
+            
+            if (immediateReturnTools.includes(parsed.action!)) {
+              console.log(`🎯 ${parsed.action} 执行成功，立即返回结果（跳过后续迭代）`)
+              return {
+                type: 'text',
+                content: toolResult.message || '✅ 操作已成功完成！',
+                metadata: {
+                  iteration,
+                  thoughts: this.memory.getThoughts(),
+                  steps: this.memory.getSteps(),
+                  stopReason: 'immediate_return_after_action',
+                }
+              }
+            }
+            
             // 🚨 防止重复操作：检查最近3次是否都是相同的工具调用
             const recentSteps = this.memory.getSteps().slice(-3)
             if (recentSteps.length >= 3 && 
@@ -190,9 +263,10 @@ export class ReactAgent {
                                      JSON.stringify(s.input) === JSON.stringify(parsed.actionInput))) {
               console.warn('⚠️ 检测到重复操作（连续3次相同调用），强制返回结果')
               return {
-                type: 'response',
-                response: `✅ 任务已完成！\n\n${toolResult.message || JSON.stringify(toolResult.data, null, 2)}`,
+                type: 'text',
+                content: toolResult.message || '✅ 任务已完成！',
                 metadata: {
+                  iteration,
                   thoughts: this.memory.getThoughts(),
                   steps: this.memory.getSteps(),
                   stopReason: 'duplicate_action_detected',

@@ -349,6 +349,10 @@ export default function DashboardPage() {
     setIsChatLoading(true)
     console.log('📖 开始加载对话记录...')
     
+    // ⭐ 切换日期时清空 Agent 内存，避免不同日期的对话混淆
+    agentMemory.clear()
+    console.log('🧹 已清空 Agent 内存（切换日期）')
+    
     try {
       // 格式化日期为 YYYY-MM-DD
       const year = date.getFullYear()
@@ -369,7 +373,7 @@ export default function DashboardPage() {
     } finally {
       setIsChatLoading(false)
     }
-  }, [user])
+  }, [user, agentMemory])
 
   useEffect(() => {
     const currentUser = getUserFromStorage()
@@ -1744,7 +1748,9 @@ export default function DashboardPage() {
       
       if (result.success) {
         setChatMessages([])
-        console.log(`✅ 已清空 ${result.count} 条对话记录`)
+        // ⭐ 清空 Agent 内存（对话历史、思考、步骤）
+        agentMemory.clear()
+        console.log(`✅ 已清空 ${result.count} 条对话记录和 Agent 内存`)
         alert(`✅ 已清空 ${result.count} 条对话记录`)
       } else {
         console.error('❌ 清空对话失败:', result.error)
@@ -1856,6 +1862,27 @@ export default function DashboardPage() {
         
       default:
         console.warn('未知的 Agent 返回类型:', result.type)
+    }
+    
+    // ⭐ 检查是否执行了任务相关操作，如果是则刷新任务列表和笔记缓存
+    if (result.metadata?.steps && user) {
+      const taskOperationTools = [
+        'create_task',
+        'update_task',
+        'delete_task',
+        'create_recurring_tasks',
+        'update_recurring_tasks',
+        'delete_recurring_tasks'
+      ]
+      
+      const hasTaskOperation = result.metadata.steps.some((step: any) => 
+        taskOperationTools.includes(step.tool) && step.success !== false
+      )
+      
+      if (hasTaskOperation) {
+        console.log('🔄 检测到任务操作，刷新任务列表...')
+        await loadTasks(user.id)
+      }
     }
   }
   
