@@ -22,7 +22,7 @@ import { getDefaultDateScope } from '@/utils/dateUtils'
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns'
 import { getUserProfile, upsertUserProfile } from '@/lib/userProfile'
 import { doubaoService } from '@/lib/doubaoService'
-import { saveChatMessage, getChatMessages } from '@/lib/chatMessages'
+import { saveChatMessage, getChatMessages, clearChatMessages } from '@/lib/chatMessages'
 import { getStickyNotes, createStickyNote, updateStickyNote, deleteStickyNote, getMaxZIndex, hideStickyNote, restoreStickyNote, getHiddenStickyNotes } from '@/lib/stickyNotes'
 import { getTaskMatrixByDate, ensureTaskMatrix, updateTaskQuadrant } from '@/lib/taskMatrix'
 import { getDailyTasksByDate, toggleDailyTaskComplete } from '@/lib/dailyTasks'
@@ -1976,11 +1976,33 @@ export default function NotesDashboardPage() {
   }, [chatMessage, selectedImage, chatMessages, user, selectedDate, agentInstance, isAgentRunning, decomposingTaskTitle, handleTaskDecomposition])
 
   // 处理清除聊天
-  const handleClearChat = useCallback(() => {
-    if (window.confirm('确定要清空当前日期的所有聊天记录吗？此操作无法撤销。')) {
-      setChatMessages([])
+  const handleClearChat = useCallback(async () => {
+    if (!user) return
+    
+    const confirmed = window.confirm('确定要清空当前日期的所有聊天记录吗？此操作无法撤销。')
+    if (!confirmed) return
+    
+    try {
+      // 格式化日期为 YYYY-MM-DD
+      const chatDate = formatNoteDate(selectedDate)
+      
+      const result = await clearChatMessages(user.id, chatDate)
+      
+      if (result.success) {
+        setChatMessages([])
+        // ⭐ 清空 Agent 内存（对话历史、思考、步骤）
+        agentMemory.clear()
+        console.log(`✅ 已清空 ${result.count} 条对话记录和 Agent 内存`)
+        alert(`✅ 已清空 ${result.count} 条对话记录`)
+      } else {
+        console.error('❌ 清空对话失败:', result.error)
+        alert(`❌ 清空对话失败: ${result.error}`)
+      }
+    } catch (error) {
+      console.error('❌ 清空对话异常:', error)
+      alert('❌ 清空对话失败，请重试')
     }
-  }, [])
+  }, [user, selectedDate, agentMemory])
 
   // 处理拖拽进入
   const handleDragEnter = useCallback(() => {
