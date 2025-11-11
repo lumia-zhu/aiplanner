@@ -505,8 +505,8 @@ const ChatSidebar = memo<ChatSidebarProps>(({
             ))
           )}
           
-          {/* 流式输出和发送中指示器 */}
-          {isSending && !streamingMessage && (
+          {/* 流式输出和发送中指示器（⭐ Agent模式下不显示） */}
+          {isSending && !streamingMessage && !isAgentRunning && (
             <div className="flex items-start gap-3">
               <img src="/ai-avatar.svg" alt="AI" className="w-8 h-8 rounded-full flex-shrink-0" />
               <div className="bg-white rounded-lg px-3 py-2 shadow-sm max-w-[80%]">

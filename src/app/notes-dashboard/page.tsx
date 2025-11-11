@@ -698,7 +698,7 @@ export default function NotesDashboardPage() {
   }, [user, selectedDate, isNoteEmpty])
 
   // ⭐ 处理从笔记编辑器发起的任务拆解
-  const handleDecomposeFromNoteEditor = useCallback((taskTitle: string) => {
+  const handleDecomposeFromNoteEditor = useCallback(async (taskTitle: string) => {
     if (!user) return
     
     console.log('✂️ 从笔记编辑器触发任务拆解:', taskTitle)
@@ -706,14 +706,29 @@ export default function NotesDashboardPage() {
     // 1. 打开侧边栏
     setIsChatSidebarOpen(true)
     
-    // 2. 生成反思性问题（使用简化的任务对象）
+    // 2. 显示加载提示
+    const loadingMessage: ChatMessage = {
+      role: 'assistant',
+      content: [{
+        type: 'text',
+        text: '🤔 正在为你生成问题...'
+      }]
+    }
+    setChatMessages(prev => [...prev, loadingMessage])
+    
+    // 3. 生成反思性问题（使用简化的任务对象）
     const mockTask = { 
       title: taskTitle, 
       tags: [] as string[]
     } as any // ⭐ 强制类型转换，因为我们只需要 title 和 tags
-    const questions = generateContextQuestions(mockTask)
     
-    // 3. 添加交互式输入卡片到聊天
+    // ⭐ 动态生成问题
+    const questions = await generateContextQuestions(mockTask)
+    
+    // 移除加载消息
+    setChatMessages(prev => prev.slice(0, -1))
+    
+    // 4. 添加交互式输入卡片到聊天
     const aiMessage: ChatMessage = {
       role: 'assistant',
       content: [
@@ -940,19 +955,118 @@ export default function NotesDashboardPage() {
       }))
     )
     
-    // 2. 构建子任务文本（带缩进）
-    const subtasksText = subtasks
-      .map(st => `  - [ ] ${st.title}`)
-      .join('\n')
+    // 2. 在笔记中插入子任务
+    if (currentNote && decomposingTaskTitle) {
+      try {
+        // 深拷贝当前笔记内容
+        const newContent = JSON.parse(JSON.stringify(currentNote))
+        
+        const findAndInsertSubtasks = (node: any, parentPath: number[] = []): boolean => {
+          if (!node || !node.content) return false
+          
+          for (let i = 0; i < node.content.length; i++) {
+            const child = node.content[i]
+            
+            // 检查是否是目标任务
+            if (child.type === 'taskList') {
+              for (let j = 0; j < (child.content || []).length; j++) {
+                const taskItem = child.content[j]
+                if (taskItem.type === 'taskItem') {
+                  // 提取任务标题
+                  const taskText = extractTaskText(taskItem)
+                  
+                  if (taskText.includes(decomposingTaskTitle)) {
+                    console.log('✅ 找到父任务:', taskText)
+                    
+                    // 创建子任务列表
+                    const subtaskItems = subtasks.map(st => ({
+                      type: 'taskItem',
+                      attrs: { checked: false },
+                      content: [
+                        {
+                          type: 'paragraph',
+                          content: [{ type: 'text', text: st.title }]
+                        }
+                      ]
+                    }))
+                    
+                    // 创建嵌套的 taskList
+                    const nestedTaskList = {
+                      type: 'taskList',
+                      content: subtaskItems
+                    }
+                    
+                    // 在父任务下添加子任务列表
+                    if (!taskItem.content) {
+                      taskItem.content = []
+                    }
+                    
+                    // 找到 paragraph 的索引
+                    const paragraphIndex = taskItem.content.findIndex((c: any) => c.type === 'paragraph')
+                    
+                    // 在 paragraph 后插入子任务列表
+                    if (paragraphIndex !== -1) {
+                      taskItem.content.splice(paragraphIndex + 1, 0, nestedTaskList)
+                    } else {
+                      taskItem.content.push(nestedTaskList)
+                    }
+                    
+                    console.log('✅ 子任务已插入到笔记中')
+                    return true
+                  }
+                }
+              }
+            }
+            
+            // 递归查找
+            if (findAndInsertSubtasks(child, [...parentPath, i])) {
+              return true
+            }
+          }
+          
+          return false
+        }
+        
+        // 辅助函数：提取任务文本
+        const extractTaskText = (taskItem: any): string => {
+          let text = ''
+          const traverse = (node: any) => {
+            if (node.type === 'text') {
+              text += node.text || ''
+            }
+            if (node.content && Array.isArray(node.content)) {
+              node.content.forEach(traverse)
+            }
+          }
+          traverse(taskItem)
+          return text
+        }
+        
+        // 执行插入
+        if (findAndInsertSubtasks(newContent)) {
+          // 更新笔记内容
+          setCurrentNote(newContent)
+          
+          // 触发保存
+          handleNoteSave(newContent)
+          
+          console.log('✅ 子任务已自动添加到笔记中')
+        } else {
+          console.warn('⚠️ 未找到父任务，无法插入子任务')
+        }
+      } catch (error) {
+        console.error('❌ 插入子任务失败:', error)
+      }
+    }
     
-    // 3. 显示提示消息
+    // 3. 显示成功消息
     setChatMessages(prev => [
       ...prev,
       {
         role: 'assistant',
         content: [{
           type: 'text',
-          text: `✅ 已生成 ${subtasks.length} 个子任务！\n\n请将以下内容复制到原任务下方：\n\n${subtasksText}\n\n💡 子任务已自动缩进（两个空格）表示层级关系。`
+          text: `✅ 已成功将 ${subtasks.length} 个子任务添加到笔记中！\n\n子任务已自动缩进在「${decomposingTaskTitle}」下方。`
         }]
       }
     ])
@@ -968,7 +1082,7 @@ export default function NotesDashboardPage() {
         chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight
       }
     }, 100)
-  }, [chatScrollRef])
+  }, [chatScrollRef, currentNote, decomposingTaskTitle, handleNoteSave])
 
   // ⭐ 处理拆解取消
   const handleDecompositionCancel = useCallback((parentTask: any) => {
