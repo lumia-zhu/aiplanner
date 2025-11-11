@@ -195,19 +195,6 @@ export default function TaskItem({ task, onToggleComplete, onEdit, onDelete, onD
 
             {/* 操作按钮 */}
             <div className="flex items-center space-x-2">
-              {/* 暂时隐藏拆解任务按钮 */}
-              {/* decomposeEnabled && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onDecompose(task)
-                  }}
-                  className="text-purple-600 hover:text-purple-800 text-sm font-medium"
-                  title="将任务拆解为多个子任务"
-                >
-                  拆解任务
-                </button>
-              ) */}
               <button
                 onClick={(e) => {
                   e.stopPropagation()

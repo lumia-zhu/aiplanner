@@ -2022,7 +2022,7 @@ export default function DashboardPage() {
         type: 'interactive',
         interactive: {
           type: 'agent-loading',
-          data: { iteration: context.currentIteration || 0, message: 'Agent 正在处理...' },
+          data: { iteration: context?.currentIteration || 0, message: 'Agent 正在处理...' },
           isActive: true
         }
       }]

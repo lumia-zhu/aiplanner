@@ -19,6 +19,7 @@ interface TaskActionMenuProps {
   position: { x: number; y: number }  // 菜单位置
   onOpenTagPicker: () => void         // 打开标签选择器
   onOpenDateTimePicker: () => void    // 打开时间选择器
+  onDecompose: () => void             // ⭐ 拆解任务
   onClose: () => void                 // 关闭菜单
 }
 
@@ -26,6 +27,7 @@ export default function TaskActionMenu({
   position,
   onOpenTagPicker,
   onOpenDateTimePicker,
+  onDecompose,
   onClose
 }: TaskActionMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
@@ -115,6 +117,14 @@ export default function TaskActionMenu({
       badge: '开发中',
       onClick: () => {
         alert('🔔 提醒功能正在开发中，敬请期待！')
+        onClose()
+      }
+    },
+    {
+      icon: '✂️',
+      label: '拆解任务',
+      onClick: () => {
+        onDecompose()
         onClose()
       }
     }

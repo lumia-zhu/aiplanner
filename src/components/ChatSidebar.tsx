@@ -9,6 +9,7 @@ import FeelingOptions from './FeelingOptions'
 import SingleTaskActionOptions from './SingleTaskActionOptions'
 import TaskSelectionOptions from './TaskSelectionOptions'
 import TaskDecompositionCard from './TaskDecompositionCard'
+import DecompositionContextInput from './DecompositionContextInput'
 import ClarificationConfirmOptions from './ClarificationConfirmOptions'
 import TimeEstimationInput from './TimeEstimationInput'
 import EstimationConfirmOptions from './EstimationConfirmOptions'
@@ -67,6 +68,8 @@ interface ChatSidebarProps {
   // 任务拆解相关回调
   onDecompositionConfirm?: (parentTask: Task, subtasks: SubtaskSuggestion[]) => void
   onDecompositionCancel?: (parentTask: Task) => void
+  onDecompositionContextSubmit?: (userInput: string) => void  // ⭐ 拆解上下文提交
+  onDecompositionContextSkip?: () => void  // ⭐ 跳过拆解问题
   
   // 任务澄清相关回调
   onClarificationSubmit?: (answer: string) => void
@@ -94,6 +97,9 @@ interface ChatSidebarProps {
   // ⭐ Agent 相关回调
   onAgentInputSubmit?: (userInput: string, context: any) => void  // Agent 交互式输入提交
   isAgentRunning?: boolean  // Agent 是否正在运行
+  
+  // ⭐ 通用按钮点击回调
+  onButtonClick?: (buttonId: string, context: any) => void  // 通用交互按钮点击
   
   // 事件处理函数
   handleSendMessage: () => void
@@ -141,6 +147,8 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   isWorkflowAnalyzing,
   onDecompositionConfirm,
   onDecompositionCancel,
+  onDecompositionContextSubmit,
+  onDecompositionContextSkip,
   onClarificationSubmit,
   onClarificationSkip,  // ⭐ 新增
   onClarificationCancel,  // ⭐ 新增
@@ -160,6 +168,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   estimationInitial,
   onAgentInputSubmit,  // ⭐ Agent 交互式输入
   isAgentRunning,  // ⭐ Agent 运行状态
+  onButtonClick,  // ⭐ 通用按钮点击
   handleSendMessage,
   handleClearChat,
   handleDragEnter,
@@ -354,6 +363,25 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                       )}
                       {content.type === 'interactive' && content.interactive && (
                         <div className="mt-2">
+                          {/* 任务拆解上下文输入卡片 */}
+                          {content.interactive.type === 'decomposition-context-input' && (
+                            <DecompositionContextInput
+                              taskTitle={content.interactive.data.taskTitle}
+                              questions={content.interactive.data.questions}
+                              isActive={content.interactive.isActive !== false}
+                              onSubmit={(userInput) => {
+                                if (onDecompositionContextSubmit) {
+                                  onDecompositionContextSubmit(userInput)
+                                }
+                              }}
+                              onSkip={() => {
+                                if (onDecompositionContextSkip) {
+                                  onDecompositionContextSkip()
+                                }
+                              }}
+                            />
+                          )}
+                          
                           {/* 任务拆解交互式卡片 */}
                           {content.interactive.type === 'task-decomposition' && (
                             <TaskDecompositionCard
@@ -371,6 +399,30 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                                 }
                               }}
                             />
+                          )}
+                          
+                          {/* ⭐ 通用按钮组 */}
+                          {content.interactive.type === 'buttons' && content.interactive.data?.buttons && (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {content.interactive.data.buttons.map((button: any) => (
+                                <button
+                                  key={button.id}
+                                  onClick={() => {
+                                    if (onButtonClick && content.interactive?.isActive !== false) {
+                                      onButtonClick(button.id, content.interactive?.data?.context)
+                                    }
+                                  }}
+                                  disabled={content.interactive?.isActive === false}
+                                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                                    button.variant === 'secondary'
+                                      ? 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300'
+                                      : 'bg-blue-500 text-white hover:bg-blue-600'
+                                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                >
+                                  {button.label}
+                                </button>
+                              ))}
+                            </div>
                           )}
                           
                           {/* 通用交互按钮 */}
@@ -412,8 +464,9 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                               data={content.interactive.data}
                               isActive={content.interactive.isActive !== false}
                               onSubmit={(userInput) => {
-                                if (onAgentInputSubmit && content.interactive?.data.context) {
-                                  onAgentInputSubmit(userInput, content.interactive.data.context)
+                                // ⭐ 修复：即使 context 为 null 也应该允许提交
+                                if (onAgentInputSubmit) {
+                                  onAgentInputSubmit(userInput, content.interactive?.data.context || null)
                                 }
                               }}
                             />

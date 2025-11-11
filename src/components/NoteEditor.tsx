@@ -131,6 +131,7 @@ interface NoteEditorProps {
   initialContent?: JSONContent | null
   onSave?: (content: JSONContent) => void
   onUpdate?: (content: JSONContent) => void  // 新增：实时更新回调
+  onDecompose?: (taskTitle: string) => void  // ⭐ 新增：拆解任务回调（传递任务标题）
   placeholder?: string
   editable?: boolean
   autoSave?: boolean
@@ -141,6 +142,7 @@ export default function NoteEditor({
   initialContent,
   onSave,
   onUpdate,
+  onDecompose,
   placeholder = '开始记录你的想法... 输入 [] 创建待办，# 创建标题',
   editable = true,
   autoSave = true,
@@ -580,6 +582,45 @@ export default function NoteEditor({
     })
     setShowDateTimePicker(true)
   }, [currentTaskElement])
+  
+  // ⭐ 拆解任务（从任务操作菜单调用）
+  const handleDecomposeTask = useCallback(() => {
+    if (!editor || !currentTaskElement || !onDecompose) return
+    
+    try {
+      // 从 DOM 中提取任务标题
+      const pos = editor.view.posAtDOM(currentTaskElement, 0)
+      const resolvedPos = editor.state.doc.resolve(pos)
+      const taskNode = resolvedPos.parent
+      
+      if (taskNode && taskNode.type.name === 'taskItem') {
+        // 提取任务文本内容（去除标签等）
+        let taskTitle = ''
+        taskNode.forEach((child) => {
+          if (child.type.name === 'paragraph') {
+            child.forEach((textNode) => {
+              if (textNode.type.name === 'text') {
+                taskTitle += textNode.text || ''
+              }
+            })
+          }
+        })
+        
+        // 清理任务标题（移除标签、表情等）
+        taskTitle = taskTitle
+          .replace(/#[\w\u4e00-\u9fa5]+/g, '') // 移除标签
+          .replace(/📅.*$/g, '') // 移除时间信息
+          .trim()
+        
+        if (taskTitle) {
+          console.log('✂️ 准备拆解任务:', taskTitle)
+          onDecompose(taskTitle)
+        }
+      }
+    } catch (error) {
+      console.error('❌ 提取任务信息失败:', error)
+    }
+  }, [editor, currentTaskElement, onDecompose])
 
   // 设置日期时间
   const handleSetDateTime = useCallback((value: DateTimeSetting) => {
@@ -1115,6 +1156,7 @@ export default function NoteEditor({
           position={taskActionMenuPosition}
           onOpenTagPicker={handleOpenTagPicker}
           onOpenDateTimePicker={handleOpenDateTimePicker}
+          onDecompose={handleDecomposeTask}
           onClose={() => setShowTaskActionMenu(false)}
         />
       )}

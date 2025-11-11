@@ -72,6 +72,8 @@ export type InteractiveMessageType =
   | 'clarification-confirm'  // 澄清确认按钮
   | 'estimation-confirm'     // 估时确认按钮
   | 'action-options'         // 动作选项（保留兼容）
+  | 'buttons'                // ⭐ 通用按钮组
+  | 'decomposition-context-input'  // ⭐ 任务拆解上下文输入
   // ⭐ Agent 专用消息类型（Phase 4）
   | 'agent-thought'          // Agent 的思考过程
   | 'agent-action'           // Agent 调用的工具

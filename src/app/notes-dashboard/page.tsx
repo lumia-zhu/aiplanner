@@ -35,6 +35,8 @@ import { ReactAgent } from '@/lib/agent/ReactAgent'
 import { AgentMemory } from '@/lib/agent/AgentMemory'
 import { getAllTools } from '@/lib/agent/tools'
 import type { AgentContext } from '@/lib/agent/AgentTypes'
+// ⭐ 任务拆解imports
+import { generateContextQuestions } from '@/lib/contextQuestions'
 
 export default function NotesDashboardPage() {
   console.log('🚀🚀🚀 NotesDashboardPage 组件开始渲染！')
@@ -112,6 +114,10 @@ export default function NotesDashboardPage() {
   
   // Chat 滚动 ref
   const chatScrollRef = useRef<HTMLDivElement | null>(null)
+  
+  // ⭐ 任务拆解相关状态
+  const [decomposingTaskTitle, setDecomposingTaskTitle] = useState<string | null>(null)
+  const [taskContextInput, setTaskContextInput] = useState<string>('')
   
   // 用户资料弹窗
   const [showProfileModal, setShowProfileModal] = useState(false)
@@ -690,6 +696,341 @@ export default function NotesDashboardPage() {
       setIsSaving(false)
     }
   }, [user, selectedDate, isNoteEmpty])
+
+  // ⭐ 处理从笔记编辑器发起的任务拆解
+  const handleDecomposeFromNoteEditor = useCallback((taskTitle: string) => {
+    if (!user) return
+    
+    console.log('✂️ 从笔记编辑器触发任务拆解:', taskTitle)
+    
+    // 1. 打开侧边栏
+    setIsChatSidebarOpen(true)
+    
+    // 2. 生成反思性问题（使用简化的任务对象）
+    const mockTask = { 
+      title: taskTitle, 
+      tags: [] as string[]
+    } as any // ⭐ 强制类型转换，因为我们只需要 title 和 tags
+    const questions = generateContextQuestions(mockTask)
+    
+    // 3. 添加交互式输入卡片到聊天
+    const aiMessage: ChatMessage = {
+      role: 'assistant',
+      content: [
+        {
+          type: 'interactive',
+          interactive: {
+            type: 'decomposition-context-input',
+            data: {
+              taskTitle,
+              questions
+            },
+            isActive: true
+          }
+        }
+      ]
+    }
+    
+    setChatMessages(prev => [...prev, aiMessage])
+    
+    // 5. 保存任务标题，标记进入拆解流程
+    setDecomposingTaskTitle(taskTitle)
+    setTaskContextInput('') // 清空之前的上下文
+    console.log('✅ 已进入任务拆解流程，任务标题:', taskTitle)
+    
+    // 6. 自动滚动到最新消息
+    setTimeout(() => {
+      if (chatScrollRef.current) {
+        chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight
+        console.log('📜 自动滚动到聊天底部')
+      }
+    }, 100) // 等待 DOM 更新后滚动
+    
+    console.log('✅ 已生成反思性问题，等待用户回答')
+  }, [user])
+
+  // ⭐ 处理任务拆解（用户回答反思性问题后，或跳过问题）
+  const handleTaskDecomposition = useCallback(async (userAnswer: string) => {
+    if (!decomposingTaskTitle) return
+    
+    try {
+      console.log('🤖 开始生成任务拆解建议:', decomposingTaskTitle)
+      console.log('📝 用户提供的上下文:', userAnswer)
+      
+      // 1. 添加用户回答到聊天历史
+      const userMessage: ChatMessage = {
+        role: 'user',
+        content: [{
+          type: 'text',
+          text: userAnswer
+        }]
+      }
+      setChatMessages(prev => [...prev, userMessage])
+      
+      // 2. 显示"正在拆解..."的加载消息
+      const loadingMessage: ChatMessage = {
+        role: 'assistant',
+        content: [{
+          type: 'text',
+          text: `🤔 正在拆解任务「${decomposingTaskTitle}」...`
+        }]
+      }
+      setChatMessages(prev => [...prev, loadingMessage])
+      
+      // 3. 调用 AI 生成拆解建议
+      const result = await doubaoService.decomposeTask(
+        decomposingTaskTitle,
+        undefined, // description
+        userAnswer, // 用户提供的上下文
+        undefined // 不使用流式输出
+      )
+      
+      // 4. 移除加载消息
+      setChatMessages(prev => prev.slice(0, -1))
+      
+      if (!result.success || !result.message) {
+        console.error('AI拆解失败:', result.error)
+        setChatMessages(prev => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: [{
+              type: 'text',
+              text: `❌ 抱歉，任务拆解失败：${result.error || '未知错误'}`
+            }]
+          }
+        ])
+        return
+      }
+      
+      // 5. 解析 AI 返回的 JSON
+      let subtasks: string[] = []
+      try {
+        const jsonMatch = result.message.match(/\[[\s\S]*\]/)
+        if (jsonMatch) {
+          const parsedData = JSON.parse(jsonMatch[0])
+          subtasks = parsedData.map((item: any) => item.title || item.name || '')
+        }
+      } catch (parseError) {
+        console.error('解析AI响应失败:', parseError)
+        setChatMessages(prev => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: [{
+              type: 'text',
+              text: `❌ 抱歉，AI返回的数据格式有误，无法解析任务拆解建议。`
+            }]
+          }
+        ])
+        return
+      }
+      
+      if (subtasks.length === 0) {
+        setChatMessages(prev => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: [{
+              type: 'text',
+              text: `抱歉，我无法为这个任务生成子任务建议。你可以手动拆解。`
+            }]
+          }
+        ])
+        return
+      }
+      
+      // 6. 转换为 SubtaskSuggestion 格式
+      const subtaskSuggestions = subtasks.map((task, index) => ({
+        id: `suggestion-${Date.now()}-${index}`,
+        title: task,
+        order: index + 1,
+        is_selected: true
+      }))
+      
+      // 7. 创建一个 mock task 用于交互式卡片
+      const mockParentTask = {
+        id: `mock-${Date.now()}`,
+        title: decomposingTaskTitle,
+        user_id: user?.id || '',
+        is_completed: false,
+        created_at: new Date().toISOString()
+      } as any
+      
+      // 8. 显示交互式拆解卡片
+      setChatMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'text',
+              text: `✅ 好的！我为你拆解了任务「${decomposingTaskTitle}」：`
+            },
+            {
+              type: 'interactive',
+              interactive: {
+                type: 'task-decomposition',
+                data: {
+                  parentTask: mockParentTask,
+                  suggestions: subtaskSuggestions
+                },
+                isActive: true
+              }
+            }
+          ]
+        }
+      ])
+      
+      // 9. 自动滚动到底部
+      setTimeout(() => {
+        if (chatScrollRef.current) {
+          chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight
+          console.log('📜 自动滚动到聊天底部')
+        }
+      }, 100)
+      
+      // 10. 保存到数据库（只保存文本部分）
+      if (user) {
+        const chatDate = formatNoteDate(selectedDate)
+        await saveChatMessage(user.id, chatDate, 'user', userMessage.content)
+        await saveChatMessage(user.id, chatDate, 'assistant', [{
+          type: 'text',
+          text: `✅ 已生成任务拆解建议（${subtasks.length}个子任务）`
+        }])
+      }
+      
+      console.log('✅ 任务拆解交互式卡片已显示')
+    } catch (error) {
+      console.error('生成拆解建议异常:', error)
+      setChatMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: [{
+            type: 'text',
+            text: `❌ 抱歉，发生了意外错误：${error instanceof Error ? error.message : '未知错误'}`
+          }]
+        }
+      ])
+    } finally {
+      // 11. 清除输入状态（但保留 decomposingTaskTitle，等待用户确认）
+      setChatMessage('')
+      setIsSending(false)
+      console.log('🧹 已清除输入状态（保留拆解上下文）')
+    }
+  }, [decomposingTaskTitle, user, selectedDate, chatScrollRef])
+
+  // ⭐ 处理拆解确认（用户确认子任务列表）
+  const handleDecompositionConfirm = useCallback((parentTask: any, subtasks: any[]) => {
+    console.log('✅ 用户确认拆解，准备插入子任务:', {
+      parentTask: parentTask.title,
+      subtasksCount: subtasks.length
+    })
+    
+    // 1. 禁用交互式卡片
+    setChatMessages(prev => 
+      prev.map(msg => ({
+        ...msg,
+        content: msg.content.map((c: any) => 
+          c.type === 'interactive' && c.interactive?.type === 'task-decomposition'
+            ? { ...c, interactive: { ...c.interactive, isActive: false } }
+            : c
+        )
+      }))
+    )
+    
+    // 2. 构建子任务文本（带缩进）
+    const subtasksText = subtasks
+      .map(st => `  - [ ] ${st.title}`)
+      .join('\n')
+    
+    // 3. 显示提示消息
+    setChatMessages(prev => [
+      ...prev,
+      {
+        role: 'assistant',
+        content: [{
+          type: 'text',
+          text: `✅ 已生成 ${subtasks.length} 个子任务！\n\n请将以下内容复制到原任务下方：\n\n${subtasksText}\n\n💡 子任务已自动缩进（两个空格）表示层级关系。`
+        }]
+      }
+    ])
+    
+    // 4. 清除拆解状态
+    setDecomposingTaskTitle(null)
+    setTaskContextInput('')
+    console.log('🧹 拆解流程结束，已清除状态')
+    
+    // 5. 自动滚动到底部
+    setTimeout(() => {
+      if (chatScrollRef.current) {
+        chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight
+      }
+    }, 100)
+  }, [chatScrollRef])
+
+  // ⭐ 处理拆解取消
+  const handleDecompositionCancel = useCallback((parentTask: any) => {
+    console.log('❌ 用户取消拆解')
+    
+    // 禁用交互式卡片
+    setChatMessages(prev => 
+      prev.map(msg => ({
+        ...msg,
+        content: msg.content.map((c: any) => 
+          c.type === 'interactive' && c.interactive?.type === 'task-decomposition'
+            ? { ...c, interactive: { ...c.interactive, isActive: false } }
+            : c
+        )
+      }))
+    )
+    
+    // 清除拆解状态
+    setDecomposingTaskTitle(null)
+    setTaskContextInput('')
+    console.log('🧹 已取消拆解，清除状态')
+  }, [])
+
+  // ⭐ 处理拆解上下文提交（用户回答反思性问题）
+  const handleDecompositionContextSubmit = useCallback(async (userInput: string) => {
+    console.log('📝 用户提交拆解上下文:', userInput)
+    
+    // 禁用输入卡片
+    setChatMessages(prev => 
+      prev.map(msg => ({
+        ...msg,
+        content: msg.content.map((c: any) => 
+          c.type === 'interactive' && c.interactive?.type === 'decomposition-context-input'
+            ? { ...c, interactive: { ...c.interactive, isActive: false } }
+            : c
+        )
+      }))
+    )
+    
+    // 调用拆解函数
+    await handleTaskDecomposition(userInput)
+  }, [handleTaskDecomposition])
+
+  // ⭐ 处理跳过拆解问题
+  const handleDecompositionContextSkip = useCallback(async () => {
+    console.log('⏭️ 用户跳过反思性问题')
+    
+    // 禁用输入卡片
+    setChatMessages(prev => 
+      prev.map(msg => ({
+        ...msg,
+        content: msg.content.map((c: any) => 
+          c.type === 'interactive' && c.interactive?.type === 'decomposition-context-input'
+            ? { ...c, interactive: { ...c.interactive, isActive: false } }
+            : c
+        )
+      }))
+    )
+    
+    // 调用拆解函数，传递空字符串（表示跳过）
+    await handleTaskDecomposition('')
+  }, [handleTaskDecomposition])
 
   // 处理日期选择
   const handleDateSelect = useCallback((date: Date) => {
@@ -1449,7 +1790,7 @@ export default function NotesDashboardPage() {
         type: 'interactive',
         interactive: {
           type: 'agent-loading',
-          data: { iteration: context.currentIteration || 0, message: 'Agent 正在处理...' },
+          data: { iteration: context?.currentIteration || 0, message: 'Agent 正在处理...' },
           isActive: true
         }
       }]
@@ -1632,7 +1973,7 @@ export default function NotesDashboardPage() {
       setIsSending(false)
       setStreamingMessage('')
     }
-  }, [chatMessage, selectedImage, chatMessages, user, selectedDate, agentInstance, isAgentRunning])
+  }, [chatMessage, selectedImage, chatMessages, user, selectedDate, agentInstance, isAgentRunning, decomposingTaskTitle, handleTaskDecomposition])
 
   // 处理清除聊天
   const handleClearChat = useCallback(() => {
@@ -2147,6 +2488,7 @@ export default function NotesDashboardPage() {
                   initialContent={currentNote ?? undefined}
                   onUpdate={handleNoteUpdate}
                   onSave={handleNoteSave}
+                  onDecompose={handleDecomposeFromNoteEditor}
                   placeholder="开始记录... (按 ? 查看快捷键)"
                 />
                     
@@ -2234,6 +2576,10 @@ export default function NotesDashboardPage() {
               chatScrollRef={chatScrollRef}
               onAgentInputSubmit={handleAgentInputSubmit}
               isAgentRunning={isAgentRunning}
+              onDecompositionContextSubmit={handleDecompositionContextSubmit}
+              onDecompositionContextSkip={handleDecompositionContextSkip}
+              onDecompositionConfirm={handleDecompositionConfirm}
+              onDecompositionCancel={handleDecompositionCancel}
             />
           </div>
         </div>
