@@ -1873,7 +1873,7 @@ export default function NotesDashboardPage() {
       })
       
       if (hasTaskOperation) {
-        console.log('🔄 检测到任务操作，刷新日历缓存...')
+        logger.info('检测到任务操作，刷新日历缓存和当前笔记...')
         try {
           // 临时清空 lastLoadedRange，强制重新加载
           setLastLoadedRange(null)
@@ -1882,13 +1882,16 @@ export default function NotesDashboardPage() {
           // 使用 calendarViewDate 确保刷新的是日历显示的月份
           await loadNotesInRange(user.id, 'month', calendarViewDate)
           
-          console.log('✅ 日历缓存已刷新')
+          // ✅ 重新加载当前选中日期的笔记内容（实时更新笔记编辑器）
+          await loadNote(user.id, selectedDate)
+          
+          logger.success('日历缓存和当前笔记已刷新')
         } catch (error) {
-          console.error('❌ 刷新日历缓存失败:', error)
+          logger.error('刷新日历缓存失败:', error)
           // 刷新失败不影响继续使用
         }
       } else {
-        console.log('ℹ️ 没有检测到任务操作，跳过刷新')
+        logger.debug('没有检测到任务操作，跳过刷新')
       }
     }
   }
