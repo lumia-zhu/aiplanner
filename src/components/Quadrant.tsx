@@ -54,38 +54,6 @@ export default function Quadrant({
         borderColor: isOver ? '#3b82f6' : config.borderColor,
       }}
     >
-      {/* 象限标题 */}
-      <div className="flex items-start gap-2.5 mb-3 pb-3 border-b-2" style={{ borderColor: config.borderColor }}>
-        {/* 图标 */}
-        <span className="text-2xl">{config.icon}</span>
-        
-        {/* 标题和描述 */}
-        <div className="flex-1 min-w-0">
-          <h3 
-            className="text-sm font-bold mb-0.5 leading-tight"
-            style={{ color: config.color }}
-          >
-            {config.title}
-          </h3>
-          <p className="text-xs text-gray-600 leading-snug">
-            {config.description}
-          </p>
-        </div>
-        
-        {/* 任务数量徽章 */}
-        {tasks.length > 0 && (
-          <div 
-            className="flex-shrink-0 text-xs font-medium px-2 py-1 rounded-full"
-            style={{ 
-              backgroundColor: config.color + '20',
-              color: config.color,
-            }}
-          >
-            {tasks.length}
-          </div>
-        )}
-      </div>
-      
       {/* 任务列表 */}
       <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
         <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2">
@@ -102,16 +70,8 @@ export default function Quadrant({
               />
             ))
           ) : (
-          /* 空状态 */
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <div className="text-3xl mb-2 opacity-30">{config.icon}</div>
-            <p className="text-xs text-gray-400">
-              暂无任务
-            </p>
-            <p className="text-xs text-gray-400 mt-1">
-              拖动任务到此处
-            </p>
-          </div>
+          /* 空状态 - 保持空白 */
+          <div className="flex-1"></div>
         )}
         </div>
       </SortableContext>

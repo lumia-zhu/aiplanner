@@ -50,8 +50,9 @@ export default function MatrixSelector({
     // 切换维度
     onDimensionChange(dimension)
     
-    // 如果当前不在矩阵模式，切换到矩阵模式
-    if (!isMatrixMode) {
+    // ✅ 如果当前不在矩阵模式，切换到矩阵模式
+    // ✅ 如果已经在矩阵模式，只切换维度，不切换视图
+    if (!isMatrixMode && onToggleView) {
       onToggleView()
     }
     
@@ -64,19 +65,26 @@ export default function MatrixSelector({
     <div className="relative" ref={dropdownRef}>
       {/* 主按钮 */}
       <button
-        onMouseEnter={() => !isMatrixMode && setIsOpen(true)}
-        onClick={onToggleView}
+        onClick={() => setIsOpen(!isOpen)}
         className="text-white px-4 py-2 rounded-lg hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg h-10 hover:scale-105 active:scale-95"
         style={{ backgroundColor: isMatrixMode ? '#10B981' : '#4A90E2' }}
-        title={isMatrixMode ? '切换到笔记模式' : '选择矩阵维度'}
+        title={isMatrixMode ? '切换矩阵维度' : '选择矩阵维度'}
       >
         {isMatrixMode ? (
-          /* 矩阵模式：显示"笔记模式"按钮 */
+          /* 矩阵模式：显示当前维度 + 下拉箭头 */
           <>
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            <span className="text-base">{currentConfig.icon}</span>
+            <span className="text-sm">{currentConfig.name}</span>
+            {/* 下拉箭头 */}
+            <svg 
+              className="w-3 h-3 transition-transform duration-200" 
+              style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
-            笔记模式
           </>
         ) : (
           /* 编辑器模式：显示"矩阵模式"按钮 + 下拉箭头 */
@@ -99,8 +107,8 @@ export default function MatrixSelector({
         )}
       </button>
 
-      {/* 下拉菜单 - 只在编辑器模式下显示 */}
-      {isOpen && !isMatrixMode && (
+      {/* 下拉菜单 - 在两种模式下都显示 */}
+      {isOpen && (
         <div 
           className="absolute top-full right-0 mt-2 w-72 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-[9999] animate-fadeIn"
           onMouseLeave={() => setIsOpen(false)}
@@ -111,29 +119,41 @@ export default function MatrixSelector({
           </div>
           
           {/* 矩阵选项列表 */}
-          {Object.values(MATRIX_DIMENSION_CONFIGS).map((config) => (
-            <button
-              key={config.id}
-              onClick={() => handleDimensionSelect(config.id)}
-              className="w-full px-4 py-3 text-left hover:bg-blue-50 transition-colors flex items-start gap-3"
-            >
-              {/* 图标 */}
-              <span className="text-2xl flex-shrink-0 mt-0.5">{config.icon}</span>
-              
-              {/* 文字信息 */}
-              <div className="flex-1 min-w-0">
-                {/* 标题 */}
-                <div className="font-medium text-gray-900 mb-1">
-                  {config.name}
-                </div>
+          {Object.values(MATRIX_DIMENSION_CONFIGS).map((config) => {
+            const isSelected = config.id === currentDimension
+            return (
+              <button
+                key={config.id}
+                onClick={() => handleDimensionSelect(config.id)}
+                className={`w-full px-4 py-3 text-left hover:bg-blue-50 transition-colors flex items-start gap-3 ${
+                  isSelected ? 'bg-blue-50 border-l-4 border-blue-500' : ''
+                }`}
+              >
+                {/* 图标 */}
+                <span className="text-2xl flex-shrink-0 mt-0.5">{config.icon}</span>
                 
-                {/* 描述 */}
-                <p className="text-xs text-gray-500 leading-relaxed">
-                  {config.description}
-                </p>
-              </div>
-            </button>
-          ))}
+                {/* 文字信息 */}
+                <div className="flex-1 min-w-0">
+                  {/* 标题 */}
+                  <div className={`font-medium mb-1 flex items-center gap-2 ${
+                    isSelected ? 'text-blue-600' : 'text-gray-900'
+                  }`}>
+                    {config.name}
+                    {isSelected && (
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </div>
+                  
+                  {/* 描述 */}
+                  <p className="text-xs text-gray-500 leading-relaxed">
+                    {config.description}
+                  </p>
+                </div>
+              </button>
+            )
+          })}
         </div>
       )}
     </div>
