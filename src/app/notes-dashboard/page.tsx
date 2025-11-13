@@ -663,6 +663,16 @@ export default function NotesDashboardPage() {
           return newCache
         })
         
+        // 🔄 强制重新加载当前视图范围的笔记（确保日历蓝点实时更新）
+        try {
+          // 临时清空范围标记，强制重新加载
+          setLastLoadedRange(null)
+          await loadNotesInRange(user.id, 'month', calendarViewDate)
+          console.log('✅ 日历缓存已刷新（删除笔记后）')
+        } catch (refreshError) {
+          console.error('❌ 刷新日历缓存失败:', refreshError)
+        }
+        
         // 🔄 同步任务到 daily_tasks 表（删除所有任务）
         try {
           const syncResult = await syncTasksFromNote(user.id, dateKey, { type: 'doc', content: [] })
