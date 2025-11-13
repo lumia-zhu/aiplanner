@@ -451,7 +451,7 @@ export default function NotesDashboardPage() {
   }, [calculateNotesDateRange])
 
   // 加载日期范围内的笔记（用于圆点显示和预览）
-  const loadNotesInRange = useCallback(async (userId: string, viewType: 'week' | 'month', referenceDate: Date) => {
+  const loadNotesInRange = useCallback(async (userId: string, viewType: 'week' | 'month', referenceDate: Date, forceReload: boolean = false) => {
     // 根据视图类型计算日期范围
     let startDate: Date
     let endDate: Date
@@ -472,7 +472,8 @@ export default function NotesDashboardPage() {
     const rangeKey = `${startStr}_${endStr}`
     const lastRangeKey = lastLoadedRange ? `${lastLoadedRange.start}_${lastLoadedRange.end}` : null
     
-    if (rangeKey === lastRangeKey && notesCache.size > 0) {
+    // ✅ 如果 forceReload 为 true，跳过缓存检查
+    if (!forceReload && rangeKey === lastRangeKey && notesCache.size > 0) {
       console.log('📦 使用缓存，无需重新加载')
       console.log('   缓存大小:', notesCache.size)
       return // 范围未变化且缓存不为空，直接返回
@@ -660,9 +661,7 @@ export default function NotesDashboardPage() {
         
         // 🔄 强制重新加载当前视图范围的笔记（确保日历蓝点实时更新）
         try {
-          // 临时清空范围标记，强制重新加载
-          setLastLoadedRange(null)
-          await loadNotesInRange(user.id, 'month', calendarViewDate)
+          await loadNotesInRange(user.id, 'month', calendarViewDate, true)
           console.log('✅ 日历缓存已刷新（删除笔记后）')
         } catch (refreshError) {
           console.error('❌ 刷新日历缓存失败:', refreshError)
@@ -1901,12 +1900,32 @@ export default function NotesDashboardPage() {
       if (hasTaskOperation) {
         logger.info('检测到任务操作，刷新日历缓存和当前笔记...')
         try {
-          // 临时清空 lastLoadedRange，强制重新加载
-          setLastLoadedRange(null)
+          // ✅ 强制刷新整个月的笔记（确保所有日期的蓝点和内容都更新）
+          await loadNotesInRange(user.id, 'month', calendarViewDate, true)
           
-          // 重新加载当前月份范围的 notes（强制刷新）
-          // 使用 calendarViewDate 确保刷新的是日历显示的月份
-          await loadNotesInRange(user.id, 'month', calendarViewDate)
+          // ✅ 检查是否跨月（比如本周任务可能跨越两个月）
+          // 获取当前周的开始和结束日期
+          const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 })
+          const weekEnd = endOfWeek(selectedDate, { weekStartsOn: 1 })
+          
+          // 如果跨月，需要刷新相邻月份的数据
+          if (weekStart.getMonth() !== weekEnd.getMonth()) {
+            logger.debug('检测到跨月情况，刷新相邻月份')
+            
+            // 刷新前一个月
+            if (weekStart.getMonth() !== calendarViewDate.getMonth()) {
+              const prevMonth = new Date(calendarViewDate)
+              prevMonth.setMonth(prevMonth.getMonth() - 1)
+              await loadNotesInRange(user.id, 'month', prevMonth, true)
+            }
+            
+            // 刷新后一个月
+            if (weekEnd.getMonth() !== calendarViewDate.getMonth()) {
+              const nextMonth = new Date(calendarViewDate)
+              nextMonth.setMonth(nextMonth.getMonth() + 1)
+              await loadNotesInRange(user.id, 'month', nextMonth, true)
+            }
+          }
           
           // ✅ 重新加载当前选中日期的笔记内容（实时更新笔记编辑器）
           await loadNote(user.id, selectedDate)
