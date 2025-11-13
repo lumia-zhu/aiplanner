@@ -83,7 +83,9 @@ export default function NotesDashboardPage() {
   const [isChatSidebarOpen, setIsChatSidebarOpen] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('chatSidebarOpen')
-      return saved !== null ? JSON.parse(saved) : false
+      const isOpen = saved !== null ? JSON.parse(saved) : false
+      console.log('🔧 初始化侧边栏状态:', { saved, isOpen })
+      return isOpen
     }
     return false
   })
@@ -729,8 +731,12 @@ export default function NotesDashboardPage() {
     
     console.log('✂️ 从笔记编辑器触发任务拆解:', taskTitle)
     
-    // 1. 打开侧边栏
+    // 1. 打开侧边栏（同时保存到 localStorage）
     setIsChatSidebarOpen(true)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('chatSidebarOpen', JSON.stringify(true))
+      console.log('💾 已保存侧边栏状态到 localStorage: true')
+    }
     
     // 2. 显示加载提示
     const loadingMessage: ChatMessage = {
@@ -1554,13 +1560,25 @@ export default function NotesDashboardPage() {
     }
   }, [user])
 
+  // ✅ 辅助函数：设置侧边栏状态（同时保存到 localStorage）
+  const setSidebarOpenWithPersist = useCallback((isOpen: boolean) => {
+    console.log('🔧 设置侧边栏状态:', isOpen)
+    setIsChatSidebarOpen(isOpen)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('chatSidebarOpen', JSON.stringify(isOpen))
+      console.log('💾 已保存到 localStorage:', isOpen)
+    }
+  }, [])
+
   // 切换 AI 侧边栏
   const toggleChatSidebar = useCallback(() => {
     setIsChatSidebarOpen((prev: boolean) => {
       const newState = !prev
+      console.log('🔄 切换侧边栏状态:', prev, '→', newState)
       // ✅ 保存状态到 localStorage（刷新页面后仍然保留）
       if (typeof window !== 'undefined') {
         localStorage.setItem('chatSidebarOpen', JSON.stringify(newState))
+        console.log('💾 已保存到 localStorage:', newState)
       }
       return newState
     })
