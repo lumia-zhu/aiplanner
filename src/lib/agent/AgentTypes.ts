@@ -318,6 +318,9 @@ export interface IAgentMemory {
   /** 获取任务上下文 */
   getTaskContext(): TaskContext | null
   
+  /** ✅ 清空本次推理过程（保留对话历史和任务上下文） */
+  clearCurrentRun(): void
+  
   /** 清空记忆（保留任务上下文） */
   clear(): void
   

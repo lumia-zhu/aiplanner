@@ -255,14 +255,20 @@ export default function NotesDashboardPage() {
       
       if (result.success && result.messages) {
         // 将数据库格式转换为组件需要的格式
-        const formattedMessages = result.messages.map(msg => ({
-          role: msg.role,
-          content: msg.content,
-          timestamp: msg.createdAt || msg.created_at || new Date().toISOString(),  // ✅ 使用实际时间戳
-          contextDate: msg.contextDate  // ✅ 保留上下文日期信息
-        }))
+        const formattedMessages = result.messages
+          .filter(msg => {
+            // ✅ 过滤掉 interactive 类型的消息（思考、Action、Observation卡片）
+            // 只保留纯文本消息
+            return msg.content.some((c: any) => c.type === 'text')
+          })
+          .map(msg => ({
+            role: msg.role,
+            content: msg.content,
+            timestamp: msg.createdAt || msg.created_at || new Date().toISOString(),  // ✅ 使用实际时间戳
+            contextDate: msg.contextDate  // ✅ 保留上下文日期信息
+          }))
         setChatMessages(formattedMessages)
-        logger.success(`加载了 ${formattedMessages.length} 条全局消息`)
+        logger.success(`加载了 ${formattedMessages.length} 条全局消息（已过滤中间推理过程）`)
       } else {
         setChatMessages([])
       }
@@ -1611,6 +1617,18 @@ export default function NotesDashboardPage() {
     console.log('🤖 Agent 模式：开始处理消息')
     setIsAgentRunning(true)
     
+    // ✅ 清除上一次对话的推理过程卡片（思考、Action、Observation）
+    // 只保留纯文本的对话历史作为上下文
+    setChatMessages(prev => 
+      prev.filter(msg => {
+        // 保留所有用户消息
+        if (msg.role === 'user') return true
+        
+        // 对于 AI 消息，只保留纯文本类型（不保留 interactive 卡片）
+        return msg.content.some((c: any) => c.type === 'text')
+      })
+    )
+    
     // 1. 添加用户消息
     const userMessage: ChatMessage = {
       role: 'user',
@@ -1832,17 +1850,25 @@ export default function NotesDashboardPage() {
       content: [{ type: 'text', text: result.content }]
     })
     
-    // 4. 批量添加所有消息
+    // 4. 批量添加所有消息到前端显示
     setChatMessages(prev => [...prev, ...messages])
     
-    // 💾 保存所有 AI 消息到数据库
+    // 💾 只保存最终文本回复到数据库（不保存中间推理过程）
+    // ⚠️ 思考、Action、Observation 卡片只在当前会话中显示，不持久化
     if (user) {
       try {
         const chatDate = formatNoteDate(currentContextDate)  // ✅ 使用 currentContextDate
-        for (const message of messages) {
+        
+        // 只保存最终的文本回复消息（不保存 interactive 类型的中间过程）
+        const finalTextMessages = messages.filter(msg => 
+          msg.content.some((c: any) => c.type === 'text')
+        )
+        
+        for (const message of finalTextMessages) {
           await saveChatMessage(user.id, chatDate, 'assistant', message.content, chatDate)  // ✅ 传入格式化后的 contextDate
         }
-        logger.success(`${messages.length} 条 AI 消息已保存到数据库`)
+        
+        logger.success(`${finalTextMessages.length} 条最终回复已保存到数据库（跳过 ${messages.length - finalTextMessages.length} 条中间推理过程）`)
       } catch (error) {
         logger.error('保存 AI 消息失败:', error)
         // 保存失败不影响继续使用

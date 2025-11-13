@@ -84,6 +84,9 @@ export class ReactAgent {
     console.log(`用户ID: ${context.userId}`)
     console.log(`最大迭代次数: ${this.maxIterations}`)
 
+    // ✅ 清空本次推理的思考和步骤（保留对话历史作为上下文）
+    this.memory.clearCurrentRun()
+
     // 1. 添加用户消息到记忆
     this.memory.addMessage({ role: 'user', content: message })
 

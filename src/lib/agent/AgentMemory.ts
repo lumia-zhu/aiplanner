@@ -110,6 +110,18 @@ export class AgentMemory implements IAgentMemory {
   }
   
   /**
+   * ✅ 清空本次推理过程（保留对话历史和任务上下文）
+   * 
+   * 用于开始新的用户请求，清空本次推理的思考和步骤
+   * 但保留对话历史作为上下文
+   */
+  clearCurrentRun(): void {
+    this.thoughts = []
+    this.steps = []
+    console.log('🧹 本次推理过程已清空（保留对话历史和任务上下文）')
+  }
+  
+  /**
    * 清空对话记忆（保留任务上下文）
    * 
    * 用于开始新的对话，但保持对任务的了解
