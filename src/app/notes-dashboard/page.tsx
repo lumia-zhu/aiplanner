@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { getUserFromStorage, clearUserFromStorage, AuthUser } from '@/lib/auth'
-import { getNoteByDate, saveNote, getNotesByDateRange, Note, formatNoteDate } from '@/lib/notes'
+import { getNoteByDate, saveNote, getNotesByDateRange, deleteNote, Note, formatNoteDate } from '@/lib/notes'
 import { JSONContent } from '@tiptap/react'
 import NoteEditor from '@/components/NoteEditor'
 import CalendarView from '@/components/CalendarView'
@@ -648,14 +648,35 @@ export default function NotesDashboardPage() {
 
     // 检查笔记是否为空
     if (isNoteEmpty(content)) {
-      console.log('📝 笔记为空，跳过保存')
+      console.log('📝 笔记为空，删除数据库中的笔记记录')
       const dateKey = formatNoteDate(selectedDate)
-      // 从缓存中移除空笔记
-      setNotesCache(prev => {
-        const newCache = new Map(prev)
-        newCache.delete(dateKey)
-        return newCache
-      })
+      
+      try {
+        // 🔥 从数据库中删除笔记
+        await deleteNote(user.id, selectedDate)
+        console.log('✅ 已从数据库删除空笔记:', dateKey)
+        
+        // 从缓存中移除空笔记
+        setNotesCache(prev => {
+          const newCache = new Map(prev)
+          newCache.delete(dateKey)
+          return newCache
+        })
+        
+        // 🔄 同步任务到 daily_tasks 表（删除所有任务）
+        try {
+          const syncResult = await syncTasksFromNote(user.id, dateKey, { type: 'doc', content: [] })
+          console.log(`✅ 任务同步完成（删除）: 删除 ${syncResult.deleted} 个任务`)
+          
+          // 重新加载任务矩阵
+          await loadTaskMatrix(user.id, selectedDate)
+        } catch (syncError) {
+          console.error('❌ 任务同步失败:', syncError)
+        }
+      } catch (error) {
+        console.error('❌ 删除笔记失败:', error)
+      }
+      
       return
     }
 
@@ -1825,6 +1846,49 @@ export default function NotesDashboardPage() {
       } catch (error) {
         console.error('❌ 保存 AI 消息失败:', error)
         // 保存失败不影响继续使用
+      }
+    }
+    
+    // 🔄 检测是否有任务操作，如果有则刷新日历缓存
+    if (user && result.metadata?.steps && Array.isArray(result.metadata.steps)) {
+      const taskOperationTools = [
+        'create_task',
+        'update_task',
+        'delete_task',
+        'create_recurring_tasks',
+        'update_recurring_tasks',
+        'delete_recurring_tasks'
+      ]
+      
+      // ⭐ 修复：字段名是 step.action，不是 step.tool
+      const hasTaskOperation = result.metadata.steps.some((step: any) => 
+        taskOperationTools.includes(step.action)
+      )
+      
+      console.log('🔍 检测任务操作:', {
+        hasSteps: !!result.metadata.steps,
+        stepsCount: result.metadata.steps.length,
+        actions: result.metadata.steps.map((s: any) => s.action),
+        hasTaskOperation
+      })
+      
+      if (hasTaskOperation) {
+        console.log('🔄 检测到任务操作，刷新日历缓存...')
+        try {
+          // 临时清空 lastLoadedRange，强制重新加载
+          setLastLoadedRange(null)
+          
+          // 重新加载当前月份范围的 notes（强制刷新）
+          // 使用 calendarViewDate 确保刷新的是日历显示的月份
+          await loadNotesInRange(user.id, 'month', calendarViewDate)
+          
+          console.log('✅ 日历缓存已刷新')
+        } catch (error) {
+          console.error('❌ 刷新日历缓存失败:', error)
+          // 刷新失败不影响继续使用
+        }
+      } else {
+        console.log('ℹ️ 没有检测到任务操作，跳过刷新')
       }
     }
   }

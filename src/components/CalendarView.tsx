@@ -68,7 +68,7 @@ export default function CalendarView({
     }
     
     // 检查 plain_text 是否有内容
-    const hasContent = note.plain_text && note.plain_text.trim().length > 0
+    const hasContent = !!(note.plain_text && note.plain_text.trim().length > 0)
     return hasContent
   }
 
