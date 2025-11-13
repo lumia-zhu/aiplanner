@@ -79,9 +79,10 @@ export default function NotesDashboardPage() {
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)  // 延迟关闭定时器
   
   // AI 对话框状态
+  // ✅ 从 localStorage 读取侧边栏状态（永久保存）
   const [isChatSidebarOpen, setIsChatSidebarOpen] = useState(() => {
     if (typeof window !== 'undefined') {
-      const saved = sessionStorage.getItem('chatSidebarOpen')
+      const saved = localStorage.getItem('chatSidebarOpen')
       return saved !== null ? JSON.parse(saved) : false
     }
     return false
@@ -1555,7 +1556,14 @@ export default function NotesDashboardPage() {
 
   // 切换 AI 侧边栏
   const toggleChatSidebar = useCallback(() => {
-    setIsChatSidebarOpen((prev: boolean) => !prev)
+    setIsChatSidebarOpen((prev: boolean) => {
+      const newState = !prev
+      // ✅ 保存状态到 localStorage（刷新页面后仍然保留）
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('chatSidebarOpen', JSON.stringify(newState))
+      }
+      return newState
+    })
   }, [])
 
   // ⭐ Chat 相关辅助函数（为 ChatSidebar props 提供）
