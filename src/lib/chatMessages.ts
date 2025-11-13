@@ -1,40 +1,41 @@
 /**
  * AI 对话消息管理模块
  * 用于存储和读取用户与 AI 助手的对话记录
+ * 
+ * 更新日志：
+ * - 2025-11-13: 添加全局对话支持（context_date 字段）
  */
 
 import { createClient } from '@/lib/supabase-client'
-import type { ChatMessage } from '@/lib/doubaoService'
+import type { ChatMessage, MessageContent } from '@/types'
+import { logger } from '@/utils/logger'
 
 /**
  * 保存单条对话消息到数据库
  * @param userId - 用户ID
- * @param chatDate - 对话日期（格式：YYYY-MM-DD）
+ * @param chatDate - 对话日期（格式：YYYY-MM-DD，可以是 'global' 表示全局对话）
  * @param role - 消息角色：'user' 或 'assistant'
  * @param content - 消息内容（ChatMessage 的 content 数组）
+ * @param contextDate - 可选：消息发送时用户所在的日期上下文（格式：YYYY-MM-DD）
  * @returns 成功返回 { success: true }，失败返回 { success: false, error: string }
  */
 export async function saveChatMessage(
   userId: string,
   chatDate: string,
   role: 'user' | 'assistant',
-  content: ChatMessage['content']
+  content: ChatMessage['content'],
+  contextDate?: string  // ✅ 新增：上下文日期（可选，保持向后兼容）
 ) {
   try {
     const insertData = {
       user_id: userId,
       chat_date: chatDate,
       role: role,
-      content: content
+      content: content,
+      context_date: contextDate || chatDate  // ✅ 使用 contextDate，如果没有则使用 chatDate
     }
     
-    console.log('💾 保存对话消息:', { 
-      userId, 
-      chatDate, 
-      role, 
-      contentLength: content.length,
-      insertData: JSON.stringify(insertData).substring(0, 200) // 只显示前200个字符
-    })
+    logger.debug('保存对话消息:', { userId, chatDate, role, contextDate: contextDate || chatDate })
     
     const supabase = createClient()
     
@@ -45,17 +46,11 @@ export async function saveChatMessage(
       .select()
     
     if (error) {
-      console.error('❌ 保存消息失败 - 详细错误:', {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code,
-        fullError: error
-      })
+      logger.error('保存消息失败:', error.message)
       return { success: false, error: error.message || JSON.stringify(error) }
     }
     
-    console.log('✅ 消息保存成功:', data)
+    logger.debug('消息保存成功')
     return { success: true }
     
   } catch (error) {
@@ -248,9 +243,121 @@ export async function getChatDates(userId: string) {
   }
 }
 
+/**
+ * 获取用户的所有对话消息（全局查询，不按日期过滤）
+ * 用于支持跨日期的全局对话功能
+ * 
+ * @param userId - 用户ID
+ * @param options - 可选参数
+ * @param options.limit - 限制返回的消息数量（默认：最近 100 条）
+ * @param options.before - 返回此时间戳之前的消息（用于分页）
+ * @returns 成功返回 { success: true, messages: ChatMessage[] }，失败返回 { success: false, error: string }
+ */
+export async function getAllChatMessages(
+  userId: string,
+  options?: {
+    limit?: number
+    before?: string  // ISO 时间戳
+  }
+) {
+  try {
+    const limit = options?.limit || 100  // 默认加载最近 100 条
+    
+    logger.debug('读取全局对话消息:', { userId, limit, before: options?.before })
+    
+    const supabase = createClient()
+    
+    // 查询该用户的所有消息，按创建时间排序
+    let query = supabase
+      .from('chat_messages')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true })
+    
+    // 如果提供了 before 参数，用于分页加载
+    if (options?.before) {
+      query = query.lt('created_at', options.before)
+    }
+    
+    // 限制数量
+    query = query.limit(limit)
+    
+    const { data, error } = await query
+    
+    if (error) {
+      logger.error('读取全局消息失败:', error.message)
+      return { success: false, error: error.message || JSON.stringify(error), messages: [] }
+    }
+    
+    // 将数据库格式转换为 ChatMessage 格式
+    const messages: ChatMessage[] = data.map(row => ({
+      role: row.role as 'user' | 'assistant',
+      content: row.content as ChatMessage['content'],
+      // ✅ 附加上下文信息（可选）
+      contextDate: row.context_date,
+      createdAt: row.created_at
+    }))
+    
+    logger.debug(`读取到 ${messages.length} 条全局消息`)
+    return { success: true, messages }
+    
+  } catch (error) {
+    logger.error('读取全局消息异常:', error)
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : '未知错误',
+      messages: []
+    }
+  }
+}
 
-
-
+/**
+ * 清空用户的所有对话消息（全局清空）
+ * 
+ * @param userId - 用户ID
+ * @returns 成功返回 { success: true, count: number }，失败返回 { success: false, error: string }
+ */
+export async function clearAllChatMessages(userId: string) {
+  try {
+    logger.info('清空全局对话消息:', { userId })
+    
+    const supabase = createClient()
+    
+    // 先查询要删除的消息数量
+    const { data: existingMessages } = await supabase
+      .from('chat_messages')
+      .select('id')
+      .eq('user_id', userId)
+    
+    if (!existingMessages || existingMessages.length === 0) {
+      logger.debug('没有需要删除的消息')
+      return { success: true, count: 0 }
+    }
+    
+    // 删除所有消息
+    const { error, count } = await supabase
+      .from('chat_messages')
+      .delete({ count: 'exact' })
+      .eq('user_id', userId)
+    
+    if (error) {
+      logger.error('清空全局消息失败:', error.message)
+      return { success: false, error: error.message, count: 0 }
+    }
+    
+    const deletedCount = count || existingMessages.length
+    logger.success(`已清空 ${deletedCount} 条全局消息`)
+    return { success: true, count: deletedCount }
+    
+  } catch (error) {
+    logger.error('清空全局消息异常:', error)
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : '未知错误',
+      count: 0
+    }
+  }
+}
 
 
 

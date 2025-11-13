@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { getUserFromStorage, clearUserFromStorage, AuthUser } from '@/lib/auth'
 import { getNoteByDate, saveNote, getNotesByDateRange, deleteNote, Note, formatNoteDate } from '@/lib/notes'
+import { logger } from '@/utils/logger'
 import { JSONContent } from '@tiptap/react'
 import NoteEditor from '@/components/NoteEditor'
 import CalendarView from '@/components/CalendarView'
@@ -22,7 +23,7 @@ import { getDefaultDateScope } from '@/utils/dateUtils'
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns'
 import { getUserProfile, upsertUserProfile } from '@/lib/userProfile'
 import { doubaoService } from '@/lib/doubaoService'
-import { saveChatMessage, getChatMessages, clearChatMessages } from '@/lib/chatMessages'
+import { saveChatMessage, getChatMessages, getAllChatMessages, clearChatMessages, clearAllChatMessages } from '@/lib/chatMessages'
 import { getStickyNotes, createStickyNote, updateStickyNote, deleteStickyNote, getMaxZIndex, hideStickyNote, restoreStickyNote, getHiddenStickyNotes } from '@/lib/stickyNotes'
 import { getTaskMatrixByDate, ensureTaskMatrix, updateTaskQuadrant } from '@/lib/taskMatrix'
 import { getDailyTasksByDate, toggleDailyTaskComplete } from '@/lib/dailyTasks'
@@ -39,13 +40,14 @@ import type { AgentContext } from '@/lib/agent/AgentTypes'
 import { generateContextQuestions } from '@/lib/contextQuestions'
 
 export default function NotesDashboardPage() {
-  console.log('🚀🚀🚀 NotesDashboardPage 组件开始渲染！')
+  logger.debug('NotesDashboardPage 组件开始渲染')
   const router = useRouter()
   const [user, setUser] = useState<AuthUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   
   // 日期相关状态
   const [selectedDate, setSelectedDate] = useState(new Date())
+  const [currentContextDate, setCurrentContextDate] = useState<Date>(new Date())  // ✅ 新增：当前对话上下文日期
   const [dateScope, setDateScope] = useState<DateScope>(getDefaultDateScope())
   
   // 笔记相关状态
@@ -101,11 +103,7 @@ export default function NotesDashboardPage() {
   const [agentResumeContext, setAgentResumeContext] = useState<any | null>(null)
   const [isAgentRunning, setIsAgentRunning] = useState(false)
   
-  console.log('💾 当前 Agent 状态:', {
-    agentInstance: agentInstance ? '已存在' : 'null',
-    agentMemory: agentMemory ? '已存在' : 'null',
-    isAgentRunning
-  })
+  logger.debug('Agent 状态:', { agentInstance: !!agentInstance, agentMemory: !!agentMemory, isAgentRunning })
   
   // 任务识别相关状态（笔记模式暂不使用，但 ChatSidebar 需要）
   const [isTaskRecognitionMode, setIsTaskRecognitionMode] = useState(false)
@@ -174,26 +172,17 @@ export default function NotesDashboardPage() {
   
   // ⭐ 初始化 Agent（只在组件挂载时运行一次）
   useEffect(() => {
-    console.log('🎯 Agent 初始化 useEffect 被触发')
-    console.log('🎯 当前 agentInstance 状态:', agentInstance ? '已存在' : 'null')
-    
     if (!agentInstance) {
       try {
-        console.log('🔧 开始初始化 ReactAgent...')
-        console.log('🔧 Step 1: 调用 getAllTools()')
         const tools = getAllTools()
-        console.log(`📦 Step 2: 加载了 ${tools.length} 个工具:`, tools.map(t => t.name))
-        console.log('🔧 Step 3: 创建 ReactAgent 实例')
         const agent = new ReactAgent()
-        console.log('🔧 Step 4: 设置 agentInstance')
         setAgentInstance(agent)
-        console.log('✅ ReactAgent 初始化成功！')
+        logger.success(`ReactAgent 初始化成功 (${tools.length} 个工具)`)
       } catch (error) {
         console.error('❌ ReactAgent 初始化失败:', error)
         console.error('❌ 错误堆栈:', error instanceof Error ? error.stack : error)
       }
     } else {
-      console.log('⏭️ agentInstance 已存在，跳过初始化')
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])  // 空依赖数组：只在组件挂载时运行一次
@@ -256,29 +245,29 @@ export default function NotesDashboardPage() {
     }
   }, [calculateTaskStats])
 
-  // 加载指定日期的聊天记录
-  const loadChatMessages = useCallback(async (userId: string, date: Date) => {
+  // ✅ 加载全局聊天记录（不按日期过滤）
+  const loadAllChatMessages = useCallback(async (userId: string) => {
     try {
-      const chatDate = formatNoteDate(date) // 格式化为 YYYY-MM-DD
-      console.log(`💬 加载聊天记录: ${chatDate}`)
+      logger.debug('加载全局聊天记录')
       
-      const result = await getChatMessages(userId, chatDate)
+      // ✅ 使用新的 getAllChatMessages 函数
+      const result = await getAllChatMessages(userId, { limit: 100 })
       
       if (result.success && result.messages) {
-        console.log(`✅ 成功加载 ${result.messages.length} 条聊天记录`)
         // 将数据库格式转换为组件需要的格式
         const formattedMessages = result.messages.map(msg => ({
           role: msg.role,
           content: msg.content,
-          timestamp: new Date().toISOString() // 可以从数据库读取实际时间戳
+          timestamp: msg.createdAt || msg.created_at || new Date().toISOString(),  // ✅ 使用实际时间戳
+          contextDate: msg.contextDate  // ✅ 保留上下文日期信息
         }))
         setChatMessages(formattedMessages)
+        logger.success(`加载了 ${formattedMessages.length} 条全局消息`)
       } else {
-        console.log('📭 没有找到聊天记录，使用空数组')
         setChatMessages([])
       }
     } catch (error) {
-      console.error('❌ 加载聊天记录失败:', error)
+      logger.error('加载聊天记录失败:', error)
       // 加载失败时使用空数组，不影响用户使用
       setChatMessages([])
     }
@@ -539,12 +528,12 @@ export default function NotesDashboardPage() {
     }
   }, [user, selectedDate, loadNote])
 
-  // 加载聊天记录（当用户登录或日期变化时）
+  // ✅ 加载全局聊天记录（只在用户登录时加载一次）
   useEffect(() => {
-    if (user) {
-      loadChatMessages(user.id, selectedDate)
+    if (user && chatMessages.length === 0) {
+      loadAllChatMessages(user.id)
     }
-  }, [user, selectedDate, loadChatMessages])
+  }, [user, loadAllChatMessages])  // ✅ 移除 selectedDate 依赖，避免切换日期时重新加载
 
   // 当用户登录时加载全局便签（只加载一次，不受日期影响）
   useEffect(() => {
@@ -938,12 +927,12 @@ export default function NotesDashboardPage() {
       
       // 10. 保存到数据库（只保存文本部分）
       if (user) {
-        const chatDate = formatNoteDate(selectedDate)
-        await saveChatMessage(user.id, chatDate, 'user', userMessage.content)
+        const chatDate = formatNoteDate(currentContextDate)  // ✅ 使用 currentContextDate
+        await saveChatMessage(user.id, chatDate, 'user', userMessage.content, chatDate)  // ✅ 传入格式化后的 contextDate
         await saveChatMessage(user.id, chatDate, 'assistant', [{
           type: 'text',
           text: `✅ 已生成任务拆解建议（${subtasks.length}个子任务）`
-        }])
+        }], chatDate)  // ✅ 传入格式化后的 contextDate
       }
       
       console.log('✅ 任务拆解交互式卡片已显示')
@@ -1180,6 +1169,7 @@ export default function NotesDashboardPage() {
   // 处理日期选择
   const handleDateSelect = useCallback((date: Date) => {
     setSelectedDate(date)
+    setCurrentContextDate(date)  // ✅ 更新对话上下文日期（不清空对话）
     
     // ⭐ 同时更新日历视图日期，确保日历显示选中日期所在的月份
     const selectedMonth = date.getMonth()
@@ -1188,7 +1178,7 @@ export default function NotesDashboardPage() {
     const viewYear = calendarViewDate.getFullYear()
     
     if (selectedMonth !== viewMonth || selectedYear !== viewYear) {
-      console.log('📅 用户选择日期，切换日历月份:', `${viewYear}-${viewMonth + 1}` , '→', `${selectedYear}-${selectedMonth + 1}`)
+      logger.debug('切换日历月份:', `${viewYear}-${viewMonth + 1}` , '→', `${selectedYear}-${selectedMonth + 1}`)
       setCalendarViewDate(date)
     }
   }, [calendarViewDate])
@@ -1630,11 +1620,11 @@ export default function NotesDashboardPage() {
     
     // 💾 保存用户消息到数据库
     try {
-      const chatDate = formatNoteDate(selectedDate)
-      await saveChatMessage(user.id, chatDate, 'user', userMessage.content)
-      console.log('✅ 用户消息已保存到数据库')
+      const chatDate = formatNoteDate(currentContextDate)  // ✅ 使用 currentContextDate
+      await saveChatMessage(user.id, chatDate, 'user', userMessage.content, chatDate)  // ✅ 传入格式化后的 contextDate
+      logger.success('用户消息已保存到数据库')
     } catch (error) {
-      console.error('❌ 保存用户消息失败:', error)
+      logger.error('保存用户消息失败:', error)
       // 保存失败不影响继续使用
     }
     
@@ -1705,11 +1695,11 @@ export default function NotesDashboardPage() {
       // 💾 保存错误消息到数据库
       if (user) {
         try {
-          const chatDate = formatNoteDate(selectedDate)
-          await saveChatMessage(user.id, chatDate, 'assistant', errorMessage.content)
-          console.log('✅ 异常错误消息已保存到数据库')
+          const chatDate = formatNoteDate(currentContextDate)  // ✅ 使用 currentContextDate
+          await saveChatMessage(user.id, chatDate, 'assistant', errorMessage.content, chatDate)  // ✅ 传入格式化后的 contextDate
+          logger.success('异常错误消息已保存到数据库')
         } catch (saveError) {
-          console.error('❌ 保存异常错误消息失败:', saveError)
+          logger.error('保存异常错误消息失败:', saveError)
         }
       }
     } finally {
@@ -1755,11 +1745,11 @@ export default function NotesDashboardPage() {
         // 💾 保存错误消息到数据库
         if (user) {
           try {
-            const chatDate = formatNoteDate(selectedDate)
-            await saveChatMessage(user.id, chatDate, 'assistant', errorMessage.content)
-            console.log('✅ 错误消息已保存到数据库')
+            const chatDate = formatNoteDate(currentContextDate)  // ✅ 使用 currentContextDate
+            await saveChatMessage(user.id, chatDate, 'assistant', errorMessage.content, chatDate)  // ✅ 传入格式化后的 contextDate
+            logger.success('错误消息已保存到数据库')
           } catch (error) {
-            console.error('❌ 保存错误消息失败:', error)
+            logger.error('保存错误消息失败:', error)
           }
         }
         break
@@ -1848,13 +1838,13 @@ export default function NotesDashboardPage() {
     // 💾 保存所有 AI 消息到数据库
     if (user) {
       try {
-        const chatDate = formatNoteDate(selectedDate)
+        const chatDate = formatNoteDate(currentContextDate)  // ✅ 使用 currentContextDate
         for (const message of messages) {
-          await saveChatMessage(user.id, chatDate, 'assistant', message.content)
+          await saveChatMessage(user.id, chatDate, 'assistant', message.content, chatDate)  // ✅ 传入格式化后的 contextDate
         }
-        console.log(`✅ ${messages.length} 条 AI 消息已保存到数据库`)
+        logger.success(`${messages.length} 条 AI 消息已保存到数据库`)
       } catch (error) {
-        console.error('❌ 保存 AI 消息失败:', error)
+        logger.error('保存 AI 消息失败:', error)
         // 保存失败不影响继续使用
       }
     }
@@ -1928,11 +1918,11 @@ export default function NotesDashboardPage() {
     // 💾 保存交互式输入卡片到数据库
     if (user) {
       try {
-        const chatDate = formatNoteDate(selectedDate)
-        await saveChatMessage(user.id, chatDate, 'assistant', needInputMessage.content)
-        console.log('✅ 交互式输入卡片已保存到数据库')
+        const chatDate = formatNoteDate(currentContextDate)  // ✅ 使用 currentContextDate
+        await saveChatMessage(user.id, chatDate, 'assistant', needInputMessage.content, chatDate)  // ✅ 传入格式化后的 contextDate
+        logger.success('交互式输入卡片已保存到数据库')
       } catch (error) {
-        console.error('❌ 保存交互式输入卡片失败:', error)
+        logger.error('保存交互式输入卡片失败:', error)
         // 保存失败不影响继续使用
       }
     }
@@ -2126,9 +2116,9 @@ export default function NotesDashboardPage() {
         
         // 保存到数据库
         if (user) {
-          const chatDate = formatNoteDate(selectedDate)
-          await saveChatMessage(user.id, chatDate, 'user', userMessage.content)
-          await saveChatMessage(user.id, chatDate, 'assistant', aiMessage.content)
+          const chatDate = formatNoteDate(currentContextDate)  // ✅ 使用 currentContextDate
+          await saveChatMessage(user.id, chatDate, 'user', userMessage.content, chatDate)  // ✅ 传入格式化后的 contextDate
+          await saveChatMessage(user.id, chatDate, 'assistant', aiMessage.content, chatDate)  // ✅ 传入格式化后的 contextDate
         }
       } else {
         const errorMessage: ChatMessage = {
@@ -2167,30 +2157,28 @@ export default function NotesDashboardPage() {
   const handleClearChat = useCallback(async () => {
     if (!user) return
     
-    const confirmed = window.confirm('确定要清空当前日期的所有聊天记录吗？此操作无法撤销。')
+    const confirmed = window.confirm('确定要清空所有聊天记录吗？（包括所有日期的对话）此操作无法撤销。')
     if (!confirmed) return
     
     try {
-      // 格式化日期为 YYYY-MM-DD
-      const chatDate = formatNoteDate(selectedDate)
-      
-      const result = await clearChatMessages(user.id, chatDate)
+      // ✅ 清空全局对话记录
+      const result = await clearAllChatMessages(user.id)
       
       if (result.success) {
         setChatMessages([])
         // ⭐ 清空 Agent 内存（对话历史、思考、步骤）
         agentMemory.clear()
-        console.log(`✅ 已清空 ${result.count} 条对话记录和 Agent 内存`)
+        logger.success(`已清空 ${result.count} 条全局对话记录和 Agent 内存`)
         alert(`✅ 已清空 ${result.count} 条对话记录`)
       } else {
-        console.error('❌ 清空对话失败:', result.error)
+        logger.error('清空对话失败:', result.error)
         alert(`❌ 清空对话失败: ${result.error}`)
       }
     } catch (error) {
-      console.error('❌ 清空对话异常:', error)
+      logger.error('清空对话异常:', error)
       alert('❌ 清空对话失败，请重试')
     }
-  }, [user, selectedDate, agentMemory])
+  }, [user, agentMemory])
 
   // 处理拖拽进入
   const handleDragEnter = useCallback(() => {
