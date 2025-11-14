@@ -2795,7 +2795,7 @@ export default function NotesDashboardPage() {
                 ) : (
                   /* 任务矩阵模式 */
                   <div 
-                    className="flex-1 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden animate-fadeIn"
+                    className="flex-1 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden animate-fadeIn relative"
                     style={{
                       animation: 'fadeIn 0.3s ease-in-out'
                     }}
@@ -2809,6 +2809,22 @@ export default function NotesDashboardPage() {
                       onTaskDrop={handleTaskDrop}
                       isEmbedded={true}
                     />
+                    
+                    {/* 浮动AI助手按钮 - 在矩阵右下角 */}
+                    {!isChatSidebarOpen && (
+                      <button
+                        onClick={toggleChatSidebar}
+                        className="absolute right-6 bottom-6 z-40 w-14 h-14 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-300 flex items-center justify-center group"
+                        title="展开AI助手 (Ctrl+B)"
+                      >
+                        {/* 机器人emoji图标 */}
+                        <span className="text-3xl">🤖</span>
+                        {/* 悬停提示 */}
+                        <span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-lg">
+                          AI助手
+                        </span>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
