@@ -19,16 +19,16 @@ export default function ViewModeToggle({
   onModeChange,
 }: ViewModeToggleProps) {
   return (
-    <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden shadow-sm">
+    <div className="inline-flex rounded-xl border border-gray-200 overflow-hidden shadow-md h-11">
       {/* 笔记模式按钮 */}
       <button
         onClick={() => onModeChange('editor')}
         disabled={currentMode === 'editor'}
         className={`
-          px-4 py-2 font-medium text-sm transition-all duration-200 flex items-center gap-2
+          px-4 h-full font-medium text-sm transition-all duration-200 flex items-center gap-2
           ${currentMode === 'editor' 
             ? 'bg-blue-600 text-white cursor-not-allowed' 
-            : 'bg-white text-gray-700 hover:bg-gray-100 cursor-pointer'
+            : 'bg-white text-gray-700 hover:bg-gray-50 cursor-pointer'
           }
         `}
         title={currentMode === 'editor' ? '当前模式' : '切换到笔记模式'}
@@ -50,10 +50,10 @@ export default function ViewModeToggle({
         onClick={() => onModeChange('matrix')}
         disabled={currentMode === 'matrix'}
         className={`
-          px-4 py-2 font-medium text-sm transition-all duration-200 flex items-center gap-2 border-l border-gray-300
+          px-4 h-full font-medium text-sm transition-all duration-200 flex items-center gap-2 border-l border-gray-200
           ${currentMode === 'matrix' 
             ? 'bg-blue-600 text-white cursor-not-allowed' 
-            : 'bg-white text-gray-700 hover:bg-gray-100 cursor-pointer'
+            : 'bg-white text-gray-700 hover:bg-gray-50 cursor-pointer'
           }
         `}
         title={currentMode === 'matrix' ? '当前模式' : '切换到矩阵模式'}

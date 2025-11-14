@@ -16,7 +16,6 @@ import KeyboardShortcutsPanel from '@/components/KeyboardShortcutsPanel'
 import StickyNote from '@/components/StickyNote'
 import StickyNotesDropdown from '@/components/StickyNotesDropdown'
 import TaskMatrix from '@/components/TaskMatrix'
-import MatrixSelector from '@/components/MatrixSelector'
 import ViewModeToggle from '@/components/ViewModeToggle'
 import type { DateScope, UserProfile, UserProfileInput, ChatMessage, StickyNote as StickyNoteType, TasksByQuadrant, TaskMatrixDimension } from '@/types'
 import { getDefaultDateScope } from '@/utils/dateUtils'
@@ -2452,13 +2451,6 @@ export default function NotesDashboardPage() {
   const handleTaskDrop = useCallback(async (taskId: string, targetQuadrant: QuadrantType) => {
     if (!user) return
     
-    // ⭐ 验证：不允许拖拽到 'unclassified' 象限
-    if (targetQuadrant === 'unclassified') {
-      console.warn('⚠️ 不允许将任务拖拽到待分类区域')
-      alert('不能将任务拖拽到待分类区域，请拖拽到四个象限之一')
-      return
-    }
-    
     console.log('🎯 拖拽任务:', { taskId, targetQuadrant })
     
     // 保存旧状态（用于回滚）
@@ -2784,18 +2776,6 @@ export default function NotesDashboardPage() {
                     <span className="text-sm">进度</span>
                   </button>
                   
-                  {/* AI助手按钮 */}
-                  <button
-                    onClick={toggleChatSidebar}
-                    className="text-white px-5 py-2.5 rounded-xl hover:opacity-90 transition-all duration-200 font-medium flex items-center gap-2.5 shadow-md hover:shadow-lg hover:scale-105 active:scale-95"
-                    style={{ backgroundColor: '#4A90E2' }}
-                    title="打开AI助手"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                    </svg>
-                    <span className="text-sm">AI助手</span>
-                  </button>
                   
                   {/* 便签下拉框 - 仅在笔记模式下显示 */}
                   {viewMode === 'editor' && (
@@ -2809,7 +2789,7 @@ export default function NotesDashboardPage() {
                     />
                   )}
                   
-                  {/* ⭐ 视图模式切换 - 放在最右侧 */}
+                  {/* ⭐ 视图模式切换 - 笔记/矩阵 Tab */}
                   <ViewModeToggle
                     currentMode={viewMode}
                     onModeChange={(mode) => {
@@ -2820,15 +2800,6 @@ export default function NotesDashboardPage() {
                     }}
                   />
                   
-                  {/* ⭐ 矩阵维度选择器 - 仅在矩阵模式下显示，紧跟在 tab 后面 */}
-                  {viewMode === 'matrix' && (
-                    <MatrixSelector
-                      currentDimension={selectedMatrixDimension}
-                      onDimensionChange={setSelectedMatrixDimension}
-                      onToggleView={() => {}} // 不再需要切换功能
-                      isMatrixMode={true}
-                    />
-                  )}
                 </div>
               </div>
 
@@ -2862,21 +2833,20 @@ export default function NotesDashboardPage() {
                       />
                     ))}
                     
-                    {/* 浮动AI助手按钮 - 在编辑器右下角（工具栏上方） */}
+                    {/* 浮动AI助手按钮 - 编辑器右下角 */}
                     {!isChatSidebarOpen && (
                       <button
                         onClick={toggleChatSidebar}
                         className="absolute right-6 bottom-16 z-40 w-14 h-14 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-300 flex items-center justify-center group"
                         title="展开AI助手 (Ctrl+B)"
                       >
-                        {/* 机器人emoji图标 */}
                         <span className="text-3xl">🤖</span>
-                        {/* 悬停提示 */}
                         <span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-lg">
                           AI助手
                         </span>
                       </button>
                     )}
+                    
                   </div>
                 ) : (
                   /* 任务矩阵模式 */
@@ -2899,16 +2869,14 @@ export default function NotesDashboardPage() {
                       onYAxisChange={handleYAxisChange}
                     />
                     
-                    {/* 浮动AI助手按钮 - 在矩阵右下角 */}
+                    {/* 浮动AI助手按钮 - 矩阵右下角 */}
                     {!isChatSidebarOpen && (
                       <button
                         onClick={toggleChatSidebar}
                         className="absolute right-6 bottom-6 z-40 w-14 h-14 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-300 flex items-center justify-center group"
                         title="展开AI助手 (Ctrl+B)"
                       >
-                        {/* 机器人emoji图标 */}
                         <span className="text-3xl">🤖</span>
-                        {/* 悬停提示 */}
                         <span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-lg">
                           AI助手
                         </span>

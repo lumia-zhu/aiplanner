@@ -24,6 +24,19 @@ import { QUADRANT_CONFIGS } from '@/types/task-matrix'
 import { MATRIX_DIMENSION_CONFIGS, MATRIX_QUADRANTS_CONFIGS } from '@/types'
 import type { Task, TaskMatrixDimension } from '@/types'
 import type { QuadrantType, TasksByQuadrant } from '@/types/task-matrix'
+
+// ============================================
+// 常量：维度提示内容
+// ============================================
+
+const DIMENSION_HINTS = [
+  { icon: '⭐', label: '重要性', desc: '任务对目标达成的重要程度' },
+  { icon: '🔥', label: '紧急性', desc: '任务的时间紧迫程度' },
+  { icon: '💥', label: '影响力', desc: '任务带来的影响范围与力度' },
+  { icon: '💪', label: '投入度', desc: '完成任务所需的时间和精力' },
+  { icon: '🎨', label: '趣味性', desc: '任务的趣味/吸引程度' },
+  { icon: '⚡', label: '刺激性', desc: '任务的挑战与刺激程度' },
+]
 // 🆕 新的维度系统
 import type { DimensionType, MatrixAxesConfig } from '@/constants/dimensions'
 
@@ -131,12 +144,6 @@ export default function TaskMatrix({
       }
       
       targetQuadrant = foundQuadrant
-    }
-    
-    // ⭐ 验证：不允许拖拽到 'unclassified'
-    if (targetQuadrant === 'unclassified') {
-      console.warn('⚠️ 不允许拖拽到待分类区域')
-      return
     }
     
     console.log('🎯 拖拽任务:', { taskId, targetQuadrant })
@@ -280,11 +287,20 @@ export default function TaskMatrix({
         
         {/* 底部提示栏 */}
         <div className="px-6 py-3 border-t border-gray-200 bg-gray-50">
-          <div className="flex items-center justify-between text-xs text-gray-500">
-            <div className="flex items-center gap-4">
-              <span>💡 提示：从左侧拖动任务到对应象限</span>
+          <div className="flex flex-col gap-1 text-xs text-gray-500 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-2">
+              <span>💡 提示：从左侧拖动任务到对应象限，悬停或点击坐标轴标签即可切换维度组合</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-1">
+                {DIMENSION_HINTS.map(hint => (
+                  <span key={hint.label} className="flex items-center gap-1">
+                    <span>{hint.icon}</span>
+                    <span className="font-medium text-gray-600">{hint.label}：</span>
+                    <span>{hint.desc}</span>
+                  </span>
+                ))}
+              </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 pt-2 sm:pt-0 sm:self-end pr-16 sm:pr-0">
               <span>共 {Object.values(tasks).flat().length} 个任务</span>
             </div>
           </div>

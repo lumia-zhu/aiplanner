@@ -145,16 +145,21 @@ export async function getTaskMatrix(taskId: string): Promise<TaskMatrix | null> 
 export async function initTaskMatrix(
   userId: string,
   taskId: string,
-  initialQuadrant: QuadrantType = 'not-urgent-not-important'
+  initialQuadrant: QuadrantType = 'unclassified'
 ): Promise<TaskMatrix> {
   try {
     console.log(`📥 初始化任务矩阵: taskId=${taskId}, quadrant=${initialQuadrant}`)
     
-    // ⭐ 验证：不接受 'unclassified' 作为初始象限
-    const validQuadrants = ['urgent-important', 'not-urgent-important', 'urgent-not-important', 'not-urgent-not-important']
+    const validQuadrants: QuadrantType[] = [
+      'unclassified',
+      'urgent-important',
+      'not-urgent-important',
+      'urgent-not-important',
+      'not-urgent-not-important'
+    ]
     if (!validQuadrants.includes(initialQuadrant)) {
-      console.warn(`⚠️ 无效的初始象限 ${initialQuadrant}，使用默认值 not-urgent-not-important`)
-      initialQuadrant = 'not-urgent-not-important'
+      console.warn(`⚠️ 无效的初始象限 ${initialQuadrant}，使用默认值 unclassified`)
+      initialQuadrant = 'unclassified'
     }
     
     const supabase = createClient()
@@ -164,7 +169,7 @@ export async function initTaskMatrix(
       .insert({
         user_id: userId,
         task_id: taskId,
-        quadrant: initialQuadrant,  // ⭐ 默认为"不紧急不重要"象限
+        quadrant: initialQuadrant,  // 默认：待分类
         position: 0,
       })
       .select()
@@ -266,15 +271,8 @@ export async function updateTaskQuadrant(
   try {
     console.log(`🔄 更新任务象限: taskId=${taskId}, quadrant=${quadrant}`)
     
-    // ⭐ 验证：数据库不接受 'unclassified' 值
-    if (quadrant === 'unclassified') {
-      const errorMsg = '不能将任务象限设置为 unclassified，请使用四个象限之一'
-      console.error('❌', errorMsg)
-      throw new Error(errorMsg)
-    }
-    
     // ⭐ 验证：确保 quadrant 是有效的象限类型
-    const validQuadrants = ['urgent-important', 'not-urgent-important', 'urgent-not-important', 'not-urgent-not-important']
+    const validQuadrants: QuadrantType[] = ['unclassified', 'urgent-important', 'not-urgent-important', 'urgent-not-important', 'not-urgent-not-important']
     if (!validQuadrants.includes(quadrant)) {
       const errorMsg = `无效的象限类型: ${quadrant}`
       console.error('❌', errorMsg)
