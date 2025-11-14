@@ -7,7 +7,7 @@
 
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import AxisDimensionSelector from './AxisDimensionSelector'
 import { getAxisLabels, type DimensionType } from '@/constants/dimensions'
 
@@ -57,8 +57,33 @@ export default function CoordinateAxis({
   // 判断是否可交互（只有新版本调用才支持交互）
   const canInteract = interactive && xAxis && yAxis && (onXAxisChange || onYAxisChange)
 
+  // 统一控制下拉框，只允许一个处于打开状态
+  const openSelector = useCallback((position: 'top' | 'bottom' | 'left' | 'right') => {
+    setShowTopSelector(position === 'top')
+    setShowBottomSelector(position === 'bottom')
+    setShowLeftSelector(position === 'left')
+    setShowRightSelector(position === 'right')
+  }, [])
+
+  const closeSelector = useCallback((position: 'top' | 'bottom' | 'left' | 'right') => {
+    switch (position) {
+      case 'top':
+        setShowTopSelector(false)
+        break
+      case 'bottom':
+        setShowBottomSelector(false)
+        break
+      case 'left':
+        setShowLeftSelector(false)
+        break
+      case 'right':
+        setShowRightSelector(false)
+        break
+    }
+  }, [])
+
   return (
-    <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 5 }}>
+    <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 100 }}>
       {/* 纵轴（垂直线） */}
       <div 
         className="absolute top-0 bottom-0 w-[1px] bg-gray-300"
@@ -79,16 +104,22 @@ export default function CoordinateAxis({
       
       {/* 上方标签：纵轴顶部 ↑ (Y轴高端) */}
       <div 
-        className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-auto"
+        className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-auto z-[200]"
         style={{ top: '-8px' }}
-        onMouseEnter={() => canInteract && onYAxisChange && setShowTopSelector(true)}
-        onMouseLeave={() => setShowTopSelector(false)}
+        onMouseEnter={() => canInteract && onYAxisChange && openSelector('top')}
       >
         <button
           className={`text-xs text-gray-600 font-semibold bg-white px-2 py-1 rounded shadow-sm flex items-center gap-1 transition-all duration-150 ${
             canInteract && onYAxisChange ? 'hover:bg-blue-50 hover:text-blue-600 cursor-pointer hover:shadow-md' : ''
           }`}
-          onClick={() => canInteract && onYAxisChange && setShowTopSelector(!showTopSelector)}
+          onClick={() => {
+            if (!canInteract || !onYAxisChange) return
+            if (showTopSelector) {
+              closeSelector('top')
+            } else {
+              openSelector('top')
+            }
+          }}
           disabled={!canInteract || !onYAxisChange}
         >
           <span>{axes.vertical.top}</span>
@@ -103,25 +134,31 @@ export default function CoordinateAxis({
             currentDimension={yAxis}
             excludeDimension={xAxis}
             onSelect={onYAxisChange}
-            position="top"
+            position="bottom"
             isOpen={showTopSelector}
-            onClose={() => setShowTopSelector(false)}
+            onClose={() => closeSelector('top')}
           />
         )}
       </div>
       
       {/* 下方标签：纵轴底部 ↓ (Y轴低端) */}
       <div 
-        className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-auto"
+        className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-auto z-[200]"
         style={{ bottom: '-8px' }}
-        onMouseEnter={() => canInteract && onYAxisChange && setShowBottomSelector(true)}
-        onMouseLeave={() => setShowBottomSelector(false)}
+        onMouseEnter={() => canInteract && onYAxisChange && openSelector('bottom')}
       >
         <button
           className={`text-xs text-gray-600 font-semibold bg-white px-2 py-1 rounded shadow-sm flex items-center gap-1 transition-all duration-150 ${
             canInteract && onYAxisChange ? 'hover:bg-blue-50 hover:text-blue-600 cursor-pointer hover:shadow-md' : ''
           }`}
-          onClick={() => canInteract && onYAxisChange && setShowBottomSelector(!showBottomSelector)}
+          onClick={() => {
+            if (!canInteract || !onYAxisChange) return
+            if (showBottomSelector) {
+              closeSelector('bottom')
+            } else {
+              openSelector('bottom')
+            }
+          }}
           disabled={!canInteract || !onYAxisChange}
         >
           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -136,25 +173,31 @@ export default function CoordinateAxis({
             currentDimension={yAxis}
             excludeDimension={xAxis}
             onSelect={onYAxisChange}
-            position="bottom"
+            position="top"
             isOpen={showBottomSelector}
-            onClose={() => setShowBottomSelector(false)}
+            onClose={() => closeSelector('bottom')}
           />
         )}
       </div>
       
       {/* 左侧标签：横轴左侧 ← (X轴低端) */}
       <div 
-        className="absolute top-1/2 -translate-y-1/2 flex items-center pointer-events-auto"
+        className="absolute top-1/2 -translate-y-1/2 flex items-center pointer-events-auto z-[200]"
         style={{ left: '-8px' }}
-        onMouseEnter={() => canInteract && onXAxisChange && setShowLeftSelector(true)}
-        onMouseLeave={() => setShowLeftSelector(false)}
+        onMouseEnter={() => canInteract && onXAxisChange && openSelector('left')}
       >
         <button
           className={`text-xs text-gray-600 font-semibold bg-white px-2 py-1 rounded shadow-sm flex items-center gap-1 transition-all duration-150 ${
             canInteract && onXAxisChange ? 'hover:bg-blue-50 hover:text-blue-600 cursor-pointer hover:shadow-md' : ''
           }`}
-          onClick={() => canInteract && onXAxisChange && setShowLeftSelector(!showLeftSelector)}
+          onClick={() => {
+            if (!canInteract || !onXAxisChange) return
+            if (showLeftSelector) {
+              closeSelector('left')
+            } else {
+              openSelector('left')
+            }
+          }}
           disabled={!canInteract || !onXAxisChange}
         >
           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -169,25 +212,31 @@ export default function CoordinateAxis({
             currentDimension={xAxis}
             excludeDimension={yAxis}
             onSelect={onXAxisChange}
-            position="left"
+            position="right"
             isOpen={showLeftSelector}
-            onClose={() => setShowLeftSelector(false)}
+            onClose={() => closeSelector('left')}
           />
         )}
       </div>
       
       {/* 右侧标签：横轴右侧 → (X轴高端) */}
       <div 
-        className="absolute top-1/2 -translate-y-1/2 flex items-center pointer-events-auto"
+        className="absolute top-1/2 -translate-y-1/2 flex items-center pointer-events-auto z-[200]"
         style={{ right: '-8px' }}
-        onMouseEnter={() => canInteract && onXAxisChange && setShowRightSelector(true)}
-        onMouseLeave={() => setShowRightSelector(false)}
+        onMouseEnter={() => canInteract && onXAxisChange && openSelector('right')}
       >
         <button
           className={`text-xs text-gray-600 font-semibold bg-white px-2 py-1 rounded shadow-sm flex items-center gap-1 transition-all duration-150 ${
             canInteract && onXAxisChange ? 'hover:bg-blue-50 hover:text-blue-600 cursor-pointer hover:shadow-md' : ''
           }`}
-          onClick={() => canInteract && onXAxisChange && setShowRightSelector(!showRightSelector)}
+          onClick={() => {
+            if (!canInteract || !onXAxisChange) return
+            if (showRightSelector) {
+              closeSelector('right')
+            } else {
+              openSelector('right')
+            }
+          }}
           disabled={!canInteract || !onXAxisChange}
         >
           <span>{axes.horizontal.right}</span>
@@ -202,9 +251,9 @@ export default function CoordinateAxis({
             currentDimension={xAxis}
             excludeDimension={yAxis}
             onSelect={onXAxisChange}
-            position="right"
+            position="left"
             isOpen={showRightSelector}
-            onClose={() => setShowRightSelector(false)}
+            onClose={() => closeSelector('right')}
           />
         )}
       </div>

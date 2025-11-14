@@ -46,7 +46,7 @@ export default function Quadrant({
     <div 
       ref={setNodeRef}
       className={`
-        rounded-xl border-2 p-4 flex flex-col overflow-hidden transition-all duration-200
+        rounded-xl border-2 p-4 flex flex-col overflow-hidden transition-all duration-200 relative z-0
         ${isOver ? 'ring-4 ring-blue-400 ring-opacity-50 scale-[1.02]' : ''}
       `}
       style={{

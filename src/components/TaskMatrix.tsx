@@ -205,7 +205,7 @@ export default function TaskMatrix({
         )}
         
         {/* 主内容区 */}
-        <div className="flex-1 flex gap-6 p-6 overflow-hidden">
+        <div className="flex-1 flex gap-6 p-6 overflow-visible">
           {/* 左侧：待分类区域 */}
           <UnclassifiedZone
             tasks={tasks.unclassified || []}

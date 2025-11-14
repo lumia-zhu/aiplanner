@@ -2881,7 +2881,7 @@ export default function NotesDashboardPage() {
                 ) : (
                   /* 任务矩阵模式 */
                   <div 
-                    className="flex-1 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden animate-fadeIn relative"
+                    className="flex-1 bg-white rounded-lg shadow-sm border border-gray-200 overflow-visible animate-fadeIn relative"
                     style={{
                       animation: 'fadeIn 0.3s ease-in-out'
                     }}

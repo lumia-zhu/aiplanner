@@ -88,9 +88,10 @@ export default function AxisDimensionSelector({
   return (
     <div
       ref={dropdownRef}
-      className={`absolute ${getPositionStyles()} w-72 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-[9999] animate-fadeIn`}
+      className={`absolute ${getPositionStyles()} w-72 bg-white rounded-lg shadow-xl border border-gray-200 py-2 animate-fadeIn`}
       style={{
-        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05)'
+        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05)',
+        zIndex: 10000
       }}
     >
       {/* 标题 */}
