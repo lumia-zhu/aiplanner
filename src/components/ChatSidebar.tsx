@@ -101,7 +101,10 @@ interface ChatSidebarProps {
   isAgentRunning?: boolean  // Agent 是否正在运行
   
   // ⭐ 通用按钮点击回调
-  onButtonClick?: (buttonId: string, context: any) => void  // 通用交互按钮点击
+  onButtonClick?: (buttonId: string, context: any) => void
+  
+  // 🆕 任务列表卡片的任务勾选回调
+  onTaskToggleFromList?: (taskId: string, noteId: string, newCompletedState: boolean) => void  // 通用交互按钮点击
   
   // 事件处理函数
   handleSendMessage: () => void
@@ -171,6 +174,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   onAgentInputSubmit,  // ⭐ Agent 交互式输入
   isAgentRunning,  // ⭐ Agent 运行状态
   onButtonClick,  // ⭐ 通用按钮点击
+  onTaskToggleFromList,  // 🆕 任务列表勾选
   handleSendMessage,
   handleClearChat,
   handleDragEnter,
@@ -370,8 +374,9 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                             tasks={content.taskList.tasks as TaskForDisplay[]}
                             totalCount={content.taskList.totalCount}
                             onTaskToggle={(taskId, noteId, newCompletedState) => {
-                              console.log('⭐ 任务勾选状态变更:', { taskId, noteId, newCompletedState })
-                              // TODO: 后续实现任务完成状态切换逻辑
+                              if (onTaskToggleFromList) {
+                                onTaskToggleFromList(taskId, noteId, newCompletedState)
+                              }
                             }}
                           />
                         </div>

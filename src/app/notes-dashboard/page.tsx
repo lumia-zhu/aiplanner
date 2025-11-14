@@ -1958,9 +1958,17 @@ export default function NotesDashboardPage() {
     let hasTaskListCard = false
     if (result.metadata?.steps && Array.isArray(result.metadata.steps)) {
       for (const step of result.metadata.steps) {
-        // ⭐ 修复：字段名是 step.tool，不是 step.action
-        if (step.tool === 'get_tasks' && step.success && step.toolResult?.data?.tasks) {
-          const taskData = step.toolResult.data
+        logger.debug('🔍 检查 step:', {
+          action: step.action,
+          hasObservation: !!step.observation,
+          hasTasks: !!step.observation?.tasks,
+          observationKeys: step.observation ? Object.keys(step.observation) : []
+        })
+        
+        // ⭐ 修复：AgentMemory.addStep 的结构是 { action, input, observation }
+        // observation 直接包含 toolResult.data 的内容
+        if (step.action === 'get_tasks' && step.observation?.tasks && Array.isArray(step.observation.tasks)) {
+          const taskData = step.observation
           messages.push({
             role: 'assistant',
             content: [{
@@ -2387,7 +2395,154 @@ export default function NotesDashboardPage() {
     }
   }, [handleSendMessage])
 
-  // 处理任务完成状态切换
+  // 🆕 处理从任务列表卡片触发的任务完成状态切换
+  const handleTaskToggleFromList = useCallback(async (taskId: string, noteId: string, newCompletedState: boolean) => {
+    if (!user) return
+    
+    // 🚀 乐观更新：立即更新UI
+    setChatMessages(prevMessages => {
+      return prevMessages.map(msg => {
+        const updatedContent = msg.content.map((content: any) => {
+          if (content.type === 'task-list' && content.taskList) {
+            const updatedTasks = content.taskList.tasks.map((task: any) => {
+              if (task.id === taskId && task.noteId === noteId) {
+                return { ...task, isCompleted: newCompletedState }
+              }
+              return task
+            })
+            
+            return {
+              ...content,
+              taskList: {
+                ...content.taskList,
+                tasks: updatedTasks
+              }
+            }
+          }
+          return content
+        })
+        
+        return { ...msg, content: updatedContent }
+      })
+    })
+    logger.debug('🚀 乐观更新：UI已立即刷新')
+    
+    // 后台异步更新数据库
+    try {
+      logger.debug('🔄 从任务列表切换任务状态:', { taskId, noteId, newCompletedState })
+      
+      // 1. 提取任务索引 (taskId 格式: noteId-task-index)
+      const taskIndexMatch = taskId.match(/-task-(\d+)$/)
+      if (!taskIndexMatch) {
+        logger.error('❌ 无效的 taskId 格式:', taskId)
+        return
+      }
+      const taskIndex = parseInt(taskIndexMatch[1])
+      
+      // 2. 从 notesCache 中查找笔记（noteId 是笔记的 UUID）
+      let note: Note | null = null
+      for (const [dateKey, cachedNote] of notesCache) {
+        if (cachedNote.id === noteId) {
+          note = cachedNote
+          break
+        }
+      }
+      
+      // 如果缓存中没有，尝试从数据库加载（通过遍历最近的笔记）
+      if (!note) {
+        logger.debug('⚠️ 缓存中未找到笔记，尝试从数据库加载...')
+        const { getNotesByDateRange } = await import('@/lib/notes')
+        const startDate = new Date()
+        startDate.setMonth(startDate.getMonth() - 1) // 查询最近一个月
+        const endDate = new Date()
+        endDate.setMonth(endDate.getMonth() + 1) // 查询未来一个月
+        
+        const recentNotes = await getNotesByDateRange(user.id, startDate, endDate)
+        note = recentNotes.find(n => n.id === noteId) || null
+      }
+      
+      if (!note || !note.content) {
+        logger.error('❌ 未找到笔记:', noteId)
+        return
+      }
+      
+      // 3. ⭐ 修复：遍历笔记内容，找到并更新对应任务项的 checked 状态
+      let currentTaskIndex = 0
+      let taskFound = false
+      
+      const updateTaskInContent = (node: any): any => {
+        // 如果已经找到并更新了任务，直接返回原节点（避免继续递增索引）
+        if (taskFound) {
+          return node
+        }
+        
+        if (node.type === 'taskItem') {
+          if (currentTaskIndex === taskIndex) {
+            // 找到目标任务，更新 checked 状态
+            taskFound = true
+            const updatedNode = {
+              ...node,
+              attrs: {
+                ...node.attrs,
+                checked: newCompletedState
+              }
+            }
+            logger.debug(`✅ 找到并更新任务 #${taskIndex}:`, node.content?.[0]?.content?.[0]?.text || '(无标题)')
+            return updatedNode
+          }
+          currentTaskIndex++
+        }
+        
+        // 递归处理子节点
+        if (node.content && Array.isArray(node.content)) {
+          return {
+            ...node,
+            content: node.content.map((child: any) => updateTaskInContent(child))
+          }
+        }
+        
+        return node
+      }
+      
+      const updatedContent = updateTaskInContent(note.content)
+      
+      if (!taskFound) {
+        logger.error('❌ 未找到任务索引:', taskIndex)
+        return
+      }
+      
+      // 4. 保存更新后的笔记
+      const noteDate = new Date(note.note_date)
+      await saveNote(user.id, noteDate, updatedContent)
+      logger.success('✅ 笔记已更新')
+      
+      // 5. 同步到 daily_tasks 表
+      const dateKey = formatNoteDate(noteDate)
+      await syncTasksFromNote(user.id, dateKey, updatedContent)
+      logger.success('✅ 任务已同步到数据库')
+      
+      // 6. 如果修改的是当前选中日期的笔记，更新编辑器显示
+      if (formatNoteDate(selectedDate) === formatNoteDate(noteDate)) {
+        setCurrentNote(updatedContent)
+        logger.debug('✅ 编辑器内容已刷新')
+      }
+      
+      // 7. 刷新矩阵视图（如果在矩阵模式）
+      if (viewMode === 'matrix') {
+        await loadTaskMatrix(user.id, selectedDate)
+      }
+      
+      logger.success('✅ 任务状态已同步到数据库')
+      
+    } catch (error) {
+      logger.error('❌ 切换任务状态失败:', error)
+      // 如果后台更新失败，回滚UI（重新加载消息）
+      alert('操作失败，请重试')
+      // TODO: 可以实现更优雅的错误回滚机制
+    }
+  }, [user, selectedDate, viewMode, notesCache])
+
+  // 处理任务完成状态切换（矩阵模式）
   const handleTaskComplete = useCallback(async (taskId: string) => {
     if (!user) return
     
@@ -2950,6 +3105,7 @@ export default function NotesDashboardPage() {
               onDecompositionContextSkip={handleDecompositionContextSkip}
               onDecompositionConfirm={handleDecompositionConfirm}
               onDecompositionCancel={handleDecompositionCancel}
+              onTaskToggleFromList={handleTaskToggleFromList}
             />
           </div>
         </div>
