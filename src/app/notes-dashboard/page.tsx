@@ -1987,11 +1987,15 @@ export default function NotesDashboardPage() {
       }
     }
     
-    // 3. 添加最终文本回复（如果没有任务列表卡片，或者作为补充说明）
-    messages.push({
-      role: 'assistant',
-      content: [{ type: 'text', text: result.content }]
-    })
+    // 3. 🆕 只在没有任务列表卡片时才添加文本回复（避免内容重复）
+    if (!hasTaskListCard) {
+      messages.push({
+        role: 'assistant',
+        content: [{ type: 'text', text: result.content }]
+      })
+    } else {
+      logger.debug('⏭️ 跳过文本回复（已显示任务列表卡片）')
+    }
     
     // 4. 批量添加所有消息到前端显示
     setChatMessages(prev => [...prev, ...messages])
