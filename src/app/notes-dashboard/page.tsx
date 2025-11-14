@@ -1958,7 +1958,8 @@ export default function NotesDashboardPage() {
     let hasTaskListCard = false
     if (result.metadata?.steps && Array.isArray(result.metadata.steps)) {
       for (const step of result.metadata.steps) {
-        if (step.action === 'get_tasks' && step.success && step.toolResult?.data?.tasks) {
+        // ⭐ 修复：字段名是 step.tool，不是 step.action
+        if (step.tool === 'get_tasks' && step.success && step.toolResult?.data?.tasks) {
           const taskData = step.toolResult.data
           messages.push({
             role: 'assistant',
