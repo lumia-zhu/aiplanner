@@ -146,10 +146,26 @@ export class ReactAgent {
         console.log(`📝 LLM 输出 (前200字):`, llmResponse.substring(0, 200))
         console.log(`📝 LLM 完整输出:`, llmResponse)  // ⭐ 添加完整输出日志
 
-        // 3.3 解析输出
-        const parsed = parseReActOutput(llmResponse)
-        console.log('📊 解析结果:', parsed.type)
-        console.log('📊 解析详情:', JSON.stringify(parsed, null, 2))  // ⭐ 添加详细解析结果
+        // 3.3 解析输出（带兜底处理）
+        let parsed
+        try {
+          parsed = parseReActOutput(llmResponse)
+          console.log('📊 解析结果:', parsed.type)
+          console.log('📊 解析详情:', JSON.stringify(parsed, null, 2))  // ⭐ 添加详细解析结果
+        } catch (parseError: any) {
+          console.error('❌ 解析失败，使用兜底响应:', parseError.message)
+          // 🛡️ 兜底：将 LLM 输出作为普通文本返回
+          return {
+            type: 'text',
+            content: llmResponse || '抱歉，我在处理您的请求时遇到了一些问题。请尝试重新表述您的问题。',
+            metadata: {
+              iteration,
+              thoughts: this.memory.getThoughts(),
+              steps: this.memory.getSteps(),
+              error: parseError.message
+            }
+          }
+        }
 
         // 3.4 记录 Thought
         if (parsed.type !== 'error' && parsed.thought) {

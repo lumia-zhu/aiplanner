@@ -104,7 +104,11 @@ interface ChatSidebarProps {
   onButtonClick?: (buttonId: string, context: any) => void
   
   // 🆕 任务列表卡片的任务勾选回调
-  onTaskToggleFromList?: (taskId: string, noteId: string, newCompletedState: boolean) => void  // 通用交互按钮点击
+  onTaskToggleFromList?: (taskId: string, noteId: string, newCompletedState: boolean) => void
+  // 🆕 任务列表卡片的任务移动到今天回调
+  onMoveTaskToToday?: (taskId: string, noteId: string, noteDate: string) => void
+  // 🆕 任务列表卡片刷新状态
+  isRefreshingTaskList?: boolean  // 通用交互按钮点击
   
   // 事件处理函数
   handleSendMessage: () => void
@@ -175,6 +179,8 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   isAgentRunning,  // ⭐ Agent 运行状态
   onButtonClick,  // ⭐ 通用按钮点击
   onTaskToggleFromList,  // 🆕 任务列表勾选
+  onMoveTaskToToday,  // 🆕 任务移动到今天
+  isRefreshingTaskList,  // 🆕 任务列表刷新状态
   handleSendMessage,
   handleClearChat,
   handleDragEnter,
@@ -321,55 +327,24 @@ const ChatSidebar = memo<ChatSidebarProps>(({
         <div className="space-y-3">
           {chatMessages.length === 0 ? null : (
             /* 聊天消息 */
-            chatMessages.map((message, index) => (
+            chatMessages.map((message, index) => {
+              // 检查是否包含任务列表卡片
+              const hasTaskList = message.content.some(c => c.type === 'task-list')
+              
+              return (
               <div key={index} className={`flex items-start gap-3 ${message.role === 'user' ? 'flex-row-reverse' : ''}`}>
                 {message.role === 'user' ? (
                   <img src="/user-avatar.svg" alt="我" className="w-8 h-8 rounded-full flex-shrink-0" />
                 ) : (
                   <img src="/ai-avatar.svg" alt="AI" className="w-8 h-8 rounded-full flex-shrink-0" />
                 )}
-                <div className={`rounded-lg px-3 py-2 shadow-sm max-w-[80%] ${
-                  message.role === 'user' ? 'bg-green-100' : 'bg-white'
-                }`}>
-                  {message.content.map((content, contentIndex) => (
-                    <div key={contentIndex}>
-                      {content.type === 'text' && content.text && (
-                        <div>
-                          {content.text.startsWith('🔍 智能任务识别中...') ? (
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2">
-                                <span className="text-green-600">🔍</span>
-                                <span className="text-sm font-medium text-green-700">智能任务识别</span>
-                              </div>
-                              {content.text.includes('\n用户输入：') && (
-                                <div className="pl-6">
-                                  <p className="text-xs text-gray-600">
-                                    {content.text.split('\n用户输入：')[1]}
-                                  </p>
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                        <p className="text-sm whitespace-pre-wrap" style={{ color: '#3f3f3f' }}>
-                          {content.text}
-                        </p>
-                          )}
-                        </div>
-                      )}
-                      {content.type === 'image_url' && content.image_url && (
-                        <div className="mt-2">
-                        <img 
-                          src={content.image_url.url} 
-                          alt="上传的图片" 
-                            className="max-w-full h-auto rounded border border-gray-200"
-                          style={{ maxHeight: '150px' }}
-                        />
-                          <p className="text-xs text-gray-500 mt-1">📸 已上传图片</p>
-                        </div>
-                      )}
-                      {/* 🆕 任务列表卡片 */}
-                      {content.type === 'task-list' && content.taskList && (
-                        <div className="mt-2">
+                
+                {/* 任务列表卡片独立显示（不受 max-w-[80%] 限制） */}
+                {hasTaskList ? (
+                  <div className="flex-1 min-w-0">
+                    {message.content.map((content, contentIndex) => (
+                      <div key={contentIndex}>
+                        {content.type === 'task-list' && content.taskList && (
                           <TaskListCard
                             tasks={content.taskList.tasks as TaskForDisplay[]}
                             totalCount={content.taskList.totalCount}
@@ -378,9 +353,58 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                                 onTaskToggleFromList(taskId, noteId, newCompletedState)
                               }
                             }}
+                            onMoveToToday={(taskId, noteId, noteDate) => {
+                              if (onMoveTaskToToday) {
+                                onMoveTaskToToday(taskId, noteId, noteDate)
+                              }
+                            }}
+                            isRefreshing={isRefreshingTaskList}
                           />
-                        </div>
-                      )}
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  /* 普通消息气泡 */
+                  <div className={`rounded-lg px-3 py-2 shadow-sm max-w-[80%] ${
+                    message.role === 'user' ? 'bg-green-100' : 'bg-white'
+                  }`}>
+                    {message.content.map((content, contentIndex) => (
+                      <div key={contentIndex}>
+                        {content.type === 'text' && content.text && (
+                          <div>
+                            {content.text.startsWith('🔍 智能任务识别中...') ? (
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-green-600">🔍</span>
+                                  <span className="text-sm font-medium text-green-700">智能任务识别</span>
+                                </div>
+                                {content.text.includes('\n用户输入：') && (
+                                  <div className="pl-6">
+                                    <p className="text-xs text-gray-600">
+                                      {content.text.split('\n用户输入：')[1]}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                          <p className="text-sm whitespace-pre-wrap" style={{ color: '#3f3f3f' }}>
+                            {content.text}
+                          </p>
+                            )}
+                          </div>
+                        )}
+                        {content.type === 'image_url' && content.image_url && (
+                          <div className="mt-2">
+                          <img 
+                            src={content.image_url.url} 
+                            alt="上传的图片" 
+                              className="max-w-full h-auto rounded border border-gray-200"
+                            style={{ maxHeight: '150px' }}
+                          />
+                            <p className="text-xs text-gray-500 mt-1">📸 已上传图片</p>
+                          </div>
+                        )}
                       {content.type === 'interactive' && content.interactive && (
                         <div className="mt-2">
                           {/* 任务拆解上下文输入卡片 */}
@@ -520,9 +544,10 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                       )}
                     </div>
                   ))}
-                </div>
+                  </div>
+                )}
               </div>
-            ))
+            )})
           )}
           
           {/* 流式输出和发送中指示器（⭐ Agent模式下不显示） */}

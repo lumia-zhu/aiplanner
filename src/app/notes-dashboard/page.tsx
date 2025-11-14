@@ -42,6 +42,7 @@ import type { DailyTask, QuadrantType } from '@/types'
 import { ReactAgent } from '@/lib/agent/ReactAgent'
 import { AgentMemory } from '@/lib/agent/AgentMemory'
 import { getAllTools } from '@/lib/agent/tools'
+import { GetTasksTool } from '@/lib/agent/tools/GetTasksTool'
 import type { AgentContext } from '@/lib/agent/AgentTypes'
 // ⭐ 任务拆解imports
 import { generateContextQuestions } from '@/lib/contextQuestions'
@@ -102,6 +103,9 @@ export default function NotesDashboardPage() {
   const [isSending, setIsSending] = useState(false)
   const [streamingMessage, setStreamingMessage] = useState('')
   const [isDragOver, setIsDragOver] = useState(false)
+  // 🆕 记录最后一次任务查询的条件（用于刷新任务列表）
+  const [lastTaskQueryFilters, setLastTaskQueryFilters] = useState<any>(null)
+  const [isRefreshingTaskList, setIsRefreshingTaskList] = useState(false)
   const [isImageProcessing, setIsImageProcessing] = useState(false)
   
   // ⭐ Agent 相关状态
@@ -1969,6 +1973,13 @@ export default function NotesDashboardPage() {
         // observation 直接包含 toolResult.data 的内容
         if (step.action === 'get_tasks' && step.observation?.tasks && Array.isArray(step.observation.tasks)) {
           const taskData = step.observation
+          
+          // 🆕 保存查询条件（用于后续刷新）
+          if (step.input) {
+            setLastTaskQueryFilters(step.input)
+            logger.debug('💾 已保存任务查询条件:', step.input)
+          }
+          
           messages.push({
             role: 'assistant',
             content: [{
@@ -2077,6 +2088,9 @@ export default function NotesDashboardPage() {
           
           // ✅ 重新加载当前选中日期的笔记内容（实时更新笔记编辑器）
           await loadNote(user.id, selectedDate)
+          
+          // 🆕 刷新任务列表卡片
+          await refreshTaskListInChat()
           
           logger.success('日历缓存和当前笔记已刷新')
         } catch (error) {
@@ -2399,6 +2413,76 @@ export default function NotesDashboardPage() {
     }
   }, [handleSendMessage])
 
+  // 🆕 刷新聊天中的任务列表卡片（事件驱动更新）
+  const refreshTaskListInChat = useCallback(async () => {
+    if (!user || !lastTaskQueryFilters) {
+      logger.debug('⏭️ 跳过刷新：用户未登录或无查询条件')
+      return
+    }
+    
+    // 检查是否有任务列表卡片
+    const hasTaskList = chatMessages.some(msg => 
+      msg.content.some((c: any) => c.type === 'task-list')
+    )
+    
+    if (!hasTaskList) {
+      logger.debug('⏭️ 跳过刷新：聊天中没有任务列表卡片')
+      return
+    }
+    
+    try {
+      setIsRefreshingTaskList(true)
+      logger.debug('🔄 开始刷新任务列表...')
+      
+      // 调用 GetTasksTool 获取最新任务
+      const getTasksTool = new GetTasksTool()
+      
+      // 组合完整的查询参数（合并 userId 和保存的查询条件）
+      const fullParams = {
+        ...lastTaskQueryFilters,
+        userId: user.id
+      }
+      
+      const result = await getTasksTool.execute(fullParams)
+      
+      if (result.type === 'success' && result.data?.tasks) {
+        const latestTasks = result.data.tasks
+        const totalCount = result.data.count
+        
+        logger.debug('✅ 获取到最新任务:', { count: totalCount })
+        
+        // 更新 chatMessages 中的任务列表卡片
+        setChatMessages(prev => {
+          return prev.map(msg => {
+            const updatedContent = msg.content.map((content: any) => {
+              if (content.type === 'task-list' && content.taskList) {
+                return {
+                  ...content,
+                  taskList: {
+                    tasks: latestTasks,
+                    totalCount: totalCount,
+                    showAll: content.taskList.showAll // 保持展开/折叠状态
+                  }
+                }
+              }
+              return content
+            })
+            
+            return { ...msg, content: updatedContent }
+          })
+        })
+        
+        logger.success('✅ 任务列表卡片已刷新')
+      } else {
+        logger.warn('⚠️ 刷新失败：未获取到任务数据')
+      }
+    } catch (error) {
+      logger.error('❌ 刷新任务列表失败:', error)
+    } finally {
+      setIsRefreshingTaskList(false)
+    }
+  }, [user, lastTaskQueryFilters, chatMessages])
+
   // 🆕 处理从任务列表卡片触发的任务完成状态切换
   const handleTaskToggleFromList = useCallback(async (taskId: string, noteId: string, newCompletedState: boolean) => {
     if (!user) return
@@ -2538,13 +2622,281 @@ export default function NotesDashboardPage() {
       
       logger.success('✅ 任务状态已同步到数据库')
       
+      // 🆕 刷新任务列表卡片
+      await refreshTaskListInChat()
+      
     } catch (error) {
       logger.error('❌ 切换任务状态失败:', error)
       // 如果后台更新失败，回滚UI（重新加载消息）
       alert('操作失败，请重试')
       // TODO: 可以实现更优雅的错误回滚机制
     }
-  }, [user, selectedDate, viewMode, notesCache])
+  }, [user, selectedDate, viewMode, notesCache, refreshTaskListInChat])
+
+  // 🆕 处理任务移动到今天
+  const handleMoveTaskToToday = useCallback(async (taskId: string, noteId: string, noteDate: string) => {
+    if (!user) return
+
+    logger.debug('🚀 开始移动任务到今天:', { taskId, noteId, noteDate })
+
+    // 🚀 乐观更新：立即从任务列表卡片中移除该任务
+    setChatMessages(prevMessages => {
+      return prevMessages.map(msg => {
+        const updatedContent = msg.content.map((content: any) => {
+          if (content.type === 'task-list' && content.taskList) {
+            const updatedTasks = content.taskList.tasks.filter((task: any) => 
+              !(task.id === taskId && task.noteId === noteId)
+            )
+
+            return {
+              ...content,
+              taskList: {
+                ...content.taskList,
+                tasks: updatedTasks,
+                totalCount: updatedTasks.length
+              }
+            }
+          }
+          return content
+        })
+
+        return { ...msg, content: updatedContent }
+      })
+    })
+    logger.debug('🚀 乐观更新：任务已从UI中移除')
+
+    // 后台异步处理
+    try {
+      // 1. 提取任务索引 (taskId 格式: noteId-task-index)
+      const taskIndexMatch = taskId.match(/-task-(\d+)$/)
+      if (!taskIndexMatch) {
+        logger.error('❌ 无效的 taskId 格式:', taskId)
+        alert('任务ID格式错误')
+        return
+      }
+      const taskIndex = parseInt(taskIndexMatch[1])
+
+      // 2. 从缓存或数据库中加载原笔记
+      let originalNote: Note | null = null
+      for (const [dateKey, cachedNote] of notesCache) {
+        if (cachedNote.id === noteId) {
+          originalNote = cachedNote
+          break
+        }
+      }
+
+      if (!originalNote) {
+        logger.debug('⚠️ 缓存中未找到原笔记，尝试从数据库加载...')
+        const originalDate = new Date(noteDate)
+        originalNote = await getNoteByDate(user.id, originalDate)
+      }
+
+      if (!originalNote || !originalNote.content) {
+        logger.error('❌ 未找到原笔记:', noteId)
+        alert('未找到原任务所在的笔记')
+        return
+      }
+
+      // 3. 从原笔记中提取目标任务的信息
+      let currentTaskIndex = 0
+      let targetTask: any = null
+
+      const findTask = (node: any): any => {
+        if (node.type === 'taskItem') {
+          if (currentTaskIndex === taskIndex) {
+            targetTask = node
+            return true
+          }
+          currentTaskIndex++
+        }
+
+        if (node.content && Array.isArray(node.content)) {
+          for (const child of node.content) {
+            if (findTask(child)) return true
+          }
+        }
+
+        return false
+      }
+
+      findTask(originalNote.content)
+
+      if (!targetTask) {
+        logger.error('❌ 未找到目标任务:', taskIndex)
+        alert('未找到目标任务')
+        return
+      }
+
+      logger.debug('✅ 找到目标任务:', targetTask)
+
+      // 4. 加载今天的笔记
+      const today = new Date()
+      let todayNote = await getNoteByDate(user.id, today)
+
+      // 如果今天的笔记不存在，创建一个空笔记结构
+      if (!todayNote || !todayNote.content) {
+        logger.debug('⚠️ 今天的笔记不存在，创建新笔记')
+        todayNote = {
+          id: '',
+          user_id: user.id,
+          note_date: formatNoteDate(today),
+          content: {
+            type: 'doc',
+            content: [
+              {
+                type: 'taskList',
+                content: []
+              }
+            ]
+          },
+          plain_text: '',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          tags: [],
+          has_pending_tasks: true,
+          pending_tasks_count: 0,
+          completed_tasks_count: 0
+        }
+      }
+
+      // 5. 将任务添加到今天的笔记中
+      if (!todayNote || !todayNote.content) {
+        logger.error('❌ 无法创建今天的笔记')
+        alert('无法创建今天的笔记')
+        return
+      }
+      
+      const todayContent = todayNote.content as JSONContent
+
+      // 查找或创建 taskList 节点
+      let taskListNode = todayContent.content?.find((node: any) => node.type === 'taskList')
+      
+      if (!taskListNode) {
+        // 如果没有 taskList，创建一个
+        taskListNode = {
+          type: 'taskList',
+          content: []
+        }
+        if (!todayContent.content) {
+          todayContent.content = []
+        }
+        todayContent.content.push(taskListNode)
+      }
+
+      // 将目标任务添加到今天的 taskList 末尾
+      if (!taskListNode.content) {
+        taskListNode.content = []
+      }
+      taskListNode.content.push({ ...targetTask })
+
+      logger.debug('✅ 任务已添加到今天的笔记')
+
+      // 6. 保存今天的笔记
+      await saveNote(user.id, today, todayContent)
+      logger.success('✅ 今天的笔记已保存')
+
+      // 7. 从原笔记中删除任务
+      currentTaskIndex = 0
+      let taskRemoved = false
+
+      const removeTask = (node: any): any => {
+        if (taskRemoved) return node
+
+        if (node.type === 'taskList' && node.content && Array.isArray(node.content)) {
+          const newContent = node.content.filter((child: any) => {
+            if (child.type === 'taskItem') {
+              if (currentTaskIndex === taskIndex) {
+                taskRemoved = true
+                logger.debug(`✅ 从原笔记中删除任务 #${taskIndex}`)
+                return false // 删除此任务
+              }
+              currentTaskIndex++
+            }
+            return true
+          })
+
+          return { ...node, content: newContent }
+        }
+
+        if (node.content && Array.isArray(node.content)) {
+          return {
+            ...node,
+            content: node.content.map((child: any) => removeTask(child))
+          }
+        }
+
+        return node
+      }
+
+      const updatedOriginalContent = removeTask(originalNote.content)
+
+      // 8. 检查原笔记中的任务列表是否为空，如果为空则删除整个笔记
+      const hasAnyContent = (content: JSONContent): boolean => {
+        if (!content.content || content.content.length === 0) return false
+
+        // 检查是否有非空的 taskList 或非空的 paragraph
+        return content.content.some((node: any) => {
+          if (node.type === 'taskList') {
+            return node.content && node.content.length > 0
+          }
+          if (node.type === 'paragraph') {
+            return node.content && node.content.length > 0
+          }
+          return false
+        })
+      }
+
+      if (!hasAnyContent(updatedOriginalContent)) {
+        logger.debug('🗑️ 原笔记为空，删除笔记')
+        await deleteNote(user.id, new Date(noteDate))
+        notesCache.delete(noteDate)
+      } else {
+        // 保存更新后的原笔记
+        await saveNote(user.id, new Date(noteDate), updatedOriginalContent)
+        // ⭐ 更新缓存中的笔记
+        const cachedNote = Array.from(notesCache.values()).find(note => note.id === noteId)
+        if (cachedNote) {
+          cachedNote.content = updatedOriginalContent
+          notesCache.set(noteDate, cachedNote)
+          logger.debug('✅ 缓存中的笔记已更新')
+        }
+        logger.success('✅ 原笔记已更新')
+      }
+
+      // 9. 同步到 daily_tasks 表
+      await syncTasksFromNote(user.id, formatNoteDate(today), todayContent)
+      await syncTasksFromNote(user.id, noteDate, hasAnyContent(updatedOriginalContent) ? updatedOriginalContent : { type: 'doc', content: [] })
+      logger.success('✅ 任务已同步到数据库')
+
+      // 10. 刷新UI
+      // 更新缓存
+      setLastLoadedRange(null)
+      await loadNotesInRange(user.id, 'month', selectedDate, true)
+
+      // 如果当前选中的是今天或原日期，刷新编辑器
+      const todayStr = formatNoteDate(today)
+      const selectedDateStr = formatNoteDate(selectedDate)
+      
+      if (selectedDateStr === todayStr || selectedDateStr === noteDate) {
+        await loadNote(user.id, selectedDate)
+      }
+
+      // 如果在矩阵模式，刷新矩阵
+      if (viewMode === 'matrix') {
+        await loadTaskMatrix(user.id, selectedDate)
+      }
+
+      logger.success('✅ 任务移动成功')
+      
+      // 🆕 刷新任务列表卡片
+      await refreshTaskListInChat()
+
+    } catch (error) {
+      logger.error('❌ 移动任务失败:', error)
+      // 如果失败，提示用户（但不回滚UI，因为用户可能已经看到任务消失了）
+      alert('移动任务失败，请刷新页面重试')
+    }
+  }, [user, selectedDate, viewMode, notesCache, loadNotesInRange, loadNote, loadTaskMatrix, refreshTaskListInChat])
 
   // 处理任务完成状态切换（矩阵模式）
   const handleTaskComplete = useCallback(async (taskId: string) => {
@@ -3110,6 +3462,8 @@ export default function NotesDashboardPage() {
               onDecompositionConfirm={handleDecompositionConfirm}
               onDecompositionCancel={handleDecompositionCancel}
               onTaskToggleFromList={handleTaskToggleFromList}
+              onMoveTaskToToday={handleMoveTaskToToday}
+              isRefreshingTaskList={isRefreshingTaskList}
             />
           </div>
         </div>
