@@ -21,6 +21,14 @@ import ViewModeToggle from '@/components/ViewModeToggle'
 import type { DateScope, UserProfile, UserProfileInput, ChatMessage, StickyNote as StickyNoteType, TasksByQuadrant, TaskMatrixDimension } from '@/types'
 import { getDefaultDateScope } from '@/utils/dateUtils'
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns'
+// 🆕 新的维度系统
+import { 
+  type DimensionType, 
+  type MatrixAxesConfig, 
+  DEFAULT_MATRIX_AXES, 
+  PRESET_MATRIX_CONFIGS,
+  isDimensionConflict 
+} from '@/constants/dimensions'
 import { getUserProfile, upsertUserProfile } from '@/lib/userProfile'
 import { doubaoService } from '@/lib/doubaoService'
 import { saveChatMessage, getChatMessages, getAllChatMessages, clearChatMessages, clearAllChatMessages } from '@/lib/chatMessages'
@@ -133,13 +141,28 @@ export default function NotesDashboardPage() {
   
   // 任务矩阵相关状态
   const [viewMode, setViewMode] = useState<'editor' | 'matrix'>('editor')  // 视图模式：编辑器 或 矩阵
-  const [selectedMatrixDimension, setSelectedMatrixDimension] = useState<TaskMatrixDimension>('urgent-important')  // 当前选中的矩阵维度
+  const [selectedMatrixDimension, setSelectedMatrixDimension] = useState<TaskMatrixDimension>('urgent-important')  // 当前选中的矩阵维度（预设）
   const [tasksByQuadrant, setTasksByQuadrant] = useState<TasksByQuadrant>({
     'unclassified': [],
     'urgent-important': [],
     'not-urgent-important': [],
     'urgent-not-important': [],
     'not-urgent-not-important': [],
+  })
+  
+  // 🆕 自定义矩阵轴配置（支持6个维度自由组合）
+  const [matrixAxes, setMatrixAxes] = useState<MatrixAxesConfig>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('matrixAxesConfig')
+      if (saved) {
+        try {
+          return JSON.parse(saved)
+        } catch (e) {
+          console.error('Failed to parse saved matrix axes config:', e)
+        }
+      }
+    }
+    return DEFAULT_MATRIX_AXES  // 默认：紧急-重要
   })
   
   // 任务进度条显示/隐藏状态（持久化到 localStorage）
@@ -379,6 +402,69 @@ export default function NotesDashboardPage() {
       })
     }
   }, [])
+  
+  // 🆕 切换X轴维度（包含冲突检测和提示）
+  const handleXAxisChange = useCallback((newDimension: DimensionType) => {
+    // 冲突检测
+    if (isDimensionConflict(newDimension, matrixAxes.yAxis)) {
+      alert(`⚠️ X轴和Y轴不能选择相同维度！\n\n当前Y轴已选择：${matrixAxes.yAxis}`)
+      return
+    }
+    
+    // 更新状态
+    const newConfig: MatrixAxesConfig = {
+      ...matrixAxes,
+      xAxis: newDimension
+    }
+    setMatrixAxes(newConfig)
+    
+    // 持久化到 localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('matrixAxesConfig', JSON.stringify(newConfig))
+      console.log('💾 已保存X轴配置:', newConfig)
+    }
+  }, [matrixAxes])
+  
+  // 🆕 切换Y轴维度（包含冲突检测和提示）
+  const handleYAxisChange = useCallback((newDimension: DimensionType) => {
+    // 冲突检测
+    if (isDimensionConflict(newDimension, matrixAxes.xAxis)) {
+      alert(`⚠️ X轴和Y轴不能选择相同维度！\n\n当前X轴已选择：${matrixAxes.xAxis}`)
+      return
+    }
+    
+    // 更新状态
+    const newConfig: MatrixAxesConfig = {
+      ...matrixAxes,
+      yAxis: newDimension
+    }
+    setMatrixAxes(newConfig)
+    
+    // 持久化到 localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('matrixAxesConfig', JSON.stringify(newConfig))
+      console.log('💾 已保存Y轴配置:', newConfig)
+    }
+  }, [matrixAxes])
+  
+  // 🆕 同步预设矩阵选择器与自定义轴配置（保持兼容性）
+  useEffect(() => {
+    // 当用户通过预设选择器切换矩阵时，同步更新自定义轴配置
+    const presetConfig = PRESET_MATRIX_CONFIGS[selectedMatrixDimension]
+    if (presetConfig) {
+      const newConfig: MatrixAxesConfig = {
+        xAxis: presetConfig.xAxis,
+        yAxis: presetConfig.yAxis
+      }
+      // 只有在不同时才更新（避免循环）
+      if (newConfig.xAxis !== matrixAxes.xAxis || newConfig.yAxis !== matrixAxes.yAxis) {
+        setMatrixAxes(newConfig)
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('matrixAxesConfig', JSON.stringify(newConfig))
+        }
+      }
+    }
+  }, [selectedMatrixDimension, matrixAxes.xAxis, matrixAxes.yAxis])
   
   // 格式化时间范围显示
   const formatTimeRange = (deadlineDatetime: string): string => {
@@ -2808,6 +2894,9 @@ export default function NotesDashboardPage() {
                       onTaskComplete={handleTaskComplete}
                       onTaskDrop={handleTaskDrop}
                       isEmbedded={true}
+                      customAxes={matrixAxes}
+                      onXAxisChange={handleXAxisChange}
+                      onYAxisChange={handleYAxisChange}
                     />
                     
                     {/* 浮动AI助手按钮 - 在矩阵右下角 */}

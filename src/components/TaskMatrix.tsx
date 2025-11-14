@@ -24,6 +24,8 @@ import { QUADRANT_CONFIGS } from '@/types/task-matrix'
 import { MATRIX_DIMENSION_CONFIGS, MATRIX_QUADRANTS_CONFIGS } from '@/types'
 import type { Task, TaskMatrixDimension } from '@/types'
 import type { QuadrantType, TasksByQuadrant } from '@/types/task-matrix'
+// 🆕 新的维度系统
+import type { DimensionType, MatrixAxesConfig } from '@/constants/dimensions'
 
 // ============================================
 // 类型定义
@@ -37,6 +39,10 @@ interface TaskMatrixProps {
   onTaskComplete: (id: string) => void       // 任务完成回调
   onTaskDrop: (taskId: string, targetQuadrant: QuadrantType) => void  // 任务拖拽放置回调
   isEmbedded?: boolean                       // 是否为嵌入模式（默认 false，即弹窗模式）
+  // 🆕 自定义轴配置（可选）
+  customAxes?: MatrixAxesConfig              // 自定义X/Y轴维度
+  onXAxisChange?: (dimension: DimensionType) => void  // X轴切换回调
+  onYAxisChange?: (dimension: DimensionType) => void  // Y轴切换回调
 }
 
 // ============================================
@@ -51,11 +57,17 @@ export default function TaskMatrix({
   onTaskComplete,
   onTaskDrop,
   isEmbedded = false,
+  customAxes,
+  onXAxisChange,
+  onYAxisChange,
 }: TaskMatrixProps) {
   
   // 获取当前矩阵维度的配置
   const dimensionConfig = MATRIX_DIMENSION_CONFIGS[selectedDimension]
   const quadrantsConfig = MATRIX_QUADRANTS_CONFIGS[selectedDimension]
+  
+  // 判断是否使用自定义轴配置
+  const useCustomAxes = !!customAxes && !!onXAxisChange && !!onYAxisChange
   
   // 拖拽状态
   const [activeTask, setActiveTask] = useState<Task | null>(null)
@@ -249,7 +261,19 @@ export default function TaskMatrix({
               />
               
               {/* 坐标轴覆盖层 */}
-              <CoordinateAxis axes={dimensionConfig.axes} />
+              {useCustomAxes && customAxes ? (
+                /* 🆕 使用自定义轴配置（支持交互选择） */
+                <CoordinateAxis 
+                  xAxis={customAxes.xAxis}
+                  yAxis={customAxes.yAxis}
+                  onXAxisChange={onXAxisChange}
+                  onYAxisChange={onYAxisChange}
+                  interactive={true}
+                />
+              ) : (
+                /* 使用预设配置（静态显示） */
+                <CoordinateAxis axes={dimensionConfig.axes} />
+              )}
             </div>
           </div>
         </div>
