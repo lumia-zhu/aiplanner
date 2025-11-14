@@ -9,6 +9,7 @@
 
 import { AgentTool, ParameterSchema, ToolResult } from '../AgentTypes'
 import { format } from 'date-fns'
+import { sortTasksByPriority } from '@/utils/taskPriority'
 
 interface GetTasksParams {
   userId: string
@@ -117,16 +118,20 @@ export class GetTasksTool implements AgentTool {
         estimatedMinutes: t.estimatedMinutes,
         needsClarification: !t.description || (t.description && t.description.length < 10),
         isCompleted: t.isCompleted || false,
-        noteDate: t.noteDate
+        noteDate: t.noteDate,
+        noteId: t.noteId
       }))
 
-      console.log(`✅ 查询完成: ${simplifiedTasks.length} 个任务`)
+      // 🎯 应用智能优先级排序
+      const sortedTasks = sortTasksByPriority(simplifiedTasks)
+
+      console.log(`✅ 查询完成: ${sortedTasks.length} 个任务（已排序）`)
 
       return {
         type: 'success',
         data: {
-          count: simplifiedTasks.length,
-          tasks: simplifiedTasks,
+          count: sortedTasks.length,
+          tasks: sortedTasks,
           filters: {
             dateRange: params.dateRange || {
               start: format(startDate, 'yyyy-MM-dd'),
@@ -134,7 +139,9 @@ export class GetTasksTool implements AgentTool {
             },
             priority: params.priority,
             includeCompleted: params.includeCompleted || false
-          }
+          },
+          // 🆕 标识是否需要分页展示（超过5个任务）
+          shouldPaginate: sortedTasks.length > 5
         }
       }
 

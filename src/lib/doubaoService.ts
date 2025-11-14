@@ -149,15 +149,36 @@ export interface AgentLoadingData {
   message?: string          // 加载提示文本（可选）
 }
 
+/**
+ * 任务列表数据类型（用于 Agent 查询任务时的结构化展示）
+ */
+interface TaskListData {
+  tasks: Array<{
+    id: string
+    noteId: string
+    title: string
+    isCompleted: boolean
+    deadline?: string
+    estimatedMinutes?: number
+    hasDeadline?: boolean
+    hasEstimation?: boolean
+    priority?: 'high' | 'medium' | 'low'
+    noteDate?: string
+  }>
+  totalCount: number
+  showAll?: boolean
+}
+
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system'
   content: Array<{
-    type: 'text' | 'image_url' | 'interactive'  // ⭐ 新增 'interactive'
+    type: 'text' | 'image_url' | 'interactive' | 'task-list'  // ⭐ 新增 'task-list'
     text?: string
     image_url?: {
       url: string
     }
     interactive?: InteractiveMessage  // ⭐ 新增交互式消息
+    taskList?: TaskListData  // 🆕 任务列表数据
   }>
 }
 
@@ -1081,4 +1102,4 @@ ${editedText}
 
 // 导出单例
 export const doubaoService = new DoubaoService()
-export type { ChatMessage, ChatResponse, InteractiveMessage, InteractiveMessageType }
+export type { ChatMessage, ChatResponse, InteractiveMessage, InteractiveMessageType, TaskListData }

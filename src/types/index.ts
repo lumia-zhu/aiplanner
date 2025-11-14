@@ -593,15 +593,36 @@ export interface DateScopePresetOption {
 import type { InteractiveMessage } from '@/lib/doubaoService'
 
 /**
+ * 任务列表数据类型（用于 Agent 查询任务时的结构化展示）
+ */
+export interface TaskListData {
+  tasks: Array<{
+    id: string
+    noteId: string
+    title: string
+    isCompleted: boolean
+    deadline?: string
+    estimatedMinutes?: number
+    hasDeadline?: boolean
+    hasEstimation?: boolean
+    priority?: 'high' | 'medium' | 'low'
+    noteDate?: string
+  }>
+  totalCount: number
+  showAll?: boolean
+}
+
+/**
  * 消息内容项类型
  */
 export interface MessageContent {
-  type: 'text' | 'image_url' | 'interactive'
+  type: 'text' | 'image_url' | 'interactive' | 'task-list'
   text?: string
   image_url?: {
     url: string
   }
   interactive?: InteractiveMessage
+  taskList?: TaskListData  // 🆕 任务列表数据
 }
 
 /**

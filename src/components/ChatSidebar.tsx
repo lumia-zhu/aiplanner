@@ -19,6 +19,8 @@ import AgentActionCard from './AgentActionCard'
 import AgentObservationCard from './AgentObservationCard'
 import AgentNeedInputCard from './AgentNeedInputCard'
 import AgentLoadingIndicator from './AgentLoadingIndicator'
+import TaskListCard from './TaskListCard'
+import type { TaskForDisplay } from './TaskListCard'
 
 // 任务识别相关类型
 interface RecognizedTask {
@@ -359,6 +361,19 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                           style={{ maxHeight: '150px' }}
                         />
                           <p className="text-xs text-gray-500 mt-1">📸 已上传图片</p>
+                        </div>
+                      )}
+                      {/* 🆕 任务列表卡片 */}
+                      {content.type === 'task-list' && content.taskList && (
+                        <div className="mt-2">
+                          <TaskListCard
+                            tasks={content.taskList.tasks as TaskForDisplay[]}
+                            totalCount={content.taskList.totalCount}
+                            onTaskToggle={(taskId, noteId, newCompletedState) => {
+                              console.log('⭐ 任务勾选状态变更:', { taskId, noteId, newCompletedState })
+                              // TODO: 后续实现任务完成状态切换逻辑
+                            }}
+                          />
                         </div>
                       )}
                       {content.type === 'interactive' && content.interactive && (

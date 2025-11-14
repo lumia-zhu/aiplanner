@@ -1954,7 +1954,31 @@ export default function NotesDashboardPage() {
       }
     }
     
-    // 3. 添加最终文本回复
+    // 🆕 2.5 检测 get_tasks 工具调用，如果有则添加结构化任务列表卡片
+    let hasTaskListCard = false
+    if (result.metadata?.steps && Array.isArray(result.metadata.steps)) {
+      for (const step of result.metadata.steps) {
+        if (step.action === 'get_tasks' && step.success && step.toolResult?.data?.tasks) {
+          const taskData = step.toolResult.data
+          messages.push({
+            role: 'assistant',
+            content: [{
+              type: 'task-list',
+              taskList: {
+                tasks: taskData.tasks,
+                totalCount: taskData.count,
+                showAll: false
+              }
+            }]
+          })
+          hasTaskListCard = true
+          logger.debug('✅ 已添加任务列表卡片', { taskCount: taskData.count })
+          break // 只添加一次任务列表卡片
+        }
+      }
+    }
+    
+    // 3. 添加最终文本回复（如果没有任务列表卡片，或者作为补充说明）
     messages.push({
       role: 'assistant',
       content: [{ type: 'text', text: result.content }]
