@@ -2231,12 +2231,106 @@ export default function NotesDashboardPage() {
   
   // ⭐⭐⭐ End of Agent Functions ⭐⭐⭐
 
+  // ⭐ 处理普通对话（非任务管理）
+  const handleCasualChat = useCallback(async () => {
+    if (!user) return
+    
+    setIsSending(true)
+    setStreamingMessage('')
+    
+    try {
+      const { casualChat } = await import('@/lib/casualChatService')
+      
+      // 添加用户消息到聊天历史
+      const userMessage: ChatMessage = {
+        role: 'user',
+        content: [{
+          type: 'text',
+          text: chatMessage.trim()
+        }]
+      }
+      
+      const newMessages = [...chatMessages, userMessage]
+      setChatMessages(newMessages)
+      
+      // 构建对话历史（最近5条）
+      const conversationHistory = chatMessages.slice(-5).map(msg => ({
+        role: msg.role,
+        content: msg.content.map((c: any) => c.type === 'text' ? c.text : '').join('')
+      }))
+      
+      // 流式接收 AI 回复
+      let fullResponse = ''
+      for await (const chunk of casualChat(chatMessage.trim(), conversationHistory)) {
+        fullResponse += chunk
+        setStreamingMessage(prev => prev + chunk)
+      }
+      
+      // 完成后添加到聊天历史
+      const aiMessage: ChatMessage = {
+        role: 'assistant',
+        content: [{
+          type: 'text',
+          text: fullResponse
+        }]
+      }
+      
+      setStreamingMessage('')
+      setChatMessages([...newMessages, aiMessage])
+      
+      // 保存到数据库
+      const chatDate = formatNoteDate(currentContextDate)
+      await saveChatMessage(user.id, chatDate, 'user', userMessage.content, chatDate)
+      await saveChatMessage(user.id, chatDate, 'assistant', aiMessage.content, chatDate)
+      
+      console.log('✅ 普通对话完成')
+      
+    } catch (error) {
+      console.error('❌ 普通对话失败:', error)
+      const errorMessage: ChatMessage = {
+        role: 'assistant',
+        content: [{
+          type: 'text',
+          text: '抱歉，处理您的消息时出现了问题，请稍后重试。'
+        }]
+      }
+      setChatMessages([...chatMessages, errorMessage])
+    } finally {
+      setChatMessage('')
+      setIsSending(false)
+      setStreamingMessage('')
+    }
+  }, [chatMessage, chatMessages, user, currentContextDate])
+
   // 处理发送消息
   const handleSendMessage = useCallback(async () => {
     if (!chatMessage.trim() && !selectedImage) return
     if (!doubaoService.hasApiKey()) {
       alert('请先在 .env.local 文件中配置 NEXT_PUBLIC_DOUBAO_API_KEY')
       return
+    }
+
+    // ⭐ 第一步：意图分类（仅对文本消息）
+    if (chatMessage.trim() && !selectedImage) {
+      try {
+        const { classifyIntent } = await import('@/lib/intentClassifier')
+        const intent = await classifyIntent(chatMessage.trim())
+        
+        console.log('🎯 意图分类结果:', intent)
+        
+        // 如果是普通聊天，直接调用简单对话服务
+        if (intent.type === 'casual_chat') {
+          console.log('💬 检测到普通聊天，使用简单对话模式')
+          await handleCasualChat()
+          return
+        }
+        
+        // 如果是任务管理，继续使用 Agent 或普通模式
+        console.log('📋 检测到任务管理意图，使用 Agent/普通模式')
+      } catch (error) {
+        console.error('⚠️ 意图分类失败，使用默认流程:', error)
+        // 分类失败，继续使用默认流程
+      }
     }
 
     // ⭐ 检查是否为 Agent 模式
