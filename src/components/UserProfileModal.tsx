@@ -25,6 +25,7 @@ export default function UserProfileModal({
   const [grade, setGrade] = useState('')
   const [challenges, setChallenges] = useState<string[]>([])
   const [workplaces, setWorkplaces] = useState<string[]>([])
+  const [dailyReflectionTime, setDailyReflectionTime] = useState<string>('') // 🆕 每日反思提醒时间
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -35,11 +36,13 @@ export default function UserProfileModal({
       setGrade(initialProfile.grade || '')
       setChallenges(initialProfile.challenges || [])
       setWorkplaces(initialProfile.workplaces || [])
+      setDailyReflectionTime(initialProfile.daily_reflection_time || '')
     } else {
       setMajor('')
       setGrade('')
       setChallenges([])
       setWorkplaces([])
+      setDailyReflectionTime('')
     }
     setError('')
   }, [initialProfile, isOpen])
@@ -56,6 +59,7 @@ export default function UserProfileModal({
         grade: grade || undefined,
         challenges: challenges,
         workplaces: workplaces,
+        daily_reflection_time: dailyReflectionTime || undefined, // 🆕 只有设置了才保存
       }
 
       await onSave(profileData)
@@ -192,6 +196,38 @@ export default function UserProfileModal({
               maxTags={5}
               placeholder="输入其他场所"
             />
+
+            {/* 🆕 每日反思提醒时间 */}
+            <div>
+              <label htmlFor="reflectionTime" className="block text-sm font-medium text-gray-700 mb-2">
+                每日反思提醒时间 <span className="text-gray-400 text-xs">(可选)</span>
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  id="reflectionTime"
+                  type="time"
+                  value={dailyReflectionTime}
+                  onChange={(e) => setDailyReflectionTime(e.target.value)}
+                  className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-gray-900"
+                  disabled={isSaving}
+                />
+                {dailyReflectionTime && (
+                  <button
+                    type="button"
+                    onClick={() => setDailyReflectionTime('')}
+                    className="px-3 py-2.5 text-sm text-gray-600 hover:text-red-600 transition-colors"
+                    title="清除提醒时间"
+                  >
+                    清除
+                  </button>
+                )}
+              </div>
+              <p className="mt-1 text-xs text-gray-500">
+                {dailyReflectionTime 
+                  ? `每天 ${dailyReflectionTime} 会提醒你进行反思总结`
+                  : '未设置提醒时间，可以根据需要选择'}
+              </p>
+            </div>
 
             {/* 提示信息 */}
             <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">

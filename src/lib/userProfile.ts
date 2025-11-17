@@ -112,6 +112,9 @@ export async function updateUserProfile(
     if (profileInput.custom_task_tags !== undefined) {
       updateData.custom_task_tags = profileInput.custom_task_tags
     }
+    if (profileInput.daily_reflection_time !== undefined) {
+      updateData.daily_reflection_time = profileInput.daily_reflection_time || null
+    }
     
     const { data, error } = await supabase
       .from('user_profiles')

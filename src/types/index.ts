@@ -48,6 +48,7 @@ export interface UserProfile {
   challenges: string[]        // 挑战标签数组
   workplaces: string[]        // 工作场所标签数组
   custom_task_tags?: string[] // ⭐ 新增: 用户自定义任务标签池(可选,最多20个)
+  daily_reflection_time?: string // 🆕 每日反思提醒时间（HH:mm 格式，如 "21:00"，可选）
   created_at: string
   updated_at: string
 }
@@ -59,6 +60,7 @@ export interface UserProfileInput {
   challenges?: string[]
   workplaces?: string[]
   custom_task_tags?: string[] // ⭐ 新增: 用户自定义任务标签池
+  daily_reflection_time?: string // 🆕 每日反思提醒时间（HH:mm 格式）
 }
 
 // 预定义的年级选项
