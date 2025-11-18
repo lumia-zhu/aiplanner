@@ -129,7 +129,7 @@ export class CompleteTaskTool implements AgentTool {
       // 6. 幂等性检查（避免重复操作）
       if (originalTask.checked === params.completed) {
         const statusText = params.completed ? '已完成' : '未完成'
-        console.log(`ℹ️ 任务已经是${statusText}状态，无需更新`)
+        console.log(`ℹ️ 任务已经是${statusText}状态，无需更新数据库`)
         return {
           type: 'success',
           data: {
@@ -139,8 +139,9 @@ export class CompleteTaskTool implements AgentTool {
             completed: params.completed,
             message: `任务「${originalTask.title}」已经是${statusText}状态`
           },
-          // ℹ️ 幂等操作不需要刷新（数据没有变化）
-          shouldRefreshNote: false
+          // ✅ 即使是幂等操作也刷新，确保 UI 和数据库同步
+          shouldRefreshNote: true,
+          affectedDates: [params.noteDate]
         }
       }
 

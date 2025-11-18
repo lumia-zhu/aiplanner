@@ -1722,6 +1722,74 @@ export default function NotesDashboardPage() {
   // ⭐⭐⭐ Agent Message Handling Functions ⭐⭐⭐
   
   // 处理 Agent 模式的消息
+  // 🆕 检查并刷新笔记（根据工具执行结果）
+  const checkAndRefreshNote = useCallback(async (agent: any) => {
+    try {
+      console.log('🔍 [DEBUG] 开始检查是否需要刷新笔记...')
+      
+      // 从 Agent 的执行历史中获取所有工具执行步骤
+      const steps = agent.memory.getSteps()
+      console.log('🔍 [DEBUG] Agent 执行步骤数量:', steps.length)
+      
+      // 检查是否有任何工具要求刷新
+      let needsRefresh = false
+      const allAffectedDates = new Set<string>()
+      
+      for (let i = 0; i < steps.length; i++) {
+        const step = steps[i]
+        // observation 中包含了 ToolResult
+        const toolResult = step.observation
+        
+        console.log(`🔍 [DEBUG] 步骤 ${i}:`, {
+          action: step.action,
+          observationType: toolResult?.type,
+          shouldRefreshNote: toolResult?.shouldRefreshNote,
+          affectedDates: toolResult?.affectedDates,
+          fullObservation: toolResult
+        })
+        
+        if (toolResult?.shouldRefreshNote === true) {
+          needsRefresh = true
+          console.log(`✅ [DEBUG] 步骤 ${i} 需要刷新`)
+          
+          // 收集受影响的日期
+          if (toolResult.affectedDates && Array.isArray(toolResult.affectedDates)) {
+            toolResult.affectedDates.forEach((date: string) => 
+              allAffectedDates.add(date)
+            )
+          }
+        }
+      }
+      
+      console.log('🔍 [DEBUG] 检查结果:', { needsRefresh, affectedDatesCount: allAffectedDates.size })
+      
+      if (!needsRefresh) {
+        console.log('ℹ️ 无需刷新笔记')
+        return
+      }
+      
+      console.log('🔄 检测到笔记修改，开始刷新...')
+      console.log('📅 受影响的日期:', Array.from(allAffectedDates))
+      
+      // 刷新当前笔记
+      if (user) {
+        await loadNote(user.id, selectedDate)
+        console.log('✅ 当前笔记已刷新')
+      }
+      
+      // 如果有多个日期受影响，刷新日历视图
+      if (allAffectedDates.size > 1 && user) {
+        console.log('🔄 刷新日历视图（多个日期受影响）...')
+        await loadNotesForMultipleMonths(user.id, selectedDate, 1)
+        console.log('✅ 日历视图已刷新')
+      }
+      
+    } catch (error) {
+      console.error('❌ 刷新笔记失败:', error)
+      // 不抛出错误，避免影响用户体验
+    }
+  }, [loadNote, loadNotesForMultipleMonths, user, selectedDate, calculateNotesDateRange])
+  
   const handleAgentMessage = async () => {
     if (!agentInstance || !user) {
       console.error('❌ Agent 未初始化或用户未登录')
@@ -1836,6 +1904,11 @@ export default function NotesDashboardPage() {
       }
     } finally {
       setIsAgentRunning(false)
+      
+      // 🆕 检查是否需要刷新笔记
+      if (agentInstance) {
+        await checkAndRefreshNote(agentInstance)
+      }
     }
   }
   

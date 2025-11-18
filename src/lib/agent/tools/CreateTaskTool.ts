@@ -111,7 +111,10 @@ export class CreateTaskTool implements AgentTool {
           noteDate: dateStr,
           taskTitle: params.taskTitle,
           message: successMessage
-        }
+        },
+        // 🆕 UI 刷新标记
+        shouldRefreshNote: true,
+        affectedDates: [dateStr]
       }
     } catch (error) {
       console.error('❌ CreateTaskTool 执行失败:', error)

@@ -152,7 +152,10 @@ export class DeleteTaskTool implements AgentTool {
             taskPosition: params.taskPosition,
             deletedTitle: task.title,
             message: successMessage
-          }
+          },
+          // 🆕 UI 刷新标记
+          shouldRefreshNote: true,
+          affectedDates: [params.noteDate]
         }
       } catch (error) {
         console.error('❌ 删除任务失败:', error)

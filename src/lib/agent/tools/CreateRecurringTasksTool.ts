@@ -208,7 +208,10 @@ export class CreateRecurringTasksTool implements AgentTool {
           successCount,
           failCount,
           results
-        }
+        },
+        // 🆕 UI 刷新标记
+        shouldRefreshNote: true,
+        affectedDates: dates.map(d => formatNoteDate(d))
       }
     } catch (error) {
       console.error('❌ CreateRecurringTasksTool 执行失败:', error)

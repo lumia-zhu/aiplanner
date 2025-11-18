@@ -245,10 +245,12 @@ export class ReactAgent {
 
           if (toolResult.type === 'success') {
             console.log('✅ 工具执行成功')
+            // ⚠️ 保存完整的 toolResult，而不只是 data
+            // 这样 checkAndRefreshNote 才能读取到 shouldRefreshNote 和 affectedDates
             this.memory.addStep({
               action: parsed.action!,
               input: parsed.actionInput,
-              observation: toolResult.data || { message: toolResult.message }
+              observation: toolResult  // ✅ 保存完整的 ToolResult
             })
             
             // ⭐ 对于明确的操作类工具（创建/更新/删除），成功后立即返回，不再让 LLM 思考

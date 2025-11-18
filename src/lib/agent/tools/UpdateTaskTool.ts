@@ -166,7 +166,10 @@ export class UpdateTaskTool implements AgentTool {
             originalTitle: originalTask.title,
             updates: params.updates,
             message: successMessage
-          }
+          },
+          // 🆕 UI 刷新标记
+          shouldRefreshNote: true,
+          affectedDates: [params.noteDate]
         }
       } catch (error) {
         console.error('❌ 更新任务失败:', error)
