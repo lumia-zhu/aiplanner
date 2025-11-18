@@ -141,8 +141,8 @@ export class UpdateTaskTool implements AgentTool {
           params.updates
         )
 
-        // 7. 保存笔记
-        await saveNote(params.userId, note.id, newContent)
+        // 7. 保存笔记（noteDate 必须是 Date 对象）
+        await saveNote(params.userId, noteDate, newContent)
 
         // 8. 构建成功消息
         const updatedFields: string[] = []

@@ -354,6 +354,34 @@ function buildToolsSection(tools: AgentTool[]): string {
   section += `**记住：searchKeyword 是用来筛选任务的，不是用来描述范围的！**\n\n`
   section += `---\n\n`
   
+  section += `### ✅ 完成任务（推荐使用专用工具）\n\n`
+  section += `**单个任务完成/取消完成：**\n`
+  section += `- 用户说："完成第一个任务"、"勾选买菜"、"标记完成"、"取消完成第二个"\n`
+  section += `- **推荐工具**：\`complete_task\`（专用，语义清晰）\n`
+  section += `- 也可用：\`update_task\`（通用工具，但参数更复杂）\n`
+  section += `- **✅ 正确流程**：\n`
+  section += `  1. Thought: 用户要完成某个任务\n`
+  section += `  2. Action: complete_task（传入 noteDate, taskPosition, completed=true）\n`
+  section += `  3. Observation: 任务已完成\n`
+  section += `  4. **Final Answer: ✅ 已完成任务：xxx** ← 立即停止！\n`
+  section += `- **❌ 常见错误**：不要在完成后调用 \`get_tasks\` 验证！\n\n`
+  section += `**批量任务完成/取消完成：**\n`
+  section += `- 用户说："完成今天所有任务"、"完成这周所有锻炼任务"\n`
+  section += `- **推荐工具**：\`complete_recurring_tasks\`（专用批量工具）\n`
+  section += `- **⚠️ 重要**：理解"所有任务"的含义\n`
+  section += `  * "完成所有任务"（没指定类型）→ **不传 searchKeyword**\n`
+  section += `  * "完成所有锻炼任务"（指定类型）→ 传 searchKeyword="锻炼"\n`
+  section += `- **✅ 正确流程**：\n`
+  section += `  1. Thought: 用户要批量完成任务\n`
+  section += `  2. Action: complete_recurring_tasks\n`
+  section += `  3. Observation: 批量完成成功（共更新 X 个任务）\n`
+  section += `  4. **Final Answer: ✅ 已完成 X 个任务** ← 立即停止！\n`
+  section += `- **❌ 常见错误**：\n`
+  section += `  - 不要用 \`update_recurring_tasks\`，那是通用更新工具\n`
+  section += `  - 不要在批量完成前调用 \`get_tasks\` 查询\n`
+  section += `  - "完成所有任务"时不要传 searchKeyword="所有任务" ← 这会搜索标题包含"所有任务"的任务！\n\n`
+  section += `---\n\n`
+  
   section += `### ➕ 创建、更新、删除任务（CRUD 操作）\n\n`
   section += `**⚠️ 重要规则：CRUD 操作执行完后，立即返回 Final Answer，不要继续推理！**\n\n`
   section += `**创建任务：**\n`
