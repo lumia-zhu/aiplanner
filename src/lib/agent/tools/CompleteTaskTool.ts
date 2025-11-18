@@ -138,7 +138,9 @@ export class CompleteTaskTool implements AgentTool {
             taskTitle: originalTask.title,
             completed: params.completed,
             message: `任务「${originalTask.title}」已经是${statusText}状态`
-          }
+          },
+          // ℹ️ 幂等操作不需要刷新（数据没有变化）
+          shouldRefreshNote: false
         }
       }
 
@@ -169,7 +171,10 @@ export class CompleteTaskTool implements AgentTool {
             taskTitle: originalTask.title,
             completed: params.completed,
             message: successMessage
-          }
+          },
+          // 🆕 UI 刷新标记
+          shouldRefreshNote: true,
+          affectedDates: [params.noteDate]
         }
       } catch (error) {
         console.error('❌ 更新任务失败:', error)

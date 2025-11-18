@@ -25,15 +25,22 @@ export type ToolResult =
   | {
       type: 'success'
       data: any
+      // 🆕 UI 刷新相关字段
+      shouldRefreshNote?: boolean    // 是否需要刷新笔记
+      affectedDates?: string[]        // 受影响的日期（YYYY-MM-DD 格式）
     }
   | {
       type: 'need_input'
       prompt: string      // 要询问用户的问题
       context: any        // 上下文信息（用于恢复流程）
+      // 🆕 UI 刷新相关字段（交互式工具也可能修改数据）
+      shouldRefreshNote?: boolean
+      affectedDates?: string[]
     }
   | {
       type: 'error'
       message: string
+      // ❌ error 类型不需要刷新（因为操作失败了）
     }
 
 /**
