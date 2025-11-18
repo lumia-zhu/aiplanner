@@ -138,8 +138,8 @@ export class DeleteTaskTool implements AgentTool {
       try {
         const newContent = deleteTaskFromNote(note.content, params.taskPosition)
 
-        // 保存笔记
-        await saveNote(params.userId, note.id, newContent)
+        // 保存笔记（noteDate 必须是 Date 对象）
+        await saveNote(params.userId, noteDate, newContent)
 
         const successMessage = `✅ 任务已删除：${task.title}\n📅 日期：${params.noteDate}`
 
