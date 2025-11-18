@@ -9,7 +9,7 @@
  * - Long-term Memory（任务上下文缓存）
  */
 
-import type { Task, UserProfile, DateScope } from '@/types'
+import type { Task, UserProfile, DateScope, MatrixContext } from '@/types'
 
 // ==================== 工具相关类型 ====================
 
@@ -165,6 +165,9 @@ export interface AgentContext {
   
   /** 任务上下文缓存（Long-term Memory） */
   taskContext?: TaskContext
+  
+  /** 🆕 矩阵模式上下文 */
+  matrixContext?: MatrixContext | null
 }
 
 /**

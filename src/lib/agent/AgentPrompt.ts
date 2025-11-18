@@ -8,7 +8,7 @@
  */
 
 import { ChatMessage, AgentTool, TaskContext, ParsedOutput } from './AgentTypes'
-import type { UserProfile, DateScope } from '@/types'
+import type { UserProfile, DateScope, MatrixContext } from '@/types'
 import { format } from 'date-fns'
 
 /**
@@ -22,6 +22,7 @@ export interface BuildReActPromptParams {
   userProfile: UserProfile | null
   dateScope: DateScope
   userId: string
+  matrixContext?: MatrixContext | null  // 🆕 矩阵模式上下文
 }
 
 /**
@@ -34,7 +35,7 @@ export interface BuildReActPromptParams {
  * 4. 严格的输出格式
  */
 export function buildReActPrompt(params: BuildReActPromptParams): string {
-  const { userMessage, memory, tools, taskContext, userProfile, dateScope, userId } = params
+  const { userMessage, memory, tools, taskContext, userProfile, dateScope, userId, matrixContext } = params
 
   // 1. 系统角色设定（基于 ReAct 范式）
   const rolePrompt = `你是一个智能任务管理助手，采用 ReAct (Reasoning and Acting) 范式工作。
@@ -71,7 +72,7 @@ export function buildReActPrompt(params: BuildReActPromptParams): string {
 - ❌ 不要给"如何创建任务"的示例，而是真正创建任务`
 
   // 2. 当前上下文
-  const contextPrompt = buildContextSection(taskContext, userProfile, dateScope, userId)
+  const contextPrompt = buildContextSection(taskContext, userProfile, dateScope, userId, matrixContext)
 
   // 3. 可用工具
   const toolsPrompt = buildToolsSection(tools)
@@ -277,7 +278,8 @@ function buildContextSection(
   taskContext: TaskContext | null,
   userProfile: UserProfile | null,
   dateScope: DateScope,
-  userId: string
+  userId: string,
+  matrixContext?: MatrixContext | null
 ): string {
   let section = `## 当前上下文\n\n`
 
@@ -293,10 +295,15 @@ function buildContextSection(
     section += `\n`
   }
 
-  // 日期范围
-  section += `**当前日期范围**：${dateScope.preset === 'today' ? '今天' : dateScope.preset === 'week' ? '本周' : dateScope.preset === 'month' ? '本月' : '自定义'}\n`
-  section += `- 开始：${dateScope.start}\n`
-  section += `- 结束：${dateScope.end}\n\n`
+  // 🆕 矩阵模式上下文
+  if (matrixContext && matrixContext.isMatrixMode) {
+    section += buildMatrixContextSection(matrixContext)
+  } else {
+    // 日期范围（仅在非矩阵模式下显示）
+    section += `**当前日期范围**：${dateScope.preset === 'today' ? '今天' : dateScope.preset === 'week' ? '本周' : dateScope.preset === 'month' ? '本月' : '自定义'}\n`
+    section += `- 开始：${dateScope.start}\n`
+    section += `- 结束：${dateScope.end}\n\n`
+  }
 
   // 任务概览
   if (taskContext) {
@@ -317,6 +324,86 @@ function buildContextSection(
     section += `> 💡 提示：你可以先调用 \`load_task_context\` 工具来加载用户的任务信息\n`
   }
 
+  return section
+}
+
+/**
+ * 构建矩阵模式上下文部分
+ */
+function buildMatrixContextSection(context: MatrixContext): string {
+  const totalTasks = 
+    context.tasksByQuadrant.q1.length +
+    context.tasksByQuadrant.q2.length +
+    context.tasksByQuadrant.q3.length +
+    context.tasksByQuadrant.q4.length
+
+  const getMatrixDimensionName = (dimension: string) => {
+    const names: Record<string, string> = {
+      'urgent-important': '重要-紧急矩阵',
+      'impact-effort': '影响-努力矩阵',
+      'fun-stimulating': '有趣-刺激矩阵'
+    }
+    return names[dimension] || dimension
+  }
+
+  let section = `**📊 当前界面状态：矩阵模式**\n`
+  section += `> 用户正在使用「${getMatrixDimensionName(context.matrixDimension)}」查看任务\n\n`
+  section += `**📅 查看日期**：${context.matrixDate}\n`
+  section += `**📋 任务总数**：${totalTasks} 个\n\n`
+  
+  section += `**任务象限分布：**\n\n`
+  
+  // 简化的象限显示
+  section += `**Q2（左上）- ${context.quadrantLabels.q2}：** ${context.tasksByQuadrant.q2.length} 个任务\n`
+  const q2Tasks = context.tasksByQuadrant.q2.slice(0, 3)
+  q2Tasks.forEach(t => {
+    const status = t.checked ? '✅' : '⬜'
+    section += `  ${status} ${t.title}\n`
+  })
+  if (context.tasksByQuadrant.q2.length > 3) {
+    section += `  ... 还有 ${context.tasksByQuadrant.q2.length - 3} 个\n`
+  }
+  section += `\n`
+  
+  section += `**Q1（右上）- ${context.quadrantLabels.q1}：** ${context.tasksByQuadrant.q1.length} 个任务\n`
+  const q1Tasks = context.tasksByQuadrant.q1.slice(0, 3)
+  q1Tasks.forEach(t => {
+    const status = t.checked ? '✅' : '⬜'
+    section += `  ${status} ${t.title}\n`
+  })
+  if (context.tasksByQuadrant.q1.length > 3) {
+    section += `  ... 还有 ${context.tasksByQuadrant.q1.length - 3} 个\n`
+  }
+  section += `\n`
+  
+  section += `**Q3（右下）- ${context.quadrantLabels.q3}：** ${context.tasksByQuadrant.q3.length} 个任务\n`
+  const q3Tasks = context.tasksByQuadrant.q3.slice(0, 3)
+  q3Tasks.forEach(t => {
+    const status = t.checked ? '✅' : '⬜'
+    section += `  ${status} ${t.title}\n`
+  })
+  if (context.tasksByQuadrant.q3.length > 3) {
+    section += `  ... 还有 ${context.tasksByQuadrant.q3.length - 3} 个\n`
+  }
+  section += `\n`
+  
+  section += `**Q4（左下）- ${context.quadrantLabels.q4}：** ${context.tasksByQuadrant.q4.length} 个任务\n`
+  const q4Tasks = context.tasksByQuadrant.q4.slice(0, 3)
+  q4Tasks.forEach(t => {
+    const status = t.checked ? '✅' : '⬜'
+    section += `  ${status} ${t.title}\n`
+  })
+  if (context.tasksByQuadrant.q4.length > 3) {
+    section += `  ... 还有 ${context.tasksByQuadrant.q4.length - 3} 个\n`
+  }
+  section += `\n`
+  
+  section += `**💡 你可以：**\n`
+  section += `- 分析任务分布是否合理\n`
+  section += `- 给出任务优先级建议\n`
+  section += `- 帮助用户理解任务所在象限的意义\n`
+  section += `- 建议用户如何调整任务位置\n\n`
+  
   return section
 }
 

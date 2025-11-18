@@ -17,7 +17,8 @@ import StickyNote from '@/components/StickyNote'
 import StickyNotesDropdown from '@/components/StickyNotesDropdown'
 import TaskMatrix from '@/components/TaskMatrix'
 import ViewModeToggle from '@/components/ViewModeToggle'
-import type { DateScope, UserProfile, UserProfileInput, ChatMessage, StickyNote as StickyNoteType, TasksByQuadrant, TaskMatrixDimension } from '@/types'
+import type { DateScope, UserProfile, UserProfileInput, ChatMessage, StickyNote as StickyNoteType, TasksByQuadrant, TaskMatrixDimension, MatrixContext } from '@/types'
+import { MATRIX_DIMENSION_CONFIGS, MATRIX_QUADRANTS_CONFIGS } from '@/types'
 import { getDefaultDateScope } from '@/utils/dateUtils'
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns'
 // 🆕 新的维度系统
@@ -1719,6 +1720,77 @@ export default function NotesDashboardPage() {
     )
   }, [])
 
+  // ⭐⭐⭐ Matrix Context Functions ⭐⭐⭐
+  
+  /**
+   * 构建矩阵模式的AI上下文
+   * 
+   * 当用户在矩阵视图时，收集当前矩阵状态，让AI理解：
+   * - 用户正在查看哪一天的矩阵
+   * - 当前使用的矩阵维度
+   * - 每个象限有哪些任务
+   */
+  const buildMatrixContext = useCallback((): MatrixContext | null => {
+    // 只有在矩阵模式下才返回上下文
+    if (viewMode !== 'matrix') {
+      return null
+    }
+    
+    console.log('📊 构建矩阵上下文...')
+    
+    // 获取当前矩阵维度的配置
+    const dimensionConfig = MATRIX_DIMENSION_CONFIGS[selectedMatrixDimension]
+    const quadrantsConfig = MATRIX_QUADRANTS_CONFIGS[selectedMatrixDimension]
+    
+    // 构建矩阵上下文
+    const context: MatrixContext = {
+      isMatrixMode: true,
+      matrixDate: formatNoteDate(selectedDate),
+      matrixDimension: selectedMatrixDimension,
+      tasksByQuadrant: {
+        // Q1: 右上 (top-right)
+        q1: (tasksByQuadrant['urgent-important'] || []).map(t => ({
+          title: t.title,
+          checked: t.checked
+        })),
+        // Q2: 左上 (top-left)
+        q2: (tasksByQuadrant['not-urgent-important'] || []).map(t => ({
+          title: t.title,
+          checked: t.checked
+        })),
+        // Q3: 右下 (bottom-right)
+        q3: (tasksByQuadrant['urgent-not-important'] || []).map(t => ({
+          title: t.title,
+          checked: t.checked
+        })),
+        // Q4: 左下 (bottom-left)
+        q4: (tasksByQuadrant['not-urgent-not-important'] || []).map(t => ({
+          title: t.title,
+          checked: t.checked
+        }))
+      },
+      quadrantLabels: {
+        q1: quadrantsConfig['top-right'].name,
+        q2: quadrantsConfig['top-left'].name,
+        q3: quadrantsConfig['bottom-right'].name,
+        q4: quadrantsConfig['bottom-left'].name
+      }
+    }
+    
+    console.log('📊 矩阵上下文已构建:', {
+      date: context.matrixDate,
+      dimension: context.matrixDimension,
+      taskCounts: {
+        q1: context.tasksByQuadrant.q1.length,
+        q2: context.tasksByQuadrant.q2.length,
+        q3: context.tasksByQuadrant.q3.length,
+        q4: context.tasksByQuadrant.q4.length
+      }
+    })
+    
+    return context
+  }, [viewMode, selectedDate, selectedMatrixDimension, tasksByQuadrant])
+
   // ⭐⭐⭐ Agent Message Handling Functions ⭐⭐⭐
   
   // 处理 Agent 模式的消息
@@ -1844,14 +1916,20 @@ export default function NotesDashboardPage() {
     
     try {
       // 3. 构建 Agent Context
+      const matrixCtx = buildMatrixContext()  // 🆕 构建矩阵上下文
+      
       const agentContext: AgentContext = {
         userId: user.id,
         userProfile: userProfile,
         dateScope: dateScope,
-        taskContext: undefined  // 将由 Agent 自动加载
+        taskContext: undefined,  // 将由 Agent 自动加载
+        matrixContext: matrixCtx  // 🆕 传入矩阵上下文
       }
       
       console.log('📦 Agent Context:', agentContext)
+      if (matrixCtx) {
+        console.log('📊 包含矩阵上下文:', matrixCtx.matrixDimension, matrixCtx.matrixDate)
+      }
       
       // 4. 调用 Agent
       const result = await agentInstance.run(chatMessage, agentContext)

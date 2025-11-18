@@ -694,3 +694,47 @@ export type {
 } from './matrix-types'
 
 export { MATRIX_DIMENSION_CONFIGS, MATRIX_QUADRANTS_CONFIGS } from './matrix-types'
+
+// ============================================
+// 矩阵模式AI上下文类型
+// ============================================
+
+/**
+ * 矩阵模式下的任务摘要
+ */
+export interface MatrixTaskSummary {
+  title: string
+  checked: boolean
+}
+
+/**
+ * 矩阵模式AI上下文
+ * 
+ * 用于让AI理解用户当前在矩阵视图中的状态
+ */
+export interface MatrixContext {
+  /** 是否在矩阵模式 */
+  isMatrixMode: boolean
+  
+  /** 矩阵查看的日期 (YYYY-MM-DD) */
+  matrixDate: string
+  
+  /** 当前矩阵维度 */
+  matrixDimension: TaskMatrixDimension
+  
+  /** 任务按象限分布 */
+  tasksByQuadrant: {
+    q1: MatrixTaskSummary[]  // 右上
+    q2: MatrixTaskSummary[]  // 左上
+    q3: MatrixTaskSummary[]  // 右下
+    q4: MatrixTaskSummary[]  // 左下
+  }
+  
+  /** 象限标签（根据当前矩阵维度动态变化） */
+  quadrantLabels: {
+    q1: string  // 如 "重要且紧急"
+    q2: string  // 如 "重要不紧急"
+    q3: string  // 如 "不重要但紧急"
+    q4: string  // 如 "不重要不紧急"
+  }
+}

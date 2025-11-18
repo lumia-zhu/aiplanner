@@ -116,6 +116,7 @@ export class ReactAgent {
           userProfile: context.userProfile || null,
           dateScope: context.dateScope,
           userId: context.userId,
+          matrixContext: context.matrixContext || null,  // 🆕 矩阵模式上下文
         })
         
         // ⭐ 输出当前记忆状态（用于调试）
