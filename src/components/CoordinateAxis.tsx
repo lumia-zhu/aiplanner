@@ -106,7 +106,6 @@ export default function CoordinateAxis({
       <div 
         className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-auto z-[200]"
         style={{ top: '-8px' }}
-        onMouseEnter={() => canInteract && onYAxisChange && openSelector('top')}
       >
         <button
           className={`text-xs text-gray-600 font-semibold bg-white px-2 py-1 rounded shadow-sm flex items-center gap-1 transition-all duration-150 ${
@@ -145,7 +144,6 @@ export default function CoordinateAxis({
       <div 
         className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-auto z-[200]"
         style={{ bottom: '-8px' }}
-        onMouseEnter={() => canInteract && onYAxisChange && openSelector('bottom')}
       >
         <button
           className={`text-xs text-gray-600 font-semibold bg-white px-2 py-1 rounded shadow-sm flex items-center gap-1 transition-all duration-150 ${
@@ -184,7 +182,6 @@ export default function CoordinateAxis({
       <div 
         className="absolute top-1/2 -translate-y-1/2 flex items-center pointer-events-auto z-[200]"
         style={{ left: '-8px' }}
-        onMouseEnter={() => canInteract && onXAxisChange && openSelector('left')}
       >
         <button
           className={`text-xs text-gray-600 font-semibold bg-white px-2 py-1 rounded shadow-sm flex items-center gap-1 transition-all duration-150 ${
@@ -223,7 +220,6 @@ export default function CoordinateAxis({
       <div 
         className="absolute top-1/2 -translate-y-1/2 flex items-center pointer-events-auto z-[200]"
         style={{ right: '-8px' }}
-        onMouseEnter={() => canInteract && onXAxisChange && openSelector('right')}
       >
         <button
           className={`text-xs text-gray-600 font-semibold bg-white px-2 py-1 rounded shadow-sm flex items-center gap-1 transition-all duration-150 ${

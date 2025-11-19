@@ -289,7 +289,7 @@ export default function TaskMatrix({
         <div className="px-6 py-3 border-t border-gray-200 bg-gray-50">
           <div className="flex flex-col gap-1 text-xs text-gray-500 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-col gap-2">
-              <span>💡 提示：从左侧拖动任务到对应象限，悬停或点击坐标轴标签即可切换维度组合</span>
+              <span>💡 提示：从左侧拖动任务到对应象限，点击坐标轴标签即可切换维度组合</span>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-1">
                 {DIMENSION_HINTS.map(hint => (
                   <span key={hint.label} className="flex items-center gap-1">
