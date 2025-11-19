@@ -2460,7 +2460,14 @@ export default function NotesDashboardPage() {
       return
     }
 
-    // ⭐ 第一步：意图分类（仅对文本消息）
+    // 🆕 矩阵模式下：强制使用普通对话模式（不使用 Agent）
+    if (viewMode === 'matrix') {
+      console.log('📊 矩阵模式：使用普通对话模式')
+      await handleCasualChat()
+      return
+    }
+
+    // ⭐ 第一步：意图分类（仅对文本消息，且仅在编辑器模式下）
     if (chatMessage.trim() && !selectedImage) {
       try {
         const { classifyIntent } = await import('@/lib/intentClassifier')
@@ -2605,7 +2612,7 @@ export default function NotesDashboardPage() {
       setIsSending(false)
       setStreamingMessage('')
     }
-  }, [chatMessage, selectedImage, chatMessages, user, selectedDate, agentInstance, isAgentRunning, decomposingTaskTitle, handleTaskDecomposition])
+  }, [chatMessage, selectedImage, chatMessages, user, selectedDate, agentInstance, isAgentRunning, decomposingTaskTitle, handleTaskDecomposition, viewMode, handleCasualChat])
 
   // 处理清除聊天
   const handleClearChat = useCallback(async () => {
@@ -3671,6 +3678,7 @@ export default function NotesDashboardPage() {
             <ChatSidebar
               isOpen={isChatSidebarOpen}
               onToggle={toggleChatSidebar}
+              viewMode={viewMode}
               chatMessage={chatMessage}
               setChatMessage={setChatMessage}
               selectedImage={selectedImage}

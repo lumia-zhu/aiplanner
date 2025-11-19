@@ -38,6 +38,9 @@ interface ChatSidebarProps {
   isOpen: boolean
   onToggle: () => void
   
+  // 🆕 视图模式（用于控制 Agent 开关显示）
+  viewMode?: 'editor' | 'matrix'
+  
   // 聊天相关状态
   chatMessage: string
   setChatMessage: (message: string) => void
@@ -131,6 +134,7 @@ interface ChatSidebarProps {
 const ChatSidebar = memo<ChatSidebarProps>(({
   isOpen,
   onToggle,
+  viewMode,
   chatMessage,
   setChatMessage,
   selectedImage,
@@ -215,6 +219,9 @@ const ChatSidebar = memo<ChatSidebarProps>(({
     }
   }, [isAgentMode])
   
+  // 🆕 矩阵模式下：强制显示 Agent 开关为关闭状态
+  const displayAgentMode = viewMode === 'matrix' ? false : isAgentMode
+  
   // ⭐ 判断是否应该禁用输入框（引导用户使用按钮）
   const shouldDisableInput = (() => {
     // 特殊输入模式不禁用
@@ -288,21 +295,22 @@ const ChatSidebar = memo<ChatSidebarProps>(({
         {/* 第二行：Agent 模式切换开关 */}
         <div className="px-4 pb-3 flex items-center justify-between">
           <span className={`text-xs font-medium ${
-            isAgentMode ? 'text-blue-600' : 'text-gray-500'
+            displayAgentMode ? 'text-blue-600' : 'text-gray-500'
           }`}>
-            {isAgentMode ? '🤖 Agent 模式' : '💬 普通模式'}
+            {displayAgentMode ? '🤖 Agent 模式' : '💬 普通模式'}
           </span>
           
           <button
             onClick={() => setIsAgentMode(!isAgentMode)}
+            disabled={viewMode === 'matrix'}
             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              isAgentMode ? 'bg-blue-600' : 'bg-gray-300'
-            }`}
-            title={isAgentMode ? '切换到普通模式' : '切换到 Agent 模式（开发中）'}
+              displayAgentMode ? 'bg-blue-600' : 'bg-gray-300'
+            } ${viewMode === 'matrix' ? 'opacity-50 cursor-not-allowed' : ''}`}
+            title={viewMode === 'matrix' ? '矩阵模式下不可用 Agent' : (displayAgentMode ? '切换到普通模式' : '切换到 Agent 模式')}
           >
             <span
               className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                isAgentMode ? 'translate-x-6' : 'translate-x-1'
+                displayAgentMode ? 'translate-x-6' : 'translate-x-1'
               }`}
             />
           </button>
