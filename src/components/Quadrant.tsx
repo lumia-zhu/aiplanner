@@ -46,7 +46,7 @@ export default function Quadrant({
     <div 
       ref={setNodeRef}
       className={`
-        rounded-xl border-2 p-4 flex flex-col overflow-hidden transition-all duration-200 relative z-0
+        rounded-xl border-2 p-4 flex flex-col overflow-hidden transition-all duration-200 relative z-0 h-full
         ${isOver ? 'ring-4 ring-blue-400 ring-opacity-50 scale-[1.02]' : ''}
       `}
       style={{
@@ -56,7 +56,7 @@ export default function Quadrant({
     >
       {/* 任务列表 */}
       <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
-        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2">
+        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 min-h-0 pr-1">
           {tasks.length > 0 ? (
             tasks.map(task => (
               <TaskCard

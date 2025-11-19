@@ -169,7 +169,8 @@ export default function TaskMatrix({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="bg-white rounded-2xl shadow-2xl w-full h-full flex flex-col">
+      {/* 调整高度为 70vh，让上下留白更多，在一屏内展示更舒适 */}
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-h-[70vh] h-[70vh] flex flex-col overflow-hidden">
         {/* 标题栏 - 仅在弹窗模式显示 */}
         {!isEmbedded && (
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
@@ -212,7 +213,7 @@ export default function TaskMatrix({
         )}
         
         {/* 主内容区 */}
-        <div className="flex-1 flex gap-6 p-6 overflow-visible">
+        <div className="flex-1 flex gap-6 p-6 overflow-hidden min-h-0">
           {/* 左侧：待分类区域 */}
           <UnclassifiedZone
             tasks={tasks.unclassified || []}
@@ -220,9 +221,9 @@ export default function TaskMatrix({
           />
           
           {/* 右侧：四象限矩阵 */}
-          <div className="flex-1 flex flex-col min-w-0">
+          <div className="flex-1 flex flex-col min-w-0 min-h-0">
             {/* 四象限网格（带坐标轴） */}
-            <div className="flex-1 grid grid-cols-2 grid-rows-2 gap-4 min-h-0 relative">
+            <div className="w-full h-full grid grid-cols-2 grid-rows-2 gap-4 relative">
               {/* 左上象限 */}
               <Quadrant
                 quadrantId="not-urgent-important"

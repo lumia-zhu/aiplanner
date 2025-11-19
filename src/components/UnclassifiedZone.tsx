@@ -71,7 +71,7 @@ export default function UnclassifiedZone({
         
         {/* 任务列表 */}
         <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
-          <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2.5">
+          <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2.5 min-h-0">
             {tasks.length > 0 ? (
               tasks.map(task => (
                 <TaskCard
