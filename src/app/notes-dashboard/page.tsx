@@ -425,7 +425,6 @@ export default function NotesDashboardPage() {
     // 持久化到 localStorage
     if (typeof window !== 'undefined') {
       localStorage.setItem('matrixAxesConfig', JSON.stringify(newConfig))
-      console.log('💾 已保存X轴配置:', newConfig)
     }
   }, [matrixAxes])
   
@@ -447,28 +446,28 @@ export default function NotesDashboardPage() {
     // 持久化到 localStorage
     if (typeof window !== 'undefined') {
       localStorage.setItem('matrixAxesConfig', JSON.stringify(newConfig))
-      console.log('💾 已保存Y轴配置:', newConfig)
     }
   }, [matrixAxes])
   
   // 🆕 同步预设矩阵选择器与自定义轴配置（保持兼容性）
-  useEffect(() => {
-    // 当用户通过预设选择器切换矩阵时，同步更新自定义轴配置
-    const presetConfig = PRESET_MATRIX_CONFIGS[selectedMatrixDimension]
-    if (presetConfig) {
-      const newConfig: MatrixAxesConfig = {
-        xAxis: presetConfig.xAxis,
-        yAxis: presetConfig.yAxis
-      }
-      // 只有在不同时才更新（避免循环）
-      if (newConfig.xAxis !== matrixAxes.xAxis || newConfig.yAxis !== matrixAxes.yAxis) {
-        setMatrixAxes(newConfig)
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('matrixAxesConfig', JSON.stringify(newConfig))
-        }
-      }
-    }
-  }, [selectedMatrixDimension, matrixAxes.xAxis, matrixAxes.yAxis])
+  // ⚠️ 已禁用：这个 useEffect 会覆盖用户的手动维度切换
+  // useEffect(() => {
+  //   // 当用户通过预设选择器切换矩阵时，同步更新自定义轴配置
+  //   const presetConfig = PRESET_MATRIX_CONFIGS[selectedMatrixDimension]
+  //   if (presetConfig) {
+  //     const newConfig: MatrixAxesConfig = {
+  //       xAxis: presetConfig.xAxis,
+  //       yAxis: presetConfig.yAxis
+  //     }
+  //     // 只有在不同时才更新（避免循环）
+  //     if (newConfig.xAxis !== matrixAxes.xAxis || newConfig.yAxis !== matrixAxes.yAxis) {
+  //       setMatrixAxes(newConfig)
+  //       if (typeof window !== 'undefined') {
+  //         localStorage.setItem('matrixAxesConfig', JSON.stringify(newConfig))
+  //       }
+  //     }
+  //   }
+  // }, [selectedMatrixDimension, matrixAxes.xAxis, matrixAxes.yAxis])
   
   // 格式化时间范围显示
   const formatTimeRange = (deadlineDatetime: string): string => {

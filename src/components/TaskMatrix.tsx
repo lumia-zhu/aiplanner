@@ -268,19 +268,13 @@ export default function TaskMatrix({
               />
               
               {/* 坐标轴覆盖层 */}
-              {useCustomAxes && customAxes ? (
-                /* 🆕 使用自定义轴配置（支持交互选择） */
-                <CoordinateAxis 
-                  xAxis={customAxes.xAxis}
-                  yAxis={customAxes.yAxis}
-                  onXAxisChange={onXAxisChange}
-                  onYAxisChange={onYAxisChange}
-                  interactive={true}
-                />
-              ) : (
-                /* 使用预设配置（静态显示） */
-                <CoordinateAxis axes={dimensionConfig.axes} />
-              )}
+              <CoordinateAxis 
+                xAxis={customAxes?.xAxis || 'urgent'}
+                yAxis={customAxes?.yAxis || 'important'}
+                onXAxisChange={onXAxisChange}
+                onYAxisChange={onYAxisChange}
+                interactive={!!onXAxisChange && !!onYAxisChange}
+              />
             </div>
           </div>
         </div>
