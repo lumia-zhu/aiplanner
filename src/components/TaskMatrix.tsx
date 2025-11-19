@@ -229,6 +229,7 @@ export default function TaskMatrix({
                 quadrantId="not-urgent-important"
                 config={{
                   type: 'not-urgent-important',
+                  title: quadrantsConfig['top-left'].name,
                   ...quadrantsConfig['top-left']
                 }}
                 tasks={tasks['not-urgent-important'] || []}
@@ -240,6 +241,7 @@ export default function TaskMatrix({
                 quadrantId="urgent-important"
                 config={{
                   type: 'urgent-important',
+                  title: quadrantsConfig['top-right'].name,
                   ...quadrantsConfig['top-right']
                 }}
                 tasks={tasks['urgent-important'] || []}
@@ -251,6 +253,7 @@ export default function TaskMatrix({
                 quadrantId="not-urgent-not-important"
                 config={{
                   type: 'not-urgent-not-important',
+                  title: quadrantsConfig['bottom-left'].name,
                   ...quadrantsConfig['bottom-left']
                 }}
                 tasks={tasks['not-urgent-not-important'] || []}
@@ -262,6 +265,7 @@ export default function TaskMatrix({
                 quadrantId="urgent-not-important"
                 config={{
                   type: 'urgent-not-important',
+                  title: quadrantsConfig['bottom-right'].name,
                   ...quadrantsConfig['bottom-right']
                 }}
                 tasks={tasks['urgent-not-important'] || []}
