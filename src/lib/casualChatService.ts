@@ -9,9 +9,10 @@ export interface CasualChatOptions {
   temperature?: number
   maxTokens?: number
   systemPrompt?: string
+  systemContext?: string // 🆕 额外的上下文信息
 }
 
-const DEFAULT_OPTIONS: Required<CasualChatOptions> = {
+const DEFAULT_OPTIONS: Required<Omit<CasualChatOptions, 'systemContext'>> = {
   temperature: 0.7,
   maxTokens: 500,
   systemPrompt: '你是一个友好的AI助手，用简洁、自然的语言回复用户。保持对话轻松愉快。'
@@ -33,6 +34,13 @@ export async function* casualChat(
   
   const opts = { ...DEFAULT_OPTIONS, ...options }
   
+  // 🆕 处理系统上下文
+  let finalSystemPrompt = opts.systemPrompt
+  if (options.systemContext) {
+    console.log('🧠 注入系统上下文:', { length: options.systemContext.length })
+    finalSystemPrompt += `\n\n${options.systemContext}`
+  }
+  
   const apiKey = process.env.NEXT_PUBLIC_DOUBAO_API_KEY
   if (!apiKey) {
     throw new Error('缺少 DOUBAO_API_KEY')
@@ -43,7 +51,7 @@ export async function* casualChat(
     // 系统提示
     {
       role: 'system',
-      content: [{ type: 'text', text: opts.systemPrompt }]
+      content: [{ type: 'text', text: finalSystemPrompt }]
     },
     // 对话历史（限制最近5条，避免上下文过长）
     ...conversationHistory.slice(-5).map(msg => ({
@@ -165,5 +173,9 @@ export async function casualChatSync(
   
   return fullResponse
 }
+
+
+
+
 
 

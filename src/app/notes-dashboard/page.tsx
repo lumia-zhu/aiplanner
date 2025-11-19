@@ -2381,6 +2381,90 @@ export default function NotesDashboardPage() {
   
   // ⭐⭐⭐ End of Agent Functions ⭐⭐⭐
 
+  // ⭐⭐⭐ Context Building Functions ⭐⭐⭐
+
+  // 辅助函数：将 ProseMirror JSON 转为纯文本
+  const getNoteText = useCallback((content: JSONContent | null): string => {
+    if (!content) return ''
+    let text = ''
+    if (content.text) text += content.text
+    // 处理段落换行
+    if (content.type === 'paragraph') text += '\n'
+    if (content.content) {
+      content.content.forEach(child => {
+        text += getNoteText(child)
+      })
+    }
+    return text
+  }, [])
+
+  // 🆕 构建笔记上下文文本
+  const buildNoteContextText = useCallback(() => {
+    if (viewMode !== 'editor') return null
+    
+    const dateStr = formatNoteDate(currentContextDate)
+    const noteText = currentNote ? getNoteText(currentNote).trim() : '（空笔记）'
+    
+    // 获取当前任务列表（从 tasksByQuadrant 合并）
+    const allTasks = Object.values(tasksByQuadrant).flat()
+    
+    const taskListText = allTasks.length > 0 
+      ? allTasks.map(t => 
+          `- [${t.completed ? 'x' : ' '}] ${t.title} (${t.completed ? '已完成' : '未完成'})`
+        ).join('\n')
+      : '（无任务）'
+      
+    return `
+[当前笔记上下文]
+日期：${dateStr}
+
+【笔记正文】：
+${noteText || '（无内容）'}
+
+【今日任务清单】：
+${taskListText}
+`.trim()
+  }, [viewMode, currentContextDate, currentNote, tasksByQuadrant, getNoteText])
+
+  // 🆕 构建矩阵上下文文本
+  const buildMatrixContextText = useCallback(() => {
+    if (viewMode !== 'matrix') return null
+
+    const dateStr = formatNoteDate(currentContextDate)
+    const dimensionConfig = MATRIX_DIMENSION_CONFIGS[selectedMatrixDimension]
+    const axesConfig = matrixAxes || DEFAULT_MATRIX_AXES
+    
+    let matrixStats = ''
+    const quadrants = [
+      { id: 'urgent-important', name: '重要且紧急' },
+      { id: 'not-urgent-important', name: '重要不紧急' },
+      { id: 'urgent-not-important', name: '紧急不重要' },
+      { id: 'not-urgent-not-important', name: '不重要不紧急' },
+      { id: 'unclassified', name: '待分类' }
+    ]
+    
+    quadrants.forEach(q => {
+      const tasks = tasksByQuadrant[q.id as QuadrantType] || []
+      if (tasks.length > 0) {
+        matrixStats += `\n${q.name} (${tasks.length}个):\n`
+        tasks.forEach(t => {
+          matrixStats += `- ${t.title} [${t.completed ? '已完成' : '未完成'}]\n`
+        })
+      }
+    })
+
+    return `
+[当前矩阵上下文]
+日期：${dateStr}
+当前维度：${dimensionConfig.name}
+X轴：${axesConfig.xAxis}
+Y轴：${axesConfig.yAxis}
+
+【任务分布】：
+${matrixStats || '（暂无任务）'}
+`.trim()
+  }, [viewMode, currentContextDate, selectedMatrixDimension, matrixAxes, tasksByQuadrant])
+
   // ⭐ 处理普通对话（非任务管理）
   const handleCasualChat = useCallback(async () => {
     if (!user) return
@@ -2403,15 +2487,42 @@ export default function NotesDashboardPage() {
       const newMessages = [...chatMessages, userMessage]
       setChatMessages(newMessages)
       
-      // 构建对话历史（最近5条）
-      const conversationHistory = chatMessages.slice(-5).map(msg => ({
-        role: msg.role,
-        content: msg.content.map((c: any) => c.type === 'text' ? c.text : '').join('')
-      }))
+      // 🆕 构建对话历史（过滤掉 interactive 内容，只保留纯文本）
+      const conversationHistory = chatMessages
+        .slice(-5)
+        .map(msg => {
+          // 提取纯文本内容
+          const textContent = msg.content
+            .filter((c: any) => c.type === 'text')
+            .map((c: any) => c.text)
+            .join('\n')
+          
+          return {
+            role: msg.role as 'user' | 'assistant',
+            content: textContent
+          }
+        })
+        // 过滤掉内容为空的消息（例如纯 loading 状态的消息）
+        .filter(msg => msg.content.trim().length > 0)
+
+      // 🆕 动态获取上下文
+      const matrixContext = buildMatrixContextText()
+      const noteContext = buildNoteContextText()
+      const systemContext = matrixContext || noteContext
+      
+      console.log('🔍 发送对话 (带上下文):', {
+        mode: viewMode,
+        contextType: matrixContext ? 'matrix' : (noteContext ? 'note' : 'none'),
+        historyLength: conversationHistory.length
+      })
       
       // 流式接收 AI 回复
       let fullResponse = ''
-      for await (const chunk of casualChat(chatMessage.trim(), conversationHistory)) {
+      for await (const chunk of casualChat(
+        chatMessage.trim(), 
+        conversationHistory,
+        systemContext ? { systemContext } : {}
+      )) {
         fullResponse += chunk
         setStreamingMessage(prev => prev + chunk)
       }
