@@ -2115,14 +2115,17 @@ export default function NotesDashboardPage() {
         logger.debug('🔍 检查 step:', {
           action: step.action,
           hasObservation: !!step.observation,
-          hasTasks: !!step.observation?.tasks,
-          observationKeys: step.observation ? Object.keys(step.observation) : []
+          observationType: step.observation?.type,
+          hasData: !!step.observation?.data,
+          hasTasks: !!step.observation?.data?.tasks,
+          observationKeys: step.observation ? Object.keys(step.observation) : [],
+          dataKeys: step.observation?.data ? Object.keys(step.observation.data) : []
         })
         
         // ⭐ 修复：AgentMemory.addStep 的结构是 { action, input, observation }
-        // observation 直接包含 toolResult.data 的内容
-        if (step.action === 'get_tasks' && step.observation?.tasks && Array.isArray(step.observation.tasks)) {
-          const taskData = step.observation
+        // observation 保存的是完整的 toolResult，结构为 { type: 'success', data: { count, tasks, ... }, message: string }
+        if (step.action === 'get_tasks' && step.observation?.type === 'success' && step.observation?.data?.tasks && Array.isArray(step.observation.data.tasks)) {
+          const taskData = step.observation.data
           
           // 🆕 保存查询条件（用于后续刷新）
           if (step.input) {
