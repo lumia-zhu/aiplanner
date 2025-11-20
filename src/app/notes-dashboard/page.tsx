@@ -24,10 +24,11 @@ import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-f
 // 🆕 新的维度系统
 import { 
   type DimensionType, 
-  type MatrixAxesConfig, 
+  type MatrixAxesConfig,
   DEFAULT_MATRIX_AXES, 
   PRESET_MATRIX_CONFIGS,
-  isDimensionConflict 
+  isDimensionConflict,
+  getDimensionConfig
 } from '@/constants/dimensions'
 import { getUserProfile, upsertUserProfile } from '@/lib/userProfile'
 import { doubaoService } from '@/lib/doubaoService'
@@ -422,6 +423,14 @@ export default function NotesDashboardPage() {
     }
     setMatrixAxes(newConfig)
     
+    // 尝试同步 selectedMatrixDimension
+    const matchedDimension = Object.entries(PRESET_MATRIX_CONFIGS).find(
+      ([_, config]) => config.xAxis === newDimension && config.yAxis === matrixAxes.yAxis
+    )
+    if (matchedDimension) {
+      setSelectedMatrixDimension(matchedDimension[0] as TaskMatrixDimension)
+    }
+    
     // 持久化到 localStorage
     if (typeof window !== 'undefined') {
       localStorage.setItem('matrixAxesConfig', JSON.stringify(newConfig))
@@ -442,6 +451,14 @@ export default function NotesDashboardPage() {
       yAxis: newDimension
     }
     setMatrixAxes(newConfig)
+    
+    // 尝试同步 selectedMatrixDimension
+    const matchedDimension = Object.entries(PRESET_MATRIX_CONFIGS).find(
+      ([_, config]) => config.xAxis === matrixAxes.xAxis && config.yAxis === newDimension
+    )
+    if (matchedDimension) {
+      setSelectedMatrixDimension(matchedDimension[0] as TaskMatrixDimension)
+    }
     
     // 持久化到 localStorage
     if (typeof window !== 'undefined') {
@@ -2434,39 +2451,86 @@ ${taskListText}
     if (viewMode !== 'matrix') return null
 
     const dateStr = formatNoteDate(currentContextDate)
-    const dimensionConfig = MATRIX_DIMENSION_CONFIGS[selectedMatrixDimension]
     const axesConfig = matrixAxes || DEFAULT_MATRIX_AXES
     
+    // ⭐ 动态获取维度配置
+    const xDimConfig = getDimensionConfig(axesConfig.xAxis)
+    const yDimConfig = getDimensionConfig(axesConfig.yAxis)
+    
+    // ⭐ 动态生成象限名称（不再依赖静态配置）
+    const dynamicQuadrantsConfig = {
+        'top-right': `${yDimConfig.levels.high}且${xDimConfig.levels.high}`, // e.g. 重要且紧急
+        'top-left': `${yDimConfig.levels.high}${xDimConfig.levels.low}`,      // e.g. 重要不紧急
+        'bottom-right': `${yDimConfig.levels.low}${xDimConfig.levels.high}`,  // e.g. 不重要紧急
+        'bottom-left': `${yDimConfig.levels.low}${xDimConfig.levels.low}`     // e.g. 不重要不紧急
+    }
+
+    // 🔍 调试日志：验证当前维度
+    console.log('🔍 构建矩阵上下文:', {
+      xAxis: xDimConfig.name,
+      yAxis: yDimConfig.name,
+      quadrants: dynamicQuadrantsConfig
+    })
+    
+    // ⭐ 建立物理象限ID到象限位置的映射关系
+    // 物理象限ID（数据库存储） → 象限位置（用于获取当前维度的标签）
+    const quadrantIdToPosition: Record<QuadrantType, 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'> = {
+      'urgent-important': 'top-right',           // 右上
+      'not-urgent-important': 'top-left',        // 左上
+      'urgent-not-important': 'bottom-right',    // 右下
+      'not-urgent-not-important': 'bottom-left', // 左下
+      'unclassified': 'top-left'                 // 默认
+    }
+    
     let matrixStats = ''
-    const quadrants = [
-      { id: 'urgent-important', name: '重要且紧急' },
-      { id: 'not-urgent-important', name: '重要不紧急' },
-      { id: 'urgent-not-important', name: '紧急不重要' },
-      { id: 'not-urgent-not-important', name: '不重要不紧急' },
-      { id: 'unclassified', name: '待分类' }
+    
+    // ⭐ 遍历所有物理象限，使用当前维度的动态标签
+    const physicalQuadrants: QuadrantType[] = [
+      'urgent-important',
+      'not-urgent-important',
+      'urgent-not-important',
+      'not-urgent-not-important',
+      'unclassified'
     ]
     
-    quadrants.forEach(q => {
-      const tasks = tasksByQuadrant[q.id as QuadrantType] || []
+    physicalQuadrants.forEach(quadrantId => {
+      const tasks = tasksByQuadrant[quadrantId] || []
       if (tasks.length > 0) {
-        matrixStats += `\n${q.name} (${tasks.length}个):\n`
+        // ⭐ 根据当前维度获取对应的象限标签
+        const position = quadrantIdToPosition[quadrantId]
+        const quadrantLabel = quadrantId === 'unclassified' 
+          ? '待分类'
+          : dynamicQuadrantsConfig[position]
+        
+        matrixStats += `\n${quadrantLabel} (${tasks.length}个):\n`
         tasks.forEach(t => {
           matrixStats += `- ${t.title} [${t.completed ? '已完成' : '未完成'}]\n`
         })
       }
     })
 
-    return `
+    // 尝试找到对应的维度名称（用于显示）
+    const matchedDimensionName = Object.values(MATRIX_DIMENSION_CONFIGS).find(
+        d => PRESET_MATRIX_CONFIGS[d.id]?.xAxis === axesConfig.xAxis && 
+             PRESET_MATRIX_CONFIGS[d.id]?.yAxis === axesConfig.yAxis
+    )?.name || `${yDimConfig.name}-${xDimConfig.name}`
+
+    const contextText = `
 [当前矩阵上下文]
 日期：${dateStr}
-当前维度：${dimensionConfig.name}
-X轴：${axesConfig.xAxis}
-Y轴：${axesConfig.yAxis}
+当前维度：${matchedDimensionName}
+X轴：${xDimConfig.name} (${xDimConfig.levels.low} → ${xDimConfig.levels.high})
+Y轴：${yDimConfig.name} (${yDimConfig.levels.low} → ${yDimConfig.levels.high})
 
 【任务分布】：
 ${matrixStats || '（暂无任务）'}
 `.trim()
-  }, [viewMode, currentContextDate, selectedMatrixDimension, matrixAxes, tasksByQuadrant])
+    
+    // 🔍 调试日志：输出生成的上下文文本（前200字符）
+    console.log('📊 生成的矩阵上下文（预览）:', contextText.substring(0, 200) + '...')
+    
+    return contextText
+  }, [viewMode, currentContextDate, matrixAxes, tasksByQuadrant])
 
   // ⭐ 处理普通对话（非任务管理）
   const handleCasualChat = useCallback(async () => {
