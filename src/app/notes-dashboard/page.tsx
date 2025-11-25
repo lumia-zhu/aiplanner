@@ -2109,20 +2109,20 @@ export default function NotesDashboardPage() {
     return true  // 表示已处理
   }, [currentReflectionRound, reflectionSessionId, reflectionScanResult, reflectionTasks, startReflectionRound, generateAndShowSummary])
   
-  // ⭐ 跳过当前反思轮次
-  const skipReflectionRound = useCallback(async () => {
+  // ⭐ 进入下一步（用户点击"下一步"按钮）
+  const handleNextStep = useCallback(async () => {
     if (!currentReflectionRound || !reflectionSessionId || !reflectionScanResult) {
       return
     }
     
-    console.log(`⏭️ 跳过 ${currentReflectionRound} 轮`)
+    console.log(`➡️ 用户点击下一步，完成 ${currentReflectionRound} 轮`)
     
-    // 显示跳过消息
-    const skipMessage = {
+    // 显示进入下一轮的消息
+    const nextMessage = {
       role: 'assistant' as const,
-      content: [{ type: 'text' as const, text: '好的，我们跳过这一轮～' }]
+      content: [{ type: 'text' as const, text: '好的，我们继续下一步～' }]
     }
-    setChatMessages(prev => [...prev, skipMessage])
+    setChatMessages(prev => [...prev, nextMessage])
     
     // 进入下一轮
     const nextRound = getNextRound(currentReflectionRound)
@@ -4518,7 +4518,7 @@ ${matrixStats || '（无待办）'}
               reflectionSessionId={reflectionSessionId}
               isReflectionMode={isReflectionMode}
               currentReflectionRound={currentReflectionRound}
-              onSkipReflectionRound={skipReflectionRound}
+              onSkipReflectionRound={handleNextStep}
               onMoreQuestions={requestMoreQuestions}
               onEndReflection={endReflection}
               isGeneratingQuestions={isGeneratingQuestions}
