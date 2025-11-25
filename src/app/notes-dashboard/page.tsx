@@ -23,6 +23,7 @@ import {
   createPlanSnapshot, 
   createReflectionSession, 
   getInProgressReflectionSession,
+  getCompletedReflectionSession,
   getReflectionSession,
   updateReflectionSession,
   createTaskSnapshots 
@@ -1780,7 +1781,29 @@ export default function NotesDashboardPage() {
         
         // 恢复当前轮次
         if (existingSession.currentRound && existingSession.currentRound !== 'overview') {
-          setCurrentReflectionRound(existingSession.currentRound as ReflectionRoundType)
+          const round = existingSession.currentRound as ReflectionRoundType
+          setCurrentReflectionRound(round)
+          
+          // 延迟一下，重新触发当前轮次的问题生成
+          setTimeout(() => {
+            // 这里我们不传递 sessionId，让 startReflectionRound 使用 state 中的 sessionId
+            // 注意：startReflectionRound 需要 sessionId 参数，但我们已经在上面 setReflectionSessionId 了
+            // 实际上 startReflectionRound 的 sessionId 参数只用于 updateReflectionSession
+            startReflectionRound(
+              round, 
+              taskSnapshots, 
+              existingSession.scanResult || reflectionScanResult || {
+                totalTaskCount: taskSnapshots.length,
+                vagueTaskCount: 0,
+                unestimatedTaskCount: 0,
+                noPriorityCount: 0,
+                workloadLevel: 'medium',
+                crossDayTasks: [],
+                deadlineConflicts: []
+              }, 
+              existingSession.id
+            )
+          }, 1000)
         }
         
         console.log('📋 恢复会话，当前任务数:', taskSnapshots.length)
@@ -1800,6 +1823,29 @@ export default function NotesDashboardPage() {
         }
         
         return existingSession
+      }
+      
+      // 1.5 检查是否有已完成的反思会话
+      const completedSession = await getCompletedReflectionSession(user.id, noteDate)
+      if (completedSession && completedSession.finalSummary) {
+        console.log('✅ 发现已完成的反思会话:', completedSession.id)
+        
+        // 显示之前的总结
+        const summaryMessage = {
+          role: 'assistant' as const,
+          content: [{ 
+            type: 'text' as const, 
+            text: `**欢迎回来！你今天已经完成过任务反思了** 🌟\n\n**之前的总结：**\n${completedSession.finalSummary}\n\n**执行建议：**\n${completedSession.executionSuggestions}\n\n如果你想重新开始一轮新的反思，可以点击下方的按钮👇`
+          }]
+        }
+        setChatMessages(prev => {
+          const hasSummary = prev.some(m => m.content?.[0]?.text?.includes('欢迎回来！你今天已经完成过任务反思了'))
+          if (hasSummary) return prev
+          return [...prev, summaryMessage]
+        })
+        
+        // TODO: 添加"重新开始"按钮（目前可以通过清空聊天记录来重置）
+        return completedSession
       }
       
       // 2. 从当前笔记内容中提取任务

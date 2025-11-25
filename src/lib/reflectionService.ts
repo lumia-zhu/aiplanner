@@ -358,6 +358,57 @@ export async function updateReflectionSession(
 }
 
 /**
+ * 获取用户在特定日期已完成的反思会话
+ */
+export async function getCompletedReflectionSession(
+  userId: string,
+  noteDate: string
+): Promise<ReflectionSession | null> {
+  try {
+    console.log('🔍 查找已完成的反思会话:', { userId, noteDate })
+    const supabase = createClient()
+
+    // 1. 获取该日期最新的 plan_snapshot
+    const { data: snapshots, error: snapshotError } = await supabase
+      .from('plan_snapshots')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('note_date', noteDate)
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    if (snapshotError || !snapshots || snapshots.length === 0) {
+      return null
+    }
+
+    const snapshotId = snapshots[0].id
+
+    // 2. 查找与该 snapshot 关联的 completed 会话
+    const { data, error } = await supabase
+      .from('reflection_sessions')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('plan_snapshot_id', snapshotId)
+      .eq('status', 'completed')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+
+    if (error) {
+      if (error.code === 'PGRST116') return null // 未找到
+      console.error('❌ 查找已完成会话失败:', error)
+      return null
+    }
+
+    return mapDbToReflectionSession(data)
+
+  } catch (error) {
+    console.error('❌ getCompletedReflectionSession 异常:', error)
+    return null
+  }
+}
+
+/**
  * 获取用户的反思历史（用于 RQ3 分析）
  */
 export async function getReflectionHistory(
