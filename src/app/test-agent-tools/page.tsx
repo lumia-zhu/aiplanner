@@ -1177,6 +1177,205 @@ Action Input: {"userId": "test_user", "dateRange": {"start": "2025-11-06", "end"
     }
   }
 
+  // 测试 GlobalScanTool
+  const testGlobalScanTool = async () => {
+    addResult('\n🧪 ========== 测试 GlobalScanTool ==========')
+    
+    try {
+      const { GlobalScanTool } = await import('@/lib/agent/tools/GlobalScanTool')
+      
+      addResult('✅ GlobalScanTool 导入成功')
+      
+      const tool = new GlobalScanTool()
+      addResult(`✅ 工具实例化成功: ${tool.name}`)
+      
+      // 测试场景 1: 空任务列表
+      addResult('\n🔄 测试场景 1: 空任务列表')
+      const result1 = await tool.execute({ tasks: [] })
+      if (result1.type === 'success') {
+        addResult(`✅ 空任务扫描成功`)
+        addResult(`   总结: ${result1.data.summary}`)
+      }
+      
+      // 测试场景 2: 正常任务列表
+      addResult('\n🔄 测试场景 2: 正常任务列表')
+      const mockTasks = [
+        { id: '1', title: '写论文', priority: 'high', estimatedDuration: 120, isCompleted: false },
+        { id: '2', title: '复习', isCompleted: false },  // 模糊任务，无优先级，无时间
+        { id: '3', title: '整理笔记', priority: 'low', isCompleted: false },
+        { id: '4', title: '准备面试', priority: 'medium', estimatedDuration: 60, deadline: '2025-12-01', isCompleted: false },
+        { id: '5', title: '买东西', isCompleted: false },  // 模糊任务
+      ]
+      
+      const result2 = await tool.execute({ tasks: mockTasks, noteDate: '2025-11-25' })
+      if (result2.type === 'success') {
+        addResult(`✅ 任务扫描成功`)
+        addResult(`📊 扫描结果:`)
+        addResult(`   总任务数: ${result2.data.scanResult.totalTaskCount}`)
+        addResult(`   模糊任务: ${result2.data.scanResult.vagueTaskCount}`)
+        addResult(`   未估时: ${result2.data.scanResult.unestimatedTaskCount}`)
+        addResult(`   未设优先级: ${result2.data.scanResult.noPriorityCount}`)
+        addResult(`   工作负载: ${result2.data.scanResult.workloadLevel}`)
+        addResult(`   跨天任务: ${result2.data.scanResult.crossDayTasks.length}`)
+        addResult(`\n📝 视觉化小结:`)
+        result2.data.summary.split('\n').forEach((line: string) => {
+          addResult(`   ${line}`)
+        })
+      }
+      
+      // 测试场景 3: 有 deadline 冲突的任务
+      addResult('\n🔄 测试场景 3: deadline 冲突场景')
+      const conflictTasks = [
+        { id: '1', title: '紧急报告', priority: 'low', deadline: '2025-11-25', isCompleted: false },  // 今天截止但优先级低
+        { id: '2', title: '过期任务', deadline: '2025-11-20', isCompleted: false },  // 已过期
+      ]
+      
+      const result3 = await tool.execute({ tasks: conflictTasks, noteDate: '2025-11-25' })
+      if (result3.type === 'success') {
+        addResult(`✅ 冲突检测成功`)
+        addResult(`   deadline 冲突: ${result3.data.scanResult.deadlineConflicts.join(', ')}`)
+      }
+      
+      addResult('\n🎉 GlobalScanTool 测试完成！')
+      
+    } catch (error: any) {
+      addResult(`❌ 测试失败: ${error.message}`)
+      console.error('测试错误:', error)
+    }
+  }
+
+  // 测试反思服务数据访问层
+  const testReflectionService = async () => {
+    if (!user) return
+
+    addResult('\n🧪 ========== 测试反思服务数据访问层 ==========')
+    
+    try {
+      const { 
+        createPlanSnapshot, 
+        getPlanSnapshot,
+        createReflectionSession,
+        getReflectionSession,
+        updateReflectionSession,
+        getInProgressReflectionSession,
+        createTaskSnapshots
+      } = await import('@/lib/reflectionService')
+      
+      addResult('✅ reflectionService 导入成功')
+
+      // 1. 测试创建计划快照
+      addResult('\n🔄 测试 1: 创建计划快照...')
+      
+      const mockTasks = [
+        { id: '1', title: '写论文', priority: 'high', estimatedDuration: 120, completed: false },
+        { id: '2', title: '复习考试', priority: 'medium', completed: false },
+        { id: '3', title: '整理笔记', completed: true }
+      ]
+      
+      const taskSnapshots = createTaskSnapshots(mockTasks)
+      addResult(`📋 创建了 ${taskSnapshots.length} 个任务快照`)
+      
+      const snapshot = await createPlanSnapshot({
+        userId: user.id,
+        noteDate: new Date().toISOString().split('T')[0],
+        tasksJson: taskSnapshots
+      })
+      
+      if (snapshot) {
+        addResult(`✅ 计划快照创建成功: ${snapshot.id}`)
+        addResult(`   任务数: ${snapshot.taskCount}`)
+        
+        // 2. 测试获取计划快照
+        addResult('\n🔄 测试 2: 获取计划快照...')
+        const fetchedSnapshot = await getPlanSnapshot(snapshot.id)
+        if (fetchedSnapshot) {
+          addResult(`✅ 获取成功: ${fetchedSnapshot.id}`)
+        } else {
+          addResult('❌ 获取失败')
+        }
+        
+        // 3. 测试创建反思会话
+        addResult('\n🔄 测试 3: 创建反思会话...')
+        const session = await createReflectionSession({
+          planSnapshotId: snapshot.id,
+          userId: user.id
+        })
+        
+        if (session) {
+          addResult(`✅ 反思会话创建成功: ${session.id}`)
+          addResult(`   状态: ${session.status}`)
+          addResult(`   当前轮次: ${session.currentRound}`)
+          
+          // 4. 测试更新反思会话
+          addResult('\n🔄 测试 4: 更新反思会话...')
+          const updatedSession = await updateReflectionSession(session.id, {
+            currentRound: 'clarity',
+            scanResult: {
+              vagueTaskCount: 1,
+              unestimatedTaskCount: 2,
+              workloadLevel: 'medium',
+              crossDayTasks: [],
+              deadlineConflicts: [],
+              noPriorityCount: 1,
+              totalTaskCount: 3
+            },
+            overviewSummary: '测试总览小结'
+          })
+          
+          if (updatedSession) {
+            addResult(`✅ 更新成功`)
+            addResult(`   当前轮次: ${updatedSession.currentRound}`)
+            addResult(`   总览小结: ${updatedSession.overviewSummary}`)
+            addResult(`   扫描结果: ${JSON.stringify(updatedSession.scanResult)}`)
+          } else {
+            addResult('❌ 更新失败')
+          }
+          
+          // 5. 测试获取未完成会话
+          addResult('\n🔄 测试 5: 获取未完成反思会话...')
+          const inProgressSession = await getInProgressReflectionSession(
+            user.id,
+            new Date().toISOString().split('T')[0]
+          )
+          
+          if (inProgressSession) {
+            addResult(`✅ 找到未完成会话: ${inProgressSession.id}`)
+          } else {
+            addResult('📭 没有未完成的会话')
+          }
+          
+          // 6. 测试完成会话
+          addResult('\n🔄 测试 6: 完成反思会话...')
+          const completedSession = await updateReflectionSession(session.id, {
+            status: 'completed',
+            currentRound: 'summary',
+            finalSummary: '测试最终总结',
+            executionSuggestions: ['建议1', '建议2'],
+            completedAt: new Date().toISOString()
+          })
+          
+          if (completedSession) {
+            addResult(`✅ 会话已完成`)
+            addResult(`   状态: ${completedSession.status}`)
+            addResult(`   最终总结: ${completedSession.finalSummary}`)
+          }
+          
+        } else {
+          addResult('❌ 创建反思会话失败')
+        }
+        
+      } else {
+        addResult('❌ 创建计划快照失败')
+      }
+      
+      addResult('\n🎉 反思服务测试完成！')
+      
+    } catch (error: any) {
+      addResult(`❌ 测试失败: ${error.message}`)
+      console.error('测试错误:', error)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -1272,12 +1471,24 @@ Action Input: {"userId": "test_user", "dateRange": {"start": "2025-11-06", "end"
             </button>
             
             <div className="border-t-4 border-green-500 my-4 pt-4">
-              <h3 className="text-lg font-bold mb-2 text-green-600">💭 元认知反思工具</h3>
+              <h3 className="text-lg font-bold mb-2 text-green-600">💭 元认知反思系统</h3>
+              <button
+                onClick={testReflectionService}
+                className="w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 font-bold mb-2"
+              >
+                🧪 Step 1.3: 反思服务数据访问层测试
+              </button>
+              <button
+                onClick={testGlobalScanTool}
+                className="w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 font-bold mb-2"
+              >
+                🧪 Step 3.1: GlobalScanTool 测试 ⭐ NEW
+              </button>
               <button
                 onClick={testReflectOnTasksTool}
                 className="w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 font-bold mb-2"
               >
-                🧪 测试 ReflectOnTasksTool（5种场景）⭐ NEW
+                🧪 测试 ReflectOnTasksTool（5种场景）
               </button>
             </div>
             

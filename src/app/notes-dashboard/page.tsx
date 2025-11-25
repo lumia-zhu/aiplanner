@@ -18,6 +18,25 @@ import StickyNotesDropdown from '@/components/StickyNotesDropdown'
 import TaskMatrix from '@/components/TaskMatrix'
 import ViewModeToggle from '@/components/ViewModeToggle'
 import type { DateScope, UserProfile, UserProfileInput, ChatMessage, StickyNote as StickyNoteType, TasksByQuadrant, TaskMatrixDimension, MatrixContext } from '@/types'
+import type { ReflectionSession, TaskSnapshot, ScanResult } from '@/types/reflection'
+import { 
+  createPlanSnapshot, 
+  createReflectionSession, 
+  getInProgressReflectionSession,
+  getReflectionSession,
+  updateReflectionSession,
+  createTaskSnapshots 
+} from '@/lib/reflectionService'
+import { GlobalScanTool } from '@/lib/agent/tools/GlobalScanTool'
+import { 
+  generateRoundQuestions, 
+  getNextRound, 
+  shouldRunRound,
+  formatQuestionsAsMessage,
+  generateReflectionSummary,
+  formatSummaryAsMessage,
+  type ReflectionRoundType 
+} from '@/lib/reflectionFlow'
 import { MATRIX_DIMENSION_CONFIGS, MATRIX_QUADRANTS_CONFIGS } from '@/types'
 import { getDefaultDateScope } from '@/utils/dateUtils'
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns'
@@ -118,6 +137,15 @@ export default function NotesDashboardPage() {
   })
   const [agentResumeContext, setAgentResumeContext] = useState<any | null>(null)
   const [isAgentRunning, setIsAgentRunning] = useState(false)
+  
+  // ⭐ 元认知反思会话状态
+  const [reflectionSessionId, setReflectionSessionId] = useState<string | null>(null)
+  const [isReflectionMode, setIsReflectionMode] = useState(false)
+  const [currentReflectionRound, setCurrentReflectionRound] = useState<ReflectionRoundType | null>(null)
+  const [reflectionScanResult, setReflectionScanResult] = useState<ScanResult | null>(null)
+  const [reflectionTasks, setReflectionTasks] = useState<TaskSnapshot[]>([])
+  const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false)
+  const [askedQuestions, setAskedQuestions] = useState<string[]>([])  // 当前轮次已问过的问题
   
   logger.debug('Agent 状态:', { agentInstance: !!agentInstance, agentMemory: !!agentMemory, isAgentRunning })
   
@@ -664,6 +692,53 @@ export default function NotesDashboardPage() {
       loadTaskMatrix(user.id, selectedDate)
     }
   }, [user, selectedDate, loadTaskMatrix])
+  
+  // ⭐ 当日期变化时，检查是否有未完成的反思会话（用于恢复）
+  useEffect(() => {
+    const checkReflectionSession = async () => {
+      if (!user || !selectedDate) return
+      
+      const noteDate = format(selectedDate, 'yyyy-MM-dd')
+      console.log('🔍 检查是否有未完成的反思会话:', noteDate)
+      
+      try {
+        const existingSession = await getInProgressReflectionSession(user.id, noteDate)
+        
+        if (existingSession) {
+          console.log('📂 发现未完成的反思会话:', existingSession.id)
+          setReflectionSessionId(existingSession.id)
+          setIsReflectionMode(true)
+        } else {
+          // 切换日期时重置反思状态
+          setReflectionSessionId(null)
+          setIsReflectionMode(false)
+        }
+      } catch (error) {
+        console.error('检查反思会话失败:', error)
+      }
+    }
+    
+    checkReflectionSession()
+  }, [user, selectedDate])
+
+  // ⭐ 反思模式下：监听任务变化，自动更新 reflectionTasks
+  useEffect(() => {
+    if (!isReflectionMode || !currentNote) return
+    
+    // 从当前笔记中解析任务
+    const currentTasks = parseTasksFromNote(currentNote)
+    const taskSnapshots = createTaskSnapshots(currentTasks)
+    
+    // 检查任务是否有变化（简单比较数量和标题）
+    const hasChanged = 
+      taskSnapshots.length !== reflectionTasks.length ||
+      taskSnapshots.some((t, i) => reflectionTasks[i]?.title !== t.title)
+    
+    if (hasChanged) {
+      console.log('📝 反思模式：检测到任务变化，更新 reflectionTasks')
+      setReflectionTasks(taskSnapshots)
+    }
+  }, [currentNote, isReflectionMode, reflectionTasks])
 
   // 当用户登录或日期变化时，批量加载前后N个月的笔记
   // 这样可以支持跨月周视图和用户浏览不同月份
@@ -1676,19 +1751,451 @@ export default function NotesDashboardPage() {
     }
   }, [])
 
-  // 切换 AI 侧边栏
-  const toggleChatSidebar = useCallback(() => {
-    setIsChatSidebarOpen((prev: boolean) => {
-      const newState = !prev
-      console.log('🔄 切换侧边栏状态:', prev, '→', newState)
-      // ✅ 保存状态到 localStorage（刷新页面后仍然保留）
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('chatSidebarOpen', JSON.stringify(newState))
-        console.log('💾 已保存到 localStorage:', newState)
+  // ⭐ 启动反思流程（侧栏展开时调用）
+  const startReflectionSession = useCallback(async () => {
+    if (!user || !selectedDate) return
+    
+    const noteDate = format(selectedDate, 'yyyy-MM-dd')
+    console.log('🧠 检查反思会话:', { userId: user.id, noteDate })
+    
+    try {
+      // 1. 检查是否有未完成的反思会话
+      const existingSession = await getInProgressReflectionSession(user.id, noteDate)
+      
+      if (existingSession) {
+        console.log('📂 恢复未完成的反思会话:', existingSession.id)
+        setReflectionSessionId(existingSession.id)
+        setIsReflectionMode(true)
+        
+        // ⭐ 重要：从当前笔记中获取最新任务（而不是从快照中）
+        // 这样用户新添加的任务也会被包含
+        const currentTasks = currentNote ? parseTasksFromNote(currentNote) : []
+        const taskSnapshots = createTaskSnapshots(currentTasks)
+        setReflectionTasks(taskSnapshots)
+        
+        // 恢复扫描结果
+        if (existingSession.scanResult) {
+          setReflectionScanResult(existingSession.scanResult)
+        }
+        
+        // 恢复当前轮次
+        if (existingSession.currentRound && existingSession.currentRound !== 'overview') {
+          setCurrentReflectionRound(existingSession.currentRound as ReflectionRoundType)
+        }
+        
+        console.log('📋 恢复会话，当前任务数:', taskSnapshots.length)
+        
+        // 如果已有总览小结，显示在聊天中
+        if (existingSession.overviewSummary) {
+          const overviewMessage = {
+            role: 'assistant' as const,
+            content: [{ type: 'text' as const, text: `👀 **今天的计划一览**\n\n${existingSession.overviewSummary}\n\n接下来我带你做三轮轻量反思，每轮最多 3 个问题～` }]
+          }
+          setChatMessages(prev => {
+            // 避免重复添加
+            const hasOverview = prev.some(m => m.content?.[0]?.text?.includes('今天的计划一览'))
+            if (hasOverview) return prev
+            return [...prev, overviewMessage]
+          })
+        }
+        
+        return existingSession
       }
-      return newState
-    })
+      
+      // 2. 从当前笔记内容中提取任务
+      const currentTasks = currentNote ? parseTasksFromNote(currentNote) : []
+      if (currentTasks.length === 0) {
+        console.log('📭 没有任务，不启动反思')
+        // 显示提示消息
+        const emptyMessage = {
+          role: 'assistant' as const,
+          content: [{ type: 'text' as const, text: '📭 今天还没有任务，可以先在左边的笔记区域添加一些任务，然后我来帮你做规划反思～' }]
+        }
+        setChatMessages(prev => [...prev, emptyMessage])
+        return null
+      }
+      
+      console.log('📋 从笔记中提取到', currentTasks.length, '个任务')
+      
+      // 3. 创建计划快照
+      const taskSnapshots = createTaskSnapshots(currentTasks)
+      const snapshot = await createPlanSnapshot({
+        userId: user.id,
+        noteDate,
+        tasksJson: taskSnapshots
+      })
+      
+      if (!snapshot) {
+        console.error('❌ 创建计划快照失败')
+        return null
+      }
+      
+      console.log('📸 计划快照创建成功:', snapshot.id)
+      
+      // 4. 创建反思会话
+      const session = await createReflectionSession({
+        planSnapshotId: snapshot.id,
+        userId: user.id
+      })
+      
+      if (!session) {
+        console.error('❌ 创建反思会话失败')
+        return null
+      }
+      
+      console.log('🧠 反思会话创建成功:', session.id)
+      setReflectionSessionId(session.id)
+      setIsReflectionMode(true)
+      
+      // 5. 执行 GlobalScan 并显示任务总览
+      console.log('🔍 执行 GlobalScan...')
+      const globalScanTool = new GlobalScanTool()
+      const scanResult = await globalScanTool.execute({
+        tasks: taskSnapshots,
+        noteDate
+      })
+      
+      if (scanResult.type === 'success') {
+        const { scanResult: scan, summary } = scanResult.data
+        
+        // 更新反思会话，保存扫描结果
+        await updateReflectionSession(session.id, {
+          scanResult: scan,
+          overviewSummary: summary,
+          currentRound: 'clarity'  // 准备进入第一轮
+        })
+        
+        // 在聊天中显示任务总览
+        const overviewMessage = {
+          role: 'assistant' as const,
+          content: [{ type: 'text' as const, text: `👀 **今天的计划一览**\n\n${summary}\n\n接下来我带你做三轮轻量反思，每轮最多 3 个问题～` }]
+        }
+        setChatMessages(prev => [...prev, overviewMessage])
+        
+        console.log('✅ GlobalScan 完成，任务总览已显示')
+        
+        // 6. 自动开始第一轮反思（澄清轮）
+        setTimeout(async () => {
+          await startReflectionRound('clarity', taskSnapshots, scan, session.id)
+        }, 1500)  // 延迟1.5秒，让用户先看到总览
+      }
+      
+      return session
+      
+    } catch (error) {
+      console.error('❌ 启动反思会话失败:', error)
+      return null
+    }
+  }, [user, selectedDate, currentNote])
+  
+  // ⭐ 开始某一轮反思
+  const startReflectionRound = useCallback(async (
+    round: ReflectionRoundType,
+    tasks: TaskSnapshot[],
+    scanResult: ScanResult,
+    sessionId: string
+  ) => {
+    console.log(`🔄 开始 ${round} 轮反思...`)
+    
+    // 保存状态
+    setCurrentReflectionRound(round)
+    setReflectionScanResult(scanResult)
+    setReflectionTasks(tasks)
+    setIsGeneratingQuestions(true)
+    setAskedQuestions([])  // 新轮次开始，清空已问问题
+    
+    try {
+      // 检查是否需要执行这一轮
+      const { shouldRun, reason } = shouldRunRound(round, scanResult, tasks.length)
+      
+      if (!shouldRun) {
+        console.log(`⏭️ 跳过 ${round} 轮: ${reason}`)
+        // 自动进入下一轮
+        const nextRound = getNextRound(round)
+        if (nextRound !== 'summary' && nextRound !== 'overview') {
+          setTimeout(() => {
+            startReflectionRound(nextRound as ReflectionRoundType, tasks, scanResult, sessionId)
+          }, 500)
+        } else {
+          // 进入总结阶段
+          // TODO: 调用总结工具
+          console.log('📝 进入总结阶段')
+        }
+        return
+      }
+      
+      // 生成反思问题
+      const result = await generateRoundQuestions(round, tasks, scanResult)
+      
+      if (result) {
+        // 记录已问的问题
+        const questionTexts = result.questions.map(q => q.text)
+        setAskedQuestions(questionTexts)
+        
+        // 显示问题
+        const questionMessage = {
+          role: 'assistant' as const,
+          content: [{ type: 'text' as const, text: formatQuestionsAsMessage(result) }]
+        }
+        setChatMessages(prev => [...prev, questionMessage])
+        
+        // 更新会话状态
+        await updateReflectionSession(sessionId, {
+          currentRound: round
+        })
+        
+        console.log(`✅ ${round} 轮问题已显示`)
+      } else {
+        console.error(`❌ 生成 ${round} 轮问题失败`)
+      }
+      
+    } catch (error) {
+      console.error(`❌ ${round} 轮反思失败:`, error)
+    } finally {
+      setIsGeneratingQuestions(false)
+    }
   }, [])
+  
+  // ⭐ 生成并显示反思总结（三轮完成后或点击结束时调用）
+  // 注意：这个函数需要在 handleReflectionResponse 和 skipReflectionRound 之前定义
+  const generateAndShowSummary = useCallback(async () => {
+    if (!reflectionSessionId) return
+    
+    console.log('🌟 生成反思总结...')
+    setCurrentReflectionRound(null)
+    
+    // 显示"正在生成总结"的消息
+    const loadingMessage = {
+      role: 'assistant' as const,
+      content: [{ type: 'text' as const, text: '三轮反思完成！正在为你生成总结...' }]
+    }
+    setChatMessages(prev => [...prev, loadingMessage])
+    
+    // 收集已完成的轮次
+    const completedRounds: ('clarity' | 'time' | 'priority')[] = ['clarity', 'time', 'priority']
+    const userResponses: Record<string, string[]> = {}
+    
+    // 生成反思总结
+    const summaryResult = await generateReflectionSummary(
+      reflectionTasks,
+      reflectionScanResult || {
+        totalTaskCount: reflectionTasks.length,
+        vagueTaskCount: 0,
+        unestimatedTaskCount: 0,
+        noPriorityCount: 0,
+        workloadLevel: 'medium' as const,
+        crossDayTasks: [],
+        deadlineConflicts: []
+      },
+      completedRounds,
+      userResponses
+    )
+    
+    // 更新消息为总结内容
+    if (summaryResult) {
+      const summaryText = formatSummaryAsMessage(summaryResult)
+      setChatMessages(prev => {
+        const newMessages = [...prev]
+        newMessages[newMessages.length - 1] = {
+          role: 'assistant' as const,
+          content: [{ type: 'text' as const, text: summaryText }]
+        }
+        return newMessages
+      })
+      
+      // 保存到数据库
+      await updateReflectionSession(reflectionSessionId, {
+        status: 'completed',
+        finalSummary: summaryResult.miniSummary,
+        executionSuggestions: summaryResult.executionSuggestions.map(s => s.text).join('\n')
+      })
+    } else {
+      // 降级处理
+      setChatMessages(prev => {
+        const newMessages = [...prev]
+        newMessages[newMessages.length - 1] = {
+          role: 'assistant' as const,
+          content: [{ type: 'text' as const, text: '反思完成！你可以回到任务列表根据需要调整，也可以直接开始执行。加油！💪' }]
+        }
+        return newMessages
+      })
+      
+      await updateReflectionSession(reflectionSessionId, {
+        status: 'completed'
+      })
+    }
+    
+    // 重置状态
+    setIsReflectionMode(false)
+    setReflectionSessionId(null)
+  }, [reflectionSessionId, reflectionTasks, reflectionScanResult])
+  
+  // ⭐ 处理用户在反思中的回答，进入下一轮
+  const handleReflectionResponse = useCallback(async (userResponse: string) => {
+    if (!currentReflectionRound || !reflectionSessionId || !reflectionScanResult) {
+      return false  // 不在反思模式
+    }
+    
+    console.log(`📝 用户回答 (${currentReflectionRound}轮):`, userResponse)
+    
+    // TODO: 保存用户回答到会话
+    
+    // 进入下一轮
+    const nextRound = getNextRound(currentReflectionRound)
+    console.log(`➡️ 下一轮: ${nextRound}`)
+    
+    if (nextRound !== 'summary' && nextRound !== 'overview') {
+      // 延迟一下再开始下一轮
+      setTimeout(() => {
+        startReflectionRound(
+          nextRound as ReflectionRoundType, 
+          reflectionTasks, 
+          reflectionScanResult, 
+          reflectionSessionId
+        )
+      }, 1000)
+    } else {
+      // 进入总结阶段 - 自动生成总结
+      console.log('📝 三轮反思完成，自动进入总结阶段')
+      await generateAndShowSummary()
+    }
+    
+    return true  // 表示已处理
+  }, [currentReflectionRound, reflectionSessionId, reflectionScanResult, reflectionTasks, startReflectionRound, generateAndShowSummary])
+  
+  // ⭐ 跳过当前反思轮次
+  const skipReflectionRound = useCallback(async () => {
+    if (!currentReflectionRound || !reflectionSessionId || !reflectionScanResult) {
+      return
+    }
+    
+    console.log(`⏭️ 跳过 ${currentReflectionRound} 轮`)
+    
+    // 显示跳过消息
+    const skipMessage = {
+      role: 'assistant' as const,
+      content: [{ type: 'text' as const, text: '好的，我们跳过这一轮～' }]
+    }
+    setChatMessages(prev => [...prev, skipMessage])
+    
+    // 进入下一轮
+    const nextRound = getNextRound(currentReflectionRound)
+    
+    if (nextRound !== 'summary' && nextRound !== 'overview') {
+      setTimeout(() => {
+        startReflectionRound(
+          nextRound as ReflectionRoundType, 
+          reflectionTasks, 
+          reflectionScanResult, 
+          reflectionSessionId
+        )
+      }, 800)
+    } else {
+      // 进入总结阶段 - 自动生成总结
+      console.log('📝 三轮反思完成（跳过），自动进入总结阶段')
+      await generateAndShowSummary()
+    }
+  }, [currentReflectionRound, reflectionSessionId, reflectionScanResult, reflectionTasks, startReflectionRound, generateAndShowSummary])
+  
+  // ⭐ 请求更多问题
+  const requestMoreQuestions = useCallback(async () => {
+    if (!currentReflectionRound || !reflectionScanResult || isGeneratingQuestions) return
+    
+    console.log('➕ 用户请求更多问题，已问过:', askedQuestions)
+    setIsGeneratingQuestions(true)
+    
+    // 显示加载消息
+    const loadingMessage = {
+      role: 'assistant' as const,
+      content: [{ type: 'text' as const, text: '好的，让我从其他角度再想几个问题...' }]
+    }
+    setChatMessages(prev => [...prev, loadingMessage])
+    
+    try {
+      // 传递已问过的问题，让 LLM 生成不同的问题
+      const result = await generateRoundQuestions(
+        currentReflectionRound,
+        reflectionTasks,
+        reflectionScanResult,
+        undefined,  // previousResponses
+        askedQuestions  // 传递已问过的问题
+      )
+      
+      if (result) {
+        // 追加新问题到已问列表
+        const newQuestionTexts = result.questions.map(q => q.text)
+        setAskedQuestions(prev => [...prev, ...newQuestionTexts])
+        
+        const questionsText = formatQuestionsAsMessage({
+          ...result,
+          title: '补充问题',
+          description: '换个角度再想想～'
+        })
+        
+        // 替换加载消息
+        setChatMessages(prev => {
+          const newMessages = [...prev]
+          newMessages[newMessages.length - 1] = {
+            role: 'assistant' as const,
+            content: [{ type: 'text' as const, text: questionsText }]
+          }
+          return newMessages
+        })
+      } else {
+        // 没有更多问题
+        setChatMessages(prev => {
+          const newMessages = [...prev]
+          newMessages[newMessages.length - 1] = {
+            role: 'assistant' as const,
+            content: [{ type: 'text' as const, text: '暂时没有更多问题了，你可以点击"下一步"继续～' }]
+          }
+          return newMessages
+        })
+      }
+    } catch (error) {
+      console.error('生成更多问题失败:', error)
+      setChatMessages(prev => {
+        const newMessages = [...prev]
+        newMessages[newMessages.length - 1] = {
+          role: 'assistant' as const,
+          content: [{ type: 'text' as const, text: '生成问题时出了点问题，你可以点击"下一步"继续～' }]
+        }
+        return newMessages
+      })
+    } finally {
+      setIsGeneratingQuestions(false)
+    }
+  }, [currentReflectionRound, reflectionScanResult, reflectionTasks, isGeneratingQuestions, askedQuestions])
+  
+  // ⭐ 结束反思流程（用户主动点击"结束"按钮）
+  const endReflection = useCallback(async () => {
+    if (!reflectionSessionId) return
+    
+    console.log('🏁 用户选择提前结束反思')
+    await generateAndShowSummary()
+  }, [reflectionSessionId, generateAndShowSummary])
+  
+  // 切换 AI 侧边栏
+  const toggleChatSidebar = useCallback(async () => {
+    const newState = !isChatSidebarOpen
+    console.log('🔄 切换侧边栏状态:', isChatSidebarOpen, '→', newState)
+    
+    setIsChatSidebarOpen(newState)
+    
+    // ✅ 保存状态到 localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('chatSidebarOpen', JSON.stringify(newState))
+      console.log('💾 已保存到 localStorage:', newState)
+    }
+    
+    // ⭐ 侧栏展开时，启动反思流程
+    if (newState) {
+      const session = await startReflectionSession()
+      if (session) {
+        console.log('✅ 反思会话已启动:', session.id)
+      }
+    }
+  }, [isChatSidebarOpen, startReflectionSession])
 
   // ⭐ Chat 相关辅助函数（为 ChatSidebar props 提供）
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -2671,6 +3178,31 @@ ${matrixStats || '（无待办）'}
       return
     }
 
+    // ⭐ 反思模式下：记录用户回答并给予简单回应
+    if (isReflectionMode && currentReflectionRound && chatMessage.trim()) {
+      console.log('💭 反思模式：记录用户回答')
+      
+      // 添加用户消息
+      const userMessage: ChatMessage = {
+        role: 'user',
+        content: [{ type: 'text', text: chatMessage.trim() }]
+      }
+      setChatMessages(prev => [...prev, userMessage])
+      setChatMessage('')
+      
+      // 记录到已问问题的上下文中（用于后续问题生成）
+      setAskedQuestions(prev => [...prev, `用户回答: ${chatMessage.trim()}`])
+      
+      // 给予简单的回应
+      const responseMessage: ChatMessage = {
+        role: 'assistant',
+        content: [{ type: 'text', text: '好的，我记下了 👍 你可以继续回答其他问题，或者点击"下一步"进入下一轮反思～' }]
+      }
+      setChatMessages(prev => [...prev, responseMessage])
+      
+      return
+    }
+
     // 🆕 矩阵模式下：强制使用普通对话模式（不使用 Agent）
     if (viewMode === 'matrix') {
       console.log('📊 矩阵模式：使用普通对话模式')
@@ -2823,7 +3355,7 @@ ${matrixStats || '（无待办）'}
       setIsSending(false)
       setStreamingMessage('')
     }
-  }, [chatMessage, selectedImage, chatMessages, user, selectedDate, agentInstance, isAgentRunning, decomposingTaskTitle, handleTaskDecomposition, viewMode, handleCasualChat])
+  }, [chatMessage, selectedImage, chatMessages, user, selectedDate, agentInstance, isAgentRunning, decomposingTaskTitle, handleTaskDecomposition, viewMode, handleCasualChat, isReflectionMode, currentReflectionRound])
 
   // 处理清除聊天
   const handleClearChat = useCallback(async () => {
@@ -3937,6 +4469,13 @@ ${matrixStats || '（无待办）'}
               onTaskToggleFromList={handleTaskToggleFromList}
               onMoveTaskToToday={handleMoveTaskToToday}
               isRefreshingTaskList={isRefreshingTaskList}
+              reflectionSessionId={reflectionSessionId}
+              isReflectionMode={isReflectionMode}
+              currentReflectionRound={currentReflectionRound}
+              onSkipReflectionRound={skipReflectionRound}
+              onMoreQuestions={requestMoreQuestions}
+              onEndReflection={endReflection}
+              isGeneratingQuestions={isGeneratingQuestions}
             />
           </div>
         </div>

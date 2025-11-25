@@ -114,6 +114,15 @@ interface ChatSidebarProps {
   // 🆕 任务列表卡片刷新状态
   isRefreshingTaskList?: boolean  // 通用交互按钮点击
   
+  // ⭐ 元认知反思相关
+  reflectionSessionId?: string | null  // 当前反思会话 ID
+  isReflectionMode?: boolean  // 是否处于反思模式
+  currentReflectionRound?: string | null  // 当前反思轮次
+  onSkipReflectionRound?: () => void  // 下一步（原跳过当前轮次）
+  onMoreQuestions?: () => void  // 要更多问题
+  onEndReflection?: () => void  // 结束反思
+  isGeneratingQuestions?: boolean  // 是否正在生成问题
+  
   // 事件处理函数
   handleSendMessage: () => void
   handleClearChat: () => void
@@ -186,6 +195,13 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   onTaskToggleFromList,  // 🆕 任务列表勾选
   onMoveTaskToToday,  // 🆕 任务移动到今天
   isRefreshingTaskList,  // 🆕 任务列表刷新状态
+  reflectionSessionId,  // ⭐ 反思会话 ID
+  isReflectionMode,  // ⭐ 反思模式
+  currentReflectionRound,  // ⭐ 当前反思轮次
+  onSkipReflectionRound,  // ⭐ 下一步
+  onMoreQuestions,  // ⭐ 更多问题
+  onEndReflection,  // ⭐ 结束反思
+  isGeneratingQuestions,  // ⭐ 正在生成问题
   handleSendMessage,
   handleClearChat,
   handleDragEnter,
@@ -587,8 +603,55 @@ const ChatSidebar = memo<ChatSidebarProps>(({
               </div>
             </div>
           )}
+          
+          {/* 正在生成反思问题的加载提示 */}
+          {isGeneratingQuestions && (
+            <div className="flex items-start gap-3">
+              <img src="/ai-avatar.svg" alt="AI" className="w-8 h-8 rounded-full flex-shrink-0" />
+              <div className="bg-white rounded-lg px-3 py-2 shadow-sm">
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                  <span>正在思考问题...</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
+      
+      {/* 反思模式控制按钮 */}
+      {isReflectionMode && currentReflectionRound && (
+        <div className="border-t border-gray-200 bg-blue-50 p-3 flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-blue-600">
+              💭 {currentReflectionRound === 'clarity' ? '任务澄清' : currentReflectionRound === 'time' ? '时间规划' : '优先级'}
+            </span>
+            <div className="flex gap-1.5">
+              <button
+                onClick={onSkipReflectionRound}
+                disabled={isGeneratingQuestions}
+                className="px-3 py-1.5 text-xs bg-blue-500 text-white hover:bg-blue-600 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                下一步 →
+              </button>
+              <button
+                onClick={onMoreQuestions}
+                disabled={isGeneratingQuestions}
+                className="px-3 py-1.5 text-xs text-gray-600 hover:text-gray-800 hover:bg-gray-100 border border-gray-300 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                更多问题
+              </button>
+              <button
+                onClick={onEndReflection}
+                disabled={isGeneratingQuestions}
+                className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                结束
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* 任务识别结果预览 */}
       {showTaskPreview && recognizedTasks.length > 0 && (

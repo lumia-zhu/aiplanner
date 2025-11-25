@@ -27,6 +27,7 @@ import { CompleteRecurringTasksTool } from './CompleteRecurringTasksTool' // ✅
 
 // 元认知反思工具
 import { ReflectOnTasksTool } from './ReflectOnTasksTool' // ✅ 元认知反思工具
+import { GlobalScanTool } from './GlobalScanTool' // ✅ 全局任务扫描工具
 
 /**
  * 工具实例缓存
@@ -64,6 +65,7 @@ export function getAllTools(): AgentTool[] {
     new CompleteRecurringTasksTool(), // ✅ 批量任务完成工具
     // 元认知反思工具
     new ReflectOnTasksTool(), // ✅ 元认知反思工具
+    new GlobalScanTool(), // ✅ 全局任务扫描工具
   ]
 
   const toolNames = toolsCache.map(t => t.name).join(', ')
