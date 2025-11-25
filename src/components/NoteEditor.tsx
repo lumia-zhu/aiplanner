@@ -13,6 +13,7 @@ import { TaskTag } from '@/components/extensions/TaskTag'
 import TagDropdown from '@/components/TagDropdown'
 import TaskActionMenu from '@/components/TaskActionMenu'
 import DateTimePicker from '@/components/DateTimePicker'
+import TaskDurationPicker from '@/components/TaskDurationPicker'
 import type { PresetTag } from '@/constants/tags'
 import type { DateTimeSetting } from '@/types/datetime'
 
@@ -70,6 +71,20 @@ const DraggableTaskItem = TaskItem.extend({
           if (!attributes.intervalEnd) return {}
           return {
             'data-interval-end': attributes.intervalEnd,
+          }
+        },
+      },
+      // ⏳ 新增：预计时长属性
+      estimatedDuration: {
+        default: null,
+        parseHTML: element => {
+          const val = element.getAttribute('data-estimated-duration')
+          return val ? parseInt(val, 10) : null
+        },
+        renderHTML: attributes => {
+          if (!attributes.estimatedDuration) return {}
+          return {
+            'data-estimated-duration': attributes.estimatedDuration,
           }
         },
       },
@@ -165,6 +180,10 @@ export default function NoteEditor({
   // 时间选择器状态
   const [showDateTimePicker, setShowDateTimePicker] = useState(false)
   const [dateTimePickerPosition, setDateTimePickerPosition] = useState({ x: 0, y: 0 })
+
+  // ⏳ 时长选择器状态
+  const [showDurationPicker, setShowDurationPicker] = useState(false)
+  const [durationPickerPosition, setDurationPickerPosition] = useState({ x: 0, y: 0 })
   
   const editor = useEditor({
     immediatelyRender: false,
@@ -583,6 +602,18 @@ export default function NoteEditor({
     setShowDateTimePicker(true)
   }, [currentTaskElement])
   
+  // ⏳ 打开时长选择器（从任务操作菜单调用）
+  const handleOpenDurationPicker = useCallback(() => {
+    if (!currentTaskElement) return
+    
+    const rect = currentTaskElement.getBoundingClientRect()
+    setDurationPickerPosition({
+      x: rect.left + 35,
+      y: rect.top
+    })
+    setShowDurationPicker(true)
+  }, [currentTaskElement])
+
   // ⭐ 拆解任务（从任务操作菜单调用）
   const handleDecomposeTask = useCallback(() => {
     if (!editor || !currentTaskElement || !onDecompose) return
@@ -780,6 +811,70 @@ export default function NoteEditor({
     
     setShowDateTimePicker(false)
     console.log('✅ 时间设置完成')
+  }, [editor, currentTaskElement])
+
+  // 处理时长设置
+  const handleSetDuration = useCallback((duration: number) => {
+    if (!editor || !currentTaskElement) return
+    
+    console.log('✅ 设置时长:', duration)
+    
+    const pos = editor.view.posAtDOM(currentTaskElement, 0)
+    
+    editor.chain()
+      .focus()
+      .command(({ tr }) => {
+        const node = tr.doc.nodeAt(pos)
+        if (node && node.type.name === 'taskItem') {
+          tr.setNodeMarkup(pos, undefined, {
+            ...node.attrs,
+            estimatedDuration: duration
+          })
+          return true
+        }
+        return false
+      })
+      .run()
+      
+    // 更新显示 - 直接插入 DOM 元素
+    const formatted = duration >= 60 
+      ? `${Number((duration / 60).toFixed(1))}h`
+      : `${duration}m`
+      
+    currentTaskElement.setAttribute('data-estimated-duration', String(duration))
+    
+    const contentDiv = currentTaskElement.querySelector(':scope > div') as HTMLElement | null
+    if (contentDiv) {
+      // 清除旧的时长徽章
+      const oldBadge = contentDiv.querySelector('.task-duration-badge')
+      if (oldBadge) oldBadge.remove()
+      
+      // 找到最后一个 p 标签
+      const paragraphs = contentDiv.querySelectorAll('p')
+      const targetP = paragraphs.length > 0 ? (paragraphs[paragraphs.length - 1] as HTMLElement) : null
+      
+      if (targetP) {
+        const badge = document.createElement('span')
+        badge.className = 'task-duration-badge'
+        badge.textContent = ` ⏳ ${formatted}`
+        badge.contentEditable = 'false'
+        badge.style.cssText = `
+          margin-left: 0.75rem;
+          font-size: 0.875rem;
+          font-weight: normal;
+          color: #6b7280;
+          white-space: nowrap;
+          user-select: none;
+          font-family: inherit;
+        `
+        targetP.appendChild(badge)
+        
+        // 插入零宽空格
+        targetP.appendChild(document.createTextNode('\u200B'))
+      }
+    }
+    
+    setShowDurationPicker(false)
   }, [editor, currentTaskElement])
   
   // 格式化单个时间
@@ -1156,6 +1251,7 @@ export default function NoteEditor({
           position={taskActionMenuPosition}
           onOpenTagPicker={handleOpenTagPicker}
           onOpenDateTimePicker={handleOpenDateTimePicker}
+          onOpenDurationPicker={handleOpenDurationPicker}
           onDecompose={handleDecomposeTask}
           onClose={() => setShowTaskActionMenu(false)}
         />
@@ -1178,6 +1274,15 @@ export default function NoteEditor({
           position={dateTimePickerPosition}
           onSelect={handleSetDateTime}
           onClose={() => setShowDateTimePicker(false)}
+        />
+      )}
+
+      {/* ⏳ 时长选择器 */}
+      {showDurationPicker && (
+        <TaskDurationPicker
+          position={durationPickerPosition}
+          onSelect={handleSetDuration}
+          onClose={() => setShowDurationPicker(false)}
         />
       )}
       </div>

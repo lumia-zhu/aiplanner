@@ -14,6 +14,7 @@ export interface DailyTask {
   completed: boolean            // 是否完成
   date: string                  // 任务所属日期 (YYYY-MM-DD)
   deadlineDatetime?: string     // 截止时间 (ISO 8601)
+  estimatedDuration?: number    // ⭐ 预估时长（分钟）
   noteDate: string              // 任务来自哪天的笔记 (YYYY-MM-DD)
   notePosition: number          // 在笔记中的位置
   createdAt: string             // 创建时间
@@ -31,6 +32,7 @@ export interface CreateDailyTaskInput {
   noteDate: string              // 任务来自哪天的笔记（必填）
   completed?: boolean           // 是否完成（默认 false）
   deadlineDatetime?: string     // 截止时间（可选）
+  estimatedDuration?: number    // ⭐ 预估时长（分钟）
   notePosition?: number         // 在笔记中的位置（默认 0）
 }
 
@@ -42,6 +44,7 @@ export interface UpdateDailyTaskInput {
   completed?: boolean           // 是否完成
   date?: string                 // 任务所属日期
   deadlineDatetime?: string     // 截止时间
+  estimatedDuration?: number    // ⭐ 预估时长（分钟）
   notePosition?: number         // 在笔记中的位置
 }
 
@@ -53,6 +56,7 @@ export interface ParsedTask {
   completed: boolean            // 是否完成
   position: number              // 在笔记中的位置（第几个任务）
   deadlineDatetime?: string     // 截止时间（如果有 @时间 标记）
+  estimatedDuration?: number    // ⭐ 预估时长（分钟）
 }
 
 /**

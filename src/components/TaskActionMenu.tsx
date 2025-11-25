@@ -19,6 +19,7 @@ interface TaskActionMenuProps {
   position: { x: number; y: number }  // 菜单位置
   onOpenTagPicker: () => void         // 打开标签选择器
   onOpenDateTimePicker: () => void    // 打开时间选择器
+  onOpenDurationPicker?: () => void   // 打开时长选择器 (可选，暂做兼容)
   onDecompose: () => void             // ⭐ 拆解任务
   onClose: () => void                 // 关闭菜单
 }
@@ -27,6 +28,7 @@ export default function TaskActionMenu({
   position,
   onOpenTagPicker,
   onOpenDateTimePicker,
+  onOpenDurationPicker,
   onDecompose,
   onClose
 }: TaskActionMenuProps) {
@@ -112,11 +114,14 @@ export default function TaskActionMenu({
       }
     },
     {
-      icon: '🔔',
-      label: '添加提醒',
-      badge: '开发中',
+      icon: '⏳',
+      label: '设置时长',
       onClick: () => {
-        alert('🔔 提醒功能正在开发中，敬请期待！')
+        if (onOpenDurationPicker) {
+          onOpenDurationPicker()
+        } else {
+          alert('功能开发中...')
+        }
         onClose()
       }
     },

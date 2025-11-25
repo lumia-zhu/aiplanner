@@ -18,6 +18,7 @@ function mapDbTaskToTask(dbTask: any): DailyTask {
     completed: dbTask.completed,
     date: dbTask.date,
     deadlineDatetime: dbTask.deadline_datetime,
+    estimatedDuration: dbTask.estimated_duration,
     noteDate: dbTask.note_date,
     notePosition: dbTask.note_position || 0,
     createdAt: dbTask.created_at,
@@ -112,6 +113,7 @@ export async function createDailyTask(
       note_date: input.noteDate,
       completed: input.completed ?? false,
       deadline_datetime: input.deadlineDatetime || null,
+      estimated_duration: input.estimatedDuration || null,
       note_position: input.notePosition ?? 0,
     }
 
@@ -153,6 +155,7 @@ export async function updateDailyTask(
     if (updates.completed !== undefined) updateData.completed = updates.completed
     if (updates.date !== undefined) updateData.date = updates.date
     if (updates.deadlineDatetime !== undefined) updateData.deadline_datetime = updates.deadlineDatetime
+    if (updates.estimatedDuration !== undefined) updateData.estimated_duration = updates.estimatedDuration
     if (updates.notePosition !== undefined) updateData.note_position = updates.notePosition
 
     const { data, error } = await supabase

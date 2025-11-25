@@ -59,11 +59,19 @@ export function parseTasksFromNote(noteContent: string | any): ParsedTask[] {
       if (node.type === 'taskItem') {
         const taskText = sanitizeTaskTitle(extractTextFromNode(node))
         if (taskText) {
+          // 提取 estimatedDuration
+          // 注意：HTML attribute 是 'data-estimated-duration', 但 Tiptap JSON attrs 可能是 'estimatedDuration'
+          // 这取决于 extension 的 addAttributes 配置
+          const duration = node.attrs?.estimatedDuration 
+            ? Number(node.attrs.estimatedDuration) 
+            : undefined
+
           tasks.push({
             title: taskText,
             completed: node.attrs?.checked || false,
             position: position.count,
             deadlineDatetime: undefined, // TODO: 从文本中提取 @时间 标记
+            estimatedDuration: duration,  // ⭐ 提取时长
           })
           position.count++
         }
@@ -213,13 +221,15 @@ export async function syncTasksFromNote(
         // 任务已存在，检查是否需要更新
         const needsUpdate = 
           existingTask.title !== parsedTask.title ||
-          existingTask.completed !== parsedTask.completed
+          existingTask.completed !== parsedTask.completed ||
+          existingTask.estimatedDuration !== parsedTask.estimatedDuration
 
         if (needsUpdate) {
           try {
             await updateDailyTask(existingTask.id, {
               title: parsedTask.title,
               completed: parsedTask.completed,
+              estimatedDuration: parsedTask.estimatedDuration,
             })
             result.updated++
             console.log(`✅ 更新任务: ${parsedTask.title}`)
@@ -238,6 +248,7 @@ export async function syncTasksFromNote(
             noteDate: noteDate,
             notePosition: parsedTask.position,
             deadlineDatetime: parsedTask.deadlineDatetime,
+            estimatedDuration: parsedTask.estimatedDuration,
           })
 
           // 为新任务创建矩阵记录（默认：待分类）

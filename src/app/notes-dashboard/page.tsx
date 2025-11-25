@@ -2418,35 +2418,53 @@ export default function NotesDashboardPage() {
     return text
   }, [])
 
-  // 🆕 构建笔记上下文文本
+  // 🆕 构建笔记上下文文本 (已瘦身优化)
   const buildNoteContextText = useCallback(() => {
     if (viewMode !== 'editor') return null
     
     const dateStr = formatNoteDate(currentContextDate)
-    const noteText = currentNote ? getNoteText(currentNote).trim() : '（空笔记）'
     
-    // 获取当前任务列表（从 tasksByQuadrant 合并）
+    // ✂️ 笔记内容截断优化
+    let noteText = currentNote ? getNoteText(currentNote).trim() : '（空笔记）'
+    if (noteText.length > 1000) {
+      noteText = noteText.substring(0, 600) + '\n\n...（中间内容已折叠以加速AI响应）...\n\n' + noteText.substring(noteText.length - 300)
+    }
+    
+    // ✂️ 任务列表瘦身优化
     const allTasks = Object.values(tasksByQuadrant).flat()
+    const completedCount = allTasks.filter(t => t.completed).length
+    const pendingTasks = allTasks.filter(t => !t.completed)
     
-    const taskListText = allTasks.length > 0 
-      ? allTasks.map(t => 
-          `- [${t.completed ? 'x' : ' '}] ${t.title} (${t.completed ? '已完成' : '未完成'})`
-        ).join('\n')
-      : '（无任务）'
+    let taskListText = ''
+    if (completedCount > 0) {
+       taskListText += `✅ 已完成：${completedCount} 项\n`
+    }
+    
+    if (pendingTasks.length > 0) {
+       taskListText += pendingTasks.map(t => `- [TODO] ${t.title}`).join('\n')
+    } else if (completedCount === 0) {
+       taskListText = '（无任务）'
+    }
+
+    // ✂️ 用户画像瘦身优化
+    let profileText = ''
+    if (userProfile) {
+       const parts = []
+       if (user?.username) parts.push(`用户:${user.username}`)
+       if (userProfile.challenges?.length) parts.push(`挑战:${userProfile.challenges.join(',')}`)
+       if (parts.length > 0) profileText = `[用户简报] ${parts.join(' | ')}\n\n`
+    }
       
     return `
-[当前笔记上下文]
-日期：${dateStr}
-
-【笔记正文】：
+${profileText}[笔记上下文] ${dateStr}
+【笔记摘要】：
 ${noteText || '（无内容）'}
-
-【今日任务清单】：
+【待办清单】：
 ${taskListText}
 `.trim()
-  }, [viewMode, currentContextDate, currentNote, tasksByQuadrant, getNoteText])
+  }, [viewMode, currentContextDate, currentNote, tasksByQuadrant, getNoteText, userProfile, user])
 
-  // 🆕 构建矩阵上下文文本
+  // 🆕 构建矩阵上下文文本 (已瘦身优化)
   const buildMatrixContextText = useCallback(() => {
     if (viewMode !== 'matrix') return null
 
@@ -2483,6 +2501,7 @@ ${taskListText}
     }
     
     let matrixStats = ''
+    let totalCompleted = 0
     
     // ⭐ 遍历所有物理象限，使用当前维度的动态标签
     const physicalQuadrants: QuadrantType[] = [
@@ -2502,12 +2521,21 @@ ${taskListText}
           ? '待分类'
           : dynamicQuadrantsConfig[position]
         
-        matrixStats += `\n${quadrantLabel} (${tasks.length}个):\n`
-        tasks.forEach(t => {
-          matrixStats += `- ${t.title} [${t.completed ? '已完成' : '未完成'}]\n`
-        })
+        // ✂️ 瘦身优化：统计完成数，只列出未完成
+        const completed = tasks.filter(t => t.completed).length
+        totalCompleted += completed
+        const pending = tasks.filter(t => !t.completed)
+
+        if (pending.length > 0) {
+            matrixStats += `\n${quadrantLabel}:\n`
+            matrixStats += pending.map(t => `- ${t.title}`).join('\n')
+        }
       }
     })
+
+    if (totalCompleted > 0) {
+        matrixStats = `✅ 今日已完成：${totalCompleted} 项\n` + matrixStats
+    }
 
     // 尝试找到对应的维度名称（用于显示）
     const matchedDimensionName = Object.values(MATRIX_DIMENSION_CONFIGS).find(
@@ -2515,22 +2543,27 @@ ${taskListText}
              PRESET_MATRIX_CONFIGS[d.id]?.yAxis === axesConfig.yAxis
     )?.name || `${yDimConfig.name}-${xDimConfig.name}`
 
-    const contextText = `
-[当前矩阵上下文]
-日期：${dateStr}
-当前维度：${matchedDimensionName}
-X轴：${xDimConfig.name} (${xDimConfig.levels.low} → ${xDimConfig.levels.high})
-Y轴：${yDimConfig.name} (${yDimConfig.levels.low} → ${yDimConfig.levels.high})
+    // ✂️ 用户画像瘦身优化
+    let profileText = ''
+    if (userProfile) {
+       const parts = []
+       if (user?.username) parts.push(`用户:${user.username}`)
+       if (userProfile.challenges?.length) parts.push(`挑战:${userProfile.challenges.join(',')}`)
+       if (parts.length > 0) profileText = `[用户简报] ${parts.join(' | ')}\n\n`
+    }
 
-【任务分布】：
-${matrixStats || '（暂无任务）'}
+    const contextText = `
+${profileText}[矩阵上下文] ${dateStr} | 维度：${matchedDimensionName}
+X轴：${xDimConfig.name} | Y轴：${yDimConfig.name}
+【待办分布】：
+${matrixStats || '（无待办）'}
 `.trim()
     
     // 🔍 调试日志：输出生成的上下文文本（前200字符）
-    console.log('📊 生成的矩阵上下文（预览）:', contextText.substring(0, 200) + '...')
+    console.log('📊 生成的矩阵上下文（瘦身版）:', contextText.substring(0, 200) + '...')
     
     return contextText
-  }, [viewMode, currentContextDate, matrixAxes, tasksByQuadrant])
+  }, [viewMode, currentContextDate, matrixAxes, tasksByQuadrant, userProfile, user])
 
   // ⭐ 处理普通对话（非任务管理）
   const handleCasualChat = useCallback(async () => {
