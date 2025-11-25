@@ -3072,9 +3072,17 @@ ${matrixStats || '（无待办）'}
       logger.success('✅ 任务已同步到数据库')
       
       // 6. 如果修改的是当前选中日期的笔记，更新编辑器显示
-      if (formatNoteDate(selectedDate) === formatNoteDate(noteDate)) {
-        setCurrentNote(updatedContent)
+      const selectedDateStr = formatNoteDate(selectedDate)
+      const noteDateStr = formatNoteDate(noteDate)
+      logger.debug('📅 日期比较:', { selectedDateStr, noteDateStr, match: selectedDateStr === noteDateStr })
+      
+      if (selectedDateStr === noteDateStr) {
+        // 使用深拷贝确保 React 检测到状态变化
+        const newContent = JSON.parse(JSON.stringify(updatedContent))
+        setCurrentNote(newContent)
         logger.debug('✅ 编辑器内容已刷新')
+      } else {
+        logger.debug('⏭️ 跳过编辑器刷新：日期不匹配')
       }
       
       // 7. 刷新矩阵视图（如果在矩阵模式）
@@ -3084,8 +3092,10 @@ ${matrixStats || '（无待办）'}
       
       logger.success('✅ 任务状态已同步到数据库')
       
-      // 🆕 刷新任务列表卡片
-      await refreshTaskListInChat()
+      // ⚠️ 不要调用 refreshTaskListInChat()！
+      // 因为刷新会重新查询任务，而查询默认排除已完成任务，
+      // 这会导致刚勾选完成的任务从列表中消失。
+      // 乐观更新已经在前面处理了 UI 显示（任务显示为划掉状态）。
       
     } catch (error) {
       logger.error('❌ 切换任务状态失败:', error)
@@ -3835,10 +3845,10 @@ ${matrixStats || '（无待办）'}
                     {!isChatSidebarOpen && (
                       <button
                         onClick={toggleChatSidebar}
-                        className="absolute right-6 bottom-16 z-40 w-14 h-14 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-300 flex items-center justify-center group"
+                        className="absolute right-6 bottom-16 z-40 w-20 h-20 hover:scale-110 transition-all duration-300 flex items-center justify-center group animate-float"
                         title="展开AI助手 (Ctrl+B)"
                       >
-                        <span className="text-3xl">🤖</span>
+                        <img src="/ai-avatar-nobg.svg" alt="AI助手" className="w-20 h-20 drop-shadow-lg" />
                         <span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-lg">
                           AI助手
                         </span>
@@ -3871,10 +3881,10 @@ ${matrixStats || '（无待办）'}
                     {!isChatSidebarOpen && (
                       <button
                         onClick={toggleChatSidebar}
-                        className="absolute right-6 bottom-6 z-40 w-14 h-14 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-300 flex items-center justify-center group"
+                        className="absolute right-6 bottom-6 z-40 w-20 h-20 hover:scale-110 transition-all duration-300 flex items-center justify-center group animate-float"
                         title="展开AI助手 (Ctrl+B)"
                       >
-                        <span className="text-3xl">🤖</span>
+                        <img src="/ai-avatar-nobg.svg" alt="AI助手" className="w-20 h-20 drop-shadow-lg" />
                         <span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-lg">
                           AI助手
                         </span>

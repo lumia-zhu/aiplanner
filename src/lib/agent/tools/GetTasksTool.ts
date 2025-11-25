@@ -29,7 +29,7 @@ interface GetTasksParams {
  */
 export class GetTasksTool implements AgentTool {
   name = 'get_tasks'
-  description = '查询用户的任务列表，支持按日期范围、优先级筛选。返回简化的任务信息（只包含决策所需的关键字段）'
+  description = '查询用户的任务列表，支持按日期范围、优先级筛选。如果不传 dateRange，默认查询最近30天内的所有任务（包括今天和之前遗留的未完成任务）'
   
   parameters: ParameterSchema = {
     type: 'object',
@@ -74,10 +74,11 @@ export class GetTasksTool implements AgentTool {
         startDate = new Date(params.dateRange.start)
         endDate = new Date(params.dateRange.end)
       } else {
-        // 默认查询今天
+        // 默认查询所有未完成任务（从30天前到今天）
+        // 当用户问"我有什么任务"时，应该包括今天和之前遗留的任务
         const today = new Date()
-        startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-        endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59)
+        startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 30) // 30天前
+        endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59) // 今天结束
       }
 
       // 查询日期范围内的笔记

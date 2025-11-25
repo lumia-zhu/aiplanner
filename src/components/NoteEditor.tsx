@@ -270,9 +270,31 @@ export default function NoteEditor({
   // 当 initialContent 改变时更新编辑器
   useEffect(() => {
     if (editor && initialContent) {
-      const currentContent = editor.getJSON()
-      if (JSON.stringify(currentContent) !== JSON.stringify(initialContent)) {
-        editor.commands.setContent(initialContent)
+      // 使用更可靠的比较方式：直接设置内容
+      // 之前的 JSON.stringify 比较可能因为属性顺序不同而失败
+      try {
+        const currentContent = editor.getJSON()
+        const currentStr = JSON.stringify(currentContent)
+        const newStr = JSON.stringify(initialContent)
+        
+        if (currentStr !== newStr) {
+          console.log('📝 NoteEditor: 检测到内容变化，更新编辑器')
+          // 保存当前光标位置
+          const { from, to } = editor.state.selection
+          // 设置新内容
+          editor.commands.setContent(initialContent)
+          // 尝试恢复光标位置（如果位置有效）
+          try {
+            const docLength = editor.state.doc.content.size
+            const safeFrom = Math.min(from, docLength)
+            const safeTo = Math.min(to, docLength)
+            editor.commands.setTextSelection({ from: safeFrom, to: safeTo })
+          } catch {
+            // 忽略光标恢复错误
+          }
+        }
+      } catch (error) {
+        console.error('📝 NoteEditor: 更新内容失败:', error)
       }
     }
   }, [editor, initialContent])
@@ -441,22 +463,16 @@ export default function NoteEditor({
           e.preventDefault()
           e.stopPropagation()
           
-          // 设置任务操作菜单位置（在任务行右侧显示，避免遮挡）
-          // 菜单宽度约 180px，留出 20px 边距
-          const menuWidth = 200
-          const viewportWidth = window.innerWidth
+          // 设置任务操作菜单位置（紧贴拖拽手柄左侧，让用户感知关联）
+          // 菜单宽度约 180px
+          const menuWidth = 180
           
-          // 优先显示在任务行右侧
-          let menuX = rect.right + 10
+          // 紧贴拖拽手柄左侧（rect.left 是任务行左边缘，手柄在最左边）
+          let menuX = rect.left - menuWidth
           
-          // 如果右侧空间不够，显示在左侧
-          if (menuX + menuWidth > viewportWidth) {
-            menuX = rect.left - menuWidth - 10
-          }
-          
-          // 如果左侧也不够，就显示在视口右侧边缘
-          if (menuX < 10) {
-            menuX = viewportWidth - menuWidth - 20
+          // 如果左侧空间不够，就贴靠左边缘
+          if (menuX < 5) {
+            menuX = 5
           }
           
           setTaskActionMenuPosition({

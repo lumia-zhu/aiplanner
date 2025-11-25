@@ -25,6 +25,9 @@ import { DeleteRecurringTasksTool } from './DeleteRecurringTasksTool' // ✅ 批
 import { CompleteTaskTool } from './CompleteTaskTool' // ✅ 单个任务完成工具
 import { CompleteRecurringTasksTool } from './CompleteRecurringTasksTool' // ✅ 批量任务完成工具
 
+// 元认知反思工具
+import { ReflectOnTasksTool } from './ReflectOnTasksTool' // ✅ 元认知反思工具
+
 /**
  * 工具实例缓存
  * 避免重复创建工具实例，提升性能
@@ -59,6 +62,8 @@ export function getAllTools(): AgentTool[] {
     new DeleteRecurringTasksTool(), // ✅ 批量删除工具
     new CompleteTaskTool(), // ✅ 单个任务完成工具
     new CompleteRecurringTasksTool(), // ✅ 批量任务完成工具
+    // 元认知反思工具
+    new ReflectOnTasksTool(), // ✅ 元认知反思工具
   ]
 
   const toolNames = toolsCache.map(t => t.name).join(', ')

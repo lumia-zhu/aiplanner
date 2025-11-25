@@ -976,6 +976,134 @@ Action Input: {"userId": "test_user", "dateRange": {"start": "2025-11-06", "end"
     }
   }
 
+  // Test ReflectOnTasksTool - 元认知反思工具
+  const testReflectOnTasksTool = async () => {
+    if (!user) return
+
+    addResult('\n🧪 ========== 测试 ReflectOnTasksTool 元认知反思工具 ==========')
+    
+    try {
+      const { ReflectOnTasksTool } = await import('@/lib/agent/tools/ReflectOnTasksTool')
+      
+      addResult('✅ 工具类导入成功')
+      
+      const tool = new ReflectOnTasksTool()
+      addResult(`✅ 工具实例化成功: ${tool.name}`)
+      addResult(`📝 工具描述: ${tool.description.substring(0, 80)}...`)
+      
+      // 测试场景 1: improve（完善任务）
+      addResult('\n🔄 测试场景 1: improve（完善任务）')
+      const result1 = await tool.execute({
+        triggerType: 'improve',
+        tasks: [{ title: '学习', priority: 'medium' }]
+      })
+      
+      if (result1.type === 'success') {
+        addResult('✅ 工具执行成功！')
+        addResult(`📋 标题: ${result1.data.title}`)
+        addResult(`❓ 问题数量: ${result1.data.questions.length}`)
+        result1.data.questions.forEach((q: any, i: number) => {
+          addResult(`   ${i + 1}. [${q.dimension}] ${q.text}`)
+          if (q.hint) addResult(`      💡 提示: ${q.hint}`)
+        })
+      } else {
+        addResult(`❌ 执行失败: ${result1.message}`)
+      }
+      
+      // 测试场景 2: decompose（拆解任务）
+      addResult('\n🔄 测试场景 2: decompose（拆解任务）')
+      const result2 = await tool.execute({
+        triggerType: 'decompose',
+        tasks: [{ title: '写论文', estimatedDuration: 180 }]
+      })
+      
+      if (result2.type === 'success') {
+        addResult('✅ 工具执行成功！')
+        addResult(`📋 标题: ${result2.data.title}`)
+        addResult(`❓ 问题数量: ${result2.data.questions.length}`)
+        result2.data.questions.forEach((q: any, i: number) => {
+          addResult(`   ${i + 1}. [${q.dimension}] ${q.text}`)
+        })
+      } else {
+        addResult(`❌ 执行失败: ${result2.message}`)
+      }
+      
+      // 测试场景 3: estimate_time（时间估计）
+      addResult('\n🔄 测试场景 3: estimate_time（时间估计）')
+      const result3 = await tool.execute({
+        triggerType: 'estimate_time',
+        tasks: [{ title: '准备面试', deadline: '2025-12-01' }],
+        userProfileSummary: '大三学生，计算机专业'
+      })
+      
+      if (result3.type === 'success') {
+        addResult('✅ 工具执行成功！')
+        addResult(`📋 标题: ${result3.data.title}`)
+        addResult(`❓ 问题数量: ${result3.data.questions.length}`)
+        result3.data.questions.forEach((q: any, i: number) => {
+          addResult(`   ${i + 1}. [${q.dimension}] ${q.text}`)
+        })
+      } else {
+        addResult(`❌ 执行失败: ${result3.message}`)
+      }
+      
+      // 测试场景 4: reprioritize（优先级调整）
+      addResult('\n🔄 测试场景 4: reprioritize（优先级调整）')
+      const result4 = await tool.execute({
+        triggerType: 'reprioritize',
+        tasks: [
+          { title: '复习考试', priority: 'high' },
+          { title: '整理笔记', priority: 'low' }
+        ],
+        situationContext: {
+          currentDate: '2025-11-25',
+          isWeekend: false,
+          pendingTaskCount: 8,
+          overdueTaskCount: 2
+        }
+      })
+      
+      if (result4.type === 'success') {
+        addResult('✅ 工具执行成功！')
+        addResult(`📋 标题: ${result4.data.title}`)
+        addResult(`❓ 问题数量: ${result4.data.questions.length}`)
+        result4.data.questions.forEach((q: any, i: number) => {
+          addResult(`   ${i + 1}. [${q.dimension}] ${q.text}`)
+        })
+      } else {
+        addResult(`❌ 执行失败: ${result4.message}`)
+      }
+      
+      // 测试场景 5: review（回顾任务）
+      addResult('\n🔄 测试场景 5: review（回顾任务）')
+      const result5 = await tool.execute({
+        triggerType: 'review',
+        tasks: [
+          { title: '完成作业', isCompleted: true },
+          { title: '锻炼', isCompleted: false }
+        ]
+      })
+      
+      if (result5.type === 'success') {
+        addResult('✅ 工具执行成功！')
+        addResult(`📋 标题: ${result5.data.title}`)
+        addResult(`❓ 问题数量: ${result5.data.questions.length}`)
+        result5.data.questions.forEach((q: any, i: number) => {
+          addResult(`   ${i + 1}. [${q.dimension}] ${q.text}`)
+        })
+      } else {
+        addResult(`❌ 执行失败: ${result5.message}`)
+      }
+      
+      addResult('\n🎉 ReflectOnTasksTool 测试完成！')
+      addResult('✅ 所有 5 种触发场景都已测试')
+      
+    } catch (error: any) {
+      addResult(`❌ 测试失败: ${error.message}`)
+      console.error('测试错误:', error)
+    }
+  }
+
   // Test EstimateTimeTool - Step 7
   const testEstimateTimeTool = async () => {
     if (!user) return
@@ -1142,6 +1270,16 @@ Action Input: {"userId": "test_user", "dateRange": {"start": "2025-11-06", "end"
             >
               🚧 Step 7: EstimateTimeTool 测试 ⭐ 最后一个！
             </button>
+            
+            <div className="border-t-4 border-green-500 my-4 pt-4">
+              <h3 className="text-lg font-bold mb-2 text-green-600">💭 元认知反思工具</h3>
+              <button
+                onClick={testReflectOnTasksTool}
+                className="w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 font-bold mb-2"
+              >
+                🧪 测试 ReflectOnTasksTool（5种场景）⭐ NEW
+              </button>
+            </div>
             
             <div className="border-t-4 border-purple-500 my-4 pt-4">
               <h3 className="text-lg font-bold mb-2 text-purple-600">🚀 Phase 3: ReAct Agent Core</h3>

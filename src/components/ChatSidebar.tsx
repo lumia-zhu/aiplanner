@@ -1,6 +1,7 @@
 'use client'
 
 import React, { memo, useRef, useState, useEffect } from 'react'
+import ReactMarkdown from 'react-markdown'
 import { doubaoService, type ChatMessage } from '@/lib/doubaoService'
 import type { Task, WorkflowMode, PrioritySortFeeling, SingleTaskAction, SubtaskSuggestion } from '@/types'
 import { getAgentConfig } from '@/lib/agent/AgentConfig'
@@ -396,9 +397,9 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                                 )}
                               </div>
                             ) : (
-                          <p className="text-sm whitespace-pre-wrap" style={{ color: '#3f3f3f' }}>
-                            {content.text}
-                          </p>
+                              <div className="text-sm prose-chat">
+                                <ReactMarkdown>{content.text}</ReactMarkdown>
+                              </div>
                             )}
                           </div>
                         )}
@@ -579,10 +580,10 @@ const ChatSidebar = memo<ChatSidebarProps>(({
             <div className="flex items-start gap-3">
               <img src="/ai-avatar.svg" alt="AI" className="w-8 h-8 rounded-full flex-shrink-0" />
               <div className="bg-white rounded-lg px-3 py-2 shadow-sm max-w-[80%]">
-                <p className="text-sm whitespace-pre-wrap" style={{ color: '#3f3f3f' }}>
-                  {streamingMessage}
+                <div className="text-sm prose-chat">
+                  <ReactMarkdown>{streamingMessage}</ReactMarkdown>
                   <span className="inline-block w-2 h-4 bg-blue-500 ml-1 animate-pulse"></span>
-                </p>
+                </div>
               </div>
             </div>
           )}
