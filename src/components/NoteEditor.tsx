@@ -441,9 +441,26 @@ export default function NoteEditor({
           e.preventDefault()
           e.stopPropagation()
           
-          // 设置任务操作菜单位置（在手柄右侧显示）
+          // 设置任务操作菜单位置（在任务行右侧显示，避免遮挡）
+          // 菜单宽度约 180px，留出 20px 边距
+          const menuWidth = 200
+          const viewportWidth = window.innerWidth
+          
+          // 优先显示在任务行右侧
+          let menuX = rect.right + 10
+          
+          // 如果右侧空间不够，显示在左侧
+          if (menuX + menuWidth > viewportWidth) {
+            menuX = rect.left - menuWidth - 10
+          }
+          
+          // 如果左侧也不够，就显示在视口右侧边缘
+          if (menuX < 10) {
+            menuX = viewportWidth - menuWidth - 20
+          }
+          
           setTaskActionMenuPosition({
-            x: rect.left + 35,
+            x: menuX,
             y: rect.top
           })
           
