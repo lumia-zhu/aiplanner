@@ -32,6 +32,7 @@ export interface RoundResult {
   questions: ReflectionQuestion[]
   title: string
   description: string
+  tasksToDecompose?: string[]  // Clarity 轮特有：LLM 建议拆解的任务标题
 }
 
 // ==================== 轮次配置 ====================
@@ -120,6 +121,85 @@ const CLARITY_DIMENSIONS = {
 }
 
 // ==================== Prompt 构建 ====================
+
+/**
+ * 识别顶层任务（过滤掉子任务）
+ * 子任务通常有以下特征：
+ * 1. 标题以动词开头 + 父任务名（如"制定锻炼计划"、"准备锻炼装备"）
+ * 2. 标题模式：动作词 + 相同的关键词
+ * 3. 多个任务共享相同的关键词（如"椭圆机"出现在多个任务中）
+ */
+function identifyTopLevelTasks(tasks: TaskSnapshot[]): TaskSnapshot[] {
+  if (tasks.length <= 1) return tasks
+  
+  // 收集所有任务标题
+  const titles = tasks.map(t => t.title)
+  
+  // 找出可能的父任务关键词（出现在多个任务中，且至少有一个任务就是这个关键词）
+  const potentialParentKeywords: Set<string> = new Set()
+  
+  // 第一步：找出所有共享的关键词
+  const keywordCounts: Map<string, number> = new Map()
+  for (const title of titles) {
+    // 提取可能的关键词（2-6个字的词）
+    const keywords = title.match(/[\u4e00-\u9fa5]{2,6}/g) || []
+    for (const keyword of keywords) {
+      const count = (keywordCounts.get(keyword) || 0) + 1
+      keywordCounts.set(keyword, count)
+    }
+  }
+  
+  // 找出出现次数 >= 2 的关键词
+  for (const [keyword, count] of keywordCounts) {
+    if (count >= 2) {
+      potentialParentKeywords.add(keyword)
+    }
+  }
+  
+  // 子任务模式：以动词开头
+  const subtaskVerbPatterns = /^(制定|准备|执行|完成|整理|记录|调整|检查|确认|安排|规划|设置|进行|开始|结束|收拾|清理|购买|下载|安装|配置|测试|验证|提交|发送|回复|联系|预约|取消)/
+  
+  // 判断一个任务是否是子任务
+  const isSubtask = (title: string): boolean => {
+    // 如果任务很短（可能是父任务），不算子任务
+    if (title.length <= 4) return false
+    
+    // 检查是否以动词开头
+    const startsWithVerb = subtaskVerbPatterns.test(title)
+    
+    // 检查是否包含共享关键词
+    const containsSharedKeyword = Array.from(potentialParentKeywords).some(keyword => {
+      // 如果任务标题就是关键词本身，不算子任务
+      if (title === keyword) return false
+      // 如果任务标题只比关键词多一两个字，可能是父任务
+      if (title.length <= keyword.length + 2) return false
+      return title.includes(keyword)
+    })
+    
+    // 同时满足：以动词开头 + 包含共享关键词 = 子任务
+    return startsWithVerb && containsSharedKeyword
+  }
+  
+  // 过滤出顶层任务
+  const topLevelTasks = tasks.filter(task => !isSubtask(task.title))
+  
+  // 如果过滤后任务太少（可能误判），尝试更宽松的策略
+  if (topLevelTasks.length === 0) {
+    // 返回原始列表
+    return tasks
+  }
+  
+  // 如果过滤后只剩很少的任务，但原来有很多，可能是误判
+  // 这种情况下，选择最短的几个任务作为顶层任务
+  if (topLevelTasks.length < tasks.length * 0.3 && tasks.length > 3) {
+    // 按标题长度排序，取最短的几个
+    const sortedByLength = [...tasks].sort((a, b) => a.title.length - b.title.length)
+    const shortestTasks = sortedByLength.slice(0, Math.max(3, Math.ceil(tasks.length * 0.3)))
+    return shortestTasks
+  }
+  
+  return topLevelTasks
+}
 
 /**
  * 分析任务的"可理解性"，判断缺失哪些元认知维度
@@ -233,84 +313,128 @@ ${previousContext}
 ❌ 差（无效问题）："学习的目标是什么？"
 ✅ 好（行动触发）："学习这项任务，你只需要准备好，还是需要先调整一下状态才能开始？"
 
+【额外任务：识别需要拆解的任务】
+请同时判断哪些任务**可能需要拆解**。判断标准：
+- 任务描述模糊，不知道具体要做什么
+- 任务范围太大，一次做不完
+- 任务包含多个步骤或子目标
+- 任务复杂度高，容易让人不知从何下手
+
+注意：简单、清晰、一步到位的任务（如"锻炼"、"买菜"）不需要拆解。
+
 【输出格式】
-返回 JSON 数组（严格 3 个问题）：
-[
-  { "text": "问题内容", "hint": "问题背后的元认知意图（如：策略意识、障碍预判）" }
-]
+返回 JSON 对象：
+{
+  "questions": [
+    { "text": "问题内容", "hint": "问题背后的元认知意图（如：策略意识、障碍预判）" }
+  ],
+  "tasksToDecompose": ["任务标题1", "任务标题2"]
+}
+
+- questions: 严格 3 个反思问题
+- tasksToDecompose: 建议拆解的任务标题数组（可以为空数组 []）
 
 只返回 JSON，不要其他内容。`
 
   } else if (round === 'time') {
-    return `你是一个专业的元认知教练。在时间规划层面，你的目标是唤醒用户的**Temporal Awareness（时间知觉）**。
+    // 过滤出顶层任务（非子任务）
+    // 子任务通常是拆解出来的，标题可能包含"制定...计划"、"准备..."等模式
+    // 或者我们可以通过检查任务是否有多个相似前缀来判断
+    const topLevelTasks = identifyTopLevelTasks(uncompletedTasks)
+    const topLevelTaskList = topLevelTasks
+      .map(t => {
+        const parts = [`「${t.title}」`]
+        if (t.priority) parts.push(`优先级: ${t.priority}`)
+        if (t.estimatedDuration) parts.push(`${t.estimatedDuration}分钟`)
+        if (t.deadline) parts.push(`截止: ${t.deadline}`)
+        return parts.join(' | ')
+      })
+      .join('\n')
+    
+    return `你是一个专业的元认知教练。在时间规划层面，你的目标是帮助用户**克服规划谬误（Planning Fallacy）**和**时间盲区（Time Blindness）**。
 
-【用户的任务】
-${taskList}
+【用户的主要任务】（只关注这些顶层任务，不要问子任务）
+${topLevelTaskList}
 
 【当前情况】
 - ${scanResult.unestimatedTaskCount} 个任务没有时间估计
 - 工作负载: ${scanResult.workloadLevel === 'light' ? '轻松' : scanResult.workloadLevel === 'heavy' ? '较重' : '适中'}
-- 总任务数: ${scanResult.totalTaskCount}
+- 主要任务数: ${topLevelTasks.length}
 ${previousContext}
-【问题生成策略】
+【问题生成策略 - 核心调整】
 
 **❌ 禁止（Don't）：**
-1. **不要逐个问时间**："学习要多久？"、"锻炼要多久？"（枯燥、像填表）。
-2. **不要问无法回答的问题**："你觉得今天能做完吗？"（用户通常会盲目自信说能）。
+1. **不要问"有多少时间"**：用户通常高估可用时间。
+2. **不要问"哪个最长"**：这通常显而易见，没价值。
+3. **不要问子任务**：只关注主要任务（如"锻炼"、"做TA"），不要问拆解出来的子步骤。
 
-**✅ 提倡（Do）：**
-1. **校准时间知觉（Calibration）**：
-   - "这几个任务里，哪个通常会比你预期的花更多时间？"
-   - "对于[具体任务]，你以前做类似的事情时，实际花费的时间和预计的一样吗？"
+**✅ 必须坚持（Do）—— 聚焦于"校准"和"落地"：**
+1. **参考类预测（Reference Class）**：
+   - "回想一下上次做类似[主要任务]的时候，实际花费的时间是不是比预想的要长？"
+   - "通常做这类任务，你是不是容易低估某些环节的时间？"
 
-2. **识别时间黑洞（Time Sinks）**：
-   - "哪个任务一旦开始，你可能会不知不觉陷进去（Flow/Hyperfocus）？"
-   - "今天有没有什么固定的时间窗口（如上课、开会）是必须避开的？"
+2. **隐形依赖与瓶颈（Hidden Dependencies）**：
+   - "做[主要任务]之前，是不是需要等别人的回复或准备什么？"
+   - "[主要任务]有没有什么前置步骤是你没算进时间的？"
 
-3. **能量管理（Energy Management）**：
-   - "这些任务里，哪个需要在你精力最好的时候做？"
+3. **风险与冗余（Risk & Buffer）**：
+   - "如果[主要任务]中间出了点小岔子（比如被打断），你现在的计划有弹性吗？"
+   - "你有没有给[主要任务]预留 buffer，以防万一？"
+
+4. **整体时间分配（Time Allocation）**：
+   - "今天这几个任务加起来，时间够用吗？有没有需要调整的？"
 
 【输出格式】
 返回 JSON 数组（严格 3 个问题）：
 [
-  { "text": "问题内容", "hint": "元认知意图（如：时间校准、能量匹配）" }
+  { "text": "问题内容", "hint": "元认知意图（如：参考过往经验、识别隐形依赖、预留缓冲）" }
 ]
 
 只返回 JSON，不要其他内容。`
 
   } else if (round === 'priority') {
-    return `你是一个专业的元认知教练。在优先级层面，你的目标是帮助用户**识别价值（Value）和后果（Consequence）**。
+    // 过滤出顶层任务
+    const topLevelTasks = identifyTopLevelTasks(uncompletedTasks)
+    const topLevelTaskList = topLevelTasks
+      .map(t => `「${t.title}」`)
+      .join('、')
+    const taskNames = topLevelTasks.map(t => t.title)
+    
+    return `你是一个专业的元认知教练。在优先级层面，你的目标是帮助用户**梳理出哪个任务该先做**。
 
-【用户的任务】
-${taskList}
+【用户的主要任务】（只关注这些，不要问子任务）
+${topLevelTaskList}
 
 【当前情况】
 - ${scanResult.noPriorityCount} 个任务没有设置优先级
-- 总任务数: ${scanResult.totalTaskCount}
+- 主要任务数: ${topLevelTasks.length}
 ${scanResult.deadlineConflicts.length > 0 ? `- 需要关注的 deadline: ${scanResult.deadlineConflicts.join(', ')}` : ''}
 ${previousContext}
-【问题生成策略】
+【问题生成策略 - 核心调整】
 
 **❌ 禁止（Don't）：**
-1. **不要问"哪个重要"**：这太抽象，用户通常觉得都重要。
-2. **不要问"先做哪个"**：这是结果，不是思考过程。
+1. **不要泛泛而问**：不要问"哪个重要"、"先做哪个"这种抽象问题。
+2. **不要问子任务**：只关注主要任务（${taskNames.join('、')}），不要问拆解出来的子步骤。
 
-**✅ 提倡（Do）：**
-1. **后果思维（Consequence）**：
-   - "如果今天只能完成一件事，做哪件会让你今晚睡得最安稳？"
-   - "这几个任务里，有没有哪个如果不做，明天会有真正的麻烦？"
+**✅ 必须坚持（Do）—— 具体到任务名称：**
+1. **后果对比（Consequence Comparison）**：
+   - "如果「${taskNames[0] || '任务A'}」和「${taskNames[1] || '任务B'}」今天只能做一个，不做哪个明天会更麻烦？"
+   - "「${taskNames[0] || '任务'}」如果今天不做，会有什么实际后果？"
 
-2. **阻力分析（Resistance）**：
-   - "哪个任务是你现在最想逃避的？（通常它很重要但很难）"
-   - "有没有哪个任务是单纯的'想做'（Want to），而不是'必须做'（Have to）？"
+2. **紧迫度校准（Urgency Check）**：
+   - "「${taskNames[0] || '任务'}」是真的今天必须做，还是只是你觉得'应该'做？"
+   - "这几个任务里，哪个有真正的外部 deadline（比如别人在等）？"
 
-3. **多米诺效应（Leverage）**：
-   - "有没有哪个任务做完后，其他的任务会变得容易一些？"
+3. **阻力识别（Resistance Analysis）**：
+   - "「${taskNames[0] || '任务'}」和「${taskNames[1] || '任务'}」相比，你更想逃避哪一个？（通常它更重要但更难）"
+
+4. **依赖关系（Dependency）**：
+   - "做完「${taskNames[0] || '任务'}」会不会让「${taskNames[1] || '任务'}」变得更容易？"
 
 【输出格式】
-返回 JSON 数组（严格 3 个问题）：
+返回 JSON 数组（严格 3 个问题，必须包含具体任务名称）：
 [
-  { "text": "问题内容", "hint": "元认知意图（如：后果分析、阻力识别）" }
+  { "text": "问题内容（必须提到具体任务名称）", "hint": "元认知意图（如：后果对比、紧迫度校准）" }
 ]
 
 只返回 JSON，不要其他内容。`
@@ -367,18 +491,46 @@ ${previousQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
     
     // 解析 JSON
     let questions: ReflectionQuestion[]
+    let tasksToDecompose: string[] = []
+    
     try {
-      const jsonMatch = response.message.match(/\[[\s\S]*\]/)
-      if (!jsonMatch) {
-        throw new Error('未找到 JSON 数组')
+      // Clarity 轮返回的是对象格式 { questions: [...], tasksToDecompose: [...] }
+      // 其他轮返回的是数组格式 [...]
+      if (round === 'clarity') {
+        // 尝试解析对象格式
+        const jsonMatch = response.message.match(/\{[\s\S]*\}/)
+        if (!jsonMatch) {
+          throw new Error('未找到 JSON 对象')
+        }
+        
+        const parsed = JSON.parse(jsonMatch[0])
+        
+        // 解析问题
+        const questionsArray = parsed.questions || []
+        questions = questionsArray.map((q: any, index: number) => ({
+          id: `${round}-${index + 1}`,
+          text: q.text,
+          hint: q.hint
+        }))
+        
+        // 解析建议拆解的任务
+        tasksToDecompose = parsed.tasksToDecompose || []
+        console.log(`✂️ LLM 建议拆解的任务:`, tasksToDecompose)
+        
+      } else {
+        // 其他轮次：数组格式
+        const jsonMatch = response.message.match(/\[[\s\S]*\]/)
+        if (!jsonMatch) {
+          throw new Error('未找到 JSON 数组')
+        }
+        
+        const parsed = JSON.parse(jsonMatch[0])
+        questions = parsed.map((q: any, index: number) => ({
+          id: `${round}-${index + 1}`,
+          text: q.text,
+          hint: q.hint
+        }))
       }
-      
-      const parsed = JSON.parse(jsonMatch[0])
-      questions = parsed.map((q: any, index: number) => ({
-        id: `${round}-${index + 1}`,
-        text: q.text,
-        hint: q.hint
-      }))
     } catch (parseError) {
       console.error('❌ JSON 解析失败:', parseError)
       // 降级：直接使用返回的文本作为单个问题
@@ -395,13 +547,115 @@ ${previousQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
       round,
       questions,
       title: `${config.emoji} ${config.title}`,
-      description: config.description
+      description: config.description,
+      tasksToDecompose: round === 'clarity' ? tasksToDecompose : undefined
     }
     
   } catch (error) {
     console.error('❌ 生成反思问题失败:', error)
     return null
   }
+}
+
+// ==================== 任务拆解识别 ====================
+
+/**
+ * 识别可能需要拆解的复杂任务
+ * 
+ * 识别逻辑（宽松策略，宁可多问不漏）：
+ * 1. 任务标题包含特定关键词（论文、报告、项目、准备、整理、Meeting 等）
+ * 2. 任务标题较长（>8字符，去除时间标记后）
+ * 3. 任务被分析为"模糊"或"过大"
+ * 4. 任务包含多个动作或对象
+ * 
+ * @param tasks 任务列表
+ * @returns 可能需要拆解的任务数组
+ */
+export function identifyDecomposableTasks(tasks: TaskSnapshot[]): TaskSnapshot[] {
+  const decomposableTasks: TaskSnapshot[] = []
+  
+  for (const task of tasks) {
+    // 跳过已完成的任务
+    if (task.isCompleted) continue
+    
+    // 清理标题：去除时间标记（如 ⏳ 30m）
+    const cleanTitle = task.title.replace(/⏳\s*\d+[mh]?\s*/g, '').trim()
+    
+    // 1. 检查关键词（表示复杂任务）- 扩展关键词列表
+    const complexKeywords = [
+      // 学术/工作相关
+      '论文', '报告', '项目', '课程', '考试', '作业', '答辩', '演讲', '展示',
+      // 会议/沟通类（通常需要准备）
+      'meeting', 'Meeting', '会议', '面试', '汇报', '讨论',
+      // 准备/整理类
+      '准备', '整理', '规划', '设计', '开发', '搭建', '部署',
+      // 范围词
+      '整个', '全部', '所有', '完整',
+      // 流程词
+      '实现', '完成', '制作', '写', '做',
+      // 学习类（可能需要细化）
+      '学习', '复习', '研究', '调研'
+    ]
+    const hasComplexKeyword = complexKeywords.some(kw => cleanTitle.toLowerCase().includes(kw.toLowerCase()))
+    
+    // 2. 检查标题长度（较长的标题通常意味着复杂任务）
+    const isTitleLong = cleanTitle.length > 8
+    
+    // 3. 使用已有的分析函数
+    const analysis = analyzeTaskClarity(task)
+    const isAbstractOrLarge = analysis.isAbstract || analysis.isTooLarge
+    
+    // 4. 检查是否包含多个元素（用"和"、"与"、"+"连接）
+    const hasMultipleElements = /[和与+&,，]/.test(cleanTitle)
+    
+    // 综合判断：满足以下任一条件即认为可能需要拆解
+    // - 包含复杂关键词 且 不是太短（避免"学习"这种单词）
+    // - 标题较长
+    // - 包含多个元素
+    // - 被分析为模糊/过大 且 标题不是太短
+    const shouldDecompose = 
+      (hasComplexKeyword && cleanTitle.length > 3) ||
+      isTitleLong ||
+      hasMultipleElements ||
+      (isAbstractOrLarge && cleanTitle.length > 5)
+    
+    if (shouldDecompose) {
+      decomposableTasks.push(task)
+    }
+  }
+  
+  console.log(`🔍 识别到 ${decomposableTasks.length} 个可能需要拆解的任务:`, 
+    decomposableTasks.map(t => t.title))
+  
+  return decomposableTasks
+}
+
+/**
+ * 格式化拆解询问消息
+ * 
+ * @param decomposableTasks 可能需要拆解的任务列表
+ * @returns 格式化后的消息
+ */
+export function formatDecompositionInquiryMessage(decomposableTasks: TaskSnapshot[]): string {
+  if (decomposableTasks.length === 0) {
+    return ''
+  }
+  
+  const lines: string[] = []
+  
+  lines.push('**✂️ 要不要拆解一下？**')
+  lines.push('')
+  lines.push('我注意到这些任务可能比较复杂，拆解成小步骤会更容易执行：')
+  lines.push('')
+  
+  decomposableTasks.forEach((task, index) => {
+    lines.push(`${index + 1}. **${task.title}**`)
+  })
+  
+  lines.push('')
+  lines.push('_你可以选择要拆解的任务，也可以跳过继续下一步～_')
+  
+  return lines.join('\n')
 }
 
 /**
@@ -481,7 +735,7 @@ export function formatQuestionsAsMessage(result: RoundResult): string {
   })
   
   lines.push('---')
-  lines.push('_你可以想一想这些问题，回答或跳过都可以～_')
+  lines.push('_你可以想一想这些问题并修改你的任务计划，再点击下一步～_')
   
   return lines.join('\n')
 }

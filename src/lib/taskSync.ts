@@ -96,12 +96,18 @@ export function parseTasksFromNote(noteContent: string | any): ParsedTask[] {
 
 /**
  * 从节点中提取纯文本
+ * 注意：跳过嵌套的 taskList，避免把子任务的文本合并到父任务标题中
  */
 function extractTextFromNode(node: any): string {
   let text = ''
 
   if (node.type === 'text') {
     return node.text || ''
+  }
+
+  // 跳过嵌套的 taskList（子任务列表），避免把子任务文本合并到父任务
+  if (node.type === 'taskList') {
+    return ''
   }
 
   if (node.content && Array.isArray(node.content)) {

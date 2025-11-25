@@ -1244,6 +1244,61 @@ Action Input: {"userId": "test_user", "dateRange": {"start": "2025-11-06", "end"
     }
   }
 
+  // 测试任务拆解识别函数
+  const testIdentifyDecomposableTasks = async () => {
+    addResult('\n🧪 ========== 测试任务拆解识别函数 ==========')
+    
+    try {
+      const { identifyDecomposableTasks, formatDecompositionInquiryMessage } = await import('@/lib/reflectionFlow')
+      
+      addResult('✅ identifyDecomposableTasks 导入成功')
+      
+      // 测试场景 1: 混合任务列表
+      addResult('\n🔄 测试场景 1: 混合任务列表')
+      const mixedTasks = [
+        { id: '1', title: '写论文', isCompleted: false },  // 应该被识别（关键词）
+        { id: '2', title: '复习', isCompleted: false },    // 不应该被识别（太短）
+        { id: '3', title: '整理房间', isCompleted: false }, // 应该被识别（关键词）
+        { id: '4', title: '准备面试材料和简历', isCompleted: false }, // 应该被识别（关键词+长）
+        { id: '5', title: '买牛奶', isCompleted: false },  // 不应该被识别
+        { id: '6', title: '完成项目报告', isCompleted: false }, // 应该被识别（多个关键词）
+        { id: '7', title: '锻炼', isCompleted: true },     // 不应该被识别（已完成）
+      ]
+      
+      const result1 = identifyDecomposableTasks(mixedTasks as any)
+      addResult(`📊 识别结果: ${result1.length} 个任务可能需要拆解`)
+      result1.forEach((task, i) => {
+        addResult(`   ${i + 1}. ${task.title}`)
+      })
+      
+      // 测试场景 2: 格式化消息
+      addResult('\n🔄 测试场景 2: 格式化拆解询问消息')
+      const message = formatDecompositionInquiryMessage(result1)
+      addResult('📝 生成的消息:')
+      message.split('\n').forEach(line => {
+        addResult(`   ${line}`)
+      })
+      
+      // 测试场景 3: 空列表
+      addResult('\n🔄 测试场景 3: 没有可拆解任务')
+      const simpleTasks = [
+        { id: '1', title: '买菜', isCompleted: false },
+        { id: '2', title: '吃饭', isCompleted: false },
+      ]
+      const result3 = identifyDecomposableTasks(simpleTasks as any)
+      addResult(`📊 识别结果: ${result3.length} 个任务（预期为 0）`)
+      
+      const emptyMessage = formatDecompositionInquiryMessage(result3)
+      addResult(`📝 空消息: "${emptyMessage}" (预期为空字符串)`)
+      
+      addResult('\n🎉 任务拆解识别函数测试完成！')
+      
+    } catch (error: any) {
+      addResult(`❌ 测试失败: ${error.message}`)
+      console.error('测试错误:', error)
+    }
+  }
+
   // 测试反思服务数据访问层
   const testReflectionService = async () => {
     if (!user) return
@@ -1482,7 +1537,13 @@ Action Input: {"userId": "test_user", "dateRange": {"start": "2025-11-06", "end"
                 onClick={testGlobalScanTool}
                 className="w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 font-bold mb-2"
               >
-                🧪 Step 3.1: GlobalScanTool 测试 ⭐ NEW
+                🧪 Step 3.1: GlobalScanTool 测试
+              </button>
+              <button
+                onClick={testIdentifyDecomposableTasks}
+                className="w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 font-bold mb-2"
+              >
+                🧪 任务拆解识别函数测试 ⭐ NEW
               </button>
               <button
                 onClick={testReflectOnTasksTool}

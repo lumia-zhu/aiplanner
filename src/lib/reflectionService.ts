@@ -341,15 +341,19 @@ export async function updateReflectionSession(
       .update(updateData)
       .eq('id', sessionId)
       .select()
-      .single()
 
     if (error) {
       console.error('❌ 更新反思会话失败:', error)
       throw new Error(`更新反思会话失败: ${error.message}`)
     }
 
+    if (!data || data.length === 0) {
+      console.warn('⚠️ 未找到要更新的反思会话:', sessionId)
+      return null
+    }
+
     console.log('✅ 反思会话更新成功')
-    return mapDbToReflectionSession(data)
+    return mapDbToReflectionSession(data[0])
 
   } catch (error) {
     console.error('❌ updateReflectionSession 异常:', error)

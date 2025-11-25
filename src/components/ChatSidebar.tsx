@@ -34,6 +34,84 @@ interface RecognizedTask {
   isSelected: boolean
 }
 
+// ⭐ 任务拆解选择器组件
+interface DecompositionSelectorProps {
+  tasks: Array<{ id: string; title: string }>
+  onSelect?: (taskIds: string[]) => void
+  onSkip?: () => void
+}
+
+const DecompositionSelector: React.FC<DecompositionSelectorProps> = ({ tasks, onSelect, onSkip }) => {
+  const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set())
+  
+  const toggleTask = (index: number) => {
+    setSelectedIndices(prev => {
+      const next = new Set(prev)
+      if (next.has(index)) {
+        next.delete(index)
+      } else {
+        next.add(index)
+      }
+      return next
+    })
+  }
+  
+  const handleConfirm = () => {
+    if (selectedIndices.size > 0 && onSelect) {
+      const selectedTaskIds = Array.from(selectedIndices).map(i => tasks[i].id)
+      onSelect(selectedTaskIds)
+    }
+  }
+  
+  return (
+    <div className="border-t border-gray-200 bg-purple-50 p-3 flex-shrink-0">
+      <div className="text-xs text-purple-600 mb-2 font-medium">✂️ 选择要拆解的任务</div>
+      <div className="space-y-1.5 mb-3">
+        {tasks.map((task, index) => {
+          const isSelected = selectedIndices.has(index)
+          const inputId = `decompose-task-${index}`
+          return (
+            <div
+              key={inputId}
+              className={`flex items-center gap-2 p-2 rounded-md cursor-pointer transition-colors ${
+                isSelected 
+                  ? 'bg-purple-100 border border-purple-300' 
+                  : 'bg-white border border-gray-200 hover:border-purple-200'
+              }`}
+              onClick={() => toggleTask(index)}
+            >
+              <input
+                type="checkbox"
+                id={inputId}
+                checked={isSelected}
+                onChange={() => toggleTask(index)}
+                onClick={(e) => e.stopPropagation()}
+                className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
+              />
+              <span className="text-sm text-gray-700 flex-1 truncate">{task.title}</span>
+            </div>
+          )
+        })}
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={handleConfirm}
+          disabled={selectedIndices.size === 0}
+          className="flex-1 px-3 py-1.5 text-xs bg-purple-500 text-white hover:bg-purple-600 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          拆解选中的任务 ({selectedIndices.size})
+        </button>
+        <button
+          onClick={onSkip}
+          className="px-3 py-1.5 text-xs text-gray-600 hover:text-gray-800 hover:bg-gray-100 border border-gray-300 rounded-md transition-colors"
+        >
+          跳过
+        </button>
+      </div>
+    </div>
+  )
+}
+
 interface ChatSidebarProps {
   // 侧边栏状态
   isOpen: boolean
@@ -123,6 +201,16 @@ interface ChatSidebarProps {
   onEndReflection?: () => void  // 结束反思
   isGeneratingQuestions?: boolean  // 是否正在生成问题
   
+  // ⭐ Clarity 轮后的任务拆解选择
+  isDecompositionPhase?: boolean  // 是否处于拆解选择阶段
+  decomposableTasks?: Array<{ id: string; title: string }>  // 可拆解的任务列表
+  onDecomposeTaskSelect?: (taskIds: string[]) => void  // 选择要拆解的任务
+  onSkipDecomposition?: () => void  // 跳过拆解，进入下一步
+  
+  // ⭐ 继续拆解下一个任务
+  onContinueDecompose?: () => void  // 继续拆解下一个任务
+  onSkipContinueDecompose?: () => void  // 跳过继续拆解，进入下一步
+  
   // 事件处理函数
   handleSendMessage: () => void
   handleClearChat: () => void
@@ -202,6 +290,12 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   onMoreQuestions,  // ⭐ 更多问题
   onEndReflection,  // ⭐ 结束反思
   isGeneratingQuestions,  // ⭐ 正在生成问题
+  isDecompositionPhase,  // ⭐ 拆解选择阶段
+  decomposableTasks,  // ⭐ 可拆解任务
+  onDecomposeTaskSelect,  // ⭐ 选择拆解任务
+  onSkipDecomposition,  // ⭐ 跳过拆解
+  onContinueDecompose,  // ⭐ 继续拆解下一个
+  onSkipContinueDecompose,  // ⭐ 跳过继续拆解
   handleSendMessage,
   handleClearChat,
   handleDragEnter,
@@ -470,6 +564,26 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                             />
                           )}
                           
+                          {/* ⭐ 继续拆解选项 */}
+                          {content.interactive.type === 'continue-decompose-options' && (
+                            <div className="flex gap-2 mt-2">
+                              <button
+                                onClick={() => onContinueDecompose?.()}
+                                disabled={content.interactive.isActive === false}
+                                className="flex-1 px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                              >
+                                继续拆解
+                              </button>
+                              <button
+                                onClick={() => onSkipContinueDecompose?.()}
+                                disabled={content.interactive.isActive === false}
+                                className="px-4 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                取消
+                              </button>
+                            </div>
+                          )}
+                          
                           {/* ⭐ 通用按钮组 */}
                           {content.interactive.type === 'buttons' && content.interactive.data?.buttons && (
                             <div className="mt-2 flex flex-wrap gap-2">
@@ -651,6 +765,15 @@ const ChatSidebar = memo<ChatSidebarProps>(({
             </div>
           </div>
         </div>
+      )}
+      
+      {/* ⭐ 任务拆解选择区域 */}
+      {isDecompositionPhase && decomposableTasks && decomposableTasks.length > 0 && (
+        <DecompositionSelector
+          tasks={decomposableTasks}
+          onSelect={onDecomposeTaskSelect}
+          onSkip={onSkipDecomposition}
+        />
       )}
       
       {/* 任务识别结果预览 */}

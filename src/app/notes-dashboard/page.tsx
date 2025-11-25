@@ -36,6 +36,7 @@ import {
   formatQuestionsAsMessage,
   generateReflectionSummary,
   formatSummaryAsMessage,
+  formatDecompositionInquiryMessage,
   type ReflectionRoundType 
 } from '@/lib/reflectionFlow'
 import { MATRIX_DIMENSION_CONFIGS, MATRIX_QUADRANTS_CONFIGS } from '@/types'
@@ -147,6 +148,12 @@ export default function NotesDashboardPage() {
   const [reflectionTasks, setReflectionTasks] = useState<TaskSnapshot[]>([])
   const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false)
   const [askedQuestions, setAskedQuestions] = useState<string[]>([])  // 当前轮次已问过的问题
+  
+  // ⭐ Clarity 轮后的任务拆解阶段状态
+  const [isDecompositionPhase, setIsDecompositionPhase] = useState(false)  // 是否处于拆解选择阶段
+  const [decomposableTasks, setDecomposableTasks] = useState<TaskSnapshot[]>([])  // 可拆解的任务列表
+  const [decompositionQueue, setDecompositionQueue] = useState<TaskSnapshot[]>([])  // 待拆解任务队列
+  const [pendingTimeRound, setPendingTimeRound] = useState(false)  // 标记拆解完成后需要进入 Time 轮
   
   logger.debug('Agent 状态:', { agentInstance: !!agentInstance, agentMemory: !!agentMemory, isAgentRunning })
   
@@ -722,7 +729,7 @@ export default function NotesDashboardPage() {
     checkReflectionSession()
   }, [user, selectedDate])
 
-  // ⭐ 反思模式下：监听任务变化，自动更新 reflectionTasks
+  // ⭐ 反思模式下：监听任务变化，自动更新 reflectionTasks 和 decomposableTasks
   useEffect(() => {
     if (!isReflectionMode || !currentNote) return
     
@@ -738,8 +745,31 @@ export default function NotesDashboardPage() {
     if (hasChanged) {
       console.log('📝 反思模式：检测到任务变化，更新 reflectionTasks')
       setReflectionTasks(taskSnapshots)
+      
+      // 如果处于拆解选择阶段，也更新可拆解任务列表
+      if (isDecompositionPhase && decomposableTasks.length > 0) {
+        // 根据最新任务列表过滤可拆解任务（保留仍然存在的任务）
+        const currentTaskTitles = new Set(taskSnapshots.map(t => t.title))
+        const updatedDecomposableTasks = decomposableTasks.filter(t => 
+          currentTaskTitles.has(t.title)
+        )
+        
+        // 同时检查是否有新任务可以加入（基于简单规则）
+        const existingDecomposableTitles = new Set(decomposableTasks.map(t => t.title))
+        const newTasks = taskSnapshots.filter(t => 
+          !existingDecomposableTitles.has(t.title)
+        ).map(t => ({ id: t.id, title: t.title }))
+        
+        const finalDecomposableTasks = [...updatedDecomposableTasks, ...newTasks]
+        
+        if (finalDecomposableTasks.length !== decomposableTasks.length ||
+            finalDecomposableTasks.some((t, i) => decomposableTasks[i]?.title !== t.title)) {
+          console.log('📝 更新可拆解任务列表:', finalDecomposableTasks.map(t => t.title))
+          setDecomposableTasks(finalDecomposableTasks)
+        }
+      }
     }
-  }, [currentNote, isReflectionMode, reflectionTasks])
+  }, [currentNote, isReflectionMode, reflectionTasks, isDecompositionPhase, decomposableTasks])
 
   // 当用户登录或日期变化时，批量加载前后N个月的笔记
   // 这样可以支持跨月周视图和用户浏览不同月份
@@ -1296,7 +1326,32 @@ export default function NotesDashboardPage() {
         chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight
       }
     }, 100)
-  }, [chatScrollRef, currentNote, decomposingTaskTitle, handleNoteSave])
+    
+    // 6. ⭐ 检查是否还有队列中的任务需要拆解
+    if (decompositionQueue.length > 0) {
+      // 询问用户是否继续拆解下一个任务
+      const remainingTasks = decompositionQueue.map(t => t.title).join('、')
+      const askMessage: ChatMessage = {
+        role: 'assistant',
+        content: [{
+          type: 'text',
+          text: `还有 ${decompositionQueue.length} 个任务可以拆解：${remainingTasks}\n\n要继续拆解吗？`
+        }, {
+          type: 'interactive',
+          interactive: {
+            type: 'continue-decompose-options',
+            data: { remainingCount: decompositionQueue.length },
+            isActive: true
+          }
+        }]
+      }
+      setChatMessages(prev => [...prev, askMessage])
+    } else if (isReflectionMode) {
+      // 队列为空，如果在反思模式，标记需要进入 Time 轮
+      console.log('📋 拆解队列已空，标记需要进入 Time 轮')
+      setPendingTimeRound(true)
+    }
+  }, [chatScrollRef, currentNote, decomposingTaskTitle, handleNoteSave, decompositionQueue, isReflectionMode])
 
   // ⭐ 处理拆解取消
   const handleDecompositionCancel = useCallback((parentTask: any) => {
@@ -1318,7 +1373,32 @@ export default function NotesDashboardPage() {
     setDecomposingTaskTitle(null)
     setTaskContextInput('')
     console.log('🧹 已取消拆解，清除状态')
-  }, [])
+    
+    // ⭐ 检查是否还有队列中的任务需要拆解
+    if (decompositionQueue.length > 0) {
+      // 询问用户是否继续拆解下一个任务
+      const remainingTasks = decompositionQueue.map(t => t.title).join('、')
+      const askMessage: ChatMessage = {
+        role: 'assistant',
+        content: [{
+          type: 'text',
+          text: `还有 ${decompositionQueue.length} 个任务可以拆解：${remainingTasks}\n\n要继续拆解吗？`
+        }, {
+          type: 'interactive',
+          interactive: {
+            type: 'continue-decompose-options',
+            data: { remainingCount: decompositionQueue.length },
+            isActive: true
+          }
+        }]
+      }
+      setChatMessages(prev => [...prev, askMessage])
+    } else if (isReflectionMode) {
+      // 队列为空，如果在反思模式，标记需要进入 Time 轮
+      console.log('📋 拆解队列已空，标记需要进入 Time 轮')
+      setPendingTimeRound(true)
+    }
+  }, [decompositionQueue, isReflectionMode])
 
   // ⭐ 处理拆解上下文提交（用户回答反思性问题）
   const handleDecompositionContextSubmit = useCallback(async (userInput: string) => {
@@ -1985,6 +2065,35 @@ export default function NotesDashboardPage() {
         }
         setChatMessages(prev => [...prev, questionMessage])
         
+        // ⭐ Clarity 轮特殊处理：使用 LLM 返回的建议拆解任务
+        if (round === 'clarity' && result.tasksToDecompose && result.tasksToDecompose.length > 0) {
+          console.log('✂️ LLM 建议拆解的任务:', result.tasksToDecompose)
+          
+          // 根据任务标题找到对应的 TaskSnapshot
+          const decomposable = tasks.filter(t => 
+            result.tasksToDecompose!.some(title => 
+              t.title.includes(title) || title.includes(t.title)
+            )
+          )
+          
+          if (decomposable.length > 0) {
+            console.log(`✂️ 匹配到 ${decomposable.length} 个可拆解任务`)
+            setDecomposableTasks(decomposable)
+            
+            // 追加拆解询问消息
+            const decompositionMessage = formatDecompositionInquiryMessage(decomposable)
+            const decompositionChatMessage = {
+              role: 'assistant' as const,
+              content: [{ type: 'text' as const, text: decompositionMessage }]
+            }
+            // 稍微延迟一下，让用户先看到反思问题
+            setTimeout(() => {
+              setChatMessages(prev => [...prev, decompositionChatMessage])
+              setIsDecompositionPhase(true)
+            }, 500)
+          }
+        }
+        
         // 更新会话状态
         await updateReflectionSession(sessionId, {
           currentRound: round
@@ -2001,6 +2110,18 @@ export default function NotesDashboardPage() {
       setIsGeneratingQuestions(false)
     }
   }, [])
+  
+  // ⭐ 处理拆解完成后进入 Time 轮
+  useEffect(() => {
+    if (pendingTimeRound && reflectionSessionId && reflectionScanResult) {
+      console.log('📋 执行延迟的 Time 轮进入')
+      setPendingTimeRound(false)
+      
+      setTimeout(() => {
+        startReflectionRound('time', reflectionTasks, reflectionScanResult, reflectionSessionId)
+      }, 1000)
+    }
+  }, [pendingTimeRound, reflectionSessionId, reflectionScanResult, reflectionTasks, startReflectionRound])
   
   // ⭐ 生成并显示反思总结（三轮完成后或点击结束时调用）
   // 注意：这个函数需要在 handleReflectionResponse 和 skipReflectionRound 之前定义
@@ -2117,6 +2238,12 @@ export default function NotesDashboardPage() {
     
     console.log(`➡️ 用户点击下一步，完成 ${currentReflectionRound} 轮`)
     
+    // ⭐ 清除拆解阶段状态（如果有）
+    if (isDecompositionPhase) {
+      setIsDecompositionPhase(false)
+      setDecomposableTasks([])
+    }
+    
     // 显示进入下一轮的消息
     const nextMessage = {
       role: 'assistant' as const,
@@ -2141,7 +2268,111 @@ export default function NotesDashboardPage() {
       console.log('📝 三轮反思完成（跳过），自动进入总结阶段')
       await generateAndShowSummary()
     }
-  }, [currentReflectionRound, reflectionSessionId, reflectionScanResult, reflectionTasks, startReflectionRound, generateAndShowSummary])
+  }, [currentReflectionRound, reflectionSessionId, reflectionScanResult, reflectionTasks, startReflectionRound, generateAndShowSummary, isDecompositionPhase])
+  
+  // ⭐ 处理用户选择要拆解的任务（显示反思性问题）
+  const handleDecomposeTaskSelect = useCallback(async (taskIds: string[]) => {
+    console.log('✂️ 用户选择拆解任务:', taskIds)
+    
+    // 根据 ID 找到对应的任务
+    const selectedTasks = decomposableTasks.filter(t => taskIds.includes(t.id))
+    
+    if (selectedTasks.length === 0) return
+    
+    // 设置拆解队列（第一个任务立即处理，剩余的放入队列）
+    setDecompositionQueue(selectedTasks.slice(1))
+    
+    // 清除拆解选择阶段
+    setIsDecompositionPhase(false)
+    setDecomposableTasks([])
+    
+    // 开始处理第一个任务（显示反思性问题）
+    const firstTask = selectedTasks[0]
+    await startDecomposeWithQuestions(firstTask.title)
+    
+  }, [decomposableTasks])
+  
+  // ⭐ 开始拆解任务（先显示反思性问题）
+  const startDecomposeWithQuestions = useCallback(async (taskTitle: string) => {
+    console.log('🔄 开始拆解任务（显示问题）:', taskTitle)
+    
+    // 设置拆解状态
+    setDecomposingTaskTitle(taskTitle)
+    
+    // 显示加载消息
+    const loadingMessage: ChatMessage = {
+      role: 'assistant',
+      content: [{ type: 'text', text: `🤔 正在为「${taskTitle}」生成拆解问题...` }]
+    }
+    setChatMessages(prev => [...prev, loadingMessage])
+    
+    try {
+      // 生成反思性问题
+      const { generateDynamicDecompositionQuestions } = await import('@/lib/decompositionAI')
+      const mockTask = {
+        id: `decompose-${Date.now()}`,
+        title: taskTitle,
+        user_id: user?.id || '',
+        is_completed: false,
+        created_at: new Date().toISOString()
+      }
+      
+      const questions = await generateDynamicDecompositionQuestions(mockTask as any)
+      
+      // 移除加载消息
+      setChatMessages(prev => prev.slice(0, -1))
+      
+      // 显示问题输入卡片
+      const aiMessage: ChatMessage = {
+        role: 'assistant',
+        content: [{
+          type: 'interactive',
+          interactive: {
+            type: 'decomposition-context-input',
+            data: {
+              taskTitle: taskTitle,
+              questions: questions || []
+            },
+            isActive: true
+          }
+        }]
+      }
+      setChatMessages(prev => [...prev, aiMessage])
+      
+      console.log('✅ 拆解问题已显示')
+      
+    } catch (error) {
+      console.error('❌ 生成拆解问题失败:', error)
+      setChatMessages(prev => prev.slice(0, -1))
+      setChatMessages(prev => [...prev, {
+        role: 'assistant',
+        content: [{ type: 'text', text: '❌ 抱歉，生成问题时出错了，请稍后再试。' }]
+      }])
+    }
+  }, [user])
+  
+  // ⭐ 跳过拆解，进入下一步（Time 轮）
+  const handleSkipDecomposition = useCallback(() => {
+    console.log('⏭️ 用户跳过拆解')
+    
+    // 清除拆解阶段状态
+    setIsDecompositionPhase(false)
+    setDecomposableTasks([])
+    
+    // 显示消息
+    const skipMessage = {
+      role: 'assistant' as const,
+      content: [{ type: 'text' as const, text: '好的，我们继续下一步～' }]
+    }
+    setChatMessages(prev => [...prev, skipMessage])
+    
+    // 进入 Time 轮
+    if (reflectionSessionId && reflectionScanResult) {
+      setTimeout(() => {
+        startReflectionRound('time', reflectionTasks, reflectionScanResult, reflectionSessionId)
+      }, 500)
+    }
+  }, [reflectionSessionId, reflectionScanResult, reflectionTasks, startReflectionRound])
   
   // ⭐ 请求更多问题
   const requestMoreQuestions = useCallback(async () => {
@@ -2220,6 +2451,64 @@ export default function NotesDashboardPage() {
     console.log('🏁 用户选择提前结束反思')
     await generateAndShowSummary()
   }, [reflectionSessionId, generateAndShowSummary])
+  
+  // ⭐ 用户选择继续拆解下一个任务
+  const handleContinueDecompose = useCallback(async () => {
+    if (decompositionQueue.length === 0) return
+    
+    const nextTask = decompositionQueue[0]
+    console.log('📋 用户选择继续拆解:', nextTask.title)
+    
+    // 从队列中移除
+    setDecompositionQueue(prev => prev.slice(1))
+    
+    // 禁用当前的选项卡片
+    setChatMessages(prev => 
+      prev.map(msg => ({
+        ...msg,
+        content: msg.content.map((c: any) => 
+          c.type === 'interactive' && c.interactive?.type === 'continue-decompose-options'
+            ? { ...c, interactive: { ...c.interactive, isActive: false } }
+            : c
+        )
+      }))
+    )
+    
+    // 开始拆解下一个任务（显示问题）
+    await startDecomposeWithQuestions(nextTask.title)
+  }, [decompositionQueue, startDecomposeWithQuestions])
+  
+  // ⭐ 用户选择跳过继续拆解，进入下一步
+  const handleSkipContinueDecompose = useCallback(() => {
+    console.log('⏭️ 用户跳过继续拆解，清空队列')
+    
+    // 清空队列
+    setDecompositionQueue([])
+    
+    // 禁用当前的选项卡片
+    setChatMessages(prev => 
+      prev.map(msg => ({
+        ...msg,
+        content: msg.content.map((c: any) => 
+          c.type === 'interactive' && c.interactive?.type === 'continue-decompose-options'
+            ? { ...c, interactive: { ...c.interactive, isActive: false } }
+            : c
+        )
+      }))
+    )
+    
+    // 显示消息
+    const skipMessage: ChatMessage = {
+      role: 'assistant',
+      content: [{ type: 'text', text: '好的，我们继续下一步～' }]
+    }
+    setChatMessages(prev => [...prev, skipMessage])
+    
+    // 如果在反思模式，进入 Time 轮
+    if (isReflectionMode) {
+      setPendingTimeRound(true)
+    }
+  }, [isReflectionMode])
   
   // 切换 AI 侧边栏
   const toggleChatSidebar = useCallback(async () => {
@@ -3418,6 +3707,23 @@ ${matrixStats || '（无待办）'}
         setChatMessages([])
         // ⭐ 清空 Agent 内存（对话历史、思考、步骤）
         agentMemory.clear()
+        
+        // ⭐ 清空反思相关状态
+        setReflectionSessionId(null)
+        setIsReflectionMode(false)
+        setCurrentReflectionRound(null)
+        setReflectionScanResult(null)
+        setReflectionTasks([])
+        setAskedQuestions([])
+        
+        // ⭐ 清空拆解相关状态
+        setIsDecompositionPhase(false)
+        setDecomposableTasks([])
+        setDecompositionQueue([])
+        setPendingTimeRound(false)
+        setDecomposingTaskTitle(null)
+        setTaskContextInput('')
+        
         logger.success(`已清空 ${result.count} 条全局对话记录和 Agent 内存`)
         alert(`✅ 已清空 ${result.count} 条对话记录`)
       } else {
@@ -4522,6 +4828,12 @@ ${matrixStats || '（无待办）'}
               onMoreQuestions={requestMoreQuestions}
               onEndReflection={endReflection}
               isGeneratingQuestions={isGeneratingQuestions}
+              isDecompositionPhase={isDecompositionPhase}
+              decomposableTasks={decomposableTasks}
+              onDecomposeTaskSelect={handleDecomposeTaskSelect}
+              onSkipDecomposition={handleSkipDecomposition}
+              onContinueDecompose={handleContinueDecompose}
+              onSkipContinueDecompose={handleSkipContinueDecompose}
             />
           </div>
         </div>
