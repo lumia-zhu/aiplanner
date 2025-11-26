@@ -52,7 +52,8 @@ export function parseTasksFromNote(noteContent: string | any): ParsedTask[] {
     }
 
     // 递归遍历 JSON 结构，查找 taskItem 节点
-    function traverseContent(node: any, position: { count: number }) {
+    // depth: 当前任务的层级（0 = 顶层，1 = 子任务，2 = 孙任务...）
+    function traverseContent(node: any, position: { count: number }, depth: number = 0) {
       if (!node) return
 
       // 找到 taskItem 节点
@@ -72,20 +73,32 @@ export function parseTasksFromNote(noteContent: string | any): ParsedTask[] {
             position: position.count,
             deadlineDatetime: undefined, // TODO: 从文本中提取 @时间 标记
             estimatedDuration: duration,  // ⭐ 提取时长
+            depth: depth,  // ⭐ 记录任务层级
           })
           position.count++
         }
+        
+        // taskItem 的子节点中如果有 taskList，那是子任务，层级 +1
+        if (node.content && Array.isArray(node.content)) {
+          for (const child of node.content) {
+            if (child.type === 'taskList') {
+              // 子任务列表，层级 +1
+              traverseContent(child, position, depth + 1)
+            }
+          }
+        }
+        return  // taskItem 处理完毕，不再递归其他子节点（避免重复）
       }
 
-      // 递归遍历子节点
+      // 递归遍历子节点（非 taskItem 的情况）
       if (node.content && Array.isArray(node.content)) {
         for (const child of node.content) {
-          traverseContent(child, position)
+          traverseContent(child, position, depth)
         }
       }
     }
 
-    traverseContent(contentJson, { count: 0 })
+    traverseContent(contentJson, { count: 0 }, 0)
 
   } catch (error) {
     console.error('❌ 解析任务失败:', error)

@@ -458,7 +458,8 @@ export function createTaskSnapshots(tasks: any[]): TaskSnapshot[] {
     estimatedDuration: task.estimatedDuration,
     deadline: task.deadlineDatetime || task.deadline,
     isCompleted: task.completed || task.isCompleted || false,
-    notePosition: task.notePosition
+    notePosition: task.notePosition,
+    depth: task.depth ?? 0  // ⭐ 任务层级：0 = 顶层任务
   }))
 }
 

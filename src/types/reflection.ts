@@ -25,6 +25,7 @@ export interface TaskSnapshot {
   deadline?: string
   isCompleted: boolean
   notePosition?: number
+  depth?: number  // 任务层级：0 = 顶层任务，1 = 子任务，2 = 孙任务...
 }
 
 /**

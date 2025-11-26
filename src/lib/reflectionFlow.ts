@@ -124,81 +124,59 @@ const CLARITY_DIMENSIONS = {
 
 /**
  * 识别顶层任务（过滤掉子任务）
- * 子任务通常有以下特征：
- * 1. 标题以动词开头 + 父任务名（如"制定锻炼计划"、"准备锻炼装备"）
- * 2. 标题模式：动作词 + 相同的关键词
- * 3. 多个任务共享相同的关键词（如"椭圆机"出现在多个任务中）
+ * 
+ * 优先使用 depth 字段（来自笔记缩进）：
+ * - depth = 0 或 undefined：顶层任务
+ * - depth >= 1：子任务
+ * 
+ * 如果没有 depth 信息，则回退到基于标题的启发式判断
  */
 function identifyTopLevelTasks(tasks: TaskSnapshot[]): TaskSnapshot[] {
   if (tasks.length <= 1) return tasks
   
-  // 收集所有任务标题
+  // 检查是否有 depth 信息
+  const hasDepthInfo = tasks.some(t => t.depth !== undefined && t.depth > 0)
+  
+  if (hasDepthInfo) {
+    // 使用 depth 字段过滤：只保留 depth = 0 或 undefined 的任务
+    const topLevelTasks = tasks.filter(task => (task.depth ?? 0) === 0)
+    console.log(`🔍 使用 depth 过滤：${tasks.length} 个任务 → ${topLevelTasks.length} 个顶层任务`)
+    return topLevelTasks.length > 0 ? topLevelTasks : tasks
+  }
+  
+  // 回退：基于标题的启发式判断（兼容旧数据）
+  console.log('🔍 没有 depth 信息，使用启发式判断')
+  
+  // 子任务模式：以动词开头 + 包含共享关键词
   const titles = tasks.map(t => t.title)
-  
-  // 找出可能的父任务关键词（出现在多个任务中，且至少有一个任务就是这个关键词）
-  const potentialParentKeywords: Set<string> = new Set()
-  
-  // 第一步：找出所有共享的关键词
   const keywordCounts: Map<string, number> = new Map()
+  
   for (const title of titles) {
-    // 提取可能的关键词（2-6个字的词）
     const keywords = title.match(/[\u4e00-\u9fa5]{2,6}/g) || []
     for (const keyword of keywords) {
-      const count = (keywordCounts.get(keyword) || 0) + 1
-      keywordCounts.set(keyword, count)
+      keywordCounts.set(keyword, (keywordCounts.get(keyword) || 0) + 1)
     }
   }
   
-  // 找出出现次数 >= 2 的关键词
-  for (const [keyword, count] of keywordCounts) {
-    if (count >= 2) {
-      potentialParentKeywords.add(keyword)
-    }
-  }
+  const sharedKeywords = new Set(
+    Array.from(keywordCounts.entries())
+      .filter(([_, count]) => count >= 2)
+      .map(([keyword]) => keyword)
+  )
   
-  // 子任务模式：以动词开头
   const subtaskVerbPatterns = /^(制定|准备|执行|完成|整理|记录|调整|检查|确认|安排|规划|设置|进行|开始|结束|收拾|清理|购买|下载|安装|配置|测试|验证|提交|发送|回复|联系|预约|取消)/
   
-  // 判断一个任务是否是子任务
   const isSubtask = (title: string): boolean => {
-    // 如果任务很短（可能是父任务），不算子任务
     if (title.length <= 4) return false
-    
-    // 检查是否以动词开头
     const startsWithVerb = subtaskVerbPatterns.test(title)
-    
-    // 检查是否包含共享关键词
-    const containsSharedKeyword = Array.from(potentialParentKeywords).some(keyword => {
-      // 如果任务标题就是关键词本身，不算子任务
-      if (title === keyword) return false
-      // 如果任务标题只比关键词多一两个字，可能是父任务
-      if (title.length <= keyword.length + 2) return false
-      return title.includes(keyword)
-    })
-    
-    // 同时满足：以动词开头 + 包含共享关键词 = 子任务
+    const containsSharedKeyword = Array.from(sharedKeywords).some(kw => 
+      title !== kw && title.length > kw.length + 2 && title.includes(kw)
+    )
     return startsWithVerb && containsSharedKeyword
   }
   
-  // 过滤出顶层任务
   const topLevelTasks = tasks.filter(task => !isSubtask(task.title))
-  
-  // 如果过滤后任务太少（可能误判），尝试更宽松的策略
-  if (topLevelTasks.length === 0) {
-    // 返回原始列表
-    return tasks
-  }
-  
-  // 如果过滤后只剩很少的任务，但原来有很多，可能是误判
-  // 这种情况下，选择最短的几个任务作为顶层任务
-  if (topLevelTasks.length < tasks.length * 0.3 && tasks.length > 3) {
-    // 按标题长度排序，取最短的几个
-    const sortedByLength = [...tasks].sort((a, b) => a.title.length - b.title.length)
-    const shortestTasks = sortedByLength.slice(0, Math.max(3, Math.ceil(tasks.length * 0.3)))
-    return shortestTasks
-  }
-  
-  return topLevelTasks
+  return topLevelTasks.length > 0 ? topLevelTasks : tasks
 }
 
 /**
@@ -266,72 +244,105 @@ function buildRoundPrompt(
 
   // 根据轮次构建特定的 Prompt
   if (round === 'clarity') {
-    // 分析每个任务的清晰度
-    const taskAnalysis = uncompletedTasks.map(t => {
-      const analysis = analyzeTaskClarity(t)
-      const issues: string[] = []
-      if (analysis.isAbstract) issues.push('目标模糊')
-      if (analysis.isTooLarge) issues.push('范围较大')
-      if (issues.length === 0) issues.push('相对清晰')
-      return `- 「${t.title}」: ${issues.join('、')}`
-    }).join('\n')
+    // 过滤出顶层任务（非子任务）
+    const topLevelTasks = identifyTopLevelTasks(uncompletedTasks)
+    const topLevelTaskList = topLevelTasks
+      .map(t => {
+        const parts = [`「${t.title}」`]
+        if (t.estimatedDuration) parts.push(`${t.estimatedDuration}分钟`)
+        if (t.deadline) parts.push(`截止: ${t.deadline}`)
+        return parts.join(' | ')
+      })
+      .join('\n')
+    
+    const taskNames = topLevelTasks.map(t => t.title)
 
-    return `你是一个专业的元认知教练。你的目标不是"补全任务细节"，而是**唤醒用户的元认知（Task / Self / Strategy Awareness）**。
+    return `你是一个专业的元认知教练，帮助 ADHD 用户更好地理解任务以便开始执行。
+你的目标是**唤醒用户的任务认知（Task Awareness）**，让用户从"写下任务"进化到"真正理解任务"。
 
-【用户的任务】
-${taskList}
-
-【任务分析】
-${taskAnalysis}
+【用户的主要任务】（共 ${taskNames.length} 个，只关注这些顶层任务）
+${topLevelTaskList}
 ${previousContext}
-【问题生成策略 - 核心调整】
+【核心原则】
+你的问题必须**贴合任务的具体场景**，帮助用户更好地理解这个任务。
+- 不同类型的任务，关键问题不同
+- 问题要让用户"啊，我没想到这个"，而不是"这不是废话吗"
+
+【任务类型与关键问题】
+
+**会议/沟通类**（如 Meeting、汇报、讨论）：
+- 关键是**目标**和**准备**："这次 Meeting 你想达成什么？有没有想好要说的核心点？"
+- 关键是**预期管理**："导师/对方可能会问什么？你准备好怎么回应了吗？"
+
+**学习/研究类**（如 学习、复习、看论文）：
+- 关键是**边界**："今天学习的具体目标是什么？学到什么程度算完成？"
+- 关键是**方法**："你打算怎么学？是看视频、做题、还是整理笔记？"
+
+**运动/健康类**（如 锻炼、跑步、健身）：
+- 关键是**启动**："什么时候开始？需要换衣服/出门吗？"
+- 关键是**动力**："今天状态怎么样？是想好好练还是轻松动一动？"
+
+**工作/任务类**（如 做TA、写报告、改代码）：
+- 关键是**范围**："今天要做到什么程度？有没有明确的交付物？"
+- 关键是**卡点**："有没有什么地方可能会卡住？需要查资料或问人吗？"
+
+**生活/杂事类**（如 买菜、收拾、取快递）：
+- 这类任务通常不需要深入反思，简单确认即可
+
+【问题生成策略】
+
+⚠️ **3 个问题要尽量覆盖不同的任务**
+
+**维度 1：任务边界（Task Boundary）**
+- 目的：帮用户明确"做到什么程度算完成"
+- 好问题："「和导师Meeting」你想达成什么？是汇报进度、讨论问题、还是拿到反馈？"
+- 坏问题："「和导师Meeting」对你来说，做到什么程度算完成？"（太模板化）
+
+**维度 2：约束与依赖（Constraints & Dependencies）**
+- 目的：帮用户识别"能不能现在就开始"
+- 好问题："「和导师Meeting」之前，你需要准备什么材料或想好什么问题吗？"
+- 坏问题："「锻炼」之前，有没有必须先准备好的东西？"（对锻炼来说不是关键）
+
+**维度 3：启动障碍（Activation Barrier）**
+- 目的：帮用户找到"第一步"或识别"阻力"
+- 好问题："「锻炼」你打算什么时候开始？现在的状态适合动起来吗？"
+- 坏问题："「锻炼」你一直没开始，是因为太难、太无聊、还是怕做不好？"（锻炼不是怕做不好）
+
+**维度 4：风险预判（Risk Anticipation）**
+- 目的：帮用户提前想到"可能出问题的地方"
+- 好问题："「做TA」如果学生问了你不会的问题，你打算怎么处理？"
+- 坏问题："「和导师Meeting」如果比预想的复杂，你打算怎么办？"（Meeting 的风险不是"复杂"）
 
 **❌ 绝对禁止（Don't）：**
-1. **不要猜场景**：不要问"是去健身房还是在家？"、"是批作业还是答疑？"（除非你非常有把握，否则显着很傻）。
-2. **不要问无关细节**：不要问"有多少份要批？"（这对当下的行动意愿没帮助）。
-3. **不要做二选一**：不要问"是A还是B？"（这限制了用户的思维）。
+1. **不要套模板**：不要用"做到什么程度算完成"、"有没有准备好的东西"这种万能句式
+2. **不要问不相关的维度**：锻炼不需要问"准备资料"，Meeting 不需要问"怕做不好"
+3. **不要猜具体场景**：不要问"是去健身房还是在家？"
+4. **不要问子任务**：只关注主要任务（${taskNames.join('、')}）
 
 **✅ 必须坚持（Do）：**
-1. **Task Awareness（任务认知）**：
-   - 关注"完成的标准"：不是问"你要做什么"，而是问"你怎么知道做完了？" / "你脑海里有做完后的画面吗？"
-   - 关注"模糊性"：如果任务模糊，问"这个任务对你来说是常规操作，还是需要现想怎么做？"
-
-2. **Strategy Awareness（策略认知）**：
-   - 关注"执行路径"：问"你打算按部就班做，还是有什么捷径？"
-   - 关注"障碍预判"：问"做这个任务时，最容易让你分心或卡住的是什么？"
-
-3. **Self Awareness（自我认知）**：
-   - 关注"状态匹配"：问"你现在的精力/情绪适合做这个吗？"
-
-【问题示例】
-❌ 差（过于具体/预设）："锻炼是跑步还是举铁？"
-✅ 好（策略/状态）："关于锻炼，你是有固定的计划，还是打算看心情决定？"
-
-❌ 差（过于具体）："做TA是批改几份作业？"
-✅ 好（障碍预判）："做TA这项工作，有没有哪个环节是你比较抗拒、容易拖延的？"
-
-❌ 差（无效问题）："学习的目标是什么？"
-✅ 好（行动触发）："学习这项任务，你只需要准备好，还是需要先调整一下状态才能开始？"
+1. **贴合任务场景**：根据任务类型选择最相关的问题角度
+2. **问题要有洞察**：让用户觉得"这个问题问到点子上了"
+3. **3 个问题覆盖不同任务**（如果只有 1 个任务，则问不同维度）
+4. **hint 要解释问题的意图**：帮用户理解为什么问这个问题
 
 【额外任务：识别需要拆解的任务】
 请同时判断哪些任务**可能需要拆解**。判断标准：
-- 任务描述模糊，不知道具体要做什么
-- 任务范围太大，一次做不完
-- 任务包含多个步骤或子目标
-- 任务复杂度高，容易让人不知从何下手
+- 任务范围太大，一次做不完（如"写论文"、"准备考试"）
+- 任务包含多个独立步骤（如"准备Meeting"可能包括做PPT、整理数据等）
+- 任务复杂度高，不知从何下手
 
-注意：简单、清晰、一步到位的任务（如"锻炼"、"买菜"）不需要拆解。
+注意：简单、清晰、一步到位的任务（如"锻炼"、"买菜"、"回复邮件"）不需要拆解。
 
 【输出格式】
 返回 JSON 对象：
 {
   "questions": [
-    { "text": "问题内容", "hint": "问题背后的元认知意图（如：策略意识、障碍预判）" }
+    { "text": "问题内容（贴合任务场景，提到具体任务名称）", "hint": "这个问题帮用户理解什么（如：明确沟通目标、识别准备工作、找到启动点）" }
   ],
   "tasksToDecompose": ["任务标题1", "任务标题2"]
 }
 
-- questions: 严格 3 个反思问题
+- questions: 严格 3 个反思问题，贴合任务场景，覆盖不同任务
 - tasksToDecompose: 建议拆解的任务标题数组（可以为空数组 []）
 
 只返回 JSON，不要其他内容。`

@@ -57,6 +57,7 @@ export interface ParsedTask {
   position: number              // 在笔记中的位置（第几个任务）
   deadlineDatetime?: string     // 截止时间（如果有 @时间 标记）
   estimatedDuration?: number    // ⭐ 预估时长（分钟）
+  depth?: number                // 任务层级：0 = 顶层任务，1 = 子任务，2 = 孙任务...
 }
 
 /**
