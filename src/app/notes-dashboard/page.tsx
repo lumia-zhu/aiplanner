@@ -756,11 +756,11 @@ export default function NotesDashboardPage() {
         
         // 同时检查是否有新任务可以加入（基于简单规则）
         const existingDecomposableTitles = new Set(decomposableTasks.map(t => t.title))
-        const newTasks = taskSnapshots.filter(t => 
+        const newTasks: TaskSnapshot[] = taskSnapshots.filter(t => 
           !existingDecomposableTitles.has(t.title)
-        ).map(t => ({ id: t.id, title: t.title }))
+        ).map(t => ({ id: t.id, title: t.title, isCompleted: t.isCompleted }))
         
-        const finalDecomposableTasks = [...updatedDecomposableTasks, ...newTasks]
+        const finalDecomposableTasks: TaskSnapshot[] = [...updatedDecomposableTasks, ...newTasks]
         
         if (finalDecomposableTasks.length !== decomposableTasks.length ||
             finalDecomposableTasks.some((t, i) => decomposableTasks[i]?.title !== t.title)) {
@@ -2178,7 +2178,7 @@ export default function NotesDashboardPage() {
       await updateReflectionSession(reflectionSessionId, {
         status: 'completed',
         finalSummary: summaryResult.miniSummary,
-        executionSuggestions: summaryResult.executionSuggestions.map(s => s.text).join('\n')
+        executionSuggestions: summaryResult.executionSuggestions.map(s => s.text)
       })
     } else {
       // 降级处理
