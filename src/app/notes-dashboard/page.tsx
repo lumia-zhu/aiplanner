@@ -822,6 +822,7 @@ export default function NotesDashboardPage() {
 
   // 处理笔记内容更新（实时更新统计，不保存）
   const handleNoteUpdate = useCallback((content: JSONContent) => {
+    setCurrentNote(content) // ✅ 同步更新 currentNote，确保 AI 助手能读取最新内容
     calculateTaskStats(content) // 实时更新任务统计
   }, [calculateTaskStats])
 
@@ -915,6 +916,9 @@ export default function NotesDashboardPage() {
       })
       
       console.log('✅ 笔记已保存并更新缓存')
+      
+      // ✅ 同步更新 currentNote 状态，确保 AI 助手能读取最新内容
+      setCurrentNote(savedNote.content)
       
       // 🔄 同步任务到 daily_tasks 表
       try {
