@@ -451,14 +451,15 @@ export async function getReflectionHistory(
  * 从 DailyTask 列表创建 TaskSnapshot 列表
  */
 export function createTaskSnapshots(tasks: any[]): TaskSnapshot[] {
-  return tasks.map(task => ({
-    id: task.id,
+  return tasks.map((task, index) => ({
+    // 如果任务有 id 就用，没有就用 position 或 index 生成一个唯一 ID
+    id: task.id || `task-${task.position ?? index}-${task.title.substring(0, 10)}`,
     title: task.title,
     priority: task.priority,
     estimatedDuration: task.estimatedDuration,
     deadline: task.deadlineDatetime || task.deadline,
     isCompleted: task.completed || task.isCompleted || false,
-    notePosition: task.notePosition,
+    notePosition: task.notePosition || task.position,
     depth: task.depth ?? 0  // ⭐ 任务层级：0 = 顶层任务
   }))
 }

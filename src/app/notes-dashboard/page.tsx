@@ -37,6 +37,7 @@ import {
   generateReflectionSummary,
   formatSummaryAsMessage,
   formatDecompositionInquiryMessage,
+  generateOverviewMessage,
   type ReflectionRoundType 
 } from '@/lib/reflectionFlow'
 import { MATRIX_DIMENSION_CONFIGS, MATRIX_QUADRANTS_CONFIGS } from '@/types'
@@ -69,6 +70,7 @@ import { GetTasksTool } from '@/lib/agent/tools/GetTasksTool'
 import type { AgentContext } from '@/lib/agent/AgentTypes'
 // ⭐ 任务拆解imports
 import { generateContextQuestions } from '@/lib/contextQuestions'
+import { generateDynamicDecompositionQuestions } from '@/lib/decompositionAI'
 
 export default function NotesDashboardPage() {
   logger.debug('NotesDashboardPage 组件开始渲染')
@@ -148,6 +150,18 @@ export default function NotesDashboardPage() {
   const [reflectionTasks, setReflectionTasks] = useState<TaskSnapshot[]>([])
   const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false)
   const [askedQuestions, setAskedQuestions] = useState<string[]>([])  // 当前轮次已问过的问题
+  
+  // ⭐ 反思流程优化 - 新增状态
+  const [completedRounds, setCompletedRounds] = useState<ReflectionRoundType[]>([])  // 已完成的轮次
+  const [pendingRound, setPendingRound] = useState<ReflectionRoundType | null>(null)  // 待选择任务的轮次
+  const [selectedTasksForRound, setSelectedTasksForRound] = useState<TaskSnapshot[]>([])  // 用户选择的任务
+  const [taskContexts, setTaskContexts] = useState<Map<string, string>>(new Map())  // 存储每个任务的用户输入上下文
+  
+  // ⭐ 问答流程状态
+  const [isAnsweringQuestions, setIsAnsweringQuestions] = useState(false)  // 是否处于问答阶段
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)  // 当前问题索引
+  const [totalQuestions, setTotalQuestions] = useState<string[]>([])  // 所有问题列表
+  const [questionAnswers, setQuestionAnswers] = useState<Array<{question: string, answer: string}>>([])  // 问题和回答的记录
   
   // ⭐ Clarity 轮后的任务拆解阶段状态
   const [isDecompositionPhase, setIsDecompositionPhase] = useState(false)  // 是否处于拆解选择阶段
@@ -1853,7 +1867,6 @@ export default function NotesDashboardPage() {
         setIsReflectionMode(true)
         
         // ⭐ 重要：从当前笔记中获取最新任务（而不是从快照中）
-        // 这样用户新添加的任务也会被包含
         const currentTasks = currentNote ? parseTasksFromNote(currentNote) : []
         const taskSnapshots = createTaskSnapshots(currentTasks)
         setReflectionTasks(taskSnapshots)
@@ -1863,20 +1876,68 @@ export default function NotesDashboardPage() {
           setReflectionScanResult(existingSession.scanResult)
         }
         
-        // 恢复当前轮次
-        if (existingSession.currentRound && existingSession.currentRound !== 'overview') {
+        console.log('📋 恢复会话，当前任务数:', taskSnapshots.length)
+        
+        // 🆕 使用新的概述界面恢复
+        // 如果当前轮次是 overview 或者没有设置，显示概述 + 4按钮
+        if (!existingSession.currentRound || existingSession.currentRound === 'overview') {
+          // 显示加载消息
+          const loadingMessage: ChatMessage = {
+            role: 'assistant' as const,
+            content: [{ type: 'text' as const, text: '📂 欢迎回来！让我重新看看你的任务...' }]
+          }
+          setChatMessages(prev => {
+            const hasLoading = prev.some(m => m.content?.[0]?.text?.includes('欢迎回来'))
+            if (hasLoading) return prev
+            return [...prev, loadingMessage]
+          })
+          
+          // 生成概述消息
+          const scan = existingSession.scanResult || {
+            totalTaskCount: taskSnapshots.length,
+            vagueTaskCount: 0,
+            unestimatedTaskCount: 0,
+            noPriorityCount: 0,
+            workloadLevel: 'medium' as const,
+            crossDayTasks: [],
+            deadlineConflicts: []
+          }
+          
+          const overviewText = await generateOverviewMessage(taskSnapshots, scan)
+          
+          const overviewMessage: ChatMessage = {
+            role: 'assistant' as const,
+            content: [
+              { type: 'text' as const, text: overviewText + '\n\n你想从哪个方面开始？' },
+              { 
+                type: 'interactive' as const, 
+                interactive: {
+                  type: 'reflection-overview' as const,
+                  data: { taskCount: taskSnapshots.length },
+                  isActive: true
+                }
+              }
+            ]
+          }
+          setChatMessages(prev => {
+            // 移除加载消息，添加概述消息
+            const filtered = prev.filter(m => !m.content?.[0]?.text?.includes('欢迎回来！让我重新看看你的任务'))
+            const hasOverview = filtered.some(m => 
+              m.content?.some((c: any) => c.interactive?.type === 'reflection-overview')
+            )
+            if (hasOverview) return prev
+            return [...filtered, overviewMessage]
+          })
+        } else {
+          // 如果有正在进行的轮次，恢复到该轮次
           const round = existingSession.currentRound as ReflectionRoundType
           setCurrentReflectionRound(round)
           
-          // 延迟一下，重新触发当前轮次的问题生成
           setTimeout(() => {
-            // 这里我们不传递 sessionId，让 startReflectionRound 使用 state 中的 sessionId
-            // 注意：startReflectionRound 需要 sessionId 参数，但我们已经在上面 setReflectionSessionId 了
-            // 实际上 startReflectionRound 的 sessionId 参数只用于 updateReflectionSession
             startReflectionRound(
               round, 
               taskSnapshots, 
-              existingSession.scanResult || reflectionScanResult || {
+              existingSession.scanResult || {
                 totalTaskCount: taskSnapshots.length,
                 vagueTaskCount: 0,
                 unestimatedTaskCount: 0,
@@ -1888,22 +1949,6 @@ export default function NotesDashboardPage() {
               existingSession.id
             )
           }, 1000)
-        }
-        
-        console.log('📋 恢复会话，当前任务数:', taskSnapshots.length)
-        
-        // 如果已有总览小结，显示在聊天中
-        if (existingSession.overviewSummary) {
-          const overviewMessage = {
-            role: 'assistant' as const,
-            content: [{ type: 'text' as const, text: `👀 **今天的计划一览**\n\n${existingSession.overviewSummary}\n\n接下来我带你做三轮轻量反思，每轮最多 3 个问题～` }]
-          }
-          setChatMessages(prev => {
-            // 避免重复添加
-            const hasOverview = prev.some(m => m.content?.[0]?.text?.includes('今天的计划一览'))
-            if (hasOverview) return prev
-            return [...prev, overviewMessage]
-          })
         }
         
         return existingSession
@@ -1986,28 +2031,51 @@ export default function NotesDashboardPage() {
       })
       
       if (scanResult.type === 'success') {
-        const { scanResult: scan, summary } = scanResult.data
+        const { scanResult: scan } = scanResult.data
         
-        // 更新反思会话，保存扫描结果
+        // 保存扫描结果和任务列表到状态
+        setReflectionScanResult(scan)
+        setReflectionTasks(taskSnapshots)
+        
+        // 更新反思会话，保存扫描结果（不设置 currentRound，等用户选择）
         await updateReflectionSession(session.id, {
           scanResult: scan,
-          overviewSummary: summary,
-          currentRound: 'clarity'  // 准备进入第一轮
+          currentRound: 'overview'  // 停留在概述阶段，等待用户选择
         })
         
-        // 在聊天中显示任务总览
-        const overviewMessage = {
+        // 显示加载消息
+        const loadingMessage: ChatMessage = {
           role: 'assistant' as const,
-          content: [{ type: 'text' as const, text: `👀 **今天的计划一览**\n\n${summary}\n\n接下来我带你做三轮轻量反思，每轮最多 3 个问题～` }]
+          content: [{ type: 'text' as const, text: '让我看看你今天的任务...' }]
         }
-        setChatMessages(prev => [...prev, overviewMessage])
+        setChatMessages(prev => [...prev, loadingMessage])
         
-        console.log('✅ GlobalScan 完成，任务总览已显示')
+        // 🆕 使用 LLM 生成概述消息
+        console.log('🤖 生成 LLM 概述消息...')
+        const overviewText = await generateOverviewMessage(taskSnapshots, scan)
         
-        // 6. 自动开始第一轮反思（澄清轮）
-        setTimeout(async () => {
-          await startReflectionRound('clarity', taskSnapshots, scan, session.id)
-        }, 1500)  // 延迟1.5秒，让用户先看到总览
+        // 替换加载消息为概述 + 4个按钮
+        const overviewMessage: ChatMessage = {
+          role: 'assistant' as const,
+          content: [
+            { type: 'text' as const, text: overviewText + '\n\n你想从哪个方面开始？' },
+            { 
+              type: 'interactive' as const, 
+              interactive: {
+                type: 'reflection-overview' as const,
+                data: { taskCount: taskSnapshots.length },
+                isActive: true
+              }
+            }
+          ]
+        }
+        setChatMessages(prev => {
+          // 移除加载消息，添加概述消息
+          const filtered = prev.filter(m => m.content?.[0]?.text !== '让我看看你今天的任务...')
+          return [...filtered, overviewMessage]
+        })
+        
+        console.log('✅ 概述消息已显示，等待用户选择')
       }
       
       return session
@@ -2017,6 +2085,622 @@ export default function NotesDashboardPage() {
       return null
     }
   }, [user, selectedDate, currentNote])
+  
+  // ⭐ 处理概述页面按钮点击
+  const handleOverviewButtonClick = useCallback((action: 'clarity' | 'time' | 'priority' | 'cancel') => {
+    console.log('🔘 概述按钮点击:', action)
+    
+    // 禁用概述按钮
+    setChatMessages(prev => prev.map(msg => ({
+      ...msg,
+      content: msg.content.map((c: any) => 
+        c.type === 'interactive' && c.interactive?.type === 'reflection-overview'
+          ? { ...c, interactive: { ...c.interactive, isActive: false } }
+          : c
+      )
+    })))
+    
+    if (action === 'cancel') {
+      // 显示告别消息
+      const byeMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [{ type: 'text' as const, text: '好的，有需要随时叫我～ 👋' }]
+      }
+      setChatMessages(prev => [...prev, byeMessage])
+      
+      // 1秒后关闭侧边栏
+      setTimeout(() => {
+        setIsChatSidebarOpen(false)
+        // 清理反思状态
+        setIsReflectionMode(false)
+        setReflectionSessionId(null)
+        setCurrentReflectionRound(null)
+        setCompletedRounds([])
+        setPendingRound(null)
+      }, 1000)
+      return
+    }
+    
+    // 设置待选择任务的轮次
+    setPendingRound(action)
+    
+    // 显示任务选择消息（分成两条）
+    const roundInfo = {
+      clarity: { emoji: '📝', label: '澄清任务' },
+      time: { emoji: '⏱️', label: '时间规划' },
+      priority: { emoji: '🎯', label: '优先级排列' }
+    }
+    const info = roundInfo[action]
+    
+    // 第一条：确认消息
+    const confirmMessage: ChatMessage = {
+      role: 'assistant' as const,
+      content: [{ type: 'text' as const, text: `${info.emoji} 好的，让我们来做「${info.label}」～` }]
+    }
+    
+    // 第二条：任务选择卡片
+    const selectionMessage: ChatMessage = {
+      role: 'assistant' as const,
+      content: [
+        { 
+          type: 'interactive' as const, 
+          interactive: {
+            type: 'reflection-task-selection' as const,
+            data: { roundType: action },
+            isActive: true
+          }
+        }
+      ]
+    }
+    
+    setChatMessages(prev => [...prev, confirmMessage, selectionMessage])
+  }, [])
+  
+  // ⭐ 处理轮次完成后按钮点击
+  const handleRoundCompleteButtonClick = useCallback((action: 'clarity' | 'time' | 'priority' | 'end') => {
+    console.log('🔘 轮次完成按钮点击:', action)
+    
+    // 禁用按钮
+    setChatMessages(prev => prev.map(msg => ({
+      ...msg,
+      content: msg.content.map((c: any) => 
+        c.type === 'interactive' && c.interactive?.type === 'reflection-round-complete'
+          ? { ...c, interactive: { ...c.interactive, isActive: false } }
+          : c
+      )
+    })))
+    
+    if (action === 'end') {
+      // 结束反思，生成总结
+      if (completedRounds.length > 0) {
+        generateAndShowSummary()
+      } else {
+        // 没有完成任何轮次，显示告别消息
+        const byeMessage: ChatMessage = {
+          role: 'assistant' as const,
+          content: [{ type: 'text' as const, text: '好的，有需要随时叫我～ 👋' }]
+        }
+        setChatMessages(prev => [...prev, byeMessage])
+        
+        setTimeout(() => {
+          setIsChatSidebarOpen(false)
+          setIsReflectionMode(false)
+          setReflectionSessionId(null)
+          setCurrentReflectionRound(null)
+          setCompletedRounds([])
+          setPendingRound(null)
+        }, 1000)
+      }
+      return
+    }
+    
+    // 检查是否已完成该轮次
+    if (completedRounds.includes(action)) {
+      console.log(`⚠️ ${action} 轮已完成，不能重复`)
+      return
+    }
+    
+    // 设置待选择任务的轮次
+    setPendingRound(action)
+    
+    // 显示任务选择消息（分成两条）
+    const roundInfo = {
+      clarity: { emoji: '📝', label: '澄清任务' },
+      time: { emoji: '⏱️', label: '时间规划' },
+      priority: { emoji: '🎯', label: '优先级排列' }
+    }
+    const info = roundInfo[action]
+    
+    // 第一条：确认消息
+    const confirmMessage: ChatMessage = {
+      role: 'assistant' as const,
+      content: [{ type: 'text' as const, text: `${info.emoji} 好的，让我们来做「${info.label}」～` }]
+    }
+    
+    // 第二条：任务选择卡片
+    const selectionMessage: ChatMessage = {
+      role: 'assistant' as const,
+      content: [
+        { 
+          type: 'interactive' as const, 
+          interactive: {
+            type: 'reflection-task-selection' as const,
+            data: { roundType: action },
+            isActive: true
+          }
+        }
+      ]
+    }
+    
+    setChatMessages(prev => [...prev, confirmMessage, selectionMessage])
+  }, [completedRounds])
+  
+  // ⭐ 处理任务选择确认
+  const handleTaskSelectionConfirm = useCallback(async (taskIds: string[]) => {
+    console.log('✅ 任务选择确认:', taskIds)
+    
+    if (!pendingRound || !reflectionSessionId || !reflectionScanResult) {
+      console.error('❌ 缺少必要状态')
+      return
+    }
+    
+    // 禁用任务选择卡片
+    setChatMessages(prev => prev.map(msg => ({
+      ...msg,
+      content: msg.content.map((c: any) => 
+        c.type === 'interactive' && c.interactive?.type === 'reflection-task-selection'
+          ? { ...c, interactive: { ...c.interactive, isActive: false } }
+          : c
+      )
+    })))
+    
+    // 根据选中的 ID 获取任务
+    const selectedTasks = reflectionTasks.filter(t => taskIds.includes(t.id))
+    setSelectedTasksForRound(selectedTasks)
+    
+    // 🆕 对于 Clarity 轮，显示拆解建议而不是直接开始反思
+    if (pendingRound === 'clarity' && selectedTasks.length > 0) {
+      const task = selectedTasks[0]
+      
+      // 显示加载消息
+      const loadingMsg: ChatMessage = {
+        role: 'assistant' as const,
+        content: [{ type: 'text' as const, text: '让我看看这个任务...' }]
+      }
+      setChatMessages(prev => [...prev, loadingMsg])
+      
+      // 生成拆解建议（使用现有的 generateDynamicDecompositionQuestions）
+      try {
+        const questions = await generateDynamicDecompositionQuestions({
+          id: task.id,
+          title: task.title,
+          estimatedDuration: task.estimatedDuration,
+          deadline_datetime: task.deadline,
+        } as any)
+        
+        // 移除加载消息
+        setChatMessages(prev => prev.filter(m => m.content?.[0]?.text !== '让我看看这个任务...'))
+        
+        // 保存当前选择的任务和问题到状态
+        setDecomposingTaskTitle(task.title)
+        setTaskContextInput('')  // 清空之前的输入
+        
+        // 🆕 初始化问答流程
+        setTotalQuestions(questions)
+        setCurrentQuestionIndex(0)
+        setQuestionAnswers([])
+        setIsAnsweringQuestions(true)
+        
+        // 显示第一个问题的输入卡片
+        const firstQuestionMsg: ChatMessage = {
+          role: 'assistant' as const,
+          content: [
+            {
+              type: 'interactive' as const,
+              interactive: {
+                type: 'question-answer' as const,
+                data: {
+                  question: questions[0],
+                  questionIndex: 0,
+                  totalQuestions: questions.length,
+                  taskTitle: task.title,
+                  taskId: task.id
+                },
+                isActive: true
+              }
+            }
+          ]
+        }
+        
+        setChatMessages(prev => [...prev, firstQuestionMsg])
+      } catch (error) {
+        console.error('生成拆解建议失败:', error)
+        // 降级：直接开始反思
+        await startReflectionRound(pendingRound, selectedTasks, reflectionScanResult, reflectionSessionId)
+      }
+    } else {
+      // 其他轮次：直接开始反思
+      await startReflectionRound(pendingRound, selectedTasks, reflectionScanResult, reflectionSessionId)
+    }
+    
+    // 清除待选择状态
+    setPendingRound(null)
+  }, [pendingRound, reflectionSessionId, reflectionScanResult, reflectionTasks])
+  
+  // ⭐ 处理任务选择返回
+  const handleTaskSelectionBack = useCallback(() => {
+    console.log('↩️ 任务选择返回')
+    
+    // 禁用任务选择卡片
+    setChatMessages(prev => prev.map(msg => ({
+      ...msg,
+      content: msg.content.map((c: any) => 
+        c.type === 'interactive' && c.interactive?.type === 'reflection-task-selection'
+          ? { ...c, interactive: { ...c.interactive, isActive: false } }
+          : c
+      )
+    })))
+    
+    // 清除待选择状态
+    setPendingRound(null)
+    
+    // 显示返回消息
+    const backMessage: ChatMessage = {
+      role: 'assistant' as const,
+      content: [{ type: 'text' as const, text: '好的～' }]
+    }
+    setChatMessages(prev => [...prev, backMessage])
+    
+    // 根据是否有已完成轮次，显示不同的按钮
+    if (completedRounds.length > 0) {
+      // 显示轮次完成按钮
+      const completeMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [
+          { type: 'text' as const, text: '你还想继续吗？' },
+          { 
+            type: 'interactive' as const, 
+            interactive: {
+              type: 'reflection-round-complete' as const,
+              data: { completedRounds },
+              isActive: true
+            }
+          }
+        ]
+      }
+      setChatMessages(prev => [...prev, completeMessage])
+    } else {
+      // 显示概述按钮
+      const overviewMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [
+          { type: 'text' as const, text: '你想从哪个方面开始？' },
+          { 
+            type: 'interactive' as const, 
+            interactive: {
+              type: 'reflection-overview' as const,
+              data: { taskCount: reflectionTasks.length },
+              isActive: true
+            }
+          }
+        ]
+      }
+      setChatMessages(prev => [...prev, overviewMessage])
+    }
+  }, [completedRounds, reflectionTasks])
+  
+  // ⭐ 处理拆解建议按钮点击
+  const handleDecomposeSuggestionButton = useCallback(async (buttonId: string, context: any) => {
+    console.log('🔘 拆解建议按钮点击:', buttonId, context)
+    
+    // 禁用按钮
+    setChatMessages(prev => prev.map(msg => ({
+      ...msg,
+      content: msg.content.map((c: any) => 
+        c.type === 'interactive' && c.interactive?.type === 'buttons' && 
+        (c.interactive?.data?.context?.taskId === context?.taskId || 
+         c.interactive?.data?.context?.action === context?.action ||
+         c.interactive?.data?.context?.questionIndex === context?.questionIndex)
+          ? { ...c, interactive: { ...c.interactive, isActive: false } }
+          : c
+      )
+    })))
+    
+    // 🆕 处理"下一个问题"按钮（从卡片接收answer）
+    if (buttonId === 'next-question') {
+      const taskId = context?.taskId
+      const currentAnswer = context?.answer || ''  // 从卡片传递的answer
+      
+      // 🔧 使用从卡片传来的 questionIndex，而不是状态中的 currentQuestionIndex
+      const currentIndex = context?.questionIndex ?? 0
+      
+      console.log('🔘 下一个问题按钮点击', {
+        currentIndex,
+        totalQuestions: totalQuestions.length,
+        currentAnswer
+      })
+      
+      // 禁用当前问答卡片
+      setChatMessages(prev => prev.map(msg => ({
+        ...msg,
+        content: msg.content.map((c: any) => 
+          c.type === 'interactive' && c.interactive?.type === 'question-answer' && 
+          c.interactive?.data?.questionIndex === currentIndex
+            ? { ...c, interactive: { ...c.interactive, isActive: false } }
+            : c
+        )
+      })))
+      
+      // 保存当前问题的回答（即使为空）
+      let currentQuestionAnswer: { question: string; answer: string } | null = null
+      if (currentIndex < totalQuestions.length) {
+        const currentQuestion = totalQuestions[currentIndex]
+        currentQuestionAnswer = { 
+          question: currentQuestion, 
+          answer: currentAnswer || '(跳过)' 
+        }
+        
+        console.log('💾 保存问题回答', currentQuestionAnswer)
+        setQuestionAnswers(prev => [...prev, currentQuestionAnswer!])
+        
+        // 如果用户有输入，保存到上下文
+        if (currentAnswer) {
+          setTaskContexts(prev => {
+            const newMap = new Map(prev)
+            const existingContext = newMap.get(taskId) || ''
+            newMap.set(taskId, existingContext ? `${existingContext}\n${currentAnswer}` : currentAnswer)
+            return newMap
+          })
+        }
+      }
+      
+      const nextIndex = currentIndex + 1
+      
+      console.log('🔢 计算下一个问题索引', {
+        currentIndex,
+        nextIndex,
+        totalQuestions: totalQuestions.length,
+        hasMore: nextIndex < totalQuestions.length
+      })
+      
+      if (nextIndex < totalQuestions.length) {
+        // 还有下一个问题 - 更新当前卡片而不是创建新消息
+        setCurrentQuestionIndex(nextIndex)
+        
+        // 更新现有的问答卡片，显示下一个问题
+        setChatMessages(prev => prev.map(msg => ({
+          ...msg,
+          content: msg.content.map((c: any) => 
+            c.type === 'interactive' && c.interactive?.type === 'question-answer' && 
+            c.interactive?.data?.questionIndex === currentIndex
+              ? {
+                  ...c,
+                  interactive: {
+                    ...c.interactive,
+                    data: {
+                      question: totalQuestions[nextIndex],
+                      questionIndex: nextIndex,
+                      totalQuestions: totalQuestions.length,
+                      taskTitle: context?.taskTitle,
+                      taskId
+                    },
+                    isActive: true  // 重新激活卡片
+                  }
+                }
+              : c
+          )
+        })))
+      } else {
+        // 所有问题回答完毕
+        setIsAnsweringQuestions(false)
+        
+        // 卡片已经在前面被禁用了，这里不需要再次禁用
+        
+        // 🔧 修复：手动构建包含最后一个回答的完整数组
+        const allAnswers = currentQuestionAnswer 
+          ? [...questionAnswers, currentQuestionAnswer]
+          : questionAnswers
+        
+        // 显示问答总结
+        const summaryText = allAnswers.length > 0 
+          ? `好的，已经保存好您提供的信息，后续提供建议时会考虑～\n\n**您的回答总结：**\n${allAnswers.map((qa, i) => `${i + 1}. ${qa.question}\n   ${qa.answer}`).join('\n\n')}`
+          : '好的，已经保存好您提供的信息，后续提供建议时会考虑～'
+        
+        const summaryMsg: ChatMessage = {
+          role: 'assistant' as const,
+          content: [{ type: 'text' as const, text: summaryText }]
+        }
+        
+        // 显示拆解选项
+        const optionsMsg: ChatMessage = {
+          role: 'assistant' as const,
+          content: [
+            { 
+              type: 'text' as const, 
+              text: `现在，你可以选择：`
+            },
+            {
+              type: 'interactive' as const,
+              interactive: {
+                type: 'buttons' as const,
+                data: {
+                  buttons: [
+                    { id: 'decompose-with-context', label: '✂️ 拆解这个任务', variant: 'primary' },
+                    { id: 'skip-decompose-back', label: '不需要拆解，选择其他任务', variant: 'secondary' }
+                  ],
+                  context: { taskId, taskTitle: context?.taskTitle }
+                },
+                isActive: true
+              }
+            }
+          ]
+        }
+        
+        setChatMessages(prev => [...prev, summaryMsg, optionsMsg])
+      }
+      
+      return
+    }
+    
+    // 🆕 处理问答阶段的"返回"按钮
+    if (buttonId === 'back-to-selection-from-qa') {
+      // 清空问答状态
+      setIsAnsweringQuestions(false)
+      setCurrentQuestionIndex(0)
+      setTotalQuestions([])
+      setQuestionAnswers([])
+      setDecomposingTaskTitle(null)
+      setTaskContextInput('')
+      
+      const confirmMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [{ type: 'text' as const, text: '好的，让我们选择其他任务～' }]
+      }
+      
+      // 重新显示任务选择卡片
+      const selectionMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [
+          { 
+            type: 'interactive' as const, 
+            interactive: {
+              type: 'reflection-task-selection' as const,
+              data: { roundType: 'clarity' },
+              isActive: true
+            }
+          }
+        ]
+      }
+      
+      setPendingRound('clarity')
+      setChatMessages(prev => [...prev, confirmMessage, selectionMessage])
+      
+      return
+    }
+    
+    // 处理返回任务选择按钮
+    if (buttonId === 'back-to-selection') {
+      const confirmMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [{ type: 'text' as const, text: '好的，让我们选择其他任务～' }]
+      }
+      
+      // 重新显示任务选择卡片
+      const selectionMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [
+          { 
+            type: 'interactive' as const, 
+            interactive: {
+              type: 'reflection-task-selection' as const,
+              data: { roundType: 'clarity' },
+              isActive: true
+            }
+          }
+        ]
+      }
+      
+      setPendingRound('clarity')
+      setChatMessages(prev => [...prev, confirmMessage, selectionMessage])
+      
+      // 清空拆解状态
+      setDecomposingTaskTitle(null)
+      setTaskContextInput('')
+      
+      return
+    }
+    
+    if (buttonId === 'decompose-with-context') {
+      // 用户选择拆解
+      const taskTitle = context?.taskTitle
+      const taskId = context?.taskId
+      
+      if (!taskTitle) return
+      
+      // 获取用户输入的上下文（从 taskContexts 或 taskContextInput）
+      const userContext = taskContexts.get(taskId) || taskContextInput.trim()
+      
+      // 显示确认消息
+      const confirmMsg: ChatMessage = {
+        role: 'assistant' as const,
+        content: [{ type: 'text' as const, text: '好的，让我帮你拆解这个任务～' }]
+      }
+      setChatMessages(prev => [...prev, confirmMsg])
+      
+      // 调用拆解服务（使用用户输入的上下文）
+      try {
+        const decomposeResult = await doubaoService.decomposeTask(
+          taskTitle,
+          userContext || '用户希望将此任务拆解为更小的步骤'
+        )
+        
+        if (decomposeResult.success && decomposeResult.message) {
+          // 解析子任务
+          const { parseDecompositionResponse } = await import('@/utils/taskDecomposition')
+          const subtasks = parseDecompositionResponse(decomposeResult.message)
+          
+          if (subtasks && subtasks.length > 0) {
+            // 显示拆解结果卡片
+            const decompositionCard: ChatMessage = {
+              role: 'assistant' as const,
+              content: [
+                {
+                  type: 'interactive' as const,
+                  interactive: {
+                    type: 'task-decomposition' as const,
+                    data: {
+                      parentTask: { title: taskTitle },
+                      suggestions: subtasks
+                    },
+                    isActive: true
+                  }
+                }
+              ]
+            }
+            setChatMessages(prev => [...prev, decompositionCard])
+          }
+        }
+      } catch (error) {
+        console.error('拆解失败:', error)
+        const errorMsg: ChatMessage = {
+          role: 'assistant' as const,
+          content: [{ type: 'text' as const, text: '抱歉，拆解失败了，请稍后再试～' }]
+        }
+        setChatMessages(prev => [...prev, errorMsg])
+      }
+      
+    } else if (buttonId === 'skip-decompose-back') {
+      // 用户选择不拆解，返回任务选择列表
+      const confirmMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [{ type: 'text' as const, text: '好的，让我们选择其他任务～' }]
+      }
+      
+      // 重新显示任务选择卡片
+      const currentRoundType = 'clarity'  // 当前只在 clarity 轮有拆解建议
+      
+      const selectionMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [
+          { 
+            type: 'interactive' as const, 
+            interactive: {
+              type: 'reflection-task-selection' as const,
+              data: { roundType: currentRoundType },
+              isActive: true
+            }
+          }
+        ]
+      }
+      
+      setPendingRound(currentRoundType)
+      setChatMessages(prev => [...prev, confirmMessage, selectionMessage])
+      
+      // 清空拆解状态
+      setDecomposingTaskTitle(null)
+      setTaskContextInput('')
+    }
+  }, [taskContextInput, user])
   
   // ⭐ 开始某一轮反思
   const startReflectionRound = useCallback(async (
@@ -2234,9 +2918,9 @@ export default function NotesDashboardPage() {
     return true  // 表示已处理
   }, [currentReflectionRound, reflectionSessionId, reflectionScanResult, reflectionTasks, startReflectionRound, generateAndShowSummary])
   
-  // ⭐ 进入下一步（用户点击"下一步"按钮）
+  // ⭐ 进入下一步（用户点击"下一步"按钮）- 现在改为显示轮次完成消息
   const handleNextStep = useCallback(async () => {
-    if (!currentReflectionRound || !reflectionSessionId || !reflectionScanResult) {
+    if (!currentReflectionRound || !reflectionSessionId) {
       return
     }
     
@@ -2248,31 +2932,39 @@ export default function NotesDashboardPage() {
       setDecomposableTasks([])
     }
     
-    // 显示进入下一轮的消息
-    const nextMessage = {
+    // 记录已完成的轮次
+    setCompletedRounds(prev => {
+      if (prev.includes(currentReflectionRound)) return prev
+      return [...prev, currentReflectionRound]
+    })
+    
+    // 清除当前轮次
+    setCurrentReflectionRound(null)
+    
+    // 显示"这一轮完成了" + 4个按钮
+    const roundInfo = {
+      clarity: { emoji: '📝', label: '任务澄清' },
+      time: { emoji: '⏱️', label: '时间规划' },
+      priority: { emoji: '🎯', label: '优先级排列' }
+    }
+    const info = roundInfo[currentReflectionRound]
+    
+    const completeMessage: ChatMessage = {
       role: 'assistant' as const,
-      content: [{ type: 'text' as const, text: '好的，我们继续下一步～' }]
+      content: [
+        { type: 'text' as const, text: `${info.emoji} 「${info.label}」这一轮完成了！你还想继续吗？` },
+        { 
+          type: 'interactive' as const, 
+          interactive: {
+            type: 'reflection-round-complete' as const,
+            data: { completedRound: currentReflectionRound },
+            isActive: true
+          }
+        }
+      ]
     }
-    setChatMessages(prev => [...prev, nextMessage])
-    
-    // 进入下一轮
-    const nextRound = getNextRound(currentReflectionRound)
-    
-    if (nextRound !== 'summary' && nextRound !== 'overview') {
-      setTimeout(() => {
-        startReflectionRound(
-          nextRound as ReflectionRoundType, 
-          reflectionTasks, 
-          reflectionScanResult, 
-          reflectionSessionId
-        )
-      }, 800)
-    } else {
-      // 进入总结阶段 - 自动生成总结
-      console.log('📝 三轮反思完成（跳过），自动进入总结阶段')
-      await generateAndShowSummary()
-    }
-  }, [currentReflectionRound, reflectionSessionId, reflectionScanResult, reflectionTasks, startReflectionRound, generateAndShowSummary, isDecompositionPhase])
+    setChatMessages(prev => [...prev, completeMessage])
+  }, [currentReflectionRound, reflectionSessionId, isDecompositionPhase])
   
   // ⭐ 处理用户选择要拆解的任务（显示反思性问题）
   const handleDecomposeTaskSelect = useCallback(async (taskIds: string[]) => {
@@ -3518,7 +4210,7 @@ ${matrixStats || '（无待办）'}
     }
 
     // ⭐ 反思模式下：记录用户回答并给予简单回应
-    if (isReflectionMode && currentReflectionRound && chatMessage.trim()) {
+    if (isReflectionMode && chatMessage.trim()) {
       console.log('💭 反思模式：记录用户回答')
       
       // 添加用户消息
@@ -3529,17 +4221,25 @@ ${matrixStats || '（无待办）'}
       setChatMessages(prev => [...prev, userMessage])
       setChatMessage('')
       
-      // 记录到已问问题的上下文中（用于后续问题生成）
-      setAskedQuestions(prev => [...prev, `用户回答: ${chatMessage.trim()}`])
-      
-      // 给予简单的回应
-      const responseMessage: ChatMessage = {
-        role: 'assistant',
-        content: [{ type: 'text', text: '好的，我记下了 👍 你可以继续回答其他问题，或者点击"下一步"进入下一轮反思～' }]
+      // 🆕 问答阶段：输入框已禁用，不应该到达这里
+      if (isAnsweringQuestions && decomposingTaskTitle && !currentReflectionRound) {
+        console.log('⚠️ 问答阶段不应该使用底部输入框')
+        return
       }
-      setChatMessages(prev => [...prev, responseMessage])
       
-      return
+      // 常规反思轮次：记录到已问问题的上下文中
+      if (currentReflectionRound) {
+        setAskedQuestions(prev => [...prev, `用户回答: ${chatMessage.trim()}`])
+        
+        // 给予简单的回应
+        const responseMessage: ChatMessage = {
+          role: 'assistant',
+          content: [{ type: 'text', text: '好的，我记下了 👍 你可以继续回答其他问题，或者点击"下一步"进入下一轮反思～' }]
+        }
+        setChatMessages(prev => [...prev, responseMessage])
+        
+        return
+      }
     }
 
     // 🆕 矩阵模式下：强制使用普通对话模式（不使用 Agent）
@@ -4818,6 +5518,7 @@ ${matrixStats || '（无待办）'}
               chatScrollRef={chatScrollRef}
               onAgentInputSubmit={handleAgentInputSubmit}
               isAgentRunning={isAgentRunning}
+              onButtonClick={handleDecomposeSuggestionButton}
               onDecompositionContextSubmit={handleDecompositionContextSubmit}
               onDecompositionContextSkip={handleDecompositionContextSkip}
               onDecompositionConfirm={handleDecompositionConfirm}
@@ -4838,6 +5539,17 @@ ${matrixStats || '（无待办）'}
               onSkipDecomposition={handleSkipDecomposition}
               onContinueDecompose={handleContinueDecompose}
               onSkipContinueDecompose={handleSkipContinueDecompose}
+              // ⭐ 反思流程优化 props
+              onOverviewButtonClick={handleOverviewButtonClick}
+              onRoundCompleteButtonClick={handleRoundCompleteButtonClick}
+              onTaskSelectionConfirm={handleTaskSelectionConfirm}
+              onTaskSelectionBack={handleTaskSelectionBack}
+              completedRounds={completedRounds}
+              availableTasksForSelection={reflectionTasks}
+              pendingRound={pendingRound}
+              isAnsweringQuestions={isAnsweringQuestions}
+              currentQuestionIndex={currentQuestionIndex}
+              totalQuestionsCount={totalQuestions.length}
             />
           </div>
         </div>

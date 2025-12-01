@@ -112,6 +112,180 @@ const DecompositionSelector: React.FC<DecompositionSelectorProps> = ({ tasks, on
   )
 }
 
+// ⭐ 反思任务选择卡片组件
+interface ReflectionTaskSelectionCardProps {
+  tasks: Array<{ id: string; title: string; isCompleted: boolean }>
+  roundType: 'clarity' | 'time' | 'priority'
+  isActive: boolean
+  onConfirm: (taskIds: string[]) => void
+  onBack: () => void
+}
+
+const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = ({ 
+  tasks, 
+  roundType, 
+  isActive,
+  onConfirm, 
+  onBack 
+}) => {
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  
+  // 过滤掉已完成的任务
+  const uncompletedTasks = tasks.filter(t => !t.isCompleted)
+  
+  const selectTask = (taskId: string) => {
+    if (!isActive) return
+    // 单选模式：点击已选中的任务取消选择，否则选中新任务
+    setSelectedId(prev => prev === taskId ? null : taskId)
+  }
+  
+  const handleConfirm = () => {
+    if (selectedId && isActive) {
+      onConfirm([selectedId])
+    }
+  }
+  
+  const roundInfo = {
+    clarity: { emoji: '📝', label: '澄清', color: 'blue' },
+    time: { emoji: '⏱️', label: '时间规划', color: 'green' },
+    priority: { emoji: '🎯', label: '优先级排列', color: 'orange' }
+  }
+  
+  const info = roundInfo[roundType]
+  
+  return (
+    <div className={`mt-3 p-3 bg-${info.color}-50 rounded-lg border border-${info.color}-200`}>
+      <div className="text-sm font-medium text-gray-700 mb-2">
+        {info.emoji} 请选择要进行「{info.label}」的任务：
+      </div>
+      
+      <div className="space-y-1.5 mb-3 max-h-48 overflow-y-auto">
+        {uncompletedTasks.map((task, index) => {
+          const isSelected = selectedId === task.id
+          return (
+            <div
+              key={`task-selection-${task.id}-${index}`}
+              className={`flex items-center gap-2 p-2 rounded-md transition-colors ${
+                isSelected 
+                  ? `bg-${info.color}-100 border border-${info.color}-300` 
+                  : 'bg-white border border-gray-200 hover:border-gray-300'
+              } ${!isActive ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <input
+                type="radio"
+                name={`task-select-${roundType}`}
+                id={`task-select-${roundType}-${task.id}-${index}`}
+                checked={isSelected}
+                onChange={(e) => {
+                  e.stopPropagation()
+                  if (isActive) {
+                    selectTask(task.id)
+                  }
+                }}
+                disabled={!isActive}
+                className={`w-4 h-4 text-${info.color}-600 border-gray-300 focus:ring-${info.color}-500 cursor-pointer`}
+              />
+              <label
+                htmlFor={`task-select-${roundType}-${task.id}-${index}`}
+                className="text-sm text-gray-700 flex-1 truncate cursor-pointer"
+              >
+                {task.title}
+              </label>
+            </div>
+          )
+        })}
+      </div>
+      
+      <div className="flex gap-2">
+        <button
+          onClick={handleConfirm}
+          disabled={!selectedId || !isActive}
+          className={`flex-1 px-3 py-1.5 text-xs bg-${info.color}-500 text-white hover:bg-${info.color}-600 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
+        >
+          确认选择
+        </button>
+        <button
+          onClick={onBack}
+          disabled={!isActive}
+          className="px-3 py-1.5 text-xs text-gray-600 hover:text-gray-800 hover:bg-gray-100 border border-gray-300 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          返回
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ⭐ 问答输入卡片组件
+const QuestionAnswerCard: React.FC<{
+  question: string
+  questionIndex: number
+  totalQuestions: number
+  taskTitle: string
+  taskId: string
+  isActive: boolean
+  onNext: (answer: string) => void
+  onBack: () => void
+}> = ({ question, questionIndex, totalQuestions, taskTitle, taskId, isActive, onNext, onBack }) => {
+  const [answer, setAnswer] = useState('')
+  
+  const handleNext = () => {
+    if (isActive) {
+      onNext(answer.trim())
+      setAnswer('')  // 清空输入框
+    }
+  }
+  
+  const isLastQuestion = questionIndex === totalQuestions - 1
+  
+  return (
+    <div className="mt-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+      <div className="text-sm font-medium text-gray-700 mb-3">
+        我注意到「{taskTitle}」可能比较复杂，想了解一些背景信息：
+      </div>
+      
+      <div className="mb-3">
+        <div className="text-xs font-semibold text-blue-600 mb-2">
+          问题 {questionIndex + 1}/{totalQuestions}
+        </div>
+        <div className="text-sm text-gray-800 mb-3">
+          {question}
+        </div>
+        
+        <textarea
+          value={answer}
+          onChange={(e) => setAnswer(e.target.value)}
+          disabled={!isActive}
+          placeholder="在这里输入你的回答（可选，也可以直接点「下一个问题」跳过）"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900 placeholder-gray-400 resize-none disabled:opacity-50 disabled:cursor-not-allowed"
+          rows={3}
+        />
+      </div>
+      
+      <div className="text-xs text-gray-500 mb-3">
+        💡 你也可以在左侧编辑器中修改您的计划
+      </div>
+      
+      <div className="flex gap-2">
+        <button
+          onClick={handleNext}
+          disabled={!isActive}
+          className="flex-1 px-3 py-2 text-sm bg-blue-500 text-white hover:bg-blue-600 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+        >
+          {isLastQuestion ? '完成 ✓' : '下一个问题 →'}
+        </button>
+        <button
+          onClick={onBack}
+          disabled={!isActive}
+          className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 border border-gray-300 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          ← 返回
+        </button>
+      </div>
+    </div>
+  )
+}
+
 interface ChatSidebarProps {
   // 侧边栏状态
   isOpen: boolean
@@ -211,6 +385,20 @@ interface ChatSidebarProps {
   onContinueDecompose?: () => void  // 继续拆解下一个任务
   onSkipContinueDecompose?: () => void  // 跳过继续拆解，进入下一步
   
+  // ⭐ 反思流程优化 - 概述和任务选择
+  onOverviewButtonClick?: (action: 'clarity' | 'time' | 'priority' | 'cancel') => void  // 概述页面按钮点击
+  onRoundCompleteButtonClick?: (action: 'clarity' | 'time' | 'priority' | 'end') => void  // 轮次完成后按钮点击
+  onTaskSelectionConfirm?: (taskIds: string[]) => void  // 任务选择确认
+  onTaskSelectionBack?: () => void  // 任务选择返回
+  completedRounds?: ('clarity' | 'time' | 'priority')[]  // 已完成的轮次
+  availableTasksForSelection?: Array<{ id: string; title: string; isCompleted: boolean }>  // 可选择的任务列表
+  pendingRound?: 'clarity' | 'time' | 'priority' | null  // 待选择任务的轮次
+  
+  // ⭐ 问答流程状态
+  isAnsweringQuestions?: boolean  // 是否处于问答阶段
+  currentQuestionIndex?: number  // 当前问题索引
+  totalQuestionsCount?: number  // 总问题数
+  
   // 事件处理函数
   handleSendMessage: () => void
   handleClearChat: () => void
@@ -296,6 +484,18 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   onSkipDecomposition,  // ⭐ 跳过拆解
   onContinueDecompose,  // ⭐ 继续拆解下一个
   onSkipContinueDecompose,  // ⭐ 跳过继续拆解
+  // ⭐ 反思流程优化
+  onOverviewButtonClick,  // 概述按钮点击
+  onRoundCompleteButtonClick,  // 轮次完成按钮点击
+  onTaskSelectionConfirm,  // 任务选择确认
+  onTaskSelectionBack,  // 任务选择返回
+  completedRounds,  // 已完成轮次
+  availableTasksForSelection,  // 可选任务列表
+  pendingRound,  // 待选择任务的轮次
+  // ⭐ 问答流程状态
+  isAnsweringQuestions,  // 是否处于问答阶段
+  currentQuestionIndex,  // 当前问题索引
+  totalQuestionsCount,  // 总问题数
   handleSendMessage,
   handleClearChat,
   handleDragEnter,
@@ -335,6 +535,11 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   
   // ⭐ 判断是否应该禁用输入框（引导用户使用按钮）
   const shouldDisableInput = (() => {
+    // 🆕 问答阶段：禁用底部输入框
+    if (isAnsweringQuestions) {
+      return true
+    }
+    
     // 特殊输入模式不禁用
     if (workflowMode === 'task-context-input' || workflowMode === 'task-clarification-input') {
       return false
@@ -582,6 +787,182 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                                 取消
                               </button>
                             </div>
+                          )}
+                          
+                          {/* ⭐ 反思概述按钮组 */}
+                          {content.interactive.type === 'reflection-overview' && (
+                            <div className="mt-3 space-y-2">
+                              {/* 澄清任务 */}
+                              <button
+                                onClick={() => onOverviewButtonClick?.('clarity')}
+                                disabled={content.interactive.isActive === false}
+                                className="w-full text-left p-3 rounded-lg border-2 transition-all bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 hover:border-blue-400 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <span className="text-xl">📝</span>
+                                  <div className="flex-1">
+                                    <h3 className="text-sm font-semibold text-blue-900">澄清任务</h3>
+                                    <p className="text-xs text-gray-600">明确任务目标和边界</p>
+                                  </div>
+                                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                  </svg>
+                                </div>
+                              </button>
+                              
+                              {/* 时间规划 */}
+                              <button
+                                onClick={() => onOverviewButtonClick?.('time')}
+                                disabled={content.interactive.isActive === false}
+                                className="w-full text-left p-3 rounded-lg border-2 transition-all bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 hover:border-green-400 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <span className="text-xl">⏱️</span>
+                                  <div className="flex-1">
+                                    <h3 className="text-sm font-semibold text-green-900">时间规划</h3>
+                                    <p className="text-xs text-gray-600">估算时间和安排节奏</p>
+                                  </div>
+                                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                  </svg>
+                                </div>
+                              </button>
+                              
+                              {/* 优先级排列 */}
+                              <button
+                                onClick={() => onOverviewButtonClick?.('priority')}
+                                disabled={content.interactive.isActive === false}
+                                className="w-full text-left p-3 rounded-lg border-2 transition-all bg-gradient-to-r from-orange-50 to-amber-50 border-orange-200 hover:border-orange-400 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <span className="text-xl">🎯</span>
+                                  <div className="flex-1">
+                                    <h3 className="text-sm font-semibold text-orange-900">优先级排列</h3>
+                                    <p className="text-xs text-gray-600">决定先做什么后做什么</p>
+                                  </div>
+                                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                  </svg>
+                                </div>
+                              </button>
+                              
+                              {/* 取消 */}
+                              <button
+                                onClick={() => onOverviewButtonClick?.('cancel')}
+                                disabled={content.interactive.isActive === false}
+                                className="w-full text-center p-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                暂时不需要
+                              </button>
+                            </div>
+                          )}
+                          
+                          {/* ⭐ 单轮完成后按钮组 */}
+                          {content.interactive.type === 'reflection-round-complete' && (
+                            <div className="mt-3 space-y-2">
+                              {/* 澄清任务 */}
+                              <button
+                                onClick={() => onRoundCompleteButtonClick?.('clarity')}
+                                disabled={content.interactive.isActive === false || completedRounds?.includes('clarity')}
+                                className={`w-full text-left p-3 rounded-lg border-2 transition-all ${
+                                  completedRounds?.includes('clarity')
+                                    ? 'bg-gray-50 border-gray-200 opacity-60 cursor-not-allowed'
+                                    : 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 hover:border-blue-400 hover:shadow-md'
+                                } disabled:cursor-not-allowed`}
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <span className="text-xl">{completedRounds?.includes('clarity') ? '✅' : '📝'}</span>
+                                  <div className="flex-1">
+                                    <h3 className={`text-sm font-semibold ${completedRounds?.includes('clarity') ? 'text-gray-500' : 'text-blue-900'}`}>
+                                      澄清任务 {completedRounds?.includes('clarity') && '(已完成)'}
+                                    </h3>
+                                  </div>
+                                </div>
+                              </button>
+                              
+                              {/* 时间规划 */}
+                              <button
+                                onClick={() => onRoundCompleteButtonClick?.('time')}
+                                disabled={content.interactive.isActive === false || completedRounds?.includes('time')}
+                                className={`w-full text-left p-3 rounded-lg border-2 transition-all ${
+                                  completedRounds?.includes('time')
+                                    ? 'bg-gray-50 border-gray-200 opacity-60 cursor-not-allowed'
+                                    : 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 hover:border-green-400 hover:shadow-md'
+                                } disabled:cursor-not-allowed`}
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <span className="text-xl">{completedRounds?.includes('time') ? '✅' : '⏱️'}</span>
+                                  <div className="flex-1">
+                                    <h3 className={`text-sm font-semibold ${completedRounds?.includes('time') ? 'text-gray-500' : 'text-green-900'}`}>
+                                      时间规划 {completedRounds?.includes('time') && '(已完成)'}
+                                    </h3>
+                                  </div>
+                                </div>
+                              </button>
+                              
+                              {/* 优先级排列 */}
+                              <button
+                                onClick={() => onRoundCompleteButtonClick?.('priority')}
+                                disabled={content.interactive.isActive === false || completedRounds?.includes('priority')}
+                                className={`w-full text-left p-3 rounded-lg border-2 transition-all ${
+                                  completedRounds?.includes('priority')
+                                    ? 'bg-gray-50 border-gray-200 opacity-60 cursor-not-allowed'
+                                    : 'bg-gradient-to-r from-orange-50 to-amber-50 border-orange-200 hover:border-orange-400 hover:shadow-md'
+                                } disabled:cursor-not-allowed`}
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <span className="text-xl">{completedRounds?.includes('priority') ? '✅' : '🎯'}</span>
+                                  <div className="flex-1">
+                                    <h3 className={`text-sm font-semibold ${completedRounds?.includes('priority') ? 'text-gray-500' : 'text-orange-900'}`}>
+                                      优先级排列 {completedRounds?.includes('priority') && '(已完成)'}
+                                    </h3>
+                                  </div>
+                                </div>
+                              </button>
+                              
+                              {/* 结束反思 */}
+                              <button
+                                onClick={() => onRoundCompleteButtonClick?.('end')}
+                                disabled={content.interactive.isActive === false}
+                                className="w-full text-left p-3 rounded-lg border-2 transition-all bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200 hover:border-purple-400 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <span className="text-xl">✨</span>
+                                  <div className="flex-1">
+                                    <h3 className="text-sm font-semibold text-purple-900">结束反思</h3>
+                                    <p className="text-xs text-gray-600">生成总结和执行建议</p>
+                                  </div>
+                                </div>
+                              </button>
+                            </div>
+                          )}
+                          
+                          {/* ⭐ 任务选择列表 */}
+                          {content.interactive.type === 'reflection-task-selection' && availableTasksForSelection && (
+                            <ReflectionTaskSelectionCard
+                              tasks={availableTasksForSelection}
+                              roundType={pendingRound || 'clarity'}
+                              isActive={content.interactive.isActive !== false}
+                              onConfirm={(taskIds) => onTaskSelectionConfirm?.(taskIds)}
+                              onBack={() => onTaskSelectionBack?.()}
+                            />
+                          )}
+                          
+                          {/* ⭐ 问答输入卡片 */}
+                          {content.interactive.type === 'question-answer' && content.interactive.data && (
+                            <QuestionAnswerCard
+                              question={content.interactive.data.question}
+                              questionIndex={content.interactive.data.questionIndex}
+                              totalQuestions={content.interactive.data.totalQuestions}
+                              taskTitle={content.interactive.data.taskTitle}
+                              taskId={content.interactive.data.taskId}
+                              isActive={content.interactive.isActive !== false}
+                              onNext={(answer) => onButtonClick?.('next-question', { 
+                                ...content.interactive.data, 
+                                answer 
+                              })}
+                              onBack={() => onButtonClick?.('back-to-selection-from-qa', content.interactive.data)}
+                            />
                           )}
                           
                           {/* ⭐ 通用按钮组 */}
@@ -1000,13 +1381,15 @@ const ChatSidebar = memo<ChatSidebarProps>(({
             placeholder={
               isAgentRunning
                 ? "🤖 Agent 正在思考，请稍候..."
-                : shouldDisableInput
-                  ? "💡 请点击上方按钮选择操作"
-                  : workflowMode === 'task-context-input'
-                    ? "请描述任务的背景信息..."
-                    : workflowMode === 'task-clarification-input'
-                      ? "请回答上面的问题..."
-                      : isTaskRecognitionMode 
+                : isAnsweringQuestions
+                  ? "💡 请在上方问题卡片中输入回答"
+                  : shouldDisableInput
+                    ? "💡 请点击上方按钮选择操作"
+                    : workflowMode === 'task-context-input'
+                      ? "请描述任务的背景信息..."
+                      : workflowMode === 'task-clarification-input'
+                        ? "请回答上面的问题..."
+                        : isTaskRecognitionMode 
                         ? "描述任务内容或上传包含任务的图片..." 
                         : doubaoService.hasApiKey() ? "输入消息或粘贴图片(Ctrl+V)..." : "请先配置API Key"
             }

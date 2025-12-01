@@ -59,6 +59,159 @@ const ROUND_CONFIG: Record<ReflectionRoundType, {
   }
 }
 
+// ==================== 概述生成 ====================
+
+/**
+ * 生成反思概述消息（LLM 生成）
+ * 分析用户的任务列表，给出澄清/时间/优先级三方面的简要建议
+ */
+export async function generateOverviewMessage(
+  tasks: TaskSnapshot[],
+  scanResult: ScanResult
+): Promise<string> {
+  const uncompletedTasks = tasks.filter(t => !t.isCompleted)
+  
+  // 如果没有任务，返回空消息
+  if (uncompletedTasks.length === 0) {
+    return '📭 今天还没有任务呢，先在左边添加一些任务吧～'
+  }
+  
+  // 构建任务列表
+  const taskList = uncompletedTasks
+    .map(t => {
+      const parts = [`- ${t.title}`]
+      if (t.estimatedDuration) parts.push(`(${t.estimatedDuration}分钟)`)
+      if (t.deadline) parts.push(`截止: ${t.deadline}`)
+      return parts.join(' ')
+    })
+    .join('\n')
+  
+  const prompt = `你是一个专业的任务规划助手，帮助用户快速诊断今天的任务情况。
+
+【用户今天的任务】（共 ${uncompletedTasks.length} 个）
+${taskList}
+
+【任务扫描结果】
+- 模糊任务数量: ${scanResult.vagueTaskCount}
+- 未估时任务数量: ${scanResult.unestimatedTaskCount}
+- 工作负载: ${scanResult.workloadLevel === 'light' ? '轻松' : scanResult.workloadLevel === 'medium' ? '适中' : '较重'}
+- 有截止时间的任务: ${scanResult.deadlineConflicts.length > 0 ? scanResult.deadlineConflicts.join('、') : '无'}
+
+【你的任务】
+生成一段**结构化、引导性**的任务诊断，包含三个方面。每个方面用独立段落，方便阅读。
+
+**1. 📝 任务澄清诊断**（标准要严格）
+综合考虑以下维度判断任务是否需要澄清：
+- ❌ 缺少关键信息：没有DDL、没有估时、没有标签（说明用户可能还没想清楚）
+- ❌ 任务边界不清：名称笼统（如"学习""准备"）或过长（可能包含多个步骤）
+- ❌ 执行路径不明：不知道从哪开始、需要什么资源、有什么依赖
+- ✅ 如果任务有DDL、有估时、名称具体，通常不需要澄清
+
+输出格式：
+- 如果有需要澄清的任务：指出具体任务，用疑问句引导思考（如"具体要做哪些部分？""从哪开始？""需要什么资源？"）
+- 如果都比较清晰：说"任务信息都比较完整"或"看起来都挺清楚的"
+
+**2. ⏱️ 时间规划诊断**
+只关注**看起来复杂或繁重**的任务：
+- 任务名称暗示工作量大（论文、报告、开发、准备会议等）
+- 任务名称包含多个步骤或连接词
+- 已有估时但时间很长（超过1小时）
+
+输出格式：
+- 指出哪些任务可能比较复杂，用疑问句引导估时（如"大概需要多久？""会不会比想象的更耗时？"）
+- 不要直接给出时间估算
+- 如果任务都比较简单或已估时，就说估时情况不错
+
+**3. 🎯 优先级诊断**
+综合考虑DDL、任务性质、依赖关系：
+- 有DDL的任务通常更紧急
+- 会议、汇报等有固定时间的任务需要提前准备
+- 有依赖关系的任务（如"开发前需要先澄清需求"）需要先做
+
+输出格式：
+- 用对比式疑问句引导（如"「任务A」和「任务B」哪个更紧急？""要不要先做「任务C」？"）
+- 不要直接给出优先级排序
+- 如果没有明显线索，就说"可以想想哪个更重要"
+
+【输出格式要求】
+使用以下结构化格式（每个方面独立段落，用空行分隔）：
+
+📋 今天有 X 个任务！
+
+📝 **任务澄清**
+[具体分析，1-2句话]
+
+⏱️ **时间规划**
+[具体分析，1-2句话]
+
+🎯 **优先级排列**
+[具体分析，1-2句话]
+
+【注意事项】
+- 语气亲切、多用疑问句引导
+- 必须具体到任务名称
+- 总字数控制在 250 字以内
+- 不要用 markdown 加粗（除了上面格式中的标题）
+- 不要直接给答案
+
+请生成诊断：`
+
+  try {
+    const response = await doubaoService.sendMessage(prompt)
+    
+    if (response.success && response.message) {
+      return response.message
+    }
+    
+    // LLM 调用失败，使用规则生成降级方案
+    return generateFallbackOverview(uncompletedTasks, scanResult)
+  } catch (error) {
+    console.error('生成概述失败:', error)
+    return generateFallbackOverview(uncompletedTasks, scanResult)
+  }
+}
+
+/**
+ * 降级方案：规则生成概述
+ */
+function generateFallbackOverview(
+  tasks: TaskSnapshot[],
+  scanResult: ScanResult
+): string {
+  const lines: string[] = []
+  
+  lines.push(`📋 今天有 ${tasks.length} 个任务等着你！`)
+  lines.push('')
+  
+  // 任务澄清建议
+  if (scanResult.vagueTaskCount > 0) {
+    lines.push(`📝 有 ${scanResult.vagueTaskCount} 个任务看起来比较模糊，可以考虑先澄清一下。`)
+  } else {
+    lines.push(`📝 任务都挺清晰的，不错！`)
+  }
+  
+  // 时间规划建议
+  if (scanResult.unestimatedTaskCount > 0) {
+    lines.push(`⏱️ 有 ${scanResult.unestimatedTaskCount} 个任务还没估时，建议想想每个大概需要多久。`)
+  } else {
+    const totalMinutes = tasks.reduce((sum, t) => sum + (t.estimatedDuration || 0), 0)
+    const hours = Math.floor(totalMinutes / 60)
+    const mins = totalMinutes % 60
+    lines.push(`⏱️ 已估时完成，总共约 ${hours > 0 ? `${hours}小时` : ''}${mins > 0 ? `${mins}分钟` : ''}。`)
+  }
+  
+  // 优先级建议
+  if (scanResult.deadlineConflicts.length > 0) {
+    lines.push(`🎯 「${scanResult.deadlineConflicts[0]}」有截止时间，可能需要优先处理！`)
+  } else if (scanResult.noPriorityCount > 0) {
+    lines.push(`🎯 可以考虑想想哪个任务最重要，先做最重要的。`)
+  } else {
+    lines.push(`🎯 优先级已设置，准备开始吧！`)
+  }
+  
+  return lines.join('\n')
+}
+
 // ==================== 元认知维度定义 ====================
 
 /**

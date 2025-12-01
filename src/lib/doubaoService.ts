@@ -75,6 +75,11 @@ export type InteractiveMessageType =
   | 'buttons'                // ⭐ 通用按钮组
   | 'decomposition-context-input'  // ⭐ 任务拆解上下文输入
   | 'continue-decompose-options'   // ⭐ 继续拆解选项（反思模式）
+  // ⭐ 反思流程优化 - 新增消息类型
+  | 'reflection-overview'          // 反思概述（含4个按钮：澄清/时间/优先级/取消）
+  | 'reflection-round-complete'    // 单轮完成后（含4个按钮：澄清/时间/优先级/结束）
+  | 'reflection-task-selection'    // 任务选择列表（进入环节前选择要反思的任务）
+  | 'question-answer'              // 问答输入卡片（包含问题+输入框+按钮）
   // ⭐ Agent 专用消息类型（Phase 4）
   | 'agent-thought'          // Agent 的思考过程
   | 'agent-action'           // Agent 调用的工具
