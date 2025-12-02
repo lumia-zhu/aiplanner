@@ -2122,6 +2122,14 @@ export default function NotesDashboardPage() {
       return
     }
     
+    // 🔧 清空之前的问答状态
+    setIsAnsweringQuestions(false)
+    setCurrentQuestionIndex(0)
+    setTotalQuestions([])
+    setQuestionAnswers([])
+    setDecomposingTaskTitle(null)
+    setTaskContextInput('')
+    
     // 设置待选择任务的轮次
     setPendingRound(action)
     
@@ -2195,11 +2203,13 @@ export default function NotesDashboardPage() {
       return
     }
     
-    // 检查是否已完成该轮次
-    if (completedRounds.includes(action)) {
-      console.log(`⚠️ ${action} 轮已完成，不能重复`)
-      return
-    }
+    // 🔧 清空之前的问答状态（允许重复进行轮次）
+    setIsAnsweringQuestions(false)
+    setCurrentQuestionIndex(0)
+    setTotalQuestions([])
+    setQuestionAnswers([])
+    setDecomposingTaskTitle(null)
+    setTaskContextInput('')
     
     // 设置待选择任务的轮次
     setPendingRound(action)
