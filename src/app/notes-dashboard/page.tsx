@@ -163,6 +163,7 @@ export default function NotesDashboardPage() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)  // 当前问题索引
   const [totalQuestions, setTotalQuestions] = useState<string[]>([])  // 所有问题列表
   const [questionAnswers, setQuestionAnswers] = useState<Array<{question: string, answer: string}>>([])  // 问题和回答的记录
+  const questionAnswersRef = useRef<Array<{question: string, answer: string}>>([])  // 🔧 同步跟踪回答（解决闭包问题）
   
   // ⭐ Clarity 轮后的任务拆解阶段状态
   const [isDecompositionPhase, setIsDecompositionPhase] = useState(false)  // 是否处于拆解选择阶段
@@ -2127,6 +2128,7 @@ export default function NotesDashboardPage() {
     setCurrentQuestionIndex(0)
     setTotalQuestions([])
     setQuestionAnswers([])
+    questionAnswersRef.current = []  // 🔧 同时清空 ref
     setDecomposingTaskTitle(null)
     setTaskContextInput('')
     
@@ -2168,6 +2170,7 @@ export default function NotesDashboardPage() {
   // ⭐ 处理轮次完成后按钮点击
   const handleRoundCompleteButtonClick = useCallback((action: 'clarity' | 'time' | 'priority' | 'end') => {
     console.log('🔘 轮次完成按钮点击:', action)
+    console.log('🔘 当前 completedRounds:', completedRounds)
     
     // 禁用按钮
     setChatMessages(prev => prev.map(msg => ({
@@ -2208,6 +2211,7 @@ export default function NotesDashboardPage() {
     setCurrentQuestionIndex(0)
     setTotalQuestions([])
     setQuestionAnswers([])
+    questionAnswersRef.current = []  // 🔧 同时清空 ref
     setDecomposingTaskTitle(null)
     setTaskContextInput('')
     
@@ -2311,6 +2315,7 @@ export default function NotesDashboardPage() {
         setTotalQuestions(questions)
         setCurrentQuestionIndex(0)
         setQuestionAnswers([])  // 清空之前的回答
+        questionAnswersRef.current = []  // 🔧 同时清空 ref
         setIsAnsweringQuestions(true)
         
         // 显示第一个问题的输入卡片
@@ -2459,20 +2464,20 @@ export default function NotesDashboardPage() {
       // 保存当前问题的回答（即使为空）
       let currentQuestionAnswer: { question: string; answer: string } | null = null
       if (currentIndex < totalQuestionsCount) {
-        const currentQuestion = totalQuestions[currentIndex] || context?.question
+        // 🔧 直接使用 context?.question（当前卡片显示的问题），而不是从状态中获取
+        const currentQuestion = context?.question || totalQuestions[currentIndex] || '未知问题'
         currentQuestionAnswer = { 
           question: currentQuestion, 
           answer: currentAnswer || '(跳过)' 
         }
         
         console.log('💾 保存问题回答', currentQuestionAnswer)
-        console.log('💾 当前 questionAnswers 状态:', questionAnswers)
-        setQuestionAnswers(prev => {
-          console.log('💾 setQuestionAnswers - prev:', prev)
-          const newAnswers = [...prev, currentQuestionAnswer!]
-          console.log('💾 setQuestionAnswers - new:', newAnswers)
-          return newAnswers
-        })
+        
+        // 🔧 同时更新 ref 和 state（ref 是同步的，state 是异步的）
+        questionAnswersRef.current = [...questionAnswersRef.current, currentQuestionAnswer!]
+        console.log('💾 questionAnswersRef.current:', questionAnswersRef.current)
+        
+        setQuestionAnswers(questionAnswersRef.current)
         
         // 如果用户有输入，保存到上下文
         if (currentAnswer) {
@@ -2530,14 +2535,12 @@ export default function NotesDashboardPage() {
         
         console.log('📊 生成总结 - 调试信息:', {
           currentQuestionAnswer,
-          questionAnswersLength: questionAnswers.length,
-          questionAnswers: questionAnswers
+          questionAnswersRefLength: questionAnswersRef.current.length,
+          questionAnswersRef: questionAnswersRef.current
         })
         
-        // 🔧 修复：手动构建包含最后一个回答的完整数组
-        const allAnswers = currentQuestionAnswer 
-          ? [...questionAnswers, currentQuestionAnswer]
-          : questionAnswers
+        // 🔧 使用 ref 获取所有回答（ref 是同步更新的，不受闭包影响）
+        const allAnswers = [...questionAnswersRef.current]
         
         console.log('📊 最终的 allAnswers:', allAnswers)
         
@@ -2646,6 +2649,7 @@ export default function NotesDashboardPage() {
       setCurrentQuestionIndex(0)
       setTotalQuestions([])
       setQuestionAnswers([])
+      questionAnswersRef.current = []  // 🔧 同时清空 ref
       setDecomposingTaskTitle(null)
       setTaskContextInput('')
       
@@ -2774,6 +2778,7 @@ export default function NotesDashboardPage() {
       setCurrentQuestionIndex(0)
       setTotalQuestions([])
       setQuestionAnswers([])
+      questionAnswersRef.current = []  // 🔧 同时清空 ref
       setDecomposingTaskTitle(null)
       setTaskContextInput('')
       
