@@ -2274,41 +2274,49 @@ export default function NotesDashboardPage() {
     const selectedTasks = reflectionTasks.filter(t => taskIds.includes(t.id))
     setSelectedTasksForRound(selectedTasks)
     
-    // 🆕 对于 Clarity 和 Time 轮，使用单问题卡片流程
-    if ((pendingRound === 'clarity' || pendingRound === 'time') && selectedTasks.length > 0) {
-      const task = selectedTasks[0]
-      
+    // 🆕 对于 Clarity、Time 和 Priority 轮，使用单问题卡片流程
+    if ((pendingRound === 'clarity' || pendingRound === 'time' || pendingRound === 'priority') && selectedTasks.length > 0) {
       // 显示加载消息
       const loadingMsg: ChatMessage = {
         role: 'assistant' as const,
-        content: [{ type: 'text' as const, text: '让我看看这个任务...' }]
+        content: [{ type: 'text' as const, text: pendingRound === 'priority' ? '让我看看这些任务...' : '让我看看这个任务...' }]
       }
       setChatMessages(prev => [...prev, loadingMsg])
       
       // 根据轮次生成不同的问题
       try {
         let questions: string[]
+        let taskTitle: string
         
         if (pendingRound === 'clarity') {
-          // Clarity 轮：生成澄清问题
+          // Clarity 轮：生成澄清问题（单个任务）
+          const task = selectedTasks[0]
+          taskTitle = task.title
           questions = await generateDynamicDecompositionQuestions({
             id: task.id,
             title: task.title,
             estimatedDuration: task.estimatedDuration,
             deadline_datetime: task.deadline,
           } as any)
-        } else {
-          // Time 轮：生成时间规划问题
+        } else if (pendingRound === 'time') {
+          // Time 轮：生成时间规划问题（单个任务）
+          const task = selectedTasks[0]
+          taskTitle = task.title
           questions = await generateTimeQuestions([task])
+        } else {
+          // Priority 轮：生成优先级问题（多个任务）
+          taskTitle = selectedTasks.map(t => t.title).join('、')
+          questions = await generatePriorityQuestions(selectedTasks)
         }
         
         console.log(`🔍 生成的问题数量: ${questions.length}`, questions)
         
         // 移除加载消息
-        setChatMessages(prev => prev.filter(m => m.content?.[0]?.text !== '让我看看这个任务...'))
+        const loadingText = pendingRound === 'priority' ? '让我看看这些任务...' : '让我看看这个任务...'
+        setChatMessages(prev => prev.filter(m => m.content?.[0]?.text !== loadingText))
         
         // 保存当前选择的任务和问题到状态
-        setDecomposingTaskTitle(task.title)
+        setDecomposingTaskTitle(taskTitle)
         setTaskContextInput('')  // 清空之前的输入
         
         // 🆕 初始化问答流程
@@ -2331,8 +2339,8 @@ export default function NotesDashboardPage() {
                   question: questions[0],
                   questionIndex: 0,
                   totalQuestions: questions.length,
-                  taskTitle: task.title,
-                  taskId: task.id,
+                  taskTitle: taskTitle,
+                  taskId: pendingRound === 'priority' ? 'multiple' : selectedTasks[0].id,  // Priority 轮使用特殊标识
                   roundType: pendingRound  // 🆕 添加轮次类型，用于后续判断
                 },
                 isActive: true
