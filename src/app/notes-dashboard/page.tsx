@@ -2287,6 +2287,8 @@ export default function NotesDashboardPage() {
           questions = await generateTimeQuestions([task])
         }
         
+        console.log(`🔍 生成的问题数量: ${questions.length}`, questions)
+        
         // 移除加载消息
         setChatMessages(prev => prev.filter(m => m.content?.[0]?.text !== '让我看看这个任务...'))
         

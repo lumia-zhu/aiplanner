@@ -834,11 +834,15 @@ ${taskInfo}
     }
 
     // 解析问题（每行以"- "开头）
+    console.log('🔍 LLM 返回的原始消息:', response.message)
+    
     const questions = response.message
       .split('\n')
       .filter(line => line.trim().startsWith('- '))
       .map(line => line.trim().substring(2).trim())
       .filter(q => q.length > 0)
+
+    console.log('🔍 解析后的问题:', questions)
 
     if (questions.length === 0) {
       console.warn('⚠️ 未能解析出问题，使用降级方案')
