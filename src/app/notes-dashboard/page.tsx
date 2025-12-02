@@ -2297,9 +2297,10 @@ export default function NotesDashboardPage() {
         setTaskContextInput('')  // 清空之前的输入
         
         // 🆕 初始化问答流程
+        console.log('🔄 初始化问答流程 - 清空之前的状态')
         setTotalQuestions(questions)
         setCurrentQuestionIndex(0)
-        setQuestionAnswers([])
+        setQuestionAnswers([])  // 清空之前的回答
         setIsAnsweringQuestions(true)
         
         // 显示第一个问题的输入卡片
@@ -2423,12 +2424,14 @@ export default function NotesDashboardPage() {
       const taskId = context?.taskId
       const currentAnswer = context?.answer || ''  // 从卡片传递的answer
       
-      // 🔧 使用从卡片传来的 questionIndex，而不是状态中的 currentQuestionIndex
+      // 🔧 使用从卡片传来的 questionIndex 和 totalQuestions，而不是状态中的值
       const currentIndex = context?.questionIndex ?? 0
+      const totalQuestionsCount = context?.totalQuestions ?? totalQuestions.length
       
       console.log('🔘 下一个问题按钮点击', {
         currentIndex,
-        totalQuestions: totalQuestions.length,
+        totalQuestionsCount,
+        totalQuestionsFromState: totalQuestions.length,
         currentAnswer
       })
       
@@ -2445,15 +2448,21 @@ export default function NotesDashboardPage() {
       
       // 保存当前问题的回答（即使为空）
       let currentQuestionAnswer: { question: string; answer: string } | null = null
-      if (currentIndex < totalQuestions.length) {
-        const currentQuestion = totalQuestions[currentIndex]
+      if (currentIndex < totalQuestionsCount) {
+        const currentQuestion = totalQuestions[currentIndex] || context?.question
         currentQuestionAnswer = { 
           question: currentQuestion, 
           answer: currentAnswer || '(跳过)' 
         }
         
         console.log('💾 保存问题回答', currentQuestionAnswer)
-        setQuestionAnswers(prev => [...prev, currentQuestionAnswer!])
+        console.log('💾 当前 questionAnswers 状态:', questionAnswers)
+        setQuestionAnswers(prev => {
+          console.log('💾 setQuestionAnswers - prev:', prev)
+          const newAnswers = [...prev, currentQuestionAnswer!]
+          console.log('💾 setQuestionAnswers - new:', newAnswers)
+          return newAnswers
+        })
         
         // 如果用户有输入，保存到上下文
         if (currentAnswer) {
@@ -2471,11 +2480,11 @@ export default function NotesDashboardPage() {
       console.log('🔢 计算下一个问题索引', {
         currentIndex,
         nextIndex,
-        totalQuestions: totalQuestions.length,
-        hasMore: nextIndex < totalQuestions.length
+        totalQuestionsCount,
+        hasMore: nextIndex < totalQuestionsCount
       })
       
-      if (nextIndex < totalQuestions.length) {
+      if (nextIndex < totalQuestionsCount) {
         // 还有下一个问题 - 更新当前卡片而不是创建新消息
         setCurrentQuestionIndex(nextIndex)
         
@@ -2492,9 +2501,10 @@ export default function NotesDashboardPage() {
                     data: {
                       question: totalQuestions[nextIndex],
                       questionIndex: nextIndex,
-                      totalQuestions: totalQuestions.length,
+                      totalQuestions: totalQuestionsCount,  // 🔧 使用从 context 获取的值
                       taskTitle: context?.taskTitle,
-                      taskId
+                      taskId,
+                      roundType: context?.roundType  // 🔧 保留 roundType
                     },
                     isActive: true  // 重新激活卡片
                   }
@@ -2508,10 +2518,18 @@ export default function NotesDashboardPage() {
         
         // 卡片已经在前面被禁用了，这里不需要再次禁用
         
+        console.log('📊 生成总结 - 调试信息:', {
+          currentQuestionAnswer,
+          questionAnswersLength: questionAnswers.length,
+          questionAnswers: questionAnswers
+        })
+        
         // 🔧 修复：手动构建包含最后一个回答的完整数组
         const allAnswers = currentQuestionAnswer 
           ? [...questionAnswers, currentQuestionAnswer]
           : questionAnswers
+        
+        console.log('📊 最终的 allAnswers:', allAnswers)
         
         // 显示问答总结
         const summaryText = allAnswers.length > 0 
@@ -2525,6 +2543,8 @@ export default function NotesDashboardPage() {
         
         // 🆕 根据轮次类型显示不同的后续选项
         const roundType = context?.roundType || 'clarity'
+        
+        console.log('🔍 完成问答后的 roundType:', roundType, 'context:', context)
         
         let optionsMsg: ChatMessage
         
@@ -2737,7 +2757,7 @@ export default function NotesDashboardPage() {
       }
       
     } else if (buttonId === 'time-round-complete-back') {
-      // Time 轮完成后返回到 round-complete 界面
+      // Time 轮完成后返回到任务选择界面
       
       // 清空问答状态
       setIsAnsweringQuestions(false)
@@ -2747,33 +2767,28 @@ export default function NotesDashboardPage() {
       setDecomposingTaskTitle(null)
       setTaskContextInput('')
       
-      // 标记 Time 轮已完成
-      if (!completedRounds.includes('time')) {
-        setCompletedRounds(prev => [...prev, 'time'])
-      }
-      
       const confirmMessage: ChatMessage = {
         role: 'assistant' as const,
-        content: [{ type: 'text' as const, text: '好的～' }]
+        content: [{ type: 'text' as const, text: '好的，让我们选择其他任务～' }]
       }
       
-      // 显示轮次完成按钮
-      const completeMessage: ChatMessage = {
+      // 重新显示时间规划任务选择卡片
+      const selectionMessage: ChatMessage = {
         role: 'assistant' as const,
         content: [
-          { type: 'text' as const, text: '你还想继续吗？' },
           { 
             type: 'interactive' as const, 
             interactive: {
-              type: 'reflection-round-complete' as const,
-              data: { completedRounds: [...completedRounds, 'time'] },
+              type: 'reflection-task-selection' as const,
+              data: { roundType: 'time' },
               isActive: true
             }
           }
         ]
       }
       
-      setChatMessages(prev => [...prev, confirmMessage, completeMessage])
+      setPendingRound('time')
+      setChatMessages(prev => [...prev, confirmMessage, selectionMessage])
       
     } else if (buttonId === 'skip-decompose-back') {
       // 用户选择不拆解，返回任务选择列表

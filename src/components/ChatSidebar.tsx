@@ -878,17 +878,13 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                               {/* 澄清任务 */}
                               <button
                                 onClick={() => onRoundCompleteButtonClick?.('clarity')}
-                                disabled={content.interactive.isActive === false || completedRounds?.includes('clarity')}
-                                className={`w-full text-left p-3 rounded-lg border-2 transition-all ${
-                                  completedRounds?.includes('clarity')
-                                    ? 'bg-gray-50 border-gray-200 opacity-60 cursor-not-allowed'
-                                    : 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 hover:border-blue-400 hover:shadow-md'
-                                } disabled:cursor-not-allowed`}
+                                disabled={content.interactive.isActive === false}
+                                className={`w-full text-left p-3 rounded-lg border-2 transition-all bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 hover:border-blue-400 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed`}
                               >
                                 <div className="flex items-center gap-2.5">
                                   <span className="text-xl">{completedRounds?.includes('clarity') ? '✅' : '📝'}</span>
                                   <div className="flex-1">
-                                    <h3 className={`text-sm font-semibold ${completedRounds?.includes('clarity') ? 'text-gray-500' : 'text-blue-900'}`}>
+                                    <h3 className="text-sm font-semibold text-blue-900">
                                       澄清任务 {completedRounds?.includes('clarity') && '(已完成)'}
                                     </h3>
                                   </div>
@@ -898,17 +894,13 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                               {/* 时间规划 */}
                               <button
                                 onClick={() => onRoundCompleteButtonClick?.('time')}
-                                disabled={content.interactive.isActive === false || completedRounds?.includes('time')}
-                                className={`w-full text-left p-3 rounded-lg border-2 transition-all ${
-                                  completedRounds?.includes('time')
-                                    ? 'bg-gray-50 border-gray-200 opacity-60 cursor-not-allowed'
-                                    : 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 hover:border-green-400 hover:shadow-md'
-                                } disabled:cursor-not-allowed`}
+                                disabled={content.interactive.isActive === false}
+                                className={`w-full text-left p-3 rounded-lg border-2 transition-all bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 hover:border-green-400 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed`}
                               >
                                 <div className="flex items-center gap-2.5">
                                   <span className="text-xl">{completedRounds?.includes('time') ? '✅' : '⏱️'}</span>
                                   <div className="flex-1">
-                                    <h3 className={`text-sm font-semibold ${completedRounds?.includes('time') ? 'text-gray-500' : 'text-green-900'}`}>
+                                    <h3 className="text-sm font-semibold text-green-900">
                                       时间规划 {completedRounds?.includes('time') && '(已完成)'}
                                     </h3>
                                   </div>
@@ -918,17 +910,13 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                               {/* 优先级排列 */}
                               <button
                                 onClick={() => onRoundCompleteButtonClick?.('priority')}
-                                disabled={content.interactive.isActive === false || completedRounds?.includes('priority')}
-                                className={`w-full text-left p-3 rounded-lg border-2 transition-all ${
-                                  completedRounds?.includes('priority')
-                                    ? 'bg-gray-50 border-gray-200 opacity-60 cursor-not-allowed'
-                                    : 'bg-gradient-to-r from-orange-50 to-amber-50 border-orange-200 hover:border-orange-400 hover:shadow-md'
-                                } disabled:cursor-not-allowed`}
+                                disabled={content.interactive.isActive === false}
+                                className={`w-full text-left p-3 rounded-lg border-2 transition-all bg-gradient-to-r from-orange-50 to-amber-50 border-orange-200 hover:border-orange-400 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed`}
                               >
                                 <div className="flex items-center gap-2.5">
                                   <span className="text-xl">{completedRounds?.includes('priority') ? '✅' : '🎯'}</span>
                                   <div className="flex-1">
-                                    <h3 className={`text-sm font-semibold ${completedRounds?.includes('priority') ? 'text-gray-500' : 'text-orange-900'}`}>
+                                    <h3 className="text-sm font-semibold text-orange-900">
                                       优先级排列 {completedRounds?.includes('priority') && '(已完成)'}
                                     </h3>
                                   </div>
