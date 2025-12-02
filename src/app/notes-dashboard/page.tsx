@@ -2619,6 +2619,30 @@ export default function NotesDashboardPage() {
               }
             ]
           }
+        } else if (roundType === 'priority') {
+          // Priority 轮：显示返回按钮
+          optionsMsg = {
+            role: 'assistant' as const,
+            content: [
+              { 
+                type: 'text' as const, 
+                text: `优先级反思完成！`
+              },
+              {
+                type: 'interactive' as const,
+                interactive: {
+                  type: 'buttons' as const,
+                  data: {
+                    buttons: [
+                      { id: 'priority-round-complete-back', label: '← 返回', variant: 'secondary' }
+                    ],
+                    context: { taskId, taskTitle: context?.taskTitle, roundType }
+                  },
+                  isActive: true
+                }
+              }
+            ]
+          }
         } else {
           // 其他轮次（降级方案）
           optionsMsg = {
@@ -2813,6 +2837,46 @@ export default function NotesDashboardPage() {
       
       setPendingRound('time')
       setChatMessages(prev => [...prev, confirmMessage, selectionMessage])
+      
+    } else if (buttonId === 'priority-round-complete-back') {
+      // Priority 轮完成后返回到 round-complete 界面
+      
+      // 清空问答状态
+      setIsAnsweringQuestions(false)
+      setCurrentQuestionIndex(0)
+      setTotalQuestions([])
+      setQuestionAnswers([])
+      questionAnswersRef.current = []  // 🔧 同时清空 ref
+      setDecomposingTaskTitle(null)
+      setTaskContextInput('')
+      
+      // 标记 Priority 轮已完成
+      if (!completedRounds.includes('priority')) {
+        setCompletedRounds(prev => [...prev, 'priority'])
+      }
+      
+      const confirmMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [{ type: 'text' as const, text: '好的～' }]
+      }
+      
+      // 显示轮次完成按钮
+      const completeMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [
+          { type: 'text' as const, text: '你还想继续吗？' },
+          { 
+            type: 'interactive' as const, 
+            interactive: {
+              type: 'reflection-round-complete' as const,
+              data: { completedRounds: [...completedRounds, 'priority'] },
+              isActive: true
+            }
+          }
+        ]
+      }
+      
+      setChatMessages(prev => [...prev, confirmMessage, completeMessage])
       
     } else if (buttonId === 'skip-decompose-back') {
       // 用户选择不拆解，返回任务选择列表

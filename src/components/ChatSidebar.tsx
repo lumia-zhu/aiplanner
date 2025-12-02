@@ -278,7 +278,8 @@ const QuestionAnswerCard: React.FC<{
       case 'time':
         return `关于「${taskTitle}」的时间规划，想和你确认一下：`
       case 'priority':
-        return `关于「${taskTitle}」的优先级，想听听你的想法：`
+        // Priority 轮的 taskTitle 是多个任务名用顿号连接，直接显示即可
+        return `关于这几个任务（${taskTitle}）的优先级，想听听你的想法：`
       default:
         return `关于「${taskTitle}」，想了解一些信息：`
     }
