@@ -866,6 +866,160 @@ ${taskInfo}
   }
 }
 
+// ==================== 优先级问题生成 ====================
+
+/**
+ * 为选定的任务生成优先级反思问题（1-3个）
+ * 
+ * 聚焦于帮助用户梳理出哪个任务该先做，通过后果对比、紧迫度校准、阻力识别等角度
+ * 
+ * @param tasks 用户选择的任务列表（通常是多个任务，至少2个）
+ * @returns 问题字符串数组
+ */
+export async function generatePriorityQuestions(tasks: TaskSnapshot[]): Promise<string[]> {
+  try {
+    if (tasks.length === 0) {
+      return ['这几个任务里，哪个有真正的外部 deadline（比如别人在等）？']
+    }
+
+    const taskNames = tasks.map(t => t.title)
+    const taskList = tasks.map(t => `「${t.title}」`).join('、')
+    
+    // 构建任务信息
+    const taskInfo = `
+任务列表：${taskList}
+任务数量：${tasks.length} 个
+${tasks.some(t => t.deadline) ? `有截止时间的任务：${tasks.filter(t => t.deadline).map(t => `「${t.title}」(${t.deadline})`).join('、')}` : ''}
+`.trim()
+
+    const systemPrompt = `你是一位擅长优先级管理的智能助手。你的目标是：通过 1-3 个精准的开放式问题，帮助用户**梳理出哪个任务该先做**。
+
+### 【核心分析框架】
+
+基于任务性质，从以下角度帮助用户判断优先级：
+
+**1. 后果对比（Consequence Comparison）**
+   - 如果今天只能做一个，不做哪个明天会更麻烦？
+   - 某个任务如果今天不做，会有什么实际后果？
+
+**2. 紧迫度校准（Urgency Check）**
+   - 哪个任务是真的今天必须做，而不是只是觉得"应该"做？
+   - 哪个任务有真正的外部 deadline（比如别人在等）？
+
+**3. 阻力识别（Resistance Analysis）**
+   - 用户更想逃避哪一个？（通常它更重要但更难）
+   - 哪个任务一直在拖延？
+
+**4. 依赖关系（Dependency）**
+   - 做完某个任务会不会让其他任务变得更容易？
+   - 有没有任务是其他任务的前置条件？
+
+### 【问题生成策略】
+
+**灵活性原则**：
+- 根据任务性质，**动态选择 1-3 个最关键的角度**
+- 如果有明确的 deadline，优先问紧迫度
+- 如果任务之间有依赖关系，优先问依赖
+- **总问题数控制在 1-3 个**
+
+**问题设计要点**：
+- 每问只问一件事，句式简短（15-30字）
+- 开放式问句（用"哪个/什么/为什么"开头）
+- **必须包含具体任务名称**（如「${taskNames[0] || '任务A'}」和「${taskNames[1] || '任务B'}」）
+- 引导用户对比和思考，而不是直接给答案
+
+### 【严格禁止】
+
+❌ 不要泛泛而问（如"哪个重要""先做哪个"）
+❌ 不要问子任务（只关注主要任务）
+❌ 是/否题、情绪题（如"难吗""有信心吗"）
+❌ 显而易见的问题
+❌ 为了凑数而问的无关问题
+
+### 【ADHD友好原则】
+
+- 温和、鼓励、非评判性语气（避免"你应该""必须""为什么不"）
+- 降低决策焦虑，引导"哪个后果更严重"而非"为什么没做"
+- 问题顺序符合自然思考流程（先考虑后果，再考虑紧迫度，最后考虑依赖）
+
+### 【输出格式】（严格遵守）
+
+- 输出 1-3 行问题（根据任务数量和复杂度灵活调整）
+- 每行以"- "开头
+- 不添加任何说明、编号、标题或其他文本
+- **每个问题必须包含具体任务名称**
+
+### 【成功标准】
+
+用户回答后，应能让AI获得：
+✓ 哪个任务更紧急/重要
+✓ 任务之间的依赖关系
+✓ 用户的真实想法和顾虑`
+
+    const userPrompt = `请基于以下任务信息，生成 1-3 个能有效帮助用户判断优先级的问题：
+
+${taskInfo}
+
+请直接输出问题列表，每行以"- "开头，每个问题必须包含具体任务名称。`
+
+    const response = await doubaoService.sendMessage(
+      `${systemPrompt}\n\n${userPrompt}`
+    )
+
+    if (!response.success || !response.message) {
+      console.error('❌ 生成优先级问题失败:', response.error)
+      // 降级：返回通用问题
+      if (taskNames.length >= 2) {
+        return [
+          `如果「${taskNames[0]}」和「${taskNames[1]}」今天只能做一个，不做哪个明天会更麻烦？`,
+          `这几个任务里，哪个有真正的外部 deadline（比如别人在等）？`
+        ]
+      } else {
+        return [`「${taskNames[0] || '这个任务'}」如果今天不做，会有什么实际后果？`]
+      }
+    }
+
+    // 解析问题（每行以"- "开头）
+    console.log('🔍 LLM 返回的原始消息:', response.message)
+    
+    const questions = response.message
+      .split('\n')
+      .filter(line => line.trim().startsWith('- '))
+      .map(line => line.trim().substring(2).trim())
+      .filter(q => q.length > 0)
+
+    console.log('🔍 解析后的问题:', questions)
+
+    if (questions.length === 0) {
+      console.warn('⚠️ 未能解析出问题，使用降级方案')
+      if (taskNames.length >= 2) {
+        return [
+          `如果「${taskNames[0]}」和「${taskNames[1]}」今天只能做一个，不做哪个明天会更麻烦？`,
+          `这几个任务里，哪个有真正的外部 deadline（比如别人在等）？`
+        ]
+      } else {
+        return [`「${taskNames[0] || '这个任务'}」如果今天不做，会有什么实际后果？`]
+      }
+    }
+
+    console.log(`✅ 生成了 ${questions.length} 个优先级问题`)
+    return questions.slice(0, 3) // 最多返回3个
+
+  } catch (error) {
+    console.error('❌ 生成优先级问题失败:', error)
+    // 降级：返回通用问题
+    const taskNames = tasks.map(t => t.title)
+    if (taskNames.length >= 2) {
+      return [
+        `如果「${taskNames[0]}」和「${taskNames[1]}」今天只能做一个，不做哪个明天会更麻烦？`,
+        `这几个任务里，哪个有真正的外部 deadline（比如别人在等）？`
+      ]
+    } else {
+      return [`「${taskNames[0] || '这个任务'}」如果今天不做，会有什么实际后果？`]
+    }
+  }
+}
+
 // ==================== 任务拆解识别 ====================
 
 /**
