@@ -956,7 +956,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                           {content.interactive.type === 'reflection-task-selection' && availableTasksForSelection && (
                             <ReflectionTaskSelectionCard
                               tasks={availableTasksForSelection}
-                              roundType={pendingRound || 'clarity'}
+                              roundType={content.interactive.data?.roundType || pendingRound || 'clarity'}
                               isActive={content.interactive.isActive !== false}
                               onConfirm={(taskIds) => onTaskSelectionConfirm?.(taskIds)}
                               onBack={() => onTaskSelectionBack?.()}
