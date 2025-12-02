@@ -38,6 +38,7 @@ import {
   formatSummaryAsMessage,
   formatDecompositionInquiryMessage,
   generateOverviewMessage,
+  generateTimeQuestions,
   type ReflectionRoundType 
 } from '@/lib/reflectionFlow'
 import { MATRIX_DIMENSION_CONFIGS, MATRIX_QUADRANTS_CONFIGS } from '@/types'
@@ -2258,8 +2259,8 @@ export default function NotesDashboardPage() {
     const selectedTasks = reflectionTasks.filter(t => taskIds.includes(t.id))
     setSelectedTasksForRound(selectedTasks)
     
-    // 🆕 对于 Clarity 轮，显示拆解建议而不是直接开始反思
-    if (pendingRound === 'clarity' && selectedTasks.length > 0) {
+    // 🆕 对于 Clarity 和 Time 轮，使用单问题卡片流程
+    if ((pendingRound === 'clarity' || pendingRound === 'time') && selectedTasks.length > 0) {
       const task = selectedTasks[0]
       
       // 显示加载消息
@@ -2269,14 +2270,22 @@ export default function NotesDashboardPage() {
       }
       setChatMessages(prev => [...prev, loadingMsg])
       
-      // 生成拆解建议（使用现有的 generateDynamicDecompositionQuestions）
+      // 根据轮次生成不同的问题
       try {
-        const questions = await generateDynamicDecompositionQuestions({
-          id: task.id,
-          title: task.title,
-          estimatedDuration: task.estimatedDuration,
-          deadline_datetime: task.deadline,
-        } as any)
+        let questions: string[]
+        
+        if (pendingRound === 'clarity') {
+          // Clarity 轮：生成澄清问题
+          questions = await generateDynamicDecompositionQuestions({
+            id: task.id,
+            title: task.title,
+            estimatedDuration: task.estimatedDuration,
+            deadline_datetime: task.deadline,
+          } as any)
+        } else {
+          // Time 轮：生成时间规划问题
+          questions = await generateTimeQuestions([task])
+        }
         
         // 移除加载消息
         setChatMessages(prev => prev.filter(m => m.content?.[0]?.text !== '让我看看这个任务...'))
@@ -2304,7 +2313,8 @@ export default function NotesDashboardPage() {
                   questionIndex: 0,
                   totalQuestions: questions.length,
                   taskTitle: task.title,
-                  taskId: task.id
+                  taskId: task.id,
+                  roundType: pendingRound  // 🆕 添加轮次类型，用于后续判断
                 },
                 isActive: true
               }
@@ -2314,12 +2324,12 @@ export default function NotesDashboardPage() {
         
         setChatMessages(prev => [...prev, firstQuestionMsg])
       } catch (error) {
-        console.error('生成拆解建议失败:', error)
+        console.error(`生成${pendingRound === 'clarity' ? '澄清' : '时间规划'}问题失败:`, error)
         // 降级：直接开始反思
         await startReflectionRound(pendingRound, selectedTasks, reflectionScanResult, reflectionSessionId)
       }
     } else {
-      // 其他轮次：直接开始反思
+      // 其他轮次（Priority）：直接开始反思
       await startReflectionRound(pendingRound, selectedTasks, reflectionScanResult, reflectionSessionId)
     }
     
@@ -2511,29 +2521,84 @@ export default function NotesDashboardPage() {
           content: [{ type: 'text' as const, text: summaryText }]
         }
         
-        // 显示拆解选项
-        const optionsMsg: ChatMessage = {
-          role: 'assistant' as const,
-          content: [
-            { 
-              type: 'text' as const, 
-              text: `现在，你可以选择：`
-            },
-            {
-              type: 'interactive' as const,
-              interactive: {
-                type: 'buttons' as const,
-                data: {
-                  buttons: [
-                    { id: 'decompose-with-context', label: '✂️ 拆解这个任务', variant: 'primary' },
-                    { id: 'skip-decompose-back', label: '不需要拆解，选择其他任务', variant: 'secondary' }
-                  ],
-                  context: { taskId, taskTitle: context?.taskTitle }
-                },
-                isActive: true
+        // 🆕 根据轮次类型显示不同的后续选项
+        const roundType = context?.roundType || 'clarity'
+        
+        let optionsMsg: ChatMessage
+        
+        if (roundType === 'clarity') {
+          // Clarity 轮：显示拆解选项
+          optionsMsg = {
+            role: 'assistant' as const,
+            content: [
+              { 
+                type: 'text' as const, 
+                text: `现在，你可以选择：`
+              },
+              {
+                type: 'interactive' as const,
+                interactive: {
+                  type: 'buttons' as const,
+                  data: {
+                    buttons: [
+                      { id: 'decompose-with-context', label: '✂️ 拆解这个任务', variant: 'primary' },
+                      { id: 'skip-decompose-back', label: '不需要拆解，选择其他任务', variant: 'secondary' }
+                    ],
+                    context: { taskId, taskTitle: context?.taskTitle, roundType }
+                  },
+                  isActive: true
+                }
               }
-            }
-          ]
+            ]
+          }
+        } else if (roundType === 'time') {
+          // Time 轮：显示返回按钮
+          optionsMsg = {
+            role: 'assistant' as const,
+            content: [
+              { 
+                type: 'text' as const, 
+                text: `时间规划反思完成！`
+              },
+              {
+                type: 'interactive' as const,
+                interactive: {
+                  type: 'buttons' as const,
+                  data: {
+                    buttons: [
+                      { id: 'time-round-complete-back', label: '← 返回', variant: 'secondary' }
+                    ],
+                    context: { taskId, taskTitle: context?.taskTitle, roundType }
+                  },
+                  isActive: true
+                }
+              }
+            ]
+          }
+        } else {
+          // 其他轮次（降级方案）
+          optionsMsg = {
+            role: 'assistant' as const,
+            content: [
+              { 
+                type: 'text' as const, 
+                text: `反思完成！`
+              },
+              {
+                type: 'interactive' as const,
+                interactive: {
+                  type: 'buttons' as const,
+                  data: {
+                    buttons: [
+                      { id: 'skip-decompose-back', label: '← 返回', variant: 'secondary' }
+                    ],
+                    context: { taskId, taskTitle: context?.taskTitle, roundType }
+                  },
+                  isActive: true
+                }
+              }
+            ]
+          }
         }
         
         setChatMessages(prev => [...prev, summaryMsg, optionsMsg])
@@ -2668,6 +2733,45 @@ export default function NotesDashboardPage() {
         }
         setChatMessages(prev => [...prev, errorMsg])
       }
+      
+    } else if (buttonId === 'time-round-complete-back') {
+      // Time 轮完成后返回到 round-complete 界面
+      
+      // 清空问答状态
+      setIsAnsweringQuestions(false)
+      setCurrentQuestionIndex(0)
+      setTotalQuestions([])
+      setQuestionAnswers([])
+      setDecomposingTaskTitle(null)
+      setTaskContextInput('')
+      
+      // 标记 Time 轮已完成
+      if (!completedRounds.includes('time')) {
+        setCompletedRounds(prev => [...prev, 'time'])
+      }
+      
+      const confirmMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [{ type: 'text' as const, text: '好的～' }]
+      }
+      
+      // 显示轮次完成按钮
+      const completeMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [
+          { type: 'text' as const, text: '你还想继续吗？' },
+          { 
+            type: 'interactive' as const, 
+            interactive: {
+              type: 'reflection-round-complete' as const,
+              data: { completedRounds: [...completedRounds, 'time'] },
+              isActive: true
+            }
+          }
+        ]
+      }
+      
+      setChatMessages(prev => [...prev, confirmMessage, completeMessage])
       
     } else if (buttonId === 'skip-decompose-back') {
       // 用户选择不拆解，返回任务选择列表
