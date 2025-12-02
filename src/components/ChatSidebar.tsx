@@ -200,14 +200,14 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
         <button
           onClick={handleConfirm}
           disabled={!selectedId || !isActive}
-          className={`flex-1 px-3 py-1.5 text-xs bg-${info.color}-500 text-white hover:bg-${info.color}-600 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
+          className={`flex-1 px-4 py-2 text-sm font-medium bg-${info.color}-500 text-white hover:bg-${info.color}-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
         >
           确认选择
         </button>
         <button
           onClick={onBack}
           disabled={!isActive}
-          className="px-3 py-1.5 text-xs text-gray-600 hover:text-gray-800 hover:bg-gray-100 border border-gray-300 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           返回
         </button>
@@ -270,14 +270,14 @@ const QuestionAnswerCard: React.FC<{
         <button
           onClick={handleNext}
           disabled={!isActive}
-          className="flex-1 px-3 py-2 text-sm bg-blue-500 text-white hover:bg-blue-600 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+          className="flex-1 px-4 py-2 text-sm font-medium bg-blue-500 text-white hover:bg-blue-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isLastQuestion ? '完成 ✓' : '下一个问题 →'}
         </button>
         <button
           onClick={onBack}
           disabled={!isActive}
-          className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 border border-gray-300 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           ← 返回
         </button>
