@@ -223,10 +223,11 @@ const QuestionAnswerCard: React.FC<{
   totalQuestions: number
   taskTitle: string
   taskId: string
+  roundType?: 'clarity' | 'time' | 'priority'
   isActive: boolean
   onNext: (answer: string) => void
   onBack: () => void
-}> = ({ question, questionIndex, totalQuestions, taskTitle, taskId, isActive, onNext, onBack }) => {
+}> = ({ question, questionIndex, totalQuestions, taskTitle, taskId, roundType = 'clarity', isActive, onNext, onBack }) => {
   const [answer, setAnswer] = useState('')
   
   const handleNext = () => {
@@ -238,10 +239,24 @@ const QuestionAnswerCard: React.FC<{
   
   const isLastQuestion = questionIndex === totalQuestions - 1
   
+  // 根据轮次类型显示不同的提示文字
+  const getPromptText = () => {
+    switch (roundType) {
+      case 'clarity':
+        return `我注意到「${taskTitle}」可能比较复杂，想了解一些背景信息：`
+      case 'time':
+        return `关于「${taskTitle}」的时间规划，想和你确认一下：`
+      case 'priority':
+        return `关于「${taskTitle}」的优先级，想听听你的想法：`
+      default:
+        return `关于「${taskTitle}」，想了解一些信息：`
+    }
+  }
+  
   return (
     <div className="mt-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
       <div className="text-sm font-medium text-gray-700 mb-3">
-        我注意到「{taskTitle}」可能比较复杂，想了解一些背景信息：
+        {getPromptText()}
       </div>
       
       <div className="mb-3">
@@ -956,6 +971,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                               totalQuestions={content.interactive.data.totalQuestions}
                               taskTitle={content.interactive.data.taskTitle}
                               taskId={content.interactive.data.taskId}
+                              roundType={content.interactive.data.roundType}
                               isActive={content.interactive.isActive !== false}
                               onNext={(answer) => onButtonClick?.('next-question', { 
                                 ...content.interactive.data, 
