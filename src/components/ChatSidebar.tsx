@@ -128,22 +128,53 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
   onConfirm, 
   onBack 
 }) => {
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  // 🔧 根据轮次类型决定单选还是多选
+  const isMultiSelect = roundType === 'priority'
+  
+  const [selectedId, setSelectedId] = useState<string | null>(null)  // 单选模式
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())  // 多选模式
   
   // 过滤掉已完成的任务
   const uncompletedTasks = tasks.filter(t => !t.isCompleted)
   
   const selectTask = (taskId: string) => {
     if (!isActive) return
-    // 单选模式：点击已选中的任务取消选择，否则选中新任务
-    setSelectedId(prev => prev === taskId ? null : taskId)
+    
+    if (isMultiSelect) {
+      // 多选模式：切换选中状态
+      setSelectedIds(prev => {
+        const newSet = new Set(prev)
+        if (newSet.has(taskId)) {
+          newSet.delete(taskId)
+        } else {
+          newSet.add(taskId)
+        }
+        return newSet
+      })
+    } else {
+      // 单选模式：点击已选中的任务取消选择，否则选中新任务
+      setSelectedId(prev => prev === taskId ? null : taskId)
+    }
   }
   
   const handleConfirm = () => {
-    if (selectedId && isActive) {
-      onConfirm([selectedId])
+    if (!isActive) return
+    
+    if (isMultiSelect) {
+      // 多选模式：至少选择2个任务
+      if (selectedIds.size >= 2) {
+        onConfirm(Array.from(selectedIds))
+      }
+    } else {
+      // 单选模式：选择1个任务
+      if (selectedId) {
+        onConfirm([selectedId])
+      }
     }
   }
+  
+  // 判断确认按钮是否可用
+  const isConfirmDisabled = !isActive || (isMultiSelect ? selectedIds.size < 2 : !selectedId)
   
   const roundInfo = {
     clarity: { emoji: '📝', label: '澄清', color: 'blue' },
@@ -156,12 +187,12 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
   return (
     <div className={`mt-3 p-3 bg-${info.color}-50 rounded-lg border border-${info.color}-200`}>
       <div className="text-sm font-medium text-gray-700 mb-2">
-        {info.emoji} 请选择要进行「{info.label}」的任务：
+        {info.emoji} 请选择要进行「{info.label}」的任务{isMultiSelect && '（至少选择2个）'}：
       </div>
       
       <div className="space-y-1.5 mb-3 max-h-48 overflow-y-auto">
         {uncompletedTasks.map((task, index) => {
-          const isSelected = selectedId === task.id
+          const isSelected = isMultiSelect ? selectedIds.has(task.id) : selectedId === task.id
           return (
             <div
               key={`task-selection-${task.id}-${index}`}
@@ -172,8 +203,8 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
               } ${!isActive ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <input
-                type="radio"
-                name={`task-select-${roundType}`}
+                type={isMultiSelect ? 'checkbox' : 'radio'}
+                name={isMultiSelect ? undefined : `task-select-${roundType}`}
                 id={`task-select-${roundType}-${task.id}-${index}`}
                 checked={isSelected}
                 onChange={(e) => {
@@ -199,10 +230,10 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
       <div className="flex gap-2">
         <button
           onClick={handleConfirm}
-          disabled={!selectedId || !isActive}
+          disabled={isConfirmDisabled}
           className={`flex-1 px-4 py-2 text-sm font-medium bg-${info.color}-500 text-white hover:bg-${info.color}-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
         >
-          确认选择
+          确认选择{isMultiSelect && selectedIds.size > 0 && ` (${selectedIds.size})`}
         </button>
         <button
           onClick={onBack}
