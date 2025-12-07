@@ -59,6 +59,66 @@ const ROUND_CONFIG: Record<ReflectionRoundType, {
   }
 }
 
+// ==================== 降级问题库（确保总有3个问题） ====================
+
+/**
+ * 当 LLM 生成失败或问题数量不足时使用的降级问题
+ * 每个轮次都有3个通用但有效的备用问题
+ */
+const FALLBACK_QUESTIONS: Record<ReflectionRoundType, ReflectionQuestion[]> = {
+  clarity: [
+    {
+      id: 'clarity-fallback-1',
+      text: '这个任务具体是要修改哪方面的内容（如论文、报告、设计稿等）？',
+      hint: '明确任务的具体对象和范围'
+    },
+    {
+      id: 'clarity-fallback-2',
+      text: '修改的重点是什么（如内容、格式、逻辑、数据等）？',
+      hint: '了解任务的核心要求'
+    },
+    {
+      id: 'clarity-fallback-3',
+      text: '预期的完成标准是什么？怎样算修改完成？',
+      hint: '确定任务的完成条件'
+    }
+  ],
+  time: [
+    {
+      id: 'time-fallback-1',
+      text: '回想一下上次做类似任务的时候，实际花费的时间是不是比预想的要长？',
+      hint: '基于过往经验校准时间估计'
+    },
+    {
+      id: 'time-fallback-2',
+      text: '做这个任务之前，是不是需要等别人的回复或准备什么？',
+      hint: '识别隐形的时间依赖'
+    },
+    {
+      id: 'time-fallback-3',
+      text: '如果中途遇到卡壳或意外情况，有预留缓冲时间吗？',
+      hint: '考虑风险缓冲'
+    }
+  ],
+  priority: [
+    {
+      id: 'priority-fallback-1',
+      text: '这几个任务里，哪个有真正的外部deadline（比如别人在等）？',
+      hint: '识别外部依赖和紧迫性'
+    },
+    {
+      id: 'priority-fallback-2',
+      text: '如果今天只能完成一个任务，不做哪个任务明天会最麻烦？',
+      hint: '通过后果思考优先级'
+    },
+    {
+      id: 'priority-fallback-3',
+      text: '哪个任务现在做起来阻力最小（不需要等人、不需要准备、立即能开始）？',
+      hint: '考虑执行成本'
+    }
+  ]
+}
+
 // ==================== 概述生成 ====================
 
 /**
@@ -495,7 +555,9 @@ ${previousContext}
   "tasksToDecompose": ["任务标题1", "任务标题2"]
 }
 
-- questions: 严格 3 个反思问题，贴合任务场景，覆盖不同任务
+⚠️ **严格要求**：
+- questions 数组必须包含恰好 3 个问题，不能多也不能少
+- 每个问题都必须贴合任务场景，覆盖不同任务或维度
 - tasksToDecompose: 建议拆解的任务标题数组（可以为空数组 []）
 
 只返回 JSON，不要其他内容。`
@@ -650,7 +712,16 @@ ${previousQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
     
     if (!response.success || !response.message) {
       console.error('❌ LLM 调用失败:', response.error)
-      return null
+      console.warn('⚠️ 使用降级问题库')
+      
+      // 降级：返回预定义的问题
+      return {
+        round,
+        questions: FALLBACK_QUESTIONS[round],
+        title: `${config.emoji} ${config.title}`,
+        description: config.description,
+        tasksToDecompose: undefined
+      }
     }
     
     // 解析 JSON
@@ -697,15 +768,27 @@ ${previousQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
       }
     } catch (parseError) {
       console.error('❌ JSON 解析失败:', parseError)
-      // 降级：直接使用返回的文本作为单个问题
-      questions = [{
-        id: `${round}-1`,
-        text: response.message.slice(0, 200),
-        hint: undefined
-      }]
+      console.warn('⚠️ 使用降级问题库')
+      // 降级：使用预定义的降级问题（确保有3个）
+      questions = FALLBACK_QUESTIONS[round]
     }
     
     console.log(`✅ 生成了 ${questions.length} 个问题`)
+    
+    // ⭐ 确保至少有3个问题（使用降级问题补充）
+    if (questions.length < 3) {
+      console.warn(`⚠️ 只生成了 ${questions.length} 个问题，使用降级问题补充到3个`)
+      const fallbackQuestions = FALLBACK_QUESTIONS[round]
+      
+      // 补充问题（避免重复）
+      for (let i = questions.length; i < 3; i++) {
+        if (fallbackQuestions[i]) {
+          questions.push(fallbackQuestions[i])
+        }
+      }
+      
+      console.log(`✅ 补充后共 ${questions.length} 个问题`)
+    }
     
     return {
       round,

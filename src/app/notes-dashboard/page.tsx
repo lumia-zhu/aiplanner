@@ -2512,6 +2512,13 @@ export default function NotesDashboardPage() {
         // 还有下一个问题 - 更新当前卡片而不是创建新消息
         setCurrentQuestionIndex(nextIndex)
         
+        // 🔧 边界检查：确保问题存在
+        const nextQuestion = totalQuestions[nextIndex] || '问题加载失败，请跳过或返回重试'
+        
+        if (!totalQuestions[nextIndex]) {
+          console.error(`⚠️ 问题数组越界：尝试访问 totalQuestions[${nextIndex}]，但数组长度为 ${totalQuestions.length}`)
+        }
+        
         // 更新现有的问答卡片，显示下一个问题
         setChatMessages(prev => prev.map(msg => ({
           ...msg,
@@ -2523,7 +2530,7 @@ export default function NotesDashboardPage() {
                   interactive: {
                     ...c.interactive,
                     data: {
-                      question: totalQuestions[nextIndex],
+                      question: nextQuestion,  // 🔧 使用经过边界检查的问题
                       questionIndex: nextIndex,
                       totalQuestions: totalQuestionsCount,  // 🔧 使用从 context 获取的值
                       taskTitle: context?.taskTitle,

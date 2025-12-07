@@ -296,7 +296,7 @@ const QuestionAnswerCard: React.FC<{
           问题 {questionIndex + 1}/{totalQuestions}
         </div>
         <div className="text-sm text-gray-800 mb-3">
-          {question}
+          {question || '⚠️ 问题加载失败，您可以跳过此问题或返回重试'}
         </div>
         
         <textarea
