@@ -2513,10 +2513,19 @@ export default function NotesDashboardPage() {
         setCurrentQuestionIndex(nextIndex)
         
         // 🔧 边界检查：确保问题存在
-        const nextQuestion = totalQuestions[nextIndex] || '问题加载失败，请跳过或返回重试'
+        // 优先从 totalQuestions 获取，如果为空则使用通用提示
+        const nextQuestion = (totalQuestions.length > nextIndex && totalQuestions[nextIndex]) 
+          ? totalQuestions[nextIndex]
+          : '问题加载失败，请跳过或返回重试'
         
-        if (!totalQuestions[nextIndex]) {
-          console.error(`⚠️ 问题数组越界：尝试访问 totalQuestions[${nextIndex}]，但数组长度为 ${totalQuestions.length}`)
+        if (totalQuestions.length === 0 || !totalQuestions[nextIndex]) {
+          console.error(`⚠️ 问题数组异常：尝试访问 totalQuestions[${nextIndex}]，但数组长度为 ${totalQuestions.length}`)
+          console.error(`⚠️ Context信息:`, {
+            taskId: context?.taskId,
+            roundType: context?.roundType,
+            totalQuestionsCount,
+            currentIndex
+          })
         }
         
         // 更新现有的问答卡片，显示下一个问题
@@ -2916,7 +2925,7 @@ export default function NotesDashboardPage() {
       setDecomposingTaskTitle(null)
       setTaskContextInput('')
     }
-  }, [taskContextInput, user])
+  }, [taskContextInput, user, totalQuestions, completedRounds])
   
   // ⭐ 开始某一轮反思
   const startReflectionRound = useCallback(async (
