@@ -1944,7 +1944,7 @@ export default function NotesDashboardPage() {
         } else {
           // 如果有正在进行的轮次，恢复到该轮次
           const round = existingSession.currentRound as ReflectionRoundType
-          setCurrentReflectionRound(round)
+          // 不在这里设置 currentReflectionRound，让 startReflectionRound 根据轮次类型决定
           
           setTimeout(() => {
             startReflectionRound(
@@ -2903,12 +2903,58 @@ export default function NotesDashboardPage() {
   ) => {
     console.log(`🔄 开始 ${round} 轮反思...`)
     
-    // 保存状态
-    setCurrentReflectionRound(round)
+    // 保存状态（注意：不设置 currentReflectionRound，因为用户还在选择任务阶段）
     setReflectionScanResult(scanResult)
     setReflectionTasks(tasks)
     setIsGeneratingQuestions(true)
     setAskedQuestions([])  // 新轮次开始，清空已问问题
+
+    // 🔧 对 clarity/time/priority 三轮改用「卡片问答 + 任务选择」流程，避免一次输出三条文本消息
+    if (['clarity', 'time', 'priority'].includes(round)) {
+      // 清理旧的问答状态
+      setIsAnsweringQuestions(false)
+      setCurrentQuestionIndex(0)
+      setTotalQuestions([])
+      setQuestionAnswers([])
+      questionAnswersRef.current = []
+      setDecomposingTaskTitle(null)
+      setTaskContextInput('')
+
+      setPendingRound(round)
+
+      const roundInfo = {
+        clarity: { emoji: '📝', label: '澄清任务' },
+        time: { emoji: '⏱️', label: '时间规划' },
+        priority: { emoji: '🎯', label: '优先级排列' }
+      } as const
+      const info = roundInfo[round]
+
+      const confirmMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [{ type: 'text' as const, text: `${info.emoji} 好的，让我们来做「${info.label}」～` }]
+      }
+
+      const selectionMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [
+          {
+            type: 'interactive' as const,
+            interactive: {
+              type: 'reflection-task-selection' as const,
+              data: { roundType: round },
+              isActive: true
+            }
+          }
+        ]
+      }
+
+      setChatMessages(prev => [...prev, confirmMessage, selectionMessage])
+      setIsGeneratingQuestions(false)
+      return
+    }
+    
+    // 旧流程（非卡片问答）才设置 currentReflectionRound
+    setCurrentReflectionRound(round)
     
     try {
       // 检查是否需要执行这一轮
