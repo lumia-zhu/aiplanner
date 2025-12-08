@@ -18,7 +18,7 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = {
   
   // LLM 配置
   llm: {
-    model: 'doubao-seed-1-6-vision-250815',
+    model: 'deepseek-v3-2-251201',
     temperature: 0.7,
     maxTokens: 1500  // ⭐ 设置为 1500，支持返回约 20-30 个任务，平衡输出质量和成本
   },

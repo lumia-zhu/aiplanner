@@ -5,10 +5,10 @@
 
 import type { Task } from '@/types'
 
-// 豆包大模型配置
+// AI大模型配置（Deepseek V3.2）
 const DOUBAO_CONFIG = {
   endpoint: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
-  model: 'doubao-seed-1-6-vision-250815',
+  model: 'deepseek-v3-2-251201',
 }
 
 /**

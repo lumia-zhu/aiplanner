@@ -27,6 +27,7 @@
 
 - **前端**: Next.js 14 (App Router) + TypeScript + Tailwind CSS
 - **后端**: Supabase (PostgreSQL + 认证)
+- **AI 模型**: Deepseek V3.2（通过火山引擎 API）
 - **部署**: Vercel
 - **状态管理**: React Hooks
 - **样式**: Tailwind CSS v4
@@ -204,7 +205,7 @@ Agent 会展示它的思考过程，帮助你理解它是如何工作的：
 
 ### 注意事项
 
-- ⚠️ Agent 需要配置 Doubao API Key 才能使用
+- ⚠️ Agent 需要配置火山引擎 API Key 才能使用（支持 Deepseek V3.2 等模型）
 - ⚠️ Agent 会自动加载 **3 个月**的任务上下文，首次调用可能需要几秒钟
 - ⚠️ 交互式工具（澄清、拆解）会暂停 Agent，需要你提供输入后才会继续
 - ⚠️ Agent 最多推理 **5 轮**，避免无限循环

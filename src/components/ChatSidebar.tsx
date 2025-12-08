@@ -201,14 +201,33 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
     ? '已经明确放哪里的任务？直接去矩阵里拖拽即可。这里只选择你不确定的任务，我会通过几个问题帮你梳理清楚。'
     : null
   
+  // 根据轮次类型设置颜色主题
+  const colorTheme = roundType === 'priority' 
+    ? {
+        card: 'bg-orange-50 border-orange-200',
+        hintBorder: 'border-orange-200',
+        selected: 'bg-orange-100 border-orange-300',
+        hover: 'hover:border-orange-300 hover:bg-orange-50',
+        checkbox: 'text-orange-600 focus:ring-orange-500',
+        button: 'bg-orange-500 hover:bg-orange-600'
+      }
+    : {
+        card: 'bg-blue-50 border-blue-200',
+        hintBorder: 'border-blue-200',
+        selected: 'bg-blue-100 border-blue-300',
+        hover: 'hover:border-blue-300 hover:bg-blue-50',
+        checkbox: 'text-blue-600 focus:ring-blue-500',
+        button: 'bg-blue-500 hover:bg-blue-600'
+      }
+  
   return (
-    <div className="mt-3 p-3 bg-orange-50 rounded-lg border border-orange-200">
+    <div className={`mt-3 p-3 rounded-lg border ${colorTheme.card}`}>
       <div className="text-sm font-medium text-gray-700 mb-2">
         {info.emoji} {info.instruction}{isMultiSelect && '（至少选择2个）'}
       </div>
       
       {priorityHint && (
-        <div className="text-xs text-gray-600 mb-3 p-2 bg-white rounded border border-orange-200">
+        <div className={`text-xs text-gray-600 mb-3 p-2 bg-white rounded border ${colorTheme.hintBorder}`}>
           💡 {priorityHint}
         </div>
       )}
@@ -227,8 +246,8 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
               key={`task-selection-${task.id}-${index}`}
               className={`flex items-center gap-2 p-2 rounded-md transition-colors ${
                 isSelected 
-                  ? 'bg-orange-100 border border-orange-300' 
-                  : 'bg-white border border-gray-200 hover:border-orange-300 hover:bg-orange-50'
+                  ? colorTheme.selected
+                  : `bg-white border border-gray-200 ${colorTheme.hover}`
               } ${!isActive ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
             >
               <input
@@ -242,7 +261,7 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
                   }
                 }}
                 disabled={!isActive}
-                className="w-4 h-4 text-orange-600 border-gray-300 focus:ring-orange-500 cursor-pointer"
+                className={`w-4 h-4 border-gray-300 cursor-pointer ${colorTheme.checkbox}`}
               />
               <label
                 htmlFor={`task-select-${roundType}-${task.id}-${index}`}
@@ -259,7 +278,7 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
         <button
           onClick={handleConfirm}
           disabled={isConfirmDisabled}
-          className="flex-1 px-4 py-2 text-sm font-medium bg-orange-500 text-white hover:bg-orange-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className={`flex-1 px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${colorTheme.button}`}
         >
           {roundType === 'priority' ? '开始分析' : '确认选择'}{isMultiSelect && selectedIds.size > 0 && ` (${selectedIds.size})`}
         </button>
@@ -313,14 +332,36 @@ const QuestionAnswerCard: React.FC<{
     }
   }
   
+  // 根据轮次类型设置颜色主题
+  const colorTheme = roundType === 'priority' 
+    ? {
+        card: 'bg-orange-50 border-orange-200',
+        questionNumber: 'text-orange-600',
+        focusRing: 'focus:ring-orange-500',
+        button: 'bg-orange-500 hover:bg-orange-600'
+      }
+    : roundType === 'time'
+    ? {
+        card: 'bg-green-50 border-green-200',
+        questionNumber: 'text-green-600',
+        focusRing: 'focus:ring-green-500',
+        button: 'bg-green-500 hover:bg-green-600'
+      }
+    : {
+        card: 'bg-blue-50 border-blue-200',
+        questionNumber: 'text-blue-600',
+        focusRing: 'focus:ring-blue-500',
+        button: 'bg-blue-500 hover:bg-blue-600'
+      }
+  
   return (
-    <div className="mt-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+    <div className={`mt-3 p-4 rounded-lg border ${colorTheme.card}`}>
       <div className="text-sm font-medium text-gray-700 mb-3">
         {getPromptText()}
       </div>
       
       <div className="mb-3">
-        <div className="text-xs font-semibold text-blue-600 mb-2">
+        <div className={`text-xs font-semibold mb-2 ${colorTheme.questionNumber}`}>
           问题 {questionIndex + 1}/{totalQuestions}
         </div>
         <div className="text-sm text-gray-800 mb-3">
@@ -332,7 +373,7 @@ const QuestionAnswerCard: React.FC<{
           onChange={(e) => setAnswer(e.target.value)}
           disabled={!isActive}
           placeholder="在这里输入你的回答（可选，也可以直接点「下一个问题」跳过）"
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900 placeholder-gray-400 resize-none disabled:opacity-50 disabled:cursor-not-allowed"
+          className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 ${colorTheme.focusRing} text-sm text-gray-900 placeholder-gray-400 resize-none disabled:opacity-50 disabled:cursor-not-allowed`}
           rows={3}
         />
       </div>
@@ -345,7 +386,7 @@ const QuestionAnswerCard: React.FC<{
         <button
           onClick={handleNext}
           disabled={!isActive}
-          className="flex-1 px-4 py-2 text-sm font-medium bg-blue-500 text-white hover:bg-blue-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className={`flex-1 px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${colorTheme.button}`}
         >
           {isLastQuestion ? '完成 ✓' : '下一个问题 →'}
         </button>

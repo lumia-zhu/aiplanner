@@ -225,7 +225,7 @@ async function llmClassify(userMessage: string): Promise<IntentResult> {
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: 'doubao-seed-1-6-vision-250815',  // 使用和主系统相同的模型
+        model: 'deepseek-v3-2-251201',  // 使用和主系统相同的模型
         messages: [
           {
             role: 'system',

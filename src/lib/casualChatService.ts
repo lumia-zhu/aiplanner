@@ -78,7 +78,7 @@ export async function* casualChat(
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: 'doubao-seed-1-6-vision-250815',
+        model: 'deepseek-v3-2-251201',
         messages: messages,
         temperature: opts.temperature,
         max_tokens: opts.maxTokens,

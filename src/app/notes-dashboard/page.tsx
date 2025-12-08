@@ -2860,7 +2860,7 @@ export default function NotesDashboardPage() {
       await handleDecomposeFromNoteEditor(taskTitle)
       
     } else if (buttonId === 'time-round-complete-back') {
-      // Time 轮完成后返回到任务选择界面
+      // Time 轮完成后返回到反思概览界面
       
       // 清空问答状态
       setIsAnsweringQuestions(false)
@@ -2870,32 +2870,51 @@ export default function NotesDashboardPage() {
       questionAnswersRef.current = []  // 🔧 同时清空 ref
       setDecomposingTaskTitle(null)
       setTaskContextInput('')
-      
-      // 🔧 从 context 中获取 roundType，默认为 'time'
-      const originalRoundType = context?.roundType || 'time'
+      setPendingRound(null)
       
       const confirmMessage: ChatMessage = {
         role: 'assistant' as const,
-        content: [{ type: 'text' as const, text: '好的，让我们选择其他任务～' }]
+        content: [{ type: 'text' as const, text: '好的～' }]
       }
       
-      // 重新显示任务选择卡片
-      const selectionMessage: ChatMessage = {
-        role: 'assistant' as const,
-        content: [
-          { 
-            type: 'interactive' as const, 
-            interactive: {
-              type: 'reflection-task-selection' as const,
-              data: { roundType: originalRoundType },
-              isActive: true
+      setChatMessages(prev => [...prev, confirmMessage])
+      
+      // 根据是否有已完成轮次，显示不同的按钮
+      if (completedRounds.length > 0) {
+        // 显示轮次完成按钮
+        const completeMessage: ChatMessage = {
+          role: 'assistant' as const,
+          content: [
+            { type: 'text' as const, text: '你还想继续吗？' },
+            { 
+              type: 'interactive' as const, 
+              interactive: {
+                type: 'reflection-round-complete' as const,
+                data: { completedRounds },
+                isActive: true
+              }
             }
-          }
-        ]
+          ]
+        }
+        setChatMessages(prev => [...prev, completeMessage])
+      } else {
+        // 显示概述按钮
+        const overviewMessage: ChatMessage = {
+          role: 'assistant' as const,
+          content: [
+            { type: 'text' as const, text: '你想从哪个方面开始？' },
+            { 
+              type: 'interactive' as const, 
+              interactive: {
+                type: 'reflection-overview' as const,
+                data: { taskCount: reflectionTasks.length },
+                isActive: true
+              }
+            }
+          ]
+        }
+        setChatMessages(prev => [...prev, overviewMessage])
       }
-      
-      setPendingRound(originalRoundType)
-      setChatMessages(prev => [...prev, confirmMessage, selectionMessage])
       
     } else if (buttonId === 'priority-round-complete-back') {
       // Priority 轮完成后返回到 round-complete 界面
@@ -2938,35 +2957,55 @@ export default function NotesDashboardPage() {
       setChatMessages(prev => [...prev, confirmMessage, completeMessage])
       
     } else if (buttonId === 'skip-decompose-back') {
-      // 用户选择不拆解，返回任务选择列表
+      // 用户选择不拆解，返回到反思概览界面
       const confirmMessage: ChatMessage = {
         role: 'assistant' as const,
-        content: [{ type: 'text' as const, text: '好的，让我们选择其他任务～' }]
+        content: [{ type: 'text' as const, text: '好的～' }]
       }
       
-      // 重新显示任务选择卡片
-      const currentRoundType = 'clarity'  // 当前只在 clarity 轮有拆解建议
-      
-      const selectionMessage: ChatMessage = {
-        role: 'assistant' as const,
-        content: [
-          { 
-            type: 'interactive' as const, 
-            interactive: {
-              type: 'reflection-task-selection' as const,
-              data: { roundType: currentRoundType },
-              isActive: true
-            }
-          }
-        ]
-      }
-      
-      setPendingRound(currentRoundType)
-      setChatMessages(prev => [...prev, confirmMessage, selectionMessage])
+      setChatMessages(prev => [...prev, confirmMessage])
       
       // 清空拆解状态
       setDecomposingTaskTitle(null)
       setTaskContextInput('')
+      setPendingRound(null)
+      
+      // 根据是否有已完成轮次，显示不同的按钮
+      if (completedRounds.length > 0) {
+        // 显示轮次完成按钮
+        const completeMessage: ChatMessage = {
+          role: 'assistant' as const,
+          content: [
+            { type: 'text' as const, text: '你还想继续吗？' },
+            { 
+              type: 'interactive' as const, 
+              interactive: {
+                type: 'reflection-round-complete' as const,
+                data: { completedRounds },
+                isActive: true
+              }
+            }
+          ]
+        }
+        setChatMessages(prev => [...prev, completeMessage])
+      } else {
+        // 显示概述按钮
+        const overviewMessage: ChatMessage = {
+          role: 'assistant' as const,
+          content: [
+            { type: 'text' as const, text: '你想从哪个方面开始？' },
+            { 
+              type: 'interactive' as const, 
+              interactive: {
+                type: 'reflection-overview' as const,
+                data: { taskCount: reflectionTasks.length },
+                isActive: true
+              }
+            }
+          ]
+        }
+        setChatMessages(prev => [...prev, overviewMessage])
+      }
     }
   }, [taskContextInput, user, totalQuestions, completedRounds, handleDecomposeFromNoteEditor])
   
