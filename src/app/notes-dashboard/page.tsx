@@ -124,6 +124,14 @@ export default function NotesDashboardPage() {
     }
     return false
   })
+
+  // 页面初次加载时强制关闭侧边栏（忽略上一次的展开状态）
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('chatSidebarOpen', 'false')
+    }
+    setIsChatSidebarOpen(false)
+  }, [])
   const [chatMessage, setChatMessage] = useState('')
   const [selectedImage, setSelectedImage] = useState<File | null>(null)
   const [chatMessages, setChatMessages] = useState<any[]>([])
@@ -185,6 +193,8 @@ export default function NotesDashboardPage() {
   // ⭐ 任务拆解相关状态
   const [decomposingTaskTitle, setDecomposingTaskTitle] = useState<string | null>(null)
   const [taskContextInput, setTaskContextInput] = useState<string>('')
+  // 澄清问题历史（按任务存储，防止重复问题）
+  const [clarityQuestionHistory, setClarityQuestionHistory] = useState<Map<string, string[]>>(new Map())
   
   // 用户资料弹窗
   const [showProfileModal, setShowProfileModal] = useState(false)
@@ -2292,12 +2302,22 @@ export default function NotesDashboardPage() {
           // Clarity 轮：生成澄清问题（单个任务）
           const task = selectedTasks[0]
           taskTitle = task.title
+          
+          const previousQuestions = clarityQuestionHistory.get(task.id) || []
           questions = await generateDynamicDecompositionQuestions({
             id: task.id,
             title: task.title,
             estimatedDuration: task.estimatedDuration,
             deadline_datetime: task.deadline,
-          } as any)
+          } as any, { previousQuestions })
+          
+          // 记录本任务已问过的问题，避免下次重复
+          setClarityQuestionHistory(prev => {
+            const next = new Map(prev)
+            const merged = Array.from(new Set([...(prev.get(task.id) || []), ...questions]))
+            next.set(task.id, merged)
+            return next
+          })
         } else if (pendingRound === 'time') {
           // Time 轮：生成时间规划问题（单个任务）
           const task = selectedTasks[0]

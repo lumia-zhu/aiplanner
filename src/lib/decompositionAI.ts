@@ -15,10 +15,16 @@ const DOUBAO_CONFIG = {
 /**
  * 根据任务内容动态生成3个任务拆解引导问题
  * @param task 需要拆解的任务
+ * @param options.previousQuestions 之前已问过的问题（用于去重/避免重复）
  * @returns 3个问题的数组
  */
-export async function generateDynamicDecompositionQuestions(task: Task): Promise<string[]> {
+export async function generateDynamicDecompositionQuestions(
+  task: Task,
+  options?: { previousQuestions?: string[] }
+): Promise<string[]> {
   try {
+    const previousQuestions = options?.previousQuestions || []
+    
     // 构建任务信息描述
     const taskInfo = buildTaskInfoDescription(task)
     
@@ -157,6 +163,12 @@ ${taskInfo}
 ✓ 避免抽象概念、工具细节、显而易见的问题
 
 请直接输出问题（1-3个，每行以"- "开头，不要任何额外文字）：`
+    
+    const previousQuestionsNote = previousQuestions.length > 0 
+      ? `\n\n⚠️ 请避免重复以下已问过的问题：\n${previousQuestions.map(q => `- ${q}`).join('\n')}\n`
+      : ''
+    
+    const finalUserPrompt = userPrompt + previousQuestionsNote
 
     // 调用豆包API
     const apiKey = process.env.NEXT_PUBLIC_DOUBAO_API_KEY
@@ -174,7 +186,7 @@ ${taskInfo}
         model: DOUBAO_CONFIG.model,
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
+          { role: 'user', content: finalUserPrompt }
         ],
         temperature: 0.7, // 稍高的温度，增加创造性
         max_tokens: 200, // 3个问题，每个约30字，稍微多一点buffer
