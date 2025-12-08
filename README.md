@@ -13,6 +13,7 @@
 - 🔄 **智能排序** - 按优先级+截止日期自动排序
 - 📱 **响应式设计** - 适配桌面和移动端
 - 🎨 **现代化UI** - 蓝色主题，简洁美观
+- 🌳 **层级任务结构** ⭐ NEW (2025-12-08) - 支持父任务与子任务，自动同步深度关系
 
 ### AI Agent 功能 ⭐ NEW (2025-11-07)
 - 🤖 **ReAct Agent** - 基于推理和行动（Reasoning + Acting）范式的智能助手
@@ -358,6 +359,21 @@ MIT License
 ---
 
 ## 📈 开发历史
+
+### Phase 4: 层级任务结构支持 (2025-12-08) ✅
+**目标**: 支持父子任务关系，优化反思功能  
+**成果**:
+- ✅ 数据库新增 `parent_task_id` 和 `depth` 字段
+- ✅ TypeScript 类型定义更新支持父子关系
+- ✅ 任务同步逻辑自动解析嵌套结构并建立关联
+- ✅ 反思功能（澄清/时间估计/优先级）只针对顶层任务
+- ✅ 保持子任务的完整性和数据一致性
+
+**详细报告**:
+- [数据库迁移指南](./database/README-parent-task-migration.md)
+- [第二步：TypeScript 类型更新](./STEP2-TYPE-UPDATES-SUMMARY.md)
+- [第三步：同步逻辑更新](./STEP3-SYNC-LOGIC-SUMMARY.md)
+- [第四步：反思功能过滤](./STEP4-REFLECTION-FILTER-SUMMARY.md)
 
 ### Phase 3: ReAct Agent 核心实现 (2025-11-07) ✅
 **目标**: 实现完整的 ReAct（Reasoning + Acting）循环  

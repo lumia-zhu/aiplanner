@@ -762,7 +762,10 @@ export default function NotesDashboardPage() {
     
     // 从当前笔记中解析任务
     const currentTasks = parseTasksFromNote(currentNote)
-    const taskSnapshots = createTaskSnapshots(currentTasks)
+    
+    // 🆕 只保留顶层任务（反思功能只针对父任务）
+    const topLevelTasks = currentTasks.filter(task => (task.depth ?? 0) === 0)
+    const taskSnapshots = createTaskSnapshots(topLevelTasks)
     
     // 检查任务是否有变化（简单比较数量和标题）
     const hasChanged = 
@@ -770,7 +773,7 @@ export default function NotesDashboardPage() {
       taskSnapshots.some((t, i) => reflectionTasks[i]?.title !== t.title)
     
     if (hasChanged) {
-      console.log('📝 反思模式：检测到任务变化，更新 reflectionTasks')
+      console.log(`📝 反思模式：检测到任务变化，更新 reflectionTasks（${currentTasks.length} 个任务 → ${topLevelTasks.length} 个顶层任务）`)
       setReflectionTasks(taskSnapshots)
       
       // 如果处于拆解选择阶段，也更新可拆解任务列表
@@ -1881,7 +1884,12 @@ export default function NotesDashboardPage() {
         
         // ⭐ 重要：从当前笔记中获取最新任务（而不是从快照中）
         const currentTasks = currentNote ? parseTasksFromNote(currentNote) : []
-        const taskSnapshots = createTaskSnapshots(currentTasks)
+        
+        // 🆕 只保留顶层任务（过滤子任务）
+        const topLevelTasks = currentTasks.filter(task => (task.depth ?? 0) === 0)
+        console.log(`📋 从笔记中提取到 ${currentTasks.length} 个任务，其中顶层任务 ${topLevelTasks.length} 个`)
+        
+        const taskSnapshots = createTaskSnapshots(topLevelTasks)
         setReflectionTasks(taskSnapshots)
         
         // 恢复扫描结果
@@ -1889,7 +1897,7 @@ export default function NotesDashboardPage() {
           setReflectionScanResult(existingSession.scanResult)
         }
         
-        console.log('📋 恢复会话，当前任务数:', taskSnapshots.length)
+        console.log('📋 恢复会话，用于反思的顶层任务数:', taskSnapshots.length)
         
         // 🆕 始终从概述界面恢复，让用户重新选择（即使之前在某个轮次中途退出）
         // 显示加载消息
@@ -1973,8 +1981,15 @@ export default function NotesDashboardPage() {
       
       // 2. 从当前笔记内容中提取任务
       const currentTasks = currentNote ? parseTasksFromNote(currentNote) : []
-      if (currentTasks.length === 0) {
-        console.log('📭 没有任务，不启动反思')
+      
+      // 🆕 只保留顶层任务（过滤子任务）
+      const topLevelTasks = currentTasks.filter(task => (task.depth ?? 0) === 0)
+      const subtaskCount = currentTasks.length - topLevelTasks.length
+      
+      console.log(`📋 从笔记中提取到 ${currentTasks.length} 个任务（${topLevelTasks.length} 个顶层任务，${subtaskCount} 个子任务）`)
+      
+      if (topLevelTasks.length === 0) {
+        console.log('📭 没有顶层任务，不启动反思')
         // 显示提示消息
         const emptyMessage = {
           role: 'assistant' as const,
@@ -1984,10 +1999,8 @@ export default function NotesDashboardPage() {
         return null
       }
       
-      console.log('📋 从笔记中提取到', currentTasks.length, '个任务')
-      
-      // 3. 创建计划快照
-      const taskSnapshots = createTaskSnapshots(currentTasks)
+      // 3. 创建计划快照（只包含顶层任务）
+      const taskSnapshots = createTaskSnapshots(topLevelTasks)
       const snapshot = await createPlanSnapshot({
         userId: user.id,
         noteDate,

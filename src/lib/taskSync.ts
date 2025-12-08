@@ -217,7 +217,7 @@ export async function syncTasksFromNote(
 
     // 1. 从笔记内容中解析任务
     const parsedTasks = parseTasksFromNote(noteContent)
-    console.log(`📋 解析到 ${parsedTasks.length} 个任务`)
+    console.log(`📋 解析到 ${parsedTasks.length} 个任务（包含子任务）`)
 
     // 2. 获取数据库中现有的任务
     const existingTasks = await getDailyTasksByNoteDate(userId, noteDate)
@@ -229,19 +229,48 @@ export async function syncTasksFromNote(
       existingTaskMap.set(task.notePosition, task)
     }
 
-    // 4. 同步任务
+    // 🆕 4. 建立父子关系映射
+    // 记录每个位置的任务ID（用于子任务查找父任务）
+    const taskIdByPosition = new Map<number, string>()
+    
+    // 父任务栈：记录不同层级的最近任务
+    // 栈结构：[{ depth: 0, taskId: 'xxx', position: 0 }, { depth: 1, taskId: 'yyy', position: 3 }]
+    const parentTaskStack: Array<{ depth: number; taskId: string; position: number }> = []
+
+    // 5. 同步任务（顺序很重要！必须按 position 顺序处理）
     const processedPositions = new Set<number>()
 
     for (const parsedTask of parsedTasks) {
       processedPositions.add(parsedTask.position)
       const existingTask = existingTaskMap.get(parsedTask.position)
+      
+      // 🆕 找到父任务ID（如果是子任务）
+      let parentTaskId: string | null = null
+      const taskDepth = parsedTask.depth ?? 0
+      
+      if (taskDepth > 0) {
+        // 子任务：从栈中找到 depth = taskDepth - 1 的最近任务
+        for (let i = parentTaskStack.length - 1; i >= 0; i--) {
+          if (parentTaskStack[i].depth === taskDepth - 1) {
+            parentTaskId = parentTaskStack[i].taskId
+            console.log(`🔗 任务 "${parsedTask.title}" (depth=${taskDepth}) 的父任务是 position=${parentTaskStack[i].position}`)
+            break
+          }
+        }
+        
+        if (!parentTaskId) {
+          console.warn(`⚠️ 未找到 "${parsedTask.title}" 的父任务（depth=${taskDepth}），将作为顶层任务处理`)
+        }
+      }
 
       if (existingTask) {
         // 任务已存在，检查是否需要更新
         const needsUpdate = 
           existingTask.title !== parsedTask.title ||
           existingTask.completed !== parsedTask.completed ||
-          existingTask.estimatedDuration !== parsedTask.estimatedDuration
+          existingTask.estimatedDuration !== parsedTask.estimatedDuration ||
+          existingTask.parentTaskId !== parentTaskId ||   // 🆕 检查父任务变化
+          existingTask.depth !== taskDepth                 // 🆕 检查层级变化
 
         if (needsUpdate) {
           try {
@@ -249,32 +278,50 @@ export async function syncTasksFromNote(
               title: parsedTask.title,
               completed: parsedTask.completed,
               estimatedDuration: parsedTask.estimatedDuration,
+              parentTaskId: parentTaskId,    // 🆕 更新父任务
+              depth: taskDepth,               // 🆕 更新层级
             })
             result.updated++
-            console.log(`✅ 更新任务: ${parsedTask.title}`)
+            console.log(`✅ 更新任务: ${parsedTask.title} (depth=${taskDepth})`)
           } catch (error) {
             result.errors.push(`更新任务失败: ${parsedTask.title}`)
             console.error('❌ 更新任务失败:', error)
           }
         }
+        
+        // 🆕 记录任务ID（更新后的任务也要记录）
+        taskIdByPosition.set(parsedTask.position, existingTask.id)
+        
+        // 🆕 更新父任务栈
+        updateParentStack(parentTaskStack, taskDepth, existingTask.id, parsedTask.position)
+        
       } else {
         // 新任务，创建
         try {
           const newTask = await createDailyTask(userId, {
             title: parsedTask.title,
             completed: parsedTask.completed,
-            date: noteDate, // 默认任务属于笔记的当天
+            date: noteDate,
             noteDate: noteDate,
             notePosition: parsedTask.position,
             deadlineDatetime: parsedTask.deadlineDatetime,
             estimatedDuration: parsedTask.estimatedDuration,
+            parentTaskId: parentTaskId,    // 🆕 设置父任务
+            depth: taskDepth,               // 🆕 设置层级
           })
 
           // 为新任务创建矩阵记录（默认：待分类）
           await ensureTaskMatrix(userId, newTask.id)
 
           result.created++
-          console.log(`✅ 创建任务: ${parsedTask.title}`)
+          console.log(`✅ 创建任务: ${parsedTask.title} (depth=${taskDepth}, parent=${parentTaskId ? '有' : '无'})`)
+          
+          // 🆕 记录任务ID
+          taskIdByPosition.set(parsedTask.position, newTask.id)
+          
+          // 🆕 更新父任务栈
+          updateParentStack(parentTaskStack, taskDepth, newTask.id, parsedTask.position)
+          
         } catch (error) {
           result.errors.push(`创建任务失败: ${parsedTask.title}`)
           console.error('❌ 创建任务失败:', error)
@@ -282,7 +329,7 @@ export async function syncTasksFromNote(
       }
     }
 
-    // 5. 删除数据库中多余的任务（笔记中已移除）
+    // 6. 删除数据库中多余的任务（笔记中已移除）
     for (const existingTask of existingTasks) {
       if (!processedPositions.has(existingTask.notePosition)) {
         try {
@@ -296,7 +343,10 @@ export async function syncTasksFromNote(
       }
     }
 
+    const topLevelCount = parsedTasks.filter(t => (t.depth ?? 0) === 0).length
+    const subtaskCount = parsedTasks.length - topLevelCount
     console.log(`✅ 任务同步完成: 创建 ${result.created}, 更新 ${result.updated}, 删除 ${result.deleted}`)
+    console.log(`📊 任务结构: ${topLevelCount} 个顶层任务, ${subtaskCount} 个子任务`)
 
   } catch (error) {
     console.error('❌ syncTasksFromNote 异常:', error)
@@ -304,6 +354,29 @@ export async function syncTasksFromNote(
   }
 
   return result
+}
+
+/**
+ * 🆕 更新父任务栈
+ * 维护一个栈结构，记录不同层级的最近任务
+ */
+function updateParentStack(
+  stack: Array<{ depth: number; taskId: string; position: number }>,
+  currentDepth: number,
+  currentTaskId: string,
+  currentPosition: number
+): void {
+  // 移除 depth >= currentDepth 的栈项（同层或更深层的任务）
+  while (stack.length > 0 && stack[stack.length - 1].depth >= currentDepth) {
+    stack.pop()
+  }
+  
+  // 将当前任务推入栈
+  stack.push({
+    depth: currentDepth,
+    taskId: currentTaskId,
+    position: currentPosition
+  })
 }
 
 /**
