@@ -2781,63 +2781,10 @@ export default function NotesDashboardPage() {
     }
     
     if (buttonId === 'decompose-with-context') {
-      // 用户选择拆解
+      // 用户选择拆解：复用标准的“先提问再拆解”流程
       const taskTitle = context?.taskTitle
-      const taskId = context?.taskId
-      
       if (!taskTitle) return
-      
-      // 获取用户输入的上下文（从 taskContexts 或 taskContextInput）
-      const userContext = taskContexts.get(taskId) || taskContextInput.trim()
-      
-      // 显示确认消息
-      const confirmMsg: ChatMessage = {
-        role: 'assistant' as const,
-        content: [{ type: 'text' as const, text: '好的，让我帮你拆解这个任务～' }]
-      }
-      setChatMessages(prev => [...prev, confirmMsg])
-      
-      // 调用拆解服务（使用用户输入的上下文）
-      try {
-        const decomposeResult = await doubaoService.decomposeTask(
-          taskTitle,
-          userContext || '用户希望将此任务拆解为更小的步骤'
-        )
-        
-        if (decomposeResult.success && decomposeResult.message) {
-          // 解析子任务
-          const { parseDecompositionResponse } = await import('@/utils/taskDecomposition')
-          const subtasks = parseDecompositionResponse(decomposeResult.message)
-          
-          if (subtasks && subtasks.length > 0) {
-            // 显示拆解结果卡片
-            const decompositionCard: ChatMessage = {
-              role: 'assistant' as const,
-              content: [
-                {
-                  type: 'interactive' as const,
-                  interactive: {
-                    type: 'task-decomposition' as const,
-                    data: {
-                      parentTask: { title: taskTitle },
-                      suggestions: subtasks
-                    },
-                    isActive: true
-                  }
-                }
-              ]
-            }
-            setChatMessages(prev => [...prev, decompositionCard])
-          }
-        }
-      } catch (error) {
-        console.error('拆解失败:', error)
-        const errorMsg: ChatMessage = {
-          role: 'assistant' as const,
-          content: [{ type: 'text' as const, text: '抱歉，拆解失败了，请稍后再试～' }]
-        }
-        setChatMessages(prev => [...prev, errorMsg])
-      }
+      await handleDecomposeFromNoteEditor(taskTitle)
       
     } else if (buttonId === 'time-round-complete-back') {
       // Time 轮完成后返回到任务选择界面
@@ -2945,7 +2892,7 @@ export default function NotesDashboardPage() {
       setDecomposingTaskTitle(null)
       setTaskContextInput('')
     }
-  }, [taskContextInput, user, totalQuestions, completedRounds])
+  }, [taskContextInput, user, totalQuestions, completedRounds, handleDecomposeFromNoteEditor])
   
   // ⭐ 开始某一轮反思
   const startReflectionRound = useCallback(async (
