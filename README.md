@@ -1,6 +1,6 @@
-# 📋 任务管理器
+# 📋 TaskFlow
 
-一个基于 Next.js + Supabase 的现代化任务管理应用，支持用户认证、任务增删改查、优先级管理和过期提醒。
+让任务流动起来 - 基于 Next.js + Supabase 的智能任务管理应用，支持用户认证、任务增删改查、优先级管理和 AI 辅助决策。
 
 ## ✨ 功能特色
 
@@ -37,7 +37,7 @@
 
 ```bash
 git clone <repository-url>
-cd task-manager
+cd taskflow
 ```
 
 ### 2. 安装依赖
