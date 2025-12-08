@@ -177,18 +177,47 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
   const isConfirmDisabled = !isActive || (isMultiSelect ? selectedIds.size < 2 : !selectedId)
   
   const roundInfo = {
-    clarity: { emoji: '📝', label: '澄清', color: 'blue' },
-    time: { emoji: '⏱️', label: '时间规划', color: 'green' },
-    priority: { emoji: '🎯', label: '优先级排列', color: 'orange' }
+    clarity: { 
+      emoji: '📝', 
+      label: '澄清',
+      instruction: '请选择要进行「澄清」的任务：'
+    },
+    time: { 
+      emoji: '⏱️', 
+      label: '时间规划',
+      instruction: '请选择要进行「时间规划」的任务：'
+    },
+    priority: { 
+      emoji: '🎯', 
+      label: '优先级排列',
+      instruction: '思考一下：你想用什么维度来衡量任务优先级？（如：紧急性、重要性、影响力等）'
+    }
   }
   
   const info = roundInfo[roundType]
   
+  // 针对优先级排列的特殊说明
+  const priorityHint = roundType === 'priority' 
+    ? '已经明确放哪里的任务？直接去矩阵里拖拽即可。这里只选择你不确定的任务，我会通过几个问题帮你梳理清楚。'
+    : null
+  
   return (
-    <div className={`mt-3 p-3 bg-${info.color}-50 rounded-lg border border-${info.color}-200`}>
+    <div className="mt-3 p-3 bg-orange-50 rounded-lg border border-orange-200">
       <div className="text-sm font-medium text-gray-700 mb-2">
-        {info.emoji} 请选择要进行「{info.label}」的任务{isMultiSelect && '（至少选择2个）'}：
+        {info.emoji} {info.instruction}{isMultiSelect && '（至少选择2个）'}
       </div>
+      
+      {priorityHint && (
+        <div className="text-xs text-gray-600 mb-3 p-2 bg-white rounded border border-orange-200">
+          💡 {priorityHint}
+        </div>
+      )}
+      
+      {roundType === 'priority' && (
+        <div className="text-xs font-medium text-gray-600 mb-2">
+          🤔 选择你不确定放哪里的任务：
+        </div>
+      )}
       
       <div className="space-y-1.5 mb-3 max-h-48 overflow-y-auto">
         {uncompletedTasks.map((task, index) => {
@@ -198,23 +227,22 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
               key={`task-selection-${task.id}-${index}`}
               className={`flex items-center gap-2 p-2 rounded-md transition-colors ${
                 isSelected 
-                  ? `bg-${info.color}-100 border border-${info.color}-300` 
-                  : 'bg-white border border-gray-200 hover:border-gray-300'
-              } ${!isActive ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  ? 'bg-orange-100 border border-orange-300' 
+                  : 'bg-white border border-gray-200 hover:border-orange-300 hover:bg-orange-50'
+              } ${!isActive ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
             >
               <input
                 type={isMultiSelect ? 'checkbox' : 'radio'}
                 name={isMultiSelect ? undefined : `task-select-${roundType}`}
                 id={`task-select-${roundType}-${task.id}-${index}`}
                 checked={isSelected}
-                onChange={(e) => {
-                  e.stopPropagation()
+                onChange={() => {
                   if (isActive) {
                     selectTask(task.id)
                   }
                 }}
                 disabled={!isActive}
-                className={`w-4 h-4 text-${info.color}-600 border-gray-300 focus:ring-${info.color}-500 cursor-pointer`}
+                className="w-4 h-4 text-orange-600 border-gray-300 focus:ring-orange-500 cursor-pointer"
               />
               <label
                 htmlFor={`task-select-${roundType}-${task.id}-${index}`}
@@ -231,9 +259,9 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
         <button
           onClick={handleConfirm}
           disabled={isConfirmDisabled}
-          className={`flex-1 px-4 py-2 text-sm font-medium bg-${info.color}-500 text-white hover:bg-${info.color}-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
+          className="flex-1 px-4 py-2 text-sm font-medium bg-orange-500 text-white hover:bg-orange-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          确认选择{isMultiSelect && selectedIds.size > 0 && ` (${selectedIds.size})`}
+          {roundType === 'priority' ? '开始分析' : '确认选择'}{isMultiSelect && selectedIds.size > 0 && ` (${selectedIds.size})`}
         </button>
         <button
           onClick={onBack}
@@ -435,6 +463,7 @@ interface ChatSidebarProps {
   // ⭐ 反思流程优化 - 概述和任务选择
   onOverviewButtonClick?: (action: 'clarity' | 'time' | 'priority' | 'cancel') => void  // 概述页面按钮点击
   onRoundCompleteButtonClick?: (action: 'clarity' | 'time' | 'priority' | 'end') => void  // 轮次完成后按钮点击
+  onModeSwitchChoice?: (choice: 'yes' | 'no', roundType: 'clarity' | 'time' | 'priority') => void  // 🆕 模式切换选择
   onTaskSelectionConfirm?: (taskIds: string[]) => void  // 任务选择确认
   onTaskSelectionBack?: () => void  // 任务选择返回
   completedRounds?: ('clarity' | 'time' | 'priority')[]  // 已完成的轮次
@@ -534,6 +563,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   // ⭐ 反思流程优化
   onOverviewButtonClick,  // 概述按钮点击
   onRoundCompleteButtonClick,  // 轮次完成按钮点击
+  onModeSwitchChoice,  // 🆕 模式切换选择
   onTaskSelectionConfirm,  // 任务选择确认
   onTaskSelectionBack,  // 任务选择返回
   completedRounds,  // 已完成轮次
@@ -969,6 +999,34 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                                   </div>
                                 </div>
                               </button>
+                            </div>
+                          )}
+                          
+                          {/* 🆕 模式切换建议卡片 */}
+                          {content.interactive.type === 'mode-switch-suggestion' && (
+                            <div className="mt-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => {
+                                    const roundType = content.interactive.data?.roundType || 'priority'
+                                    onModeSwitchChoice?.('yes', roundType)
+                                  }}
+                                  disabled={content.interactive.isActive === false}
+                                  className="flex-1 px-4 py-2 text-sm font-medium bg-blue-500 text-white hover:bg-blue-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  ✅ 切换到矩阵模式
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    const roundType = content.interactive.data?.roundType || 'priority'
+                                    onModeSwitchChoice?.('no', roundType)
+                                  }}
+                                  disabled={content.interactive.isActive === false}
+                                  className="flex-1 px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  保持当前模式
+                                </button>
+                              </div>
                             </div>
                           )}
                           

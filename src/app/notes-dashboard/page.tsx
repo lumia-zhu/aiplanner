@@ -2140,7 +2140,7 @@ export default function NotesDashboardPage() {
     // 设置待选择任务的轮次
     setPendingRound(action)
     
-    // 显示任务选择消息（分成两条）
+    // 显示任务选择消息
     const roundInfo = {
       clarity: { emoji: '📝', label: '澄清任务' },
       time: { emoji: '⏱️', label: '时间规划' },
@@ -2154,23 +2154,43 @@ export default function NotesDashboardPage() {
       content: [{ type: 'text' as const, text: `${info.emoji} 好的，让我们来做「${info.label}」～` }]
     }
     
-    // 第二条：任务选择卡片
-    const selectionMessage: ChatMessage = {
-      role: 'assistant' as const,
-      content: [
-        { 
-          type: 'interactive' as const, 
-          interactive: {
-            type: 'reflection-task-selection' as const,
-            data: { roundType: action },
-            isActive: true
-          }
-        }
-      ]
-    }
+    setChatMessages(prev => [...prev, confirmMessage])
     
-    setChatMessages(prev => [...prev, confirmMessage, selectionMessage])
-  }, [])
+    // 🆕 如果是优先级排列，且当前在编辑器模式，询问是否切换到矩阵模式
+    if (action === 'priority' && viewMode === 'editor') {
+      const modeSwitchMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [
+          { type: 'text' as const, text: '💡 优先级排列在矩阵视图中会更方便，要切换到矩阵模式吗？' },
+          { 
+            type: 'interactive' as const, 
+            interactive: {
+              type: 'mode-switch-suggestion' as const,
+              data: { targetMode: 'matrix', roundType: action },
+              isActive: true
+            }
+          }
+        ]
+      }
+      setChatMessages(prev => [...prev, modeSwitchMessage])
+    } else {
+      // 直接显示任务选择卡片
+      const selectionMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [
+          { 
+            type: 'interactive' as const, 
+            interactive: {
+              type: 'reflection-task-selection' as const,
+              data: { roundType: action },
+              isActive: true
+            }
+          }
+        ]
+      }
+      setChatMessages(prev => [...prev, selectionMessage])
+    }
+  }, [viewMode])
   
   // ⭐ 处理轮次完成后按钮点击
   const handleRoundCompleteButtonClick = useCallback((action: 'clarity' | 'time' | 'priority' | 'end') => {
@@ -2377,6 +2397,59 @@ export default function NotesDashboardPage() {
     // 清除待选择状态
     setPendingRound(null)
   }, [pendingRound, reflectionSessionId, reflectionScanResult, reflectionTasks])
+  
+  // 🆕 处理模式切换选择
+  const handleModeSwitchChoice = useCallback((choice: 'yes' | 'no', roundType: 'clarity' | 'time' | 'priority') => {
+    console.log('🔀 模式切换选择:', choice, '轮次:', roundType)
+    
+    // 禁用模式切换卡片
+    setChatMessages(prev => prev.map(msg => ({
+      ...msg,
+      content: msg.content.map((c: any) => 
+        c.type === 'interactive' && c.interactive?.type === 'mode-switch-suggestion'
+          ? { ...c, interactive: { ...c.interactive, isActive: false } }
+          : c
+      )
+    })))
+    
+    // 记录用户偏好到 localStorage
+    if (choice === 'yes') {
+      localStorage.setItem('priorityViewPreference', 'matrix')
+      setViewMode('matrix')
+      
+      const switchMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [{ type: 'text' as const, text: '✅ 已切换到矩阵模式～' }]
+      }
+      setChatMessages(prev => [...prev, switchMessage])
+    } else {
+      localStorage.setItem('priorityViewPreference', 'editor')
+      
+      const keepMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [{ type: 'text' as const, text: '👌 好的，保持当前模式～' }]
+      }
+      setChatMessages(prev => [...prev, keepMessage])
+    }
+    
+    // 显示任务选择卡片
+    setTimeout(() => {
+      const selectionMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [
+          { 
+            type: 'interactive' as const, 
+            interactive: {
+              type: 'reflection-task-selection' as const,
+              data: { roundType },
+              isActive: true
+            }
+          }
+        ]
+      }
+      setChatMessages(prev => [...prev, selectionMessage])
+    }, 300)
+  }, [])
   
   // ⭐ 处理任务选择返回
   const handleTaskSelectionBack = useCallback(() => {
@@ -2716,6 +2789,9 @@ export default function NotesDashboardPage() {
       setDecomposingTaskTitle(null)
       setTaskContextInput('')
       
+      // 🔧 从 context 中获取原来的 roundType，而不是硬编码 'clarity'
+      const originalRoundType = context?.roundType || 'clarity'
+      
       const confirmMessage: ChatMessage = {
         role: 'assistant' as const,
         content: [{ type: 'text' as const, text: '好的，让我们选择其他任务～' }]
@@ -2729,14 +2805,14 @@ export default function NotesDashboardPage() {
             type: 'interactive' as const, 
             interactive: {
               type: 'reflection-task-selection' as const,
-              data: { roundType: 'clarity' },
+              data: { roundType: originalRoundType },
               isActive: true
             }
           }
         ]
       }
       
-      setPendingRound('clarity')
+      setPendingRound(originalRoundType)
       setChatMessages(prev => [...prev, confirmMessage, selectionMessage])
       
       return
@@ -2744,6 +2820,9 @@ export default function NotesDashboardPage() {
     
     // 处理返回任务选择按钮
     if (buttonId === 'back-to-selection') {
+      // 🔧 从 context 中获取原来的 roundType，而不是硬编码 'clarity'
+      const originalRoundType = context?.roundType || 'clarity'
+      
       const confirmMessage: ChatMessage = {
         role: 'assistant' as const,
         content: [{ type: 'text' as const, text: '好的，让我们选择其他任务～' }]
@@ -2757,14 +2836,14 @@ export default function NotesDashboardPage() {
             type: 'interactive' as const, 
             interactive: {
               type: 'reflection-task-selection' as const,
-              data: { roundType: 'clarity' },
+              data: { roundType: originalRoundType },
               isActive: true
             }
           }
         ]
       }
       
-      setPendingRound('clarity')
+      setPendingRound(originalRoundType)
       setChatMessages(prev => [...prev, confirmMessage, selectionMessage])
       
       // 清空拆解状态
@@ -2792,12 +2871,15 @@ export default function NotesDashboardPage() {
       setDecomposingTaskTitle(null)
       setTaskContextInput('')
       
+      // 🔧 从 context 中获取 roundType，默认为 'time'
+      const originalRoundType = context?.roundType || 'time'
+      
       const confirmMessage: ChatMessage = {
         role: 'assistant' as const,
         content: [{ type: 'text' as const, text: '好的，让我们选择其他任务～' }]
       }
       
-      // 重新显示时间规划任务选择卡片
+      // 重新显示任务选择卡片
       const selectionMessage: ChatMessage = {
         role: 'assistant' as const,
         content: [
@@ -2805,14 +2887,14 @@ export default function NotesDashboardPage() {
             type: 'interactive' as const, 
             interactive: {
               type: 'reflection-task-selection' as const,
-              data: { roundType: 'time' },
+              data: { roundType: originalRoundType },
               isActive: true
             }
           }
         ]
       }
       
-      setPendingRound('time')
+      setPendingRound(originalRoundType)
       setChatMessages(prev => [...prev, confirmMessage, selectionMessage])
       
     } else if (buttonId === 'priority-round-complete-back') {
@@ -3657,24 +3739,26 @@ export default function NotesDashboardPage() {
     console.log('🤖 Agent 模式：开始处理消息')
     setIsAgentRunning(true)
     
+    // 1. 先创建用户消息
+    const userMessage: ChatMessage = {
+      role: 'user',
+      content: [{ type: 'text', text: chatMessage }]
+    }
+    
     // ✅ 清除上一次对话的推理过程卡片（思考、Action、Observation）
-    // 只保留纯文本的对话历史作为上下文
-    setChatMessages(prev => 
-      prev.filter(msg => {
+    // 只保留纯文本的对话历史作为上下文，同时添加新的用户消息
+    setChatMessages(prev => {
+      const filtered = prev.filter(msg => {
         // 保留所有用户消息
         if (msg.role === 'user') return true
         
         // 对于 AI 消息，只保留纯文本类型（不保留 interactive 卡片）
         return msg.content.some((c: any) => c.type === 'text')
       })
-    )
-    
-    // 1. 添加用户消息
-    const userMessage: ChatMessage = {
-      role: 'user',
-      content: [{ type: 'text', text: chatMessage }]
-    }
-    setChatMessages(prev => [...prev, userMessage])
+      
+      // 一次性添加用户消息，避免多次 setChatMessages 调用
+      return [...filtered, userMessage]
+    })
     
     // 💾 保存用户消息到数据库
     try {
@@ -5774,6 +5858,7 @@ ${matrixStats || '（无待办）'}
               // ⭐ 反思流程优化 props
               onOverviewButtonClick={handleOverviewButtonClick}
               onRoundCompleteButtonClick={handleRoundCompleteButtonClick}
+              onModeSwitchChoice={handleModeSwitchChoice}
               onTaskSelectionConfirm={handleTaskSelectionConfirm}
               onTaskSelectionBack={handleTaskSelectionBack}
               completedRounds={completedRounds}
