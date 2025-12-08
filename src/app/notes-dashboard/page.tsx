@@ -1891,78 +1891,59 @@ export default function NotesDashboardPage() {
         
         console.log('📋 恢复会话，当前任务数:', taskSnapshots.length)
         
-        // 🆕 使用新的概述界面恢复
-        // 如果当前轮次是 overview 或者没有设置，显示概述 + 4按钮
-        if (!existingSession.currentRound || existingSession.currentRound === 'overview') {
-          // 显示加载消息
-          const loadingMessage: ChatMessage = {
-            role: 'assistant' as const,
-            content: [{ type: 'text' as const, text: '📂 欢迎回来！让我重新看看你的任务...' }]
-          }
-          setChatMessages(prev => {
-            const hasLoading = prev.some(m => m.content?.[0]?.text?.includes('欢迎回来'))
-            if (hasLoading) return prev
-            return [...prev, loadingMessage]
-          })
-          
-          // 生成概述消息
-          const scan = existingSession.scanResult || {
-            totalTaskCount: taskSnapshots.length,
-            vagueTaskCount: 0,
-            unestimatedTaskCount: 0,
-            noPriorityCount: 0,
-            workloadLevel: 'medium' as const,
-            crossDayTasks: [],
-            deadlineConflicts: []
-          }
-          
-          const overviewText = await generateOverviewMessage(taskSnapshots, scan)
-          
-          const overviewMessage: ChatMessage = {
-            role: 'assistant' as const,
-            content: [
-              { type: 'text' as const, text: overviewText + '\n\n你想从哪个方面开始？' },
-              { 
-                type: 'interactive' as const, 
-                interactive: {
-                  type: 'reflection-overview' as const,
-                  data: { taskCount: taskSnapshots.length },
-                  isActive: true
-                }
-              }
-            ]
-          }
-          setChatMessages(prev => {
-            // 移除加载消息，添加概述消息
-            const filtered = prev.filter(m => !m.content?.[0]?.text?.includes('欢迎回来！让我重新看看你的任务'))
-            const hasOverview = filtered.some(m => 
-              m.content?.some((c: any) => c.interactive?.type === 'reflection-overview')
-            )
-            if (hasOverview) return prev
-            return [...filtered, overviewMessage]
-          })
-        } else {
-          // 如果有正在进行的轮次，恢复到该轮次
-          const round = existingSession.currentRound as ReflectionRoundType
-          // 不在这里设置 currentReflectionRound，让 startReflectionRound 根据轮次类型决定
-          
-          setTimeout(() => {
-            startReflectionRound(
-              round, 
-              taskSnapshots, 
-              existingSession.scanResult || {
-                totalTaskCount: taskSnapshots.length,
-                vagueTaskCount: 0,
-                unestimatedTaskCount: 0,
-                noPriorityCount: 0,
-                workloadLevel: 'medium',
-                crossDayTasks: [],
-                deadlineConflicts: []
-              }, 
-              existingSession.id
-            )
-          }, 1000)
+        // 🆕 始终从概述界面恢复，让用户重新选择（即使之前在某个轮次中途退出）
+        // 显示加载消息
+        const loadingMessage: ChatMessage = {
+          role: 'assistant' as const,
+          content: [{ type: 'text' as const, text: '📂 欢迎回来！让我重新看看你的任务...' }]
         }
+        setChatMessages(prev => {
+          const hasLoading = prev.some(m => m.content?.[0]?.text?.includes('欢迎回来'))
+          if (hasLoading) return prev
+          return [...prev, loadingMessage]
+        })
+        
+        // 生成概述消息
+        const scan = existingSession.scanResult || {
+          totalTaskCount: taskSnapshots.length,
+          vagueTaskCount: 0,
+          unestimatedTaskCount: 0,
+          noPriorityCount: 0,
+          workloadLevel: 'medium' as const,
+          crossDayTasks: [],
+          deadlineConflicts: []
+        }
+        
+        const overviewText = await generateOverviewMessage(taskSnapshots, scan)
+        
+        const overviewMessage: ChatMessage = {
+          role: 'assistant' as const,
+          content: [
+            { type: 'text' as const, text: overviewText + '\n\n你想从哪个方面开始？' },
+            { 
+              type: 'interactive' as const, 
+              interactive: {
+                type: 'reflection-overview' as const,
+                data: { taskCount: taskSnapshots.length },
+                isActive: true
+              }
+            }
+          ]
+        }
+        setChatMessages(prev => {
+          // 移除加载消息，添加概述消息
+          const filtered = prev.filter(m => !m.content?.[0]?.text?.includes('欢迎回来！让我重新看看你的任务'))
+          const hasOverview = filtered.some(m => 
+            m.content?.some((c: any) => c.interactive?.type === 'reflection-overview')
+          )
+          if (hasOverview) return prev
+          return [...filtered, overviewMessage]
+        })
+        
+        // 重置会话状态到概述阶段
+        await updateReflectionSession(existingSession.id, {
+          currentRound: 'overview'
+        })
         
         return existingSession
       }
