@@ -79,7 +79,10 @@ import {
   createDailyReflection, 
   updateReflectionAnswer, 
   skipReflectionQuestion, 
-  completeReflection 
+  completeReflection,
+  getReflectionHistory,
+  getReflectionHistoryCount,
+  batchUpdateReflectionAnswers
 } from '@/lib/dailyReflections'
 import { generateReflectionSummary as generateDailyReflectionSummary } from '@/lib/reflectionSummaryAI'
 import type { DailyReflection } from '@/types/daily-reflection'
@@ -188,6 +191,12 @@ export default function NotesDashboardPage() {
   const [dailyReflectionQuestions, setDailyReflectionQuestions] = useState<[string, string, string] | null>(null)  // 3个问题
   const [dailyReflectionAnswers, setDailyReflectionAnswers] = useState<(string | null)[]>([null, null, null])  // 3个回答
   const [currentDailyQuestionIndex, setCurrentDailyQuestionIndex] = useState(0)  // 当前问题索引（0-2）
+  
+  // ⭐ 历史反思状态
+  const [reflectionHistoryData, setReflectionHistoryData] = useState<any[]>([])  // 历史记录数据
+  const [reflectionHistoryOffset, setReflectionHistoryOffset] = useState(0)  // 分页偏移
+  const [reflectionHistoryHasMore, setReflectionHistoryHasMore] = useState(false)  // 是否有更多
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false)  // 加载中
   
   logger.debug('Agent 状态:', { agentInstance: !!agentInstance, agentMemory: !!agentMemory, isAgentRunning })
   
@@ -2209,7 +2218,8 @@ export default function NotesDashboardPage() {
                 question: newReflection.question_1,
                 questionNumber: 1,
                 totalQuestions: 3,
-                reflectionId: newReflection.id
+                reflectionId: newReflection.id,
+                allQuestions: [newReflection.question_1, newReflection.question_2, newReflection.question_3]
               },
               isActive: true
             }
@@ -2239,7 +2249,7 @@ export default function NotesDashboardPage() {
     }
   }, [user])
   
-  // ⭐ 处理每日反思回答
+  // ⭐ 处理每日反思回答（优化版：批量提交，减少等待时间）
   const handleDailyReflectionAnswer = useCallback(async (data: any) => {
     console.log('💬 handleDailyReflectionAnswer 被调用:', { 
       data, 
@@ -2248,57 +2258,51 @@ export default function NotesDashboardPage() {
       状态中的问题数量: dailyReflectionQuestions?.length 
     })
     
-    const { questionNumber, answer, reflectionId, question } = data
+    const { questionNumber, answer, reflectionId, question, allQuestions } = data
     
     // 使用传入的 reflectionId（而不是状态中的 currentReflectionId）
     const targetReflectionId = reflectionId || currentReflectionId
+    
+    // 使用传入的 allQuestions（而不是状态中的 dailyReflectionQuestions）
+    const questions = allQuestions || dailyReflectionQuestions
     
     if (!targetReflectionId) {
       console.error('❌ reflectionId 缺失')
       return
     }
     
-    console.log('💬 保存反思回答:', { questionNumber, answer, reflectionId: targetReflectionId })
+    console.log('💬 保存反思回答（本地）:', { questionNumber, answer, reflectionId: targetReflectionId, questions })
     
     try {
-      // 1. 保存回答到数据库
-      const updated = await updateReflectionAnswer(targetReflectionId, questionNumber, answer)
-      console.log('✅ 数据库更新成功:', updated)
+      // ⚡ 优化：先更新本地状态，立即切换问题（不等待数据库）
       
-      // 2. 同步更新状态（如果不一致）
+      // 1. 同步 reflectionId（如果不一致）
       if (currentReflectionId !== targetReflectionId) {
         console.log('🔄 同步 reflectionId:', targetReflectionId)
         setCurrentReflectionId(targetReflectionId)
       }
       
-      // 3. 如果状态中的问题列表为空，从数据库记录中恢复
-      if (!dailyReflectionQuestions && updated) {
-        console.log('🔄 从数据库记录恢复问题列表')
-        setDailyReflectionQuestions([
-          updated.question_1,
-          updated.question_2,
-          updated.question_3
-        ])
-      }
-      
-      // 4. 更新本地答案状态
+      // 2. 更新本地答案状态（立即更新，无需等待数据库）
+      let updatedAnswers: (string | null)[]
       setDailyReflectionAnswers(prev => {
         const newAnswers = [...prev]
         newAnswers[questionNumber - 1] = answer
-        console.log('📝 更新本地答案:', newAnswers)
+        updatedAnswers = newAnswers
+        console.log('📝 更新本地答案（即时）:', newAnswers)
         return newAnswers
       })
       setCurrentDailyQuestionIndex(questionNumber)
       
-      // 5. 判断是否还有下一个问题
+      // 3. 判断是否还有下一个问题
       console.log('🔢 检查是否有下一个问题:', { questionNumber, totalQuestions: 3 })
       
       if (questionNumber < 3) {
-        // 显示下一个问题 - 更新现有卡片而不是创建新卡片
-        const nextQuestionText = updated[`question_${questionNumber + 1}` as keyof typeof updated] as string
-        console.log('➡️ 更新到下一个问题:', { 
+        // 立即显示下一个问题（从传入的 allQuestions 获取）
+        const nextQuestionText = questions?.[questionNumber] || ''
+        console.log('⚡ 立即切换到下一个问题:', { 
           nextQuestionNumber: questionNumber + 1, 
-          nextQuestionText 
+          nextQuestionText,
+          questions
         })
         
         // 找到最后一个问题卡片并更新它
@@ -2334,7 +2338,8 @@ export default function NotesDashboardPage() {
                     question: nextQuestionText,
                     questionNumber: questionNumber + 1,
                     totalQuestions: 3,
-                    reflectionId: targetReflectionId
+                    reflectionId: targetReflectionId,
+                    allQuestions: questions // 传递所有问题
                   },
                   isActive: true
                 }
@@ -2353,7 +2358,8 @@ export default function NotesDashboardPage() {
                     question: nextQuestionText,
                     questionNumber: questionNumber + 1,
                     totalQuestions: 3,
-                    reflectionId: targetReflectionId
+                    reflectionId: targetReflectionId,
+                    allQuestions: questions // 传递所有问题
                   },
                   isActive: true
                 }
@@ -2364,8 +2370,8 @@ export default function NotesDashboardPage() {
           return messages
         })
       } else {
-        // 所有问题已回答，生成AI总结
-        console.log('🎉 所有问题已回答，开始生成总结')
+        // 所有问题已回答完毕
+        console.log('🎉 所有问题已回答，批量提交到数据库')
         
         // 禁用问题卡片（但保留显示）
         setChatMessages(prev => 
@@ -2380,6 +2386,14 @@ export default function NotesDashboardPage() {
           }))
         )
         
+        // 批量提交所有答案到数据库（后台操作）
+        console.log('📦 批量提交答案:', updatedAnswers!)
+        await batchUpdateReflectionAnswers(
+          targetReflectionId, 
+          updatedAnswers! as [string | null, string | null, string | null]
+        )
+        console.log('✅ 批量提交成功')
+        
         // 生成AI总结
         await completeDailyReflection()
       }
@@ -2391,66 +2405,6 @@ export default function NotesDashboardPage() {
         content: [{ type: 'text' as const, text: `❌ 保存失败: ${error.message}` }]
       }
       setChatMessages(prev => [...prev, errorMessage])
-    }
-  }, [currentReflectionId, dailyReflectionQuestions])
-  
-  // ⭐ 处理每日反思跳过
-  const handleDailyReflectionSkip = useCallback(async (data: any) => {
-    if (!currentReflectionId || !dailyReflectionQuestions) return
-    
-    const { questionNumber } = data
-    console.log('⏭️ 跳过反思问题:', { questionNumber })
-    
-    try {
-      // 1. 更新数据库（跳过）
-      await skipReflectionQuestion(currentReflectionId, questionNumber)
-      
-      // 2. 更新本地状态
-      setCurrentDailyQuestionIndex(questionNumber)
-      
-      // 3. 禁用当前问题卡片
-      setChatMessages(prev => 
-        prev.map(msg => ({
-          ...msg,
-          content: msg.content?.map(c => 
-            c.type === 'interactive' && 
-            c.interactive.type === 'daily-reflection-question' && 
-            c.interactive.data.questionNumber === questionNumber
-              ? { ...c, interactive: { ...c.interactive, isActive: false } }
-              : c
-          )
-        }))
-      )
-      
-      // 4. 判断是否还有下一个问题
-      if (questionNumber < 3) {
-        // 显示下一个问题
-        const nextQuestion: ChatMessage = {
-          role: 'assistant' as const,
-          content: [
-            {
-              type: 'interactive' as const,
-              interactive: {
-                type: 'daily-reflection-question',
-                data: {
-                  question: dailyReflectionQuestions[questionNumber],
-                  questionNumber: questionNumber + 1,
-                  totalQuestions: 3,
-                  reflectionId: currentReflectionId
-                },
-                isActive: true
-              }
-            }
-          ]
-        }
-        setChatMessages(prev => [...prev, nextQuestion])
-      } else {
-        // 所有问题已处理，生成AI总结
-        await completeDailyReflection()
-      }
-      
-    } catch (error: any) {
-      console.error('❌ 跳过问题失败:', error)
     }
   }, [currentReflectionId, dailyReflectionQuestions])
   
@@ -2540,6 +2494,248 @@ export default function NotesDashboardPage() {
       setChatMessages(prev => [...prev, errorMessage])
     }
   }, [user])
+  
+  // ⭐ 处理每日反思跳过（优化版：立即切换，减少等待）
+  const handleDailyReflectionSkip = useCallback(async (data: any) => {
+    console.log('⏭️ handleDailyReflectionSkip 被调用:', { 
+      data, 
+      currentReflectionId, 
+      dailyReflectionQuestions 
+    })
+    
+    const { questionNumber, reflectionId, question, allQuestions } = data
+    
+    // 使用传入的 reflectionId（而不是状态中的 currentReflectionId）
+    const targetReflectionId = reflectionId || currentReflectionId
+    
+    // 使用传入的 allQuestions（而不是状态中的 dailyReflectionQuestions）
+    const questions = allQuestions || dailyReflectionQuestions
+    
+    if (!targetReflectionId) {
+      console.error('❌ reflectionId 缺失')
+      return
+    }
+    
+    console.log('⏭️ 跳过反思问题（本地）:', { questionNumber, reflectionId: targetReflectionId, questions })
+    
+    try {
+      // ⚡ 优化：立即更新本地状态，不等待数据库
+      
+      // 1. 同步 reflectionId
+      if (currentReflectionId !== targetReflectionId) {
+        console.log('🔄 同步 reflectionId:', targetReflectionId)
+        setCurrentReflectionId(targetReflectionId)
+      }
+      
+      // 2. 更新本地状态（跳过=不保存答案）
+      let updatedAnswers: (string | null)[]
+      setDailyReflectionAnswers(prev => {
+        updatedAnswers = [...prev]
+        // 跳过的问题保持 null
+        console.log('⏭️ 跳过问题，本地答案保持:', updatedAnswers)
+        return updatedAnswers
+      })
+      setCurrentDailyQuestionIndex(questionNumber)
+      
+      // 3. 判断是否还有下一个问题
+      console.log('🔢 检查是否有下一个问题:', { questionNumber, totalQuestions: 3 })
+      
+      if (questionNumber < 3) {
+        // 立即显示下一个问题（从传入的 allQuestions 获取）
+        const nextQuestionText = questions?.[questionNumber] || ''
+        console.log('⚡ 立即切换到下一个问题:', { 
+          nextQuestionNumber: questionNumber + 1, 
+          nextQuestionText,
+          questions
+        })
+        
+        // 找到最后一个问题卡片并更新它
+        setChatMessages(prev => {
+          const messages = [...prev]
+          let foundIndex = -1
+          
+          // 从后往前找最后一个每日反思问题卡片
+          for (let i = messages.length - 1; i >= 0; i--) {
+            const msg = messages[i]
+            const hasReflectionQuestion = msg.content?.some(c => 
+              c.type === 'interactive' && 
+              c.interactive?.type === 'daily-reflection-question'
+            )
+            
+            if (hasReflectionQuestion) {
+              foundIndex = i
+              console.log('🔍 找到问题卡片，索引:', i)
+              break
+            }
+          }
+          
+          if (foundIndex !== -1) {
+            // 更新这个卡片的内容
+            console.log('🔄 更新卡片内容')
+            messages[foundIndex] = {
+              ...messages[foundIndex],
+              content: [{
+                type: 'interactive' as const,
+                interactive: {
+                  type: 'daily-reflection-question',
+                  data: {
+                    question: nextQuestionText,
+                    questionNumber: questionNumber + 1,
+                    totalQuestions: 3,
+                    reflectionId: targetReflectionId,
+                    allQuestions: questions // 传递所有问题
+                  },
+                  isActive: true
+                }
+              }]
+            }
+          } else {
+            console.error('❌ 未找到问题卡片')
+          }
+          
+          return messages
+        })
+      } else {
+        // 所有问题已处理完毕
+        console.log('✅ 所有问题已完成，批量提交到数据库')
+        
+        // 禁用问题卡片
+        setChatMessages(prev => 
+          prev.map(msg => ({
+            ...msg,
+            content: msg.content?.map(c => 
+              c.type === 'interactive' && 
+              c.interactive?.type === 'daily-reflection-question'
+                ? { ...c, interactive: { ...c.interactive, isActive: false } }
+                : c
+            )
+          }))
+        )
+        
+        // 批量提交所有答案到数据库（后台操作）
+        console.log('📦 批量提交答案:', updatedAnswers!)
+        await batchUpdateReflectionAnswers(
+          targetReflectionId, 
+          updatedAnswers! as [string | null, string | null, string | null]
+        )
+        console.log('✅ 批量提交成功')
+        
+        // 生成AI总结
+        await completeDailyReflection()
+      }
+      
+    } catch (error: any) {
+      console.error('❌ 跳过问题失败:', error)
+      const errorMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [{ type: 'text' as const, text: `❌ 跳过失败: ${error.message}` }]
+      }
+      setChatMessages(prev => [...prev, errorMessage])
+    }
+  }, [currentReflectionId, dailyReflectionQuestions, completeDailyReflection])
+  
+  // ⭐ 查看历史反思
+  const viewReflectionHistory = useCallback(async () => {
+    if (!user) return
+    
+    console.log('📚 查看历史反思')
+    setIsLoadingHistory(true)
+    
+    try {
+      // 获取历史记录（第一页）
+      const history = await getReflectionHistory(user.id, 10, 0)
+      const totalCount = await getReflectionHistoryCount(user.id)
+      
+      console.log('📚 历史记录:', { count: history.length, total: totalCount })
+      
+      // 更新状态
+      setReflectionHistoryData(history)
+      setReflectionHistoryOffset(history.length)
+      setReflectionHistoryHasMore(history.length < totalCount)
+      
+      // 显示历史记录卡片
+      const historyMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [
+          {
+            type: 'interactive' as const,
+            interactive: {
+              type: 'daily-reflection-history',
+              data: {
+                reflections: history,
+                hasMore: history.length < totalCount,
+                isLoading: false
+              },
+              isActive: true
+            }
+          }
+        ]
+      }
+      
+      setChatMessages(prev => [...prev, historyMessage])
+      
+    } catch (error: any) {
+      console.error('❌ 查看历史反思失败:', error)
+      const errorMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [{ type: 'text' as const, text: `❌ 加载历史记录失败: ${error.message}` }]
+      }
+      setChatMessages(prev => [...prev, errorMessage])
+    } finally {
+      setIsLoadingHistory(false)
+    }
+  }, [user])
+  
+  // ⭐ 加载更多历史反思
+  const loadMoreReflectionHistory = useCallback(async () => {
+    if (!user || isLoadingHistory) return
+    
+    console.log('📚 加载更多历史反思, offset:', reflectionHistoryOffset)
+    setIsLoadingHistory(true)
+    
+    try {
+      // 获取下一页
+      const moreHistory = await getReflectionHistory(user.id, 10, reflectionHistoryOffset)
+      const totalCount = await getReflectionHistoryCount(user.id)
+      
+      // 合并数据
+      const allHistory = [...reflectionHistoryData, ...moreHistory]
+      const newOffset = allHistory.length
+      const hasMore = newOffset < totalCount
+      
+      // 更新状态
+      setReflectionHistoryData(allHistory)
+      setReflectionHistoryOffset(newOffset)
+      setReflectionHistoryHasMore(hasMore)
+      
+      // 更新卡片
+      setChatMessages(prev => 
+        prev.map(msg => ({
+          ...msg,
+          content: msg.content?.map(c => 
+            c.type === 'interactive' && c.interactive?.type === 'daily-reflection-history'
+              ? {
+                  ...c,
+                  interactive: {
+                    ...c.interactive,
+                    data: {
+                      reflections: allHistory,
+                      hasMore,
+                      isLoading: false
+                    }
+                  }
+                }
+              : c
+          )
+        }))
+      )
+      
+    } catch (error: any) {
+      console.error('❌ 加载更多失败:', error)
+    } finally {
+      setIsLoadingHistory(false)
+    }
+  }, [user, isLoadingHistory, reflectionHistoryOffset, reflectionHistoryData])
   
   // ⭐ 处理概述页面按钮点击
   const handleOverviewButtonClick = useCallback((action: 'clarity' | 'time' | 'priority' | 'cancel') => {
@@ -2957,12 +3153,31 @@ export default function NotesDashboardPage() {
     }
     
     if (buttonId === 'daily-reflection-view-history') {
-      // TODO: 跳转到历史反思页面
-      const historyMessage: ChatMessage = {
-        role: 'assistant' as const,
-        content: [{ type: 'text' as const, text: '🚧 历史反思功能开发中...' }]
-      }
-      setChatMessages(prev => [...prev, historyMessage])
+      // 查看历史反思
+      await viewReflectionHistory()
+      return
+    }
+    
+    if (buttonId === 'daily-reflection-load-more') {
+      // 加载更多历史
+      await loadMoreReflectionHistory()
+      return
+    }
+    
+    if (buttonId === 'daily-reflection-history-close') {
+      // 关闭历史卡片
+      setChatMessages(prev => 
+        prev.filter(msg => 
+          !msg.content?.some(c => 
+            c.type === 'interactive' && 
+            c.interactive?.type === 'daily-reflection-history'
+          )
+        )
+      )
+      // 重置历史状态
+      setReflectionHistoryData([])
+      setReflectionHistoryOffset(0)
+      setReflectionHistoryHasMore(false)
       return
     }
     
@@ -5969,13 +6184,36 @@ ${matrixStats || '（无待办）'}
                   // 调用每日反思函数（而不是任务反思）
                   startDailyReflection()
                 }}
-                className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center space-x-2"
+                className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2 text-sm"
                 title="开启今日反思"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                 </svg>
                 <span>开启今日反思</span>
+              </button>
+              
+              {/* 历史反思按钮 */}
+              <button
+                onClick={async () => {
+                  // 如果侧边栏未打开，先打开
+                  if (!isChatSidebarOpen) {
+                    setIsChatSidebarOpen(true)
+                    if (typeof window !== 'undefined') {
+                      localStorage.setItem('chatSidebarOpen', JSON.stringify(true))
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 100))
+                  }
+                  // 调用查看历史反思函数
+                  viewReflectionHistory()
+                }}
+                className="bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600 transition-colors flex items-center gap-2 text-sm"
+                title="查看历史反思"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>历史反思</span>
               </button>
               
               {/* 🧪 清空反思按钮（仅开发环境） */}
@@ -6036,7 +6274,7 @@ ${matrixStats || '（无待办）'}
                       alert(`❌ 清空失败: ${error.message}`)
                     }
                   }}
-                  className="bg-red-500 text-white px-3 py-2 rounded-lg hover:bg-red-600 transition-colors flex items-center space-x-1 text-sm"
+                  className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors flex items-center gap-2 text-sm"
                   title="清空今日反思（测试用）"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

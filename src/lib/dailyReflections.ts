@@ -266,6 +266,58 @@ export async function completeReflection(
 }
 
 /**
+ * 📦 批量更新所有反思答案（优化版，减少数据库调用）
+ * 
+ * @param reflectionId - 反思记录ID
+ * @param answers - 三个问题的答案数组
+ * @returns 更新后的反思记录
+ */
+export async function batchUpdateReflectionAnswers(
+  reflectionId: string,
+  answers: [string | null, string | null, string | null]
+): Promise<DailyReflection> {
+  try {
+    logger.debug('批量更新反思回答:', { reflectionId, answers })
+    
+    // 构建更新对象
+    const updates: any = {
+      answer_1: answers[0],
+      answer_2: answers[1],
+      answer_3: answers[2],
+      current_question_index: 3 // 标记为已完成所有问题
+    }
+    
+    const { data, error } = await supabase
+      .from('daily_reflections')
+      .update(updates)
+      .eq('id', reflectionId)
+      .select()
+      .maybeSingle()
+    
+    if (error) {
+      logger.error('批量更新反思回答失败:', {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint
+      })
+      throw new Error(`批量更新回答失败: ${error.message || error.code}`)
+    }
+    
+    if (!data) {
+      logger.error('批量更新失败: 未找到记录', { reflectionId })
+      throw new Error(`未找到反思记录: ${reflectionId}`)
+    }
+    
+    logger.debug('批量更新成功:', data)
+    return data as DailyReflection
+  } catch (error) {
+    logger.error('batchUpdateReflectionAnswers 错误:', error)
+    throw error
+  }
+}
+
+/**
  * ⏭️ 跳过当前问题（不保存回答）
  * 
  * @param reflectionId - 反思记录ID

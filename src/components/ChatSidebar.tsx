@@ -167,7 +167,7 @@ const DailyReflectionQuestionCard: React.FC<DailyReflectionQuestionCardProps> = 
   // 如果卡片已禁用，显示已完成状态
   if (!isActive) {
     return (
-      <div className="mt-3 p-4 bg-gray-100 rounded-lg border border-gray-200 opacity-70">
+      <div className="mt-3 p-4 bg-gray-100 rounded-lg border border-gray-200 opacity-70 min-h-[280px]">
         <div className="flex items-center justify-between mb-3">
           <div className="text-xs text-gray-500 font-medium">
             ✅ 每日反思 · 问题 {questionNumber}/{totalQuestions}
@@ -181,7 +181,7 @@ const DailyReflectionQuestionCard: React.FC<DailyReflectionQuestionCardProps> = 
             ))}
           </div>
         </div>
-        <div className="text-sm text-gray-500 mb-3">
+        <div className="text-sm text-gray-500 mb-3 min-h-[60px]">
           {question}
         </div>
         <div className="text-xs text-gray-400 text-center py-2">
@@ -192,7 +192,7 @@ const DailyReflectionQuestionCard: React.FC<DailyReflectionQuestionCardProps> = 
   }
   
   return (
-    <div className="mt-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+    <div className="mt-3 p-4 bg-blue-50 rounded-lg border border-blue-200 min-h-[280px]">
       {/* 进度指示器 */}
       <div className="flex items-center justify-between mb-3">
         <div className="text-xs text-blue-600 font-medium">
@@ -215,7 +215,7 @@ const DailyReflectionQuestionCard: React.FC<DailyReflectionQuestionCardProps> = 
       </div>
       
       {/* 问题 */}
-      <div className="text-sm font-medium text-gray-800 mb-3">
+      <div className="text-sm font-medium text-gray-800 mb-3 min-h-[60px]">
         {question}
       </div>
       
@@ -394,6 +394,157 @@ const DailyReflectionResumeCard: React.FC<DailyReflectionResumeCardProps> = ({
           重新开始
         </button>
       </div>
+    </div>
+  )
+}
+
+// ⭐ 每日反思 - 历史记录卡片组件
+interface DailyReflectionHistoryCardProps {
+  reflections: Array<{
+    id: string
+    date: string
+    question_1: string
+    answer_1: string | null
+    question_2: string
+    answer_2: string | null
+    question_3: string
+    answer_3: string | null
+    ai_summary: string | null
+  }>
+  hasMore: boolean
+  isLoading: boolean
+  onLoadMore: () => void
+  onClose: () => void
+}
+
+const DailyReflectionHistoryCard: React.FC<DailyReflectionHistoryCardProps> = ({
+  reflections,
+  hasMore,
+  isLoading,
+  onLoadMore,
+  onClose
+}) => {
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr)
+    const month = date.getMonth() + 1
+    const day = date.getDate()
+    const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+    const weekday = weekdays[date.getDay()]
+    return `${month}月${day}日 ${weekday}`
+  }
+  
+  const toggleExpand = (id: string) => {
+    setExpandedId(prev => prev === id ? null : id)
+  }
+  
+  return (
+    <div className="mt-3 p-4 bg-purple-50 rounded-lg border border-purple-200">
+      {/* 标题 */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="text-sm font-medium text-purple-800 flex items-center gap-2">
+          <span className="text-lg">📚</span>
+          <span>历史反思记录</span>
+          <span className="text-xs text-purple-500">({reflections.length}条)</span>
+        </div>
+        <button
+          onClick={onClose}
+          className="text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      
+      {/* 反思列表 */}
+      {reflections.length === 0 ? (
+        <div className="text-center py-8 text-gray-500 text-sm">
+          暂无历史反思记录
+        </div>
+      ) : (
+        <div className="space-y-3 max-h-96 overflow-y-auto">
+          {reflections.map((reflection) => (
+            <div
+              key={reflection.id}
+              className="bg-white rounded-lg border border-gray-200 overflow-hidden"
+            >
+              {/* 折叠标题 */}
+              <button
+                onClick={() => toggleExpand(reflection.id)}
+                className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-gray-50 transition-colors"
+              >
+                <div className="flex-1">
+                  <div className="text-sm font-medium text-gray-800">
+                    {formatDate(reflection.date)}
+                  </div>
+                  {reflection.ai_summary && (
+                    <div className="text-xs text-gray-500 mt-1 line-clamp-1">
+                      {reflection.ai_summary.slice(0, 50)}...
+                    </div>
+                  )}
+                </div>
+                <svg 
+                  className={`w-5 h-5 text-gray-400 transition-transform ${expandedId === reflection.id ? 'rotate-180' : ''}`}
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              
+              {/* 展开内容 */}
+              {expandedId === reflection.id && (
+                <div className="px-4 pb-4 border-t border-gray-100">
+                  {/* AI 总结 */}
+                  {reflection.ai_summary && (
+                    <div className="mt-3 p-3 bg-green-50 rounded-lg">
+                      <div className="text-xs text-green-600 font-medium mb-1">✨ AI 总结</div>
+                      <div className="text-sm text-gray-700 whitespace-pre-wrap">
+                        {reflection.ai_summary}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* 问答内容 */}
+                  <div className="mt-3 space-y-3">
+                    {[1, 2, 3].map((num) => {
+                      const question = reflection[`question_${num}` as keyof typeof reflection] as string
+                      const answer = reflection[`answer_${num}` as keyof typeof reflection] as string | null
+                      
+                      return (
+                        <div key={num} className="text-sm">
+                          <div className="text-gray-600 font-medium mb-1">
+                            Q{num}: {question}
+                          </div>
+                          <div className="text-gray-800 pl-4 border-l-2 border-purple-200">
+                            {answer || <span className="text-gray-400 italic">（跳过）</span>}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      
+      {/* 加载更多 */}
+      {hasMore && (
+        <div className="mt-4 text-center">
+          <button
+            onClick={onLoadMore}
+            disabled={isLoading}
+            className="px-4 py-2 text-sm text-purple-600 hover:text-purple-800 hover:bg-purple-100 rounded-lg transition-colors disabled:opacity-50"
+          >
+            {isLoading ? '加载中...' : '加载更多'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -1309,6 +1460,17 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                               totalQuestions={content.interactive.data.totalQuestions}
                               onResume={() => onButtonClick?.('daily-reflection-resume', content.interactive.data)}
                               onRestart={() => onButtonClick?.('daily-reflection-restart', content.interactive.data)}
+                            />
+                          )}
+                          
+                          {/* ⭐ 每日反思 - 历史记录 */}
+                          {content.interactive.type === 'daily-reflection-history' && content.interactive.data && (
+                            <DailyReflectionHistoryCard
+                              reflections={content.interactive.data.reflections || []}
+                              hasMore={content.interactive.data.hasMore || false}
+                              isLoading={content.interactive.data.isLoading || false}
+                              onLoadMore={() => onButtonClick?.('daily-reflection-load-more', content.interactive.data)}
+                              onClose={() => onButtonClick?.('daily-reflection-history-close', {})}
                             />
                           )}
                           
