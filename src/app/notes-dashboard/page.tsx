@@ -183,7 +183,6 @@ export default function NotesDashboardPage() {
   const [isDecompositionPhase, setIsDecompositionPhase] = useState(false)  // 是否处于拆解选择阶段
   const [decomposableTasks, setDecomposableTasks] = useState<TaskSnapshot[]>([])  // 可拆解的任务列表
   const [decompositionQueue, setDecompositionQueue] = useState<TaskSnapshot[]>([])  // 待拆解任务队列
-  const [pendingTimeRound, setPendingTimeRound] = useState(false)  // 标记拆解完成后需要进入 Time 轮
   
   // ⭐ 每日反思状态
   const [isDailyReflectionMode, setIsDailyReflectionMode] = useState(false)  // 是否处于每日反思模式
@@ -1394,9 +1393,35 @@ export default function NotesDashboardPage() {
       }
       setChatMessages(prev => [...prev, askMessage])
     } else if (isReflectionMode) {
-      // 队列为空，如果在反思模式，标记需要进入 Time 轮
-      console.log('📋 拆解队列已空，标记需要进入 Time 轮')
-      setPendingTimeRound(true)
+      // 队列为空，拆解完成，回到任务选择界面
+      console.log('✅ 拆解队列已空，返回任务选择界面')
+      
+      // 重置拆解状态
+      setIsDecompositionPhase(false)
+      setDecompositionQueue([])
+      
+      // 显示完成消息和任务选择界面
+      const completeMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [{ type: 'text' as const, text: '任务拆解已完成！现在你想从哪个方面开始反思呢？' }]
+      }
+      
+      const overviewMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [
+          { type: 'text' as const, text: '你想从哪个方面开始？' },
+          { 
+            type: 'interactive' as const, 
+            interactive: {
+              type: 'reflection-overview' as const,
+              data: { taskCount: reflectionTasks.length },
+              isActive: true
+            }
+          }
+        ]
+      }
+      
+      setChatMessages(prev => [...prev, completeMessage, overviewMessage])
     }
   }, [chatScrollRef, currentNote, decomposingTaskTitle, handleNoteSave, decompositionQueue, isReflectionMode])
 
@@ -2800,7 +2825,81 @@ export default function NotesDashboardPage() {
       content: [{ type: 'text' as const, text: `${info.emoji} 好的，让我们来做「${info.label}」～` }]
     }
     
-    // 第二条：任务选择卡片
+    // 🆕 优先级排列的特殊处理：先显示矩阵建议
+    if (action === 'priority') {
+      const matrixSuggestionMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [
+          { 
+            type: 'interactive' as const, 
+            interactive: {
+              type: 'priority-matrix-suggestion' as const,
+              data: { taskCount: reflectionTasks.length },
+              isActive: true
+            }
+          }
+        ]
+      }
+      setChatMessages(prev => [...prev, confirmMessage, matrixSuggestionMessage])
+    } else {
+      // 澄清任务和时间规划：直接显示任务选择卡片
+      const selectionMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [
+          { 
+            type: 'interactive' as const, 
+            interactive: {
+              type: 'reflection-task-selection' as const,
+              data: { roundType: action },
+              isActive: true
+            }
+          }
+        ]
+      }
+      setChatMessages(prev => [...prev, confirmMessage, selectionMessage])
+    }
+  }, [reflectionTasks])
+  
+  // ⭐ 处理切换到矩阵模式
+  const handleSwitchToMatrix = useCallback(() => {
+    console.log('🎯 用户选择切换到矩阵模式')
+    
+    // 禁用矩阵建议卡片
+    setChatMessages(prev => prev.map(msg => ({
+      ...msg,
+      content: msg.content.map((c: any) => 
+        c.type === 'interactive' && c.interactive?.type === 'priority-matrix-suggestion'
+          ? { ...c, interactive: { ...c.interactive, isActive: false } }
+          : c
+      )
+    })))
+    
+    // 切换到矩阵视图（侧边栏不关闭）
+    setViewMode('matrix')
+    
+    // 显示提示消息
+    const switchMessage: ChatMessage = {
+      role: 'assistant' as const,
+      content: [{ type: 'text' as const, text: '✨ 已切换到矩阵模式！你可以在矩阵中直观地管理任务优先级。' }]
+    }
+    setChatMessages(prev => [...prev, switchMessage])
+  }, [setViewMode])
+  
+  // ⭐ 处理跳过矩阵建议
+  const handleSkipMatrixSwitch = useCallback(() => {
+    console.log('⏭️ 用户跳过矩阵建议，继续优先级反思')
+    
+    // 禁用矩阵建议卡片
+    setChatMessages(prev => prev.map(msg => ({
+      ...msg,
+      content: msg.content.map((c: any) => 
+        c.type === 'interactive' && c.interactive?.type === 'priority-matrix-suggestion'
+          ? { ...c, interactive: { ...c.interactive, isActive: false } }
+          : c
+      )
+    })))
+    
+    // 显示任务选择卡片
     const selectionMessage: ChatMessage = {
       role: 'assistant' as const,
       content: [
@@ -2808,14 +2907,13 @@ export default function NotesDashboardPage() {
           type: 'interactive' as const, 
           interactive: {
             type: 'reflection-task-selection' as const,
-            data: { roundType: action },
+            data: { roundType: 'priority' },
             isActive: true
           }
         }
       ]
     }
-    
-    setChatMessages(prev => [...prev, confirmMessage, selectionMessage])
+    setChatMessages(prev => [...prev, selectionMessage])
   }, [])
   
   // ⭐ 处理轮次完成后按钮点击
@@ -3758,18 +3856,6 @@ export default function NotesDashboardPage() {
     }
   }, [])
   
-  // ⭐ 处理拆解完成后进入 Time 轮
-  useEffect(() => {
-    if (pendingTimeRound && reflectionSessionId && reflectionScanResult) {
-      console.log('📋 执行延迟的 Time 轮进入')
-      setPendingTimeRound(false)
-      
-      setTimeout(() => {
-        startReflectionRound('time', reflectionTasks, reflectionScanResult, reflectionSessionId)
-      }, 1000)
-    }
-  }, [pendingTimeRound, reflectionSessionId, reflectionScanResult, reflectionTasks, startReflectionRound])
-  
   // ⭐ 生成并显示反思总结（三轮完成后或点击结束时调用）
   // 注意：这个函数需要在 handleReflectionResponse 和 skipReflectionRound 之前定义
   const generateAndShowSummary = useCallback(async () => {
@@ -4152,18 +4238,29 @@ export default function NotesDashboardPage() {
       }))
     )
     
-    // 显示消息
+    // 显示消息和任务选择界面
     const skipMessage: ChatMessage = {
       role: 'assistant',
       content: [{ type: 'text', text: '好的，我们继续下一步～' }]
     }
-    setChatMessages(prev => [...prev, skipMessage])
     
-    // 如果在反思模式，进入 Time 轮
-    if (isReflectionMode) {
-      setPendingTimeRound(true)
+    const overviewMessage: ChatMessage = {
+      role: 'assistant' as const,
+      content: [
+        { type: 'text' as const, text: '你想从哪个方面开始？' },
+        { 
+          type: 'interactive' as const, 
+          interactive: {
+            type: 'reflection-overview' as const,
+            data: { taskCount: reflectionTasks.length },
+            isActive: true
+          }
+        }
+      ]
     }
-  }, [isReflectionMode])
+    
+    setChatMessages(prev => [...prev, skipMessage, overviewMessage])
+  }, [reflectionTasks])
   
   // 切换 AI 侧边栏
   const toggleChatSidebar = useCallback(async () => {
@@ -5383,7 +5480,6 @@ ${matrixStats || '（无待办）'}
         setIsDecompositionPhase(false)
         setDecomposableTasks([])
         setDecompositionQueue([])
-        setPendingTimeRound(false)
         setDecomposingTaskTitle(null)
         setTaskContextInput('')
         
@@ -6695,6 +6791,9 @@ ${matrixStats || '（无待办）'}
               onSkipDecomposition={handleSkipDecomposition}
               onContinueDecompose={handleContinueDecompose}
               onSkipContinueDecompose={handleSkipContinueDecompose}
+              // ⭐ 优先级矩阵建议 props
+              onSwitchToMatrix={handleSwitchToMatrix}
+              onSkipMatrixSwitch={handleSkipMatrixSwitch}
               // ⭐ 反思流程优化 props
               onOverviewButtonClick={handleOverviewButtonClick}
               onRoundCompleteButtonClick={handleRoundCompleteButtonClick}

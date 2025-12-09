@@ -80,6 +80,12 @@ export type InteractiveMessageType =
   | 'reflection-round-complete'    // 单轮完成后（含4个按钮：澄清/时间/优先级/结束）
   | 'reflection-task-selection'    // 任务选择列表（进入环节前选择要反思的任务）
   | 'question-answer'              // 问答输入卡片（包含问题+输入框+按钮）
+  | 'priority-matrix-suggestion'   // 优先级矩阵建议卡片（含切换到矩阵/暂时不切换按钮）
+  | 'daily-reflection-question'    // 每日反思问题卡片
+  | 'daily-reflection-complete'    // 每日反思完成卡片
+  | 'daily-reflection-already-done' // 每日反思已完成提示
+  | 'daily-reflection-resume'      // 每日反思恢复提示
+  | 'daily-reflection-history'     // 每日反思历史记录
   // ⭐ Agent 专用消息类型（Phase 4）
   | 'agent-thought'          // Agent 的思考过程
   | 'agent-action'           // Agent 调用的工具

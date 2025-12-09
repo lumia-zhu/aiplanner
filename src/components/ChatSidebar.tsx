@@ -909,6 +909,10 @@ interface ChatSidebarProps {
   onContinueDecompose?: () => void  // 继续拆解下一个任务
   onSkipContinueDecompose?: () => void  // 跳过继续拆解，进入下一步
   
+  // ⭐ 优先级矩阵建议
+  onSwitchToMatrix?: () => void  // 切换到矩阵模式
+  onSkipMatrixSwitch?: () => void  // 跳过矩阵建议，继续优先级反思
+  
   // ⭐ 反思流程优化 - 概述和任务选择
   onOverviewButtonClick?: (action: 'clarity' | 'time' | 'priority' | 'cancel') => void  // 概述页面按钮点击
   onRoundCompleteButtonClick?: (action: 'clarity' | 'time' | 'priority' | 'end') => void  // 轮次完成后按钮点击
@@ -1008,6 +1012,9 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   onSkipDecomposition,  // ⭐ 跳过拆解
   onContinueDecompose,  // ⭐ 继续拆解下一个
   onSkipContinueDecompose,  // ⭐ 跳过继续拆解
+  // ⭐ 优先级矩阵建议
+  onSwitchToMatrix,  // 切换到矩阵模式
+  onSkipMatrixSwitch,  // 跳过矩阵建议
   // ⭐ 反思流程优化
   onOverviewButtonClick,  // 概述按钮点击
   onRoundCompleteButtonClick,  // 轮次完成按钮点击
@@ -1324,6 +1331,53 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                             </div>
                           )}
                           
+                          {/* ⭐ 优先级矩阵建议卡片 */}
+                          {content.interactive.type === 'priority-matrix-suggestion' && (
+                            <div className="mt-3 p-4 bg-gradient-to-r from-orange-50 to-amber-50 border-2 border-orange-200 rounded-lg">
+                              <div className="flex items-start gap-3 mb-3">
+                                <span className="text-2xl">💡</span>
+                                <div className="flex-1">
+                                  <h3 className="text-sm font-semibold text-orange-900 mb-2">小提示</h3>
+                                  <p className="text-sm text-gray-700 mb-3">
+                                    矩阵模式更适合进行优先级排序！
+                                  </p>
+                                  <div className="space-y-1.5">
+                                    <div className="flex items-start gap-2">
+                                      <span className="text-orange-600 mt-0.5">•</span>
+                                      <p className="text-sm text-gray-600">选择合适的维度（重要/紧急、价值/工作量等）</p>
+                                    </div>
+                                    <div className="flex items-start gap-2">
+                                      <span className="text-orange-600 mt-0.5">•</span>
+                                      <p className="text-sm text-gray-600">把已经清晰的任务直接放入矩阵</p>
+                                    </div>
+                                    <div className="flex items-start gap-2">
+                                      <span className="text-orange-600 mt-0.5">•</span>
+                                      <p className="text-sm text-gray-600">快速可视化任务的优先级分布</p>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              <div className="flex gap-2 mt-4">
+                                <button
+                                  onClick={() => onSwitchToMatrix?.()}
+                                  disabled={content.interactive.isActive === false}
+                                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-lg hover:from-orange-600 hover:to-amber-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium shadow-sm flex items-center justify-center gap-2"
+                                >
+                                  <span>🎯</span>
+                                  <span>切换到矩阵模式</span>
+                                </button>
+                                <button
+                                  onClick={() => onSkipMatrixSwitch?.()}
+                                  disabled={content.interactive.isActive === false}
+                                  className="px-4 py-2.5 text-gray-600 hover:text-gray-800 hover:bg-white border-2 border-gray-300 rounded-lg transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  暂时不切换
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                          
                           {/* ⭐ 反思概述按钮组 */}
                           {content.interactive.type === 'reflection-overview' && (
                             <div className="mt-3 space-y-2">
@@ -1388,74 +1442,6 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                                 className="w-full text-center p-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 暂时不需要
-                              </button>
-                            </div>
-                          )}
-                          
-                          {/* ⭐ 单轮完成后按钮组 */}
-                          {content.interactive.type === 'reflection-round-complete' && (
-                            <div className="mt-3 space-y-2">
-                              {/* 澄清任务 */}
-                              <button
-                                onClick={() => onRoundCompleteButtonClick?.('clarity')}
-                                disabled={content.interactive.isActive === false}
-                                className={`w-full text-left p-3 rounded-lg border-2 transition-all bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 hover:border-blue-400 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed`}
-                              >
-                                <div className="flex items-center gap-2.5">
-                                  <span className="text-xl">{completedRounds?.includes('clarity') ? '✅' : '📝'}</span>
-                                  <div className="flex-1">
-                                    <h3 className="text-sm font-semibold text-blue-900">
-                                      澄清任务 {completedRounds?.includes('clarity') && '(已完成)'}
-                                    </h3>
-                                  </div>
-                                </div>
-                              </button>
-                              
-                              {/* 时间规划 */}
-                              <button
-                                onClick={() => onRoundCompleteButtonClick?.('time')}
-                                disabled={content.interactive.isActive === false}
-                                className={`w-full text-left p-3 rounded-lg border-2 transition-all bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 hover:border-green-400 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed`}
-                              >
-                                <div className="flex items-center gap-2.5">
-                                  <span className="text-xl">{completedRounds?.includes('time') ? '✅' : '⏱️'}</span>
-                                  <div className="flex-1">
-                                    <h3 className="text-sm font-semibold text-green-900">
-                                      时间规划 {completedRounds?.includes('time') && '(已完成)'}
-                                    </h3>
-                                  </div>
-                                </div>
-                              </button>
-                              
-                              {/* 优先级排列 */}
-                              <button
-                                onClick={() => onRoundCompleteButtonClick?.('priority')}
-                                disabled={content.interactive.isActive === false}
-                                className={`w-full text-left p-3 rounded-lg border-2 transition-all bg-gradient-to-r from-orange-50 to-amber-50 border-orange-200 hover:border-orange-400 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed`}
-                              >
-                                <div className="flex items-center gap-2.5">
-                                  <span className="text-xl">{completedRounds?.includes('priority') ? '✅' : '🎯'}</span>
-                                  <div className="flex-1">
-                                    <h3 className="text-sm font-semibold text-orange-900">
-                                      优先级排列 {completedRounds?.includes('priority') && '(已完成)'}
-                                    </h3>
-                                  </div>
-                                </div>
-                              </button>
-                              
-                              {/* 结束反思 */}
-                              <button
-                                onClick={() => onRoundCompleteButtonClick?.('end')}
-                                disabled={content.interactive.isActive === false}
-                                className="w-full text-left p-3 rounded-lg border-2 transition-all bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200 hover:border-purple-400 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                <div className="flex items-center gap-2.5">
-                                  <span className="text-xl">✨</span>
-                                  <div className="flex-1">
-                                    <h3 className="text-sm font-semibold text-purple-900">结束反思</h3>
-                                    <p className="text-xs text-gray-600">生成总结和执行建议</p>
-                                  </div>
-                                </div>
                               </button>
                             </div>
                           )}
