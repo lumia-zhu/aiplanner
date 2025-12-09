@@ -169,10 +169,8 @@ export default function TaskMatrix({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      {/* 矩阵容器 - 嵌入模式占满父容器，弹窗模式固定70vh */}
-      <div className={`bg-white rounded-2xl shadow-2xl w-full flex flex-col overflow-hidden ${
-        isEmbedded ? 'h-full' : 'max-h-[70vh] h-[70vh]'
-      }`}>
+      {/* 调整高度为 70vh，让上下留白更多，在一屏内展示更舒适 */}
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-h-[70vh] h-[70vh] flex flex-col overflow-hidden">
         {/* 标题栏 - 仅在弹窗模式显示 */}
         {!isEmbedded && (
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">

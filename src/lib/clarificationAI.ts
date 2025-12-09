@@ -6,10 +6,10 @@
 import type { Task } from '@/types'
 import { generateClarificationQuestions } from './clarificationQuestions'
 
-// AI大模型配置（Deepseek V3.2）
+// 豆包大模型配置
 const DOUBAO_CONFIG = {
   endpoint: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
-  model: 'deepseek-v3-2-251201',
+  model: 'doubao-seed-1-6-vision-250815',
 }
 
 /**

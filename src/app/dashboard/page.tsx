@@ -95,14 +95,6 @@ export default function DashboardPage() {
     }
     return false
   })
-
-  // 页面初次加载时强制关闭侧边栏（忽略上一次的展开状态）
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem('chatSidebarOpen', 'false')
-    }
-    setIsChatSidebarOpen(false)
-  }, [])
   
   // 图片预处理缓存
   const imageCache = useRef<Map<string, string>>(new Map())

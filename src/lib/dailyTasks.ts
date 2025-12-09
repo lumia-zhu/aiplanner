@@ -21,8 +21,6 @@ function mapDbTaskToTask(dbTask: any): DailyTask {
     estimatedDuration: dbTask.estimated_duration,
     noteDate: dbTask.note_date,
     notePosition: dbTask.note_position || 0,
-    parentTaskId: dbTask.parent_task_id,      // 🆕 父任务ID
-    depth: dbTask.depth ?? 0,                  // 🆕 任务层级（默认0）
     createdAt: dbTask.created_at,
     updatedAt: dbTask.updated_at,
   }
@@ -117,8 +115,6 @@ export async function createDailyTask(
       deadline_datetime: input.deadlineDatetime || null,
       estimated_duration: input.estimatedDuration || null,
       note_position: input.notePosition ?? 0,
-      parent_task_id: input.parentTaskId ?? null,  // 🆕 父任务ID
-      depth: input.depth ?? 0,                      // 🆕 任务层级
     }
 
     const { data, error } = await supabase
@@ -161,8 +157,6 @@ export async function updateDailyTask(
     if (updates.deadlineDatetime !== undefined) updateData.deadline_datetime = updates.deadlineDatetime
     if (updates.estimatedDuration !== undefined) updateData.estimated_duration = updates.estimatedDuration
     if (updates.notePosition !== undefined) updateData.note_position = updates.notePosition
-    if (updates.parentTaskId !== undefined) updateData.parent_task_id = updates.parentTaskId  // 🆕
-    if (updates.depth !== undefined) updateData.depth = updates.depth  // 🆕
 
     const { data, error } = await supabase
       .from('daily_tasks')

@@ -17,8 +17,6 @@ export interface DailyTask {
   estimatedDuration?: number    // ⭐ 预估时长（分钟）
   noteDate: string              // 任务来自哪天的笔记 (YYYY-MM-DD)
   notePosition: number          // 在笔记中的位置
-  parentTaskId?: string | null  // 🆕 父任务ID（NULL = 顶层任务）
-  depth: number                 // 🆕 任务层级（0 = 顶层，1 = 子任务，2 = 孙任务...）
   createdAt: string             // 创建时间
   updatedAt: string             // 更新时间
   tags?: string[]               // 任务标签（可选）
@@ -36,8 +34,6 @@ export interface CreateDailyTaskInput {
   deadlineDatetime?: string     // 截止时间（可选）
   estimatedDuration?: number    // ⭐ 预估时长（分钟）
   notePosition?: number         // 在笔记中的位置（默认 0）
-  parentTaskId?: string | null  // 🆕 父任务ID（可选，默认 NULL）
-  depth?: number                // 🆕 任务层级（可选，默认 0）
 }
 
 /**
@@ -50,8 +46,6 @@ export interface UpdateDailyTaskInput {
   deadlineDatetime?: string     // 截止时间
   estimatedDuration?: number    // ⭐ 预估时长（分钟）
   notePosition?: number         // 在笔记中的位置
-  parentTaskId?: string | null  // 🆕 父任务ID
-  depth?: number                // 🆕 任务层级
 }
 
 /**

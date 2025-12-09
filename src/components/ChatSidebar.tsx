@@ -112,6 +112,292 @@ const DecompositionSelector: React.FC<DecompositionSelectorProps> = ({ tasks, on
   )
 }
 
+// ⭐ 每日反思 - 问题卡片组件
+interface DailyReflectionQuestionCardProps {
+  question: string
+  questionNumber: number
+  totalQuestions: number
+  onAnswer: (answer: string) => void
+  onSkip: () => void
+  isActive: boolean
+}
+
+const DailyReflectionQuestionCard: React.FC<DailyReflectionQuestionCardProps> = ({
+  question,
+  questionNumber,
+  totalQuestions,
+  onAnswer,
+  onSkip,
+  isActive
+}) => {
+  const [answer, setAnswer] = useState('')
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  
+  // 自动聚焦输入框
+  useEffect(() => {
+    if (isActive && textareaRef.current) {
+      textareaRef.current.focus()
+    }
+  }, [isActive])
+  
+  const handleSubmit = () => {
+    console.log('🔵 提交回答:', { answer, questionNumber, isActive })
+    if (answer.trim() && isActive) {
+      onAnswer(answer.trim())
+      setAnswer('') // 立即清空输入框
+    }
+  }
+  
+  const handleSkipClick = () => {
+    console.log('⏭️ 跳过问题:', { questionNumber, isActive })
+    if (isActive) {
+      onSkip()
+      setAnswer('') // 清空输入框
+    }
+  }
+  
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Ctrl/Cmd + Enter 提交
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault()
+      handleSubmit()
+    }
+  }
+  
+  // 如果卡片已禁用，显示已完成状态
+  if (!isActive) {
+    return (
+      <div className="mt-3 p-4 bg-gray-100 rounded-lg border border-gray-200 opacity-70">
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-xs text-gray-500 font-medium">
+            ✅ 每日反思 · 问题 {questionNumber}/{totalQuestions}
+          </div>
+          <div className="flex gap-1">
+            {Array.from({ length: totalQuestions }).map((_, i) => (
+              <div
+                key={i}
+                className="w-2 h-2 rounded-full bg-green-500"
+              />
+            ))}
+          </div>
+        </div>
+        <div className="text-sm text-gray-500 mb-3">
+          {question}
+        </div>
+        <div className="text-xs text-gray-400 text-center py-2">
+          已完成 ✨
+        </div>
+      </div>
+    )
+  }
+  
+  return (
+    <div className="mt-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+      {/* 进度指示器 */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-xs text-blue-600 font-medium">
+          💭 每日反思 · 问题 {questionNumber}/{totalQuestions}
+        </div>
+        <div className="flex gap-1">
+          {Array.from({ length: totalQuestions }).map((_, i) => (
+            <div
+              key={i}
+              className={`w-2 h-2 rounded-full ${
+                i < questionNumber - 1 
+                  ? 'bg-blue-500' 
+                  : i === questionNumber - 1 
+                  ? 'bg-blue-300' 
+                  : 'bg-gray-300'
+              }`}
+            />
+          ))}
+        </div>
+      </div>
+      
+      {/* 问题 */}
+      <div className="text-sm font-medium text-gray-800 mb-3">
+        {question}
+      </div>
+      
+      {/* 输入框 */}
+      <textarea
+        ref={textareaRef}
+        value={answer}
+        onChange={(e) => setAnswer(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder="在这里输入你的想法...（支持 Ctrl+Enter 提交）"
+        disabled={!isActive}
+        rows={4}
+        className="w-full px-3 py-2 text-sm text-gray-900 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-400"
+      />
+      
+      {/* 按钮 */}
+      <div className="flex gap-2 mt-3">
+        <button
+          onClick={handleSubmit}
+          disabled={!answer.trim() || !isActive}
+          className="flex-1 px-4 py-2 text-sm font-medium bg-blue-500 text-white hover:bg-blue-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          提交回答
+        </button>
+        <button
+          onClick={handleSkipClick}
+          disabled={!isActive}
+          className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          跳过
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ⭐ 每日反思 - 完成卡片组件
+interface DailyReflectionCompleteCardProps {
+  summary: string
+  onViewHistory?: () => void
+  onClose: () => void
+}
+
+const DailyReflectionCompleteCard: React.FC<DailyReflectionCompleteCardProps> = ({
+  summary,
+  onViewHistory,
+  onClose
+}) => {
+  return (
+    <div className="mt-3 p-4 bg-green-50 rounded-lg border border-green-200">
+      <div className="text-sm font-medium text-green-800 mb-2 flex items-center gap-2">
+        <span className="text-2xl">🎉</span>
+        <span>今日反思已完成</span>
+      </div>
+      
+      {/* AI 总结 */}
+      <div className="bg-white rounded-lg p-3 mb-3">
+        <div className="text-xs text-gray-500 mb-2 font-medium">AI 总结</div>
+        <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+          {summary}
+        </div>
+      </div>
+      
+      {/* 按钮 */}
+      <div className="flex gap-2">
+        {onViewHistory && (
+          <button
+            onClick={onViewHistory}
+            className="flex-1 px-4 py-2 text-sm font-medium text-green-700 hover:text-green-800 hover:bg-green-100 border border-green-300 rounded-lg transition-colors"
+          >
+            查看历史反思
+          </button>
+        )}
+        <button
+          onClick={onClose}
+          className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors"
+        >
+          关闭
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ⭐ 每日反思 - 已完成提示卡片
+interface DailyReflectionAlreadyDoneCardProps {
+  summary: string
+  onViewHistory?: () => void
+  onClose: () => void
+}
+
+const DailyReflectionAlreadyDoneCard: React.FC<DailyReflectionAlreadyDoneCardProps> = ({
+  summary,
+  onViewHistory,
+  onClose
+}) => {
+  return (
+    <div className="mt-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+      <div className="text-sm font-medium text-blue-800 mb-2 flex items-center gap-2">
+        <span className="text-2xl">✅</span>
+        <span>今天已完成反思</span>
+      </div>
+      
+      <div className="text-xs text-gray-600 mb-3">
+        你今天已经完成了每日反思，明天再来吧！
+      </div>
+      
+      {/* 显示今天的总结 */}
+      {summary && (
+        <div className="bg-white rounded-lg p-3 mb-3">
+          <div className="text-xs text-gray-500 mb-2 font-medium">今日总结</div>
+          <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+            {summary}
+          </div>
+        </div>
+      )}
+      
+      {/* 按钮 */}
+      <div className="flex gap-2">
+        {onViewHistory && (
+          <button
+            onClick={onViewHistory}
+            className="flex-1 px-4 py-2 text-sm font-medium text-blue-700 hover:text-blue-800 hover:bg-blue-100 border border-blue-300 rounded-lg transition-colors"
+          >
+            查看历史反思
+          </button>
+        )}
+        <button
+          onClick={onClose}
+          className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors"
+        >
+          关闭
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ⭐ 每日反思 - 恢复提示卡片
+interface DailyReflectionResumeCardProps {
+  questionNumber: number
+  totalQuestions: number
+  onResume: () => void
+  onRestart: () => void
+}
+
+const DailyReflectionResumeCard: React.FC<DailyReflectionResumeCardProps> = ({
+  questionNumber,
+  totalQuestions,
+  onResume,
+  onRestart
+}) => {
+  return (
+    <div className="mt-3 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+      <div className="text-sm font-medium text-yellow-800 mb-2 flex items-center gap-2">
+        <span className="text-2xl">⏸️</span>
+        <span>发现未完成的反思</span>
+      </div>
+      
+      <div className="text-xs text-gray-600 mb-3">
+        你还有未完成的每日反思（已回答 {questionNumber}/{totalQuestions} 个问题），是否继续？
+      </div>
+      
+      {/* 按钮 */}
+      <div className="flex gap-2">
+        <button
+          onClick={onResume}
+          className="flex-1 px-4 py-2 text-sm font-medium bg-yellow-500 text-white hover:bg-yellow-600 rounded-lg transition-colors"
+        >
+          继续反思
+        </button>
+        <button
+          onClick={onRestart}
+          className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors"
+        >
+          重新开始
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ⭐ 反思任务选择卡片组件
 interface ReflectionTaskSelectionCardProps {
   tasks: Array<{ id: string; title: string; isCompleted: boolean }>
@@ -177,66 +463,18 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
   const isConfirmDisabled = !isActive || (isMultiSelect ? selectedIds.size < 2 : !selectedId)
   
   const roundInfo = {
-    clarity: { 
-      emoji: '📝', 
-      label: '澄清',
-      instruction: '请选择要进行「澄清」的任务：'
-    },
-    time: { 
-      emoji: '⏱️', 
-      label: '时间规划',
-      instruction: '请选择要进行「时间规划」的任务：'
-    },
-    priority: { 
-      emoji: '🎯', 
-      label: '优先级排列',
-      instruction: '思考一下：你想用什么维度来衡量任务优先级？（如：紧急性、重要性、影响力等）'
-    }
+    clarity: { emoji: '📝', label: '澄清', color: 'blue' },
+    time: { emoji: '⏱️', label: '时间规划', color: 'green' },
+    priority: { emoji: '🎯', label: '优先级排列', color: 'orange' }
   }
   
   const info = roundInfo[roundType]
   
-  // 针对优先级排列的特殊说明
-  const priorityHint = roundType === 'priority' 
-    ? '已经明确放哪里的任务？直接去矩阵里拖拽即可。这里只选择你不确定的任务，我会通过几个问题帮你梳理清楚。'
-    : null
-  
-  // 根据轮次类型设置颜色主题
-  const colorTheme = roundType === 'priority' 
-    ? {
-        card: 'bg-orange-50 border-orange-200',
-        hintBorder: 'border-orange-200',
-        selected: 'bg-orange-100 border-orange-300',
-        hover: 'hover:border-orange-300 hover:bg-orange-50',
-        checkbox: 'text-orange-600 focus:ring-orange-500',
-        button: 'bg-orange-500 hover:bg-orange-600'
-      }
-    : {
-        card: 'bg-blue-50 border-blue-200',
-        hintBorder: 'border-blue-200',
-        selected: 'bg-blue-100 border-blue-300',
-        hover: 'hover:border-blue-300 hover:bg-blue-50',
-        checkbox: 'text-blue-600 focus:ring-blue-500',
-        button: 'bg-blue-500 hover:bg-blue-600'
-      }
-  
   return (
-    <div className={`mt-3 p-3 rounded-lg border ${colorTheme.card}`}>
+    <div className={`mt-3 p-3 bg-${info.color}-50 rounded-lg border border-${info.color}-200`}>
       <div className="text-sm font-medium text-gray-700 mb-2">
-        {info.emoji} {info.instruction}{isMultiSelect && '（至少选择2个）'}
+        {info.emoji} 请选择要进行「{info.label}」的任务{isMultiSelect && '（至少选择2个）'}：
       </div>
-      
-      {priorityHint && (
-        <div className={`text-xs text-gray-600 mb-3 p-2 bg-white rounded border ${colorTheme.hintBorder}`}>
-          💡 {priorityHint}
-        </div>
-      )}
-      
-      {roundType === 'priority' && (
-        <div className="text-xs font-medium text-gray-600 mb-2">
-          🤔 选择你不确定放哪里的任务：
-        </div>
-      )}
       
       <div className="space-y-1.5 mb-3 max-h-48 overflow-y-auto">
         {uncompletedTasks.map((task, index) => {
@@ -246,22 +484,23 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
               key={`task-selection-${task.id}-${index}`}
               className={`flex items-center gap-2 p-2 rounded-md transition-colors ${
                 isSelected 
-                  ? colorTheme.selected
-                  : `bg-white border border-gray-200 ${colorTheme.hover}`
-              } ${!isActive ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                  ? `bg-${info.color}-100 border border-${info.color}-300` 
+                  : 'bg-white border border-gray-200 hover:border-gray-300'
+              } ${!isActive ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <input
                 type={isMultiSelect ? 'checkbox' : 'radio'}
                 name={isMultiSelect ? undefined : `task-select-${roundType}`}
                 id={`task-select-${roundType}-${task.id}-${index}`}
                 checked={isSelected}
-                onChange={() => {
+                onChange={(e) => {
+                  e.stopPropagation()
                   if (isActive) {
                     selectTask(task.id)
                   }
                 }}
                 disabled={!isActive}
-                className={`w-4 h-4 border-gray-300 cursor-pointer ${colorTheme.checkbox}`}
+                className={`w-4 h-4 text-${info.color}-600 border-gray-300 focus:ring-${info.color}-500 cursor-pointer`}
               />
               <label
                 htmlFor={`task-select-${roundType}-${task.id}-${index}`}
@@ -278,9 +517,9 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
         <button
           onClick={handleConfirm}
           disabled={isConfirmDisabled}
-          className={`flex-1 px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${colorTheme.button}`}
+          className={`flex-1 px-4 py-2 text-sm font-medium bg-${info.color}-500 text-white hover:bg-${info.color}-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
         >
-          {roundType === 'priority' ? '开始分析' : '确认选择'}{isMultiSelect && selectedIds.size > 0 && ` (${selectedIds.size})`}
+          确认选择{isMultiSelect && selectedIds.size > 0 && ` (${selectedIds.size})`}
         </button>
         <button
           onClick={onBack}
@@ -332,36 +571,14 @@ const QuestionAnswerCard: React.FC<{
     }
   }
   
-  // 根据轮次类型设置颜色主题
-  const colorTheme = roundType === 'priority' 
-    ? {
-        card: 'bg-orange-50 border-orange-200',
-        questionNumber: 'text-orange-600',
-        focusRing: 'focus:ring-orange-500',
-        button: 'bg-orange-500 hover:bg-orange-600'
-      }
-    : roundType === 'time'
-    ? {
-        card: 'bg-green-50 border-green-200',
-        questionNumber: 'text-green-600',
-        focusRing: 'focus:ring-green-500',
-        button: 'bg-green-500 hover:bg-green-600'
-      }
-    : {
-        card: 'bg-blue-50 border-blue-200',
-        questionNumber: 'text-blue-600',
-        focusRing: 'focus:ring-blue-500',
-        button: 'bg-blue-500 hover:bg-blue-600'
-      }
-  
   return (
-    <div className={`mt-3 p-4 rounded-lg border ${colorTheme.card}`}>
+    <div className="mt-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
       <div className="text-sm font-medium text-gray-700 mb-3">
         {getPromptText()}
       </div>
       
       <div className="mb-3">
-        <div className={`text-xs font-semibold mb-2 ${colorTheme.questionNumber}`}>
+        <div className="text-xs font-semibold text-blue-600 mb-2">
           问题 {questionIndex + 1}/{totalQuestions}
         </div>
         <div className="text-sm text-gray-800 mb-3">
@@ -373,7 +590,7 @@ const QuestionAnswerCard: React.FC<{
           onChange={(e) => setAnswer(e.target.value)}
           disabled={!isActive}
           placeholder="在这里输入你的回答（可选，也可以直接点「下一个问题」跳过）"
-          className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 ${colorTheme.focusRing} text-sm text-gray-900 placeholder-gray-400 resize-none disabled:opacity-50 disabled:cursor-not-allowed`}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900 placeholder-gray-400 resize-none disabled:opacity-50 disabled:cursor-not-allowed"
           rows={3}
         />
       </div>
@@ -386,7 +603,7 @@ const QuestionAnswerCard: React.FC<{
         <button
           onClick={handleNext}
           disabled={!isActive}
-          className={`flex-1 px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${colorTheme.button}`}
+          className="flex-1 px-4 py-2 text-sm font-medium bg-blue-500 text-white hover:bg-blue-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isLastQuestion ? '完成 ✓' : '下一个问题 →'}
         </button>
@@ -504,7 +721,6 @@ interface ChatSidebarProps {
   // ⭐ 反思流程优化 - 概述和任务选择
   onOverviewButtonClick?: (action: 'clarity' | 'time' | 'priority' | 'cancel') => void  // 概述页面按钮点击
   onRoundCompleteButtonClick?: (action: 'clarity' | 'time' | 'priority' | 'end') => void  // 轮次完成后按钮点击
-  onModeSwitchChoice?: (choice: 'yes' | 'no', roundType: 'clarity' | 'time' | 'priority') => void  // 🆕 模式切换选择
   onTaskSelectionConfirm?: (taskIds: string[]) => void  // 任务选择确认
   onTaskSelectionBack?: () => void  // 任务选择返回
   completedRounds?: ('clarity' | 'time' | 'priority')[]  // 已完成的轮次
@@ -604,7 +820,6 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   // ⭐ 反思流程优化
   onOverviewButtonClick,  // 概述按钮点击
   onRoundCompleteButtonClick,  // 轮次完成按钮点击
-  onModeSwitchChoice,  // 🆕 模式切换选择
   onTaskSelectionConfirm,  // 任务选择确认
   onTaskSelectionBack,  // 任务选择返回
   completedRounds,  // 已完成轮次
@@ -1043,34 +1258,6 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                             </div>
                           )}
                           
-                          {/* 🆕 模式切换建议卡片 */}
-                          {content.interactive.type === 'mode-switch-suggestion' && (
-                            <div className="mt-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={() => {
-                                    const roundType = content.interactive.data?.roundType || 'priority'
-                                    onModeSwitchChoice?.('yes', roundType)
-                                  }}
-                                  disabled={content.interactive.isActive === false}
-                                  className="flex-1 px-4 py-2 text-sm font-medium bg-blue-500 text-white hover:bg-blue-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                  ✅ 切换到矩阵模式
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    const roundType = content.interactive.data?.roundType || 'priority'
-                                    onModeSwitchChoice?.('no', roundType)
-                                  }}
-                                  disabled={content.interactive.isActive === false}
-                                  className="flex-1 px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                  保持当前模式
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                          
                           {/* ⭐ 任务选择列表 */}
                           {content.interactive.type === 'reflection-task-selection' && availableTasksForSelection && (
                             <ReflectionTaskSelectionCard
@@ -1079,6 +1266,49 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                               isActive={content.interactive.isActive !== false}
                               onConfirm={(taskIds) => onTaskSelectionConfirm?.(taskIds)}
                               onBack={() => onTaskSelectionBack?.()}
+                            />
+                          )}
+                          
+                          {/* ⭐ 每日反思 - 问题卡片 */}
+                          {content.interactive.type === 'daily-reflection-question' && content.interactive.data && (
+                            <DailyReflectionQuestionCard
+                              question={content.interactive.data.question}
+                              questionNumber={content.interactive.data.questionNumber}
+                              totalQuestions={content.interactive.data.totalQuestions}
+                              isActive={content.interactive.isActive !== false}
+                              onAnswer={(answer) => onButtonClick?.('daily-reflection-answer', { 
+                                ...content.interactive.data, 
+                                answer 
+                              })}
+                              onSkip={() => onButtonClick?.('daily-reflection-skip', content.interactive.data)}
+                            />
+                          )}
+                          
+                          {/* ⭐ 每日反思 - 完成卡片 */}
+                          {content.interactive.type === 'daily-reflection-complete' && content.interactive.data && (
+                            <DailyReflectionCompleteCard
+                              summary={content.interactive.data.summary}
+                              onViewHistory={() => onButtonClick?.('daily-reflection-view-history', {})}
+                              onClose={() => onButtonClick?.('daily-reflection-close', {})}
+                            />
+                          )}
+                          
+                          {/* ⭐ 每日反思 - 已完成提示 */}
+                          {content.interactive.type === 'daily-reflection-already-done' && content.interactive.data && (
+                            <DailyReflectionAlreadyDoneCard
+                              summary={content.interactive.data.summary}
+                              onViewHistory={() => onButtonClick?.('daily-reflection-view-history', {})}
+                              onClose={() => onButtonClick?.('daily-reflection-close', {})}
+                            />
+                          )}
+                          
+                          {/* ⭐ 每日反思 - 恢复提示 */}
+                          {content.interactive.type === 'daily-reflection-resume' && content.interactive.data && (
+                            <DailyReflectionResumeCard
+                              questionNumber={content.interactive.data.questionNumber}
+                              totalQuestions={content.interactive.data.totalQuestions}
+                              onResume={() => onButtonClick?.('daily-reflection-resume', content.interactive.data)}
+                              onRestart={() => onButtonClick?.('daily-reflection-restart', content.interactive.data)}
                             />
                           )}
                           
