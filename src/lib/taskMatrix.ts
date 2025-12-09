@@ -146,7 +146,7 @@ export async function initTaskMatrix(
   userId: string,
   taskId: string,
   initialQuadrant: QuadrantType = 'unclassified'
-): Promise<TaskMatrix> {
+): Promise<TaskMatrix | null> {
   try {
     console.log(`📥 初始化任务矩阵: taskId=${taskId}, quadrant=${initialQuadrant}`)
     
@@ -176,6 +176,11 @@ export async function initTaskMatrix(
       .single()
     
     if (error) {
+      // 如果是外键约束错误（任务不存在），返回null而不是抛出异常
+      if (error.code === '23503') {
+        console.warn('⚠️ 任务不存在，跳过矩阵初始化:', { taskId, error: error.message })
+        return null
+      }
       console.error('❌ 初始化任务矩阵失败:', error)
       throw new Error(`初始化任务矩阵失败: ${error.message}`)
     }
@@ -480,7 +485,7 @@ export async function hasTaskMatrix(taskId: string): Promise<boolean> {
 export async function ensureTaskMatrix(
   userId: string,
   taskId: string
-): Promise<TaskMatrix> {
+): Promise<TaskMatrix | null> {
   try {
     // 先尝试获取
     let matrix = await getTaskMatrix(taskId)
@@ -489,6 +494,12 @@ export async function ensureTaskMatrix(
     if (!matrix) {
       console.log('📥 任务矩阵不存在，自动创建')
       matrix = await initTaskMatrix(userId, taskId)
+      
+      // 如果创建失败（任务不存在），返回null
+      if (!matrix) {
+        console.warn('⚠️ 无法创建矩阵记录，任务可能已被删除:', taskId)
+        return null
+      }
     }
     
     return matrix

@@ -598,8 +598,8 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
     if (!isActive) return
     
     if (isMultiSelect) {
-      // 多选模式：至少选择2个任务
-      if (selectedIds.size >= 2) {
+      // 多选模式：优先级反思至少选择1个任务
+      if (selectedIds.size >= 1) {
         onConfirm(Array.from(selectedIds))
       }
     } else {
@@ -611,7 +611,7 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
   }
   
   // 判断确认按钮是否可用
-  const isConfirmDisabled = !isActive || (isMultiSelect ? selectedIds.size < 2 : !selectedId)
+  const isConfirmDisabled = !isActive || (isMultiSelect ? selectedIds.size < 1 : !selectedId)
   
   const roundInfo = {
     clarity: { emoji: '📝', label: '澄清', color: 'blue' },
@@ -623,9 +623,34 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
   
   return (
     <div className={`mt-3 p-3 bg-${info.color}-50 rounded-lg border border-${info.color}-200`}>
-      <div className="text-sm font-medium text-gray-700 mb-2">
-        {info.emoji} 请选择要进行「{info.label}」的任务{isMultiSelect && '（至少选择2个）'}：
-      </div>
+      {/* 标题和说明 */}
+      {roundType === 'priority' ? (
+        // 优先级排列的特殊文案
+        <div className="mb-3">
+          <div className="text-sm font-medium text-gray-700 mb-2">
+            {info.emoji} 请选择需要反思优先级的任务：
+          </div>
+          <div className="text-xs text-gray-600 space-y-1 bg-white/50 rounded p-2">
+            <div className="flex items-start gap-1.5">
+              <span className="text-green-600">•</span>
+              <span><span className="font-medium">已清晰的任务</span> → 建议使用矩阵模式直观展示</span>
+            </div>
+            <div className="flex items-start gap-1.5">
+              <span className="text-orange-600">•</span>
+              <span><span className="font-medium">不清晰的任务</span> → 我会帮你反思并确定优先级</span>
+            </div>
+            <div className="flex items-start gap-1.5 mt-1.5 pt-1.5 border-t border-gray-200">
+              <span className="text-gray-500">💡</span>
+              <span className="text-gray-500">至少选择1个任务</span>
+            </div>
+          </div>
+        </div>
+      ) : (
+        // 澄清任务和时间规划的文案
+        <div className="text-sm font-medium text-gray-700 mb-2">
+          {info.emoji} 请选择要进行「{info.label}」的任务：
+        </div>
+      )}
       
       <div className="space-y-1.5 mb-3 max-h-48 overflow-y-auto">
         {uncompletedTasks.map((task, index) => {

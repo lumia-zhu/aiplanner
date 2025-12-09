@@ -17,7 +17,7 @@ import StickyNote from '@/components/StickyNote'
 import StickyNotesDropdown from '@/components/StickyNotesDropdown'
 import TaskMatrix from '@/components/TaskMatrix'
 import ViewModeToggle from '@/components/ViewModeToggle'
-import type { DateScope, UserProfile, UserProfileInput, ChatMessage, StickyNote as StickyNoteType, TasksByQuadrant, TaskMatrixDimension, MatrixContext } from '@/types'
+import type { DateScope, UserProfile, UserProfileInput, ChatMessage, MessageContent, StickyNote as StickyNoteType, TasksByQuadrant, TaskMatrixDimension, MatrixContext } from '@/types'
 import type { ReflectionSession, TaskSnapshot, ScanResult } from '@/types/reflection'
 import { 
   createPlanSnapshot, 
@@ -450,6 +450,13 @@ export default function NotesDashboardPage() {
         if (!matrix) {
           console.log(`⚠️ 任务 ${dailyTask.id} 没有矩阵信息，将自动初始化到默认象限`)
           const newMatrix = await ensureTaskMatrix(userId, dailyTask.id)
+          
+          // 如果任务已被删除，跳过该任务
+          if (!newMatrix) {
+            console.warn(`⚠️ 任务 ${dailyTask.id} 无法初始化矩阵，跳过`)
+            continue
+          }
+          
           const quadrant = newMatrix.quadrant as QuadrantType
           if (!grouped[quadrant]) {
             grouped[quadrant] = []
@@ -1237,7 +1244,7 @@ export default function NotesDashboardPage() {
     setChatMessages(prev => 
       prev.map(msg => ({
         ...msg,
-        content: msg.content.map((c: any) => 
+        content: msg.content.map((c: MessageContent) => 
           c.type === 'interactive' && c.interactive?.type === 'task-decomposition'
             ? { ...c, interactive: { ...c.interactive, isActive: false } }
             : c
@@ -1433,7 +1440,7 @@ export default function NotesDashboardPage() {
     setChatMessages(prev => 
       prev.map(msg => ({
         ...msg,
-        content: msg.content.map((c: any) => 
+        content: msg.content.map((c: MessageContent) => 
           c.type === 'interactive' && c.interactive?.type === 'task-decomposition'
             ? { ...c, interactive: { ...c.interactive, isActive: false } }
             : c
@@ -1482,7 +1489,7 @@ export default function NotesDashboardPage() {
     setChatMessages(prev => 
       prev.map(msg => ({
         ...msg,
-        content: msg.content.map((c: any) => 
+        content: msg.content.map((c: MessageContent) => 
           c.type === 'interactive' && c.interactive?.type === 'decomposition-context-input'
             ? { ...c, interactive: { ...c.interactive, isActive: false } }
             : c
@@ -1502,7 +1509,7 @@ export default function NotesDashboardPage() {
     setChatMessages(prev => 
       prev.map(msg => ({
         ...msg,
-        content: msg.content.map((c: any) => 
+        content: msg.content.map((c: MessageContent) => 
           c.type === 'interactive' && c.interactive?.type === 'decomposition-context-input'
             ? { ...c, interactive: { ...c.interactive, isActive: false } }
             : c
@@ -2276,168 +2283,14 @@ export default function NotesDashboardPage() {
     }
   }, [user])
   
-  // ⭐ 处理每日反思回答（优化版：批量提交，减少等待时间）
-  const handleDailyReflectionAnswer = useCallback(async (data: any) => {
-    console.log('💬 handleDailyReflectionAnswer 被调用:', { 
-      data, 
-      currentReflectionId, 
-      dailyReflectionQuestions,
-      状态中的问题数量: dailyReflectionQuestions?.length 
-    })
-    
-    const { questionNumber, answer, reflectionId, question, allQuestions } = data
-    
-    // 使用传入的 reflectionId（而不是状态中的 currentReflectionId）
-    const targetReflectionId = reflectionId || currentReflectionId
-    
-    // 使用传入的 allQuestions（而不是状态中的 dailyReflectionQuestions）
-    const questions = allQuestions || dailyReflectionQuestions
-    
-    if (!targetReflectionId) {
-      console.error('❌ reflectionId 缺失')
-      return
-    }
-    
-    console.log('💬 保存反思回答（本地）:', { questionNumber, answer, reflectionId: targetReflectionId, questions })
-    
-    try {
-      // ⚡ 优化：先更新本地状态，立即切换问题（不等待数据库）
-      
-      // 1. 同步 reflectionId（如果不一致）
-      if (currentReflectionId !== targetReflectionId) {
-        console.log('🔄 同步 reflectionId:', targetReflectionId)
-        setCurrentReflectionId(targetReflectionId)
-      }
-      
-      // 2. 更新本地答案状态（立即更新，无需等待数据库）
-      let updatedAnswers: (string | null)[]
-      setDailyReflectionAnswers(prev => {
-        const newAnswers = [...prev]
-        newAnswers[questionNumber - 1] = answer
-        updatedAnswers = newAnswers
-        console.log('📝 更新本地答案（即时）:', newAnswers)
-        return newAnswers
-      })
-      setCurrentDailyQuestionIndex(questionNumber)
-      
-      // 3. 判断是否还有下一个问题
-      console.log('🔢 检查是否有下一个问题:', { questionNumber, totalQuestions: 3 })
-      
-      if (questionNumber < 3) {
-        // 立即显示下一个问题（从传入的 allQuestions 获取）
-        const nextQuestionText = questions?.[questionNumber] || ''
-        console.log('⚡ 立即切换到下一个问题:', { 
-          nextQuestionNumber: questionNumber + 1, 
-          nextQuestionText,
-          questions
-        })
-        
-        // 找到最后一个问题卡片并更新它
-        setChatMessages(prev => {
-          const messages = [...prev]
-          let foundIndex = -1
-          
-          // 从后往前找最后一个每日反思问题卡片
-          for (let i = messages.length - 1; i >= 0; i--) {
-            const msg = messages[i]
-            const hasReflectionQuestion = msg.content?.some(c => 
-              c.type === 'interactive' && 
-              c.interactive?.type === 'daily-reflection-question'
-            )
-            
-            if (hasReflectionQuestion) {
-              foundIndex = i
-              console.log('🔍 找到问题卡片，索引:', i)
-              break
-            }
-          }
-          
-          if (foundIndex !== -1) {
-            // 更新这个卡片的内容
-            console.log('🔄 更新卡片内容')
-            messages[foundIndex] = {
-              ...messages[foundIndex],
-              content: [{
-                type: 'interactive' as const,
-                interactive: {
-                  type: 'daily-reflection-question',
-                  data: {
-                    question: nextQuestionText,
-                    questionNumber: questionNumber + 1,
-                    totalQuestions: 3,
-                    reflectionId: targetReflectionId,
-                    allQuestions: questions // 传递所有问题
-                  },
-                  isActive: true
-                }
-              }]
-            }
-          } else {
-            console.warn('⚠️ 没有找到问题卡片，创建新卡片')
-            // 如果没找到，创建新卡片
-            messages.push({
-              role: 'assistant' as const,
-              content: [{
-                type: 'interactive' as const,
-                interactive: {
-                  type: 'daily-reflection-question',
-                  data: {
-                    question: nextQuestionText,
-                    questionNumber: questionNumber + 1,
-                    totalQuestions: 3,
-                    reflectionId: targetReflectionId,
-                    allQuestions: questions // 传递所有问题
-                  },
-                  isActive: true
-                }
-              }]
-            })
-          }
-          
-          return messages
-        })
-      } else {
-        // 所有问题已回答完毕
-        console.log('🎉 所有问题已回答，批量提交到数据库')
-        
-        // 禁用问题卡片（但保留显示）
-        setChatMessages(prev => 
-          prev.map(msg => ({
-            ...msg,
-            content: msg.content?.map(c => 
-              c.type === 'interactive' && 
-              c.interactive?.type === 'daily-reflection-question'
-                ? { ...c, interactive: { ...c.interactive, isActive: false } }
-                : c
-            )
-          }))
-        )
-        
-        // 批量提交所有答案到数据库（后台操作）
-        console.log('📦 批量提交答案:', updatedAnswers!)
-        await batchUpdateReflectionAnswers(
-          targetReflectionId, 
-          updatedAnswers! as [string | null, string | null, string | null]
-        )
-        console.log('✅ 批量提交成功')
-        
-        // 生成AI总结
-        await completeDailyReflection()
-      }
-      
-    } catch (error: any) {
-      console.error('❌ 保存反思回答失败:', error)
-      const errorMessage: ChatMessage = {
-        role: 'assistant' as const,
-        content: [{ type: 'text' as const, text: `❌ 保存失败: ${error.message}` }]
-      }
-      setChatMessages(prev => [...prev, errorMessage])
-    }
-  }, [currentReflectionId, dailyReflectionQuestions])
-  
   // ⭐ 完成每日反思（生成AI总结）
   const completeDailyReflection = useCallback(async () => {
     console.log('🎉 完成每日反思，开始生成AI总结...')
+    
+    if (!user) {
+      console.error('❌ 用户未登录')
+      return
+    }
     
     try {
       // 1. 显示加载消息
@@ -2449,7 +2302,7 @@ export default function NotesDashboardPage() {
       
       // 2. 始终从数据库获取今天的反思记录（确保使用正确的 ID）
       const today = new Date().toISOString().split('T')[0]
-      const todayReflection = await getTodayReflection(user!.id, today)
+      const todayReflection = await getTodayReflection(user.id, today)
       
       if (!todayReflection) {
         throw new Error('找不到今天的反思记录')
@@ -2522,6 +2375,165 @@ export default function NotesDashboardPage() {
     }
   }, [user])
   
+  // ⭐ 处理每日反思回答（优化版：批量提交，减少等待时间）
+  const handleDailyReflectionAnswer = useCallback(async (data: any) => {
+    console.log('💬 handleDailyReflectionAnswer 被调用:', { 
+      data, 
+      currentReflectionId, 
+      dailyReflectionQuestions,
+      状态中的问题数量: dailyReflectionQuestions?.length 
+    })
+    
+    const { questionNumber, answer, reflectionId, question, allQuestions } = data
+    
+    // 使用传入的 reflectionId（而不是状态中的 currentReflectionId）
+    const targetReflectionId = reflectionId || currentReflectionId
+    
+    // 使用传入的 allQuestions（而不是状态中的 dailyReflectionQuestions）
+    const questions = allQuestions || dailyReflectionQuestions
+    
+    if (!targetReflectionId) {
+      console.error('❌ reflectionId 缺失')
+      return
+    }
+    
+    console.log('💬 保存反思回答（本地）:', { questionNumber, answer, reflectionId: targetReflectionId, questions })
+    
+    try {
+      // ⚡ 优化：先更新本地状态，立即切换问题（不等待数据库）
+      
+      // 1. 同步 reflectionId（如果不一致）
+      if (currentReflectionId !== targetReflectionId) {
+        console.log('🔄 同步 reflectionId:', targetReflectionId)
+        setCurrentReflectionId(targetReflectionId)
+      }
+      
+      // 2. 更新本地答案状态（立即更新，无需等待数据库）
+      let updatedAnswers: (string | null)[]
+      setDailyReflectionAnswers(prev => {
+        const newAnswers = [...prev]
+        newAnswers[questionNumber - 1] = answer
+        updatedAnswers = newAnswers
+        console.log('📝 更新本地答案（即时）:', newAnswers)
+        return newAnswers
+      })
+      setCurrentDailyQuestionIndex(questionNumber)
+      
+      // 3. 判断是否还有下一个问题
+      console.log('🔢 检查是否有下一个问题:', { questionNumber, totalQuestions: 3 })
+      
+      if (questionNumber < 3) {
+        // 立即显示下一个问题（从传入的 allQuestions 获取）
+        const nextQuestionText = questions?.[questionNumber] || ''
+        console.log('⚡ 立即切换到下一个问题:', { 
+          nextQuestionNumber: questionNumber + 1, 
+          nextQuestionText,
+          questions
+        })
+        
+        // 找到最后一个问题卡片并更新它
+        setChatMessages(prev => {
+          const messages = [...prev]
+          let foundIndex = -1
+          
+          // 从后往前找最后一个每日反思问题卡片
+          for (let i = messages.length - 1; i >= 0; i--) {
+            const msg = messages[i]
+            const hasReflectionQuestion = msg.content?.some((c: MessageContent) => 
+              c.type === 'interactive' && 
+              c.interactive?.type === 'daily-reflection-question'
+            )
+            
+            if (hasReflectionQuestion) {
+              foundIndex = i
+              console.log('🔍 找到问题卡片，索引:', i)
+              break
+            }
+          }
+          
+          if (foundIndex !== -1) {
+            // 更新这个卡片的内容
+            console.log('🔄 更新卡片内容')
+            messages[foundIndex] = {
+              ...messages[foundIndex],
+              content: [{
+                type: 'interactive' as const,
+                interactive: {
+                  type: 'daily-reflection-question',
+                  data: {
+                    question: nextQuestionText,
+                    questionNumber: questionNumber + 1,
+                    totalQuestions: 3,
+                    reflectionId: targetReflectionId,
+                    allQuestions: questions // 传递所有问题
+                  },
+                  isActive: true
+                }
+              }]
+            }
+          } else {
+            console.warn('⚠️ 没有找到问题卡片，创建新卡片')
+            // 如果没找到，创建新卡片
+            messages.push({
+              role: 'assistant' as const,
+              content: [{
+                type: 'interactive' as const,
+                interactive: {
+                  type: 'daily-reflection-question',
+                  data: {
+                    question: nextQuestionText,
+                    questionNumber: questionNumber + 1,
+                    totalQuestions: 3,
+                    reflectionId: targetReflectionId,
+                    allQuestions: questions // 传递所有问题
+                  },
+                  isActive: true
+                }
+              }]
+            })
+          }
+          
+          return messages
+        })
+      } else {
+        // 所有问题已回答完毕
+        console.log('🎉 所有问题已回答，批量提交到数据库')
+        
+        // 禁用问题卡片（但保留显示）
+        setChatMessages(prev => 
+          prev.map(msg => ({
+            ...msg,
+            content: msg.content?.map((c: MessageContent) => 
+              c.type === 'interactive' && 
+              c.interactive?.type === 'daily-reflection-question'
+                ? { ...c, interactive: { ...c.interactive, isActive: false } }
+                : c
+            )
+          }))
+        )
+        
+        // 批量提交所有答案到数据库（后台操作）
+        console.log('📦 批量提交答案:', updatedAnswers!)
+        await batchUpdateReflectionAnswers(
+          targetReflectionId, 
+          updatedAnswers! as [string | null, string | null, string | null]
+        )
+        console.log('✅ 批量提交成功')
+        
+        // 生成AI总结
+        await completeDailyReflection()
+      }
+      
+    } catch (error: any) {
+      console.error('❌ 保存反思回答失败:', error)
+      const errorMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [{ type: 'text' as const, text: `❌ 保存失败: ${error.message}` }]
+      }
+      setChatMessages(prev => [...prev, errorMessage])
+    }
+  }, [currentReflectionId, dailyReflectionQuestions, completeDailyReflection])
+  
   // ⭐ 处理每日反思跳过（优化版：立即切换，减少等待）
   const handleDailyReflectionSkip = useCallback(async (data: any) => {
     console.log('⏭️ handleDailyReflectionSkip 被调用:', { 
@@ -2584,7 +2596,7 @@ export default function NotesDashboardPage() {
           // 从后往前找最后一个每日反思问题卡片
           for (let i = messages.length - 1; i >= 0; i--) {
             const msg = messages[i]
-            const hasReflectionQuestion = msg.content?.some(c => 
+            const hasReflectionQuestion = msg.content?.some((c: MessageContent) => 
               c.type === 'interactive' && 
               c.interactive?.type === 'daily-reflection-question'
             )
@@ -2630,7 +2642,7 @@ export default function NotesDashboardPage() {
         setChatMessages(prev => 
           prev.map(msg => ({
             ...msg,
-            content: msg.content?.map(c => 
+            content: msg.content?.map((c: MessageContent) => 
               c.type === 'interactive' && 
               c.interactive?.type === 'daily-reflection-question'
                 ? { ...c, interactive: { ...c.interactive, isActive: false } }
@@ -2739,7 +2751,7 @@ export default function NotesDashboardPage() {
       setChatMessages(prev => 
         prev.map(msg => ({
           ...msg,
-          content: msg.content?.map(c => 
+          content: msg.content?.map((c: MessageContent) => 
             c.type === 'interactive' && c.interactive?.type === 'daily-reflection-history'
               ? {
                   ...c,
@@ -2771,7 +2783,7 @@ export default function NotesDashboardPage() {
     // 禁用概述按钮
     setChatMessages(prev => prev.map(msg => ({
       ...msg,
-      content: msg.content.map((c: any) => 
+      content: msg.content.map((c: MessageContent) => 
         c.type === 'interactive' && c.interactive?.type === 'reflection-overview'
           ? { ...c, interactive: { ...c.interactive, isActive: false } }
           : c
@@ -2867,7 +2879,7 @@ export default function NotesDashboardPage() {
     // 禁用矩阵建议卡片
     setChatMessages(prev => prev.map(msg => ({
       ...msg,
-      content: msg.content.map((c: any) => 
+      content: msg.content.map((c: MessageContent) => 
         c.type === 'interactive' && c.interactive?.type === 'priority-matrix-suggestion'
           ? { ...c, interactive: { ...c.interactive, isActive: false } }
           : c
@@ -2877,12 +2889,28 @@ export default function NotesDashboardPage() {
     // 切换到矩阵视图（侧边栏不关闭）
     setViewMode('matrix')
     
-    // 显示提示消息
+    // 显示切换成功消息
     const switchMessage: ChatMessage = {
       role: 'assistant' as const,
-      content: [{ type: 'text' as const, text: '✨ 已切换到矩阵模式！你可以在矩阵中直观地管理任务优先级。' }]
+      content: [{ type: 'text' as const, text: '✨ 已切换到矩阵模式！' }]
     }
-    setChatMessages(prev => [...prev, switchMessage])
+    
+    // 显示任务选择卡片
+    const selectionMessage: ChatMessage = {
+      role: 'assistant' as const,
+      content: [
+        { 
+          type: 'interactive' as const, 
+          interactive: {
+            type: 'reflection-task-selection' as const,
+            data: { roundType: 'priority' },
+            isActive: true
+          }
+        }
+      ]
+    }
+    
+    setChatMessages(prev => [...prev, switchMessage, selectionMessage])
   }, [setViewMode])
   
   // ⭐ 处理跳过矩阵建议
@@ -2892,7 +2920,7 @@ export default function NotesDashboardPage() {
     // 禁用矩阵建议卡片
     setChatMessages(prev => prev.map(msg => ({
       ...msg,
-      content: msg.content.map((c: any) => 
+      content: msg.content.map((c: MessageContent) => 
         c.type === 'interactive' && c.interactive?.type === 'priority-matrix-suggestion'
           ? { ...c, interactive: { ...c.interactive, isActive: false } }
           : c
@@ -2924,7 +2952,7 @@ export default function NotesDashboardPage() {
     // 禁用按钮
     setChatMessages(prev => prev.map(msg => ({
       ...msg,
-      content: msg.content.map((c: any) => 
+      content: msg.content.map((c: MessageContent) => 
         c.type === 'interactive' && c.interactive?.type === 'reflection-round-complete'
           ? { ...c, interactive: { ...c.interactive, isActive: false } }
           : c
@@ -3011,7 +3039,7 @@ export default function NotesDashboardPage() {
     // 禁用任务选择卡片
     setChatMessages(prev => prev.map(msg => ({
       ...msg,
-      content: msg.content.map((c: any) => 
+      content: msg.content.map((c: MessageContent) => 
         c.type === 'interactive' && c.interactive?.type === 'reflection-task-selection'
           ? { ...c, interactive: { ...c.interactive, isActive: false } }
           : c
@@ -3120,7 +3148,7 @@ export default function NotesDashboardPage() {
     // 禁用任务选择卡片
     setChatMessages(prev => prev.map(msg => ({
       ...msg,
-      content: msg.content.map((c: any) => 
+      content: msg.content.map((c: MessageContent) => 
         c.type === 'interactive' && c.interactive?.type === 'reflection-task-selection'
           ? { ...c, interactive: { ...c.interactive, isActive: false } }
           : c
@@ -3135,45 +3163,25 @@ export default function NotesDashboardPage() {
       role: 'assistant' as const,
       content: [{ type: 'text' as const, text: '好的～' }]
     }
-    setChatMessages(prev => [...prev, backMessage])
     
-    // 根据是否有已完成轮次，显示不同的按钮
-    if (completedRounds.length > 0) {
-      // 显示轮次完成按钮
-      const completeMessage: ChatMessage = {
-        role: 'assistant' as const,
-        content: [
-          { type: 'text' as const, text: '你还想继续吗？' },
-          { 
-            type: 'interactive' as const, 
-            interactive: {
-              type: 'reflection-round-complete' as const,
-              data: { completedRounds },
-              isActive: true
-            }
+    // 直接显示功能选择界面（reflection-overview）
+    const overviewMessage: ChatMessage = {
+      role: 'assistant' as const,
+      content: [
+        { type: 'text' as const, text: '你还想继续吗？' },
+        { 
+          type: 'interactive' as const, 
+          interactive: {
+            type: 'reflection-overview' as const,
+            data: { taskCount: reflectionTasks.length },
+            isActive: true
           }
-        ]
-      }
-      setChatMessages(prev => [...prev, completeMessage])
-    } else {
-      // 显示概述按钮
-      const overviewMessage: ChatMessage = {
-        role: 'assistant' as const,
-        content: [
-          { type: 'text' as const, text: '你想从哪个方面开始？' },
-          { 
-            type: 'interactive' as const, 
-            interactive: {
-              type: 'reflection-overview' as const,
-              data: { taskCount: reflectionTasks.length },
-              isActive: true
-            }
-          }
-        ]
-      }
-      setChatMessages(prev => [...prev, overviewMessage])
+        }
+      ]
     }
-  }, [completedRounds, reflectionTasks])
+    
+    setChatMessages(prev => [...prev, backMessage, overviewMessage])
+  }, [reflectionTasks])
   
   // ⭐ 处理拆解建议按钮点击
   const handleDecomposeSuggestionButton = useCallback(async (buttonId: string, context: any) => {
@@ -3192,8 +3200,25 @@ export default function NotesDashboardPage() {
     
     if (buttonId === 'daily-reflection-resume') {
       // 恢复未完成的反思
-      const nextQuestionNumber = context.questionNumber + 1
-      if (nextQuestionNumber <= 3 && dailyReflectionQuestions) {
+      // context.questionNumber 是已回答的问题数量（0-3），下一个问题索引就是 questionNumber
+      const nextQuestionIndex = context.questionNumber // 0-based index
+      
+      if (nextQuestionIndex < 3 && dailyReflectionQuestions) {
+        // 禁用恢复卡片
+        setChatMessages(prev => prev.map(msg => ({
+          ...msg,
+          content: msg.content.map((c: MessageContent) => 
+            c.type === 'interactive' && c.interactive?.type === 'daily-reflection-resume'
+              ? { ...c, interactive: { ...c.interactive, isActive: false } }
+              : c
+          )
+        })))
+        
+        const confirmMessage: ChatMessage = {
+          role: 'assistant' as const,
+          content: [{ type: 'text' as const, text: '好的，让我们继续～' }]
+        }
+        
         const nextQuestion: ChatMessage = {
           role: 'assistant' as const,
           content: [
@@ -3202,47 +3227,118 @@ export default function NotesDashboardPage() {
               interactive: {
                 type: 'daily-reflection-question',
                 data: {
-                  question: dailyReflectionQuestions[nextQuestionNumber - 1],
-                  questionNumber: nextQuestionNumber,
+                  question: dailyReflectionQuestions[nextQuestionIndex],
+                  questionNumber: nextQuestionIndex + 1, // 显示用，从1开始
                   totalQuestions: 3,
-                  reflectionId: currentReflectionId
+                  reflectionId: currentReflectionId,
+                  allQuestions: dailyReflectionQuestions
                 },
                 isActive: true
               }
             }
           ]
         }
-        setChatMessages(prev => [...prev, nextQuestion])
+        setChatMessages(prev => [...prev, confirmMessage, nextQuestion])
+        setIsDailyReflectionMode(true)
       }
       return
     }
     
     if (buttonId === 'daily-reflection-restart') {
       // 重新开始反思（删除旧记录）
+      if (!user) return
+      
+      // 禁用恢复卡片
+      setChatMessages(prev => prev.map(msg => ({
+        ...msg,
+        content: msg.content.map((c: MessageContent) => 
+          c.type === 'interactive' && c.interactive?.type === 'daily-reflection-resume'
+            ? { ...c, interactive: { ...c.interactive, isActive: false } }
+            : c
+        )
+      })))
+      
+      // 删除旧记录
       if (currentReflectionId) {
         const { deleteReflection } = await import('@/lib/dailyReflections')
         await deleteReflection(currentReflectionId)
-        
-        // 清空当前消息中的恢复提示卡片
-        setChatMessages(prev => 
-          prev.filter(msg => 
-            !msg.content?.some(c => 
-              c.type === 'interactive' && 
-              c.interactive?.type === 'daily-reflection-resume'
-            )
-          )
-        )
+        console.log('🗑️ 已删除旧的反思记录')
       }
       
       // 重置状态
-      setIsDailyReflectionMode(false)
       setCurrentReflectionId(null)
       setDailyReflectionQuestions(null)
       setDailyReflectionAnswers([null, null, null])
       setCurrentDailyQuestionIndex(0)
       
-      // 重新调用开启反思（但不再显示"发现未完成"的消息）
-      await startDailyReflection()
+      // 创建新的反思会话（处理可能的重复错误）
+      const today = new Date().toISOString().split('T')[0]
+      const { createDailyReflection, getTodayReflection } = await import('@/lib/dailyReflections')
+      
+      let newReflection
+      try {
+        newReflection = await createDailyReflection(user.id, today)
+        console.log('✅ 创建新反思会话:', newReflection.id)
+      } catch (error: any) {
+        if (error.message === 'DUPLICATE_REFLECTION') {
+          // 如果有重复，等待一下再尝试删除并重新创建
+          console.log('⚠️ 检测到重复记录，重新处理...')
+          await new Promise(resolve => setTimeout(resolve, 200)) // 等待200ms
+          const existingReflection = await getTodayReflection(user.id, today)
+          if (existingReflection) {
+            const { deleteReflection } = await import('@/lib/dailyReflections')
+            await deleteReflection(existingReflection.id)
+            await new Promise(resolve => setTimeout(resolve, 200)) // 再等待200ms
+            newReflection = await createDailyReflection(user.id, today)
+            console.log('✅ 重新创建反思会话成功:', newReflection.id)
+          }
+        } else {
+          throw error
+        }
+      }
+      
+      if (!newReflection) {
+        throw new Error('创建反思会话失败')
+      }
+      
+      // 设置状态
+      setIsDailyReflectionMode(true)
+      setCurrentReflectionId(newReflection.id)
+      setDailyReflectionQuestions([
+        newReflection.question_1,
+        newReflection.question_2,
+        newReflection.question_3
+      ])
+      setDailyReflectionAnswers([null, null, null])
+      setCurrentDailyQuestionIndex(0)
+      
+      // 显示确认消息 + 第一个问题
+      const confirmMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [{ type: 'text' as const, text: '好的，让我们重新开始～' }]
+      }
+      
+      const firstQuestionMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [
+          {
+            type: 'interactive' as const,
+            interactive: {
+              type: 'daily-reflection-question',
+              data: {
+                question: newReflection.question_1,
+                questionNumber: 1,
+                totalQuestions: 3,
+                reflectionId: newReflection.id,
+                allQuestions: [newReflection.question_1, newReflection.question_2, newReflection.question_3]
+              },
+              isActive: true
+            }
+          }
+        ]
+      }
+      
+      setChatMessages(prev => [...prev, confirmMessage, firstQuestionMessage])
       return
     }
     
@@ -3287,7 +3383,7 @@ export default function NotesDashboardPage() {
       // 关闭历史卡片
       setChatMessages(prev => 
         prev.filter(msg => 
-          !msg.content?.some(c => 
+          !msg.content?.some((c: MessageContent) => 
             c.type === 'interactive' && 
             c.interactive?.type === 'daily-reflection-history'
           )
@@ -3303,7 +3399,7 @@ export default function NotesDashboardPage() {
     // 禁用按钮
     setChatMessages(prev => prev.map(msg => ({
       ...msg,
-      content: msg.content.map((c: any) => 
+      content: msg.content.map((c: MessageContent) => 
         c.type === 'interactive' && c.interactive?.type === 'buttons' && 
         (c.interactive?.data?.context?.taskId === context?.taskId || 
          c.interactive?.data?.context?.action === context?.action ||
@@ -3336,7 +3432,7 @@ export default function NotesDashboardPage() {
       // 禁用当前问答卡片
       setChatMessages(prev => prev.map(msg => ({
         ...msg,
-        content: msg.content.map((c: any) => 
+        content: msg.content.map((c: MessageContent) => 
           c.type === 'interactive' && c.interactive?.type === 'question-answer' && 
           c.interactive?.data?.questionIndex === currentIndex
             ? { ...c, interactive: { ...c.interactive, isActive: false } }
@@ -3405,7 +3501,7 @@ export default function NotesDashboardPage() {
         // 更新现有的问答卡片，显示下一个问题
         setChatMessages(prev => prev.map(msg => ({
           ...msg,
-          content: msg.content.map((c: any) => 
+          content: msg.content.map((c: MessageContent) => 
             c.type === 'interactive' && c.interactive?.type === 'question-answer' && 
             c.interactive?.data?.questionIndex === currentIndex
               ? {
@@ -3577,12 +3673,15 @@ export default function NotesDashboardPage() {
       setDecomposingTaskTitle(null)
       setTaskContextInput('')
       
+      // 从 context 中获取当前的 roundType，如果没有则使用 pendingRound
+      const currentRoundType = context?.roundType || pendingRound || 'clarity'
+      
       const confirmMessage: ChatMessage = {
         role: 'assistant' as const,
         content: [{ type: 'text' as const, text: '好的，让我们选择其他任务～' }]
       }
       
-      // 重新显示任务选择卡片
+      // 重新显示对应轮次的任务选择卡片
       const selectionMessage: ChatMessage = {
         role: 'assistant' as const,
         content: [
@@ -3590,14 +3689,14 @@ export default function NotesDashboardPage() {
             type: 'interactive' as const, 
             interactive: {
               type: 'reflection-task-selection' as const,
-              data: { roundType: 'clarity' },
+              data: { roundType: currentRoundType },
               isActive: true
             }
           }
         ]
       }
       
-      setPendingRound('clarity')
+      setPendingRound(currentRoundType)
       setChatMessages(prev => [...prev, confirmMessage, selectionMessage])
       
       return
@@ -3605,12 +3704,15 @@ export default function NotesDashboardPage() {
     
     // 处理返回任务选择按钮
     if (buttonId === 'back-to-selection') {
+      // 从 context 中获取当前的 roundType，如果没有则使用 pendingRound
+      const currentRoundType = context?.roundType || pendingRound || 'clarity'
+      
       const confirmMessage: ChatMessage = {
         role: 'assistant' as const,
         content: [{ type: 'text' as const, text: '好的，让我们选择其他任务～' }]
       }
       
-      // 重新显示任务选择卡片
+      // 重新显示对应轮次的任务选择卡片
       const selectionMessage: ChatMessage = {
         role: 'assistant' as const,
         content: [
@@ -3618,14 +3720,14 @@ export default function NotesDashboardPage() {
             type: 'interactive' as const, 
             interactive: {
               type: 'reflection-task-selection' as const,
-              data: { roundType: 'clarity' },
+              data: { roundType: currentRoundType },
               isActive: true
             }
           }
         ]
       }
       
-      setPendingRound('clarity')
+      setPendingRound(currentRoundType)
       setChatMessages(prev => [...prev, confirmMessage, selectionMessage])
       
       // 清空拆解状态
@@ -3687,7 +3789,7 @@ export default function NotesDashboardPage() {
       setChatMessages(prev => [...prev, confirmMessage, selectionMessage])
       
     } else if (buttonId === 'priority-round-complete-back') {
-      // Priority 轮完成后返回到 round-complete 界面
+      // Priority 轮完成后返回到任务选择界面
       
       // 清空问答状态
       setIsAnsweringQuestions(false)
@@ -3708,23 +3810,22 @@ export default function NotesDashboardPage() {
         content: [{ type: 'text' as const, text: '好的～' }]
       }
       
-      // 显示轮次完成按钮
-      const completeMessage: ChatMessage = {
+      // 显示任务选择卡片（回到 Priority 轮的任务选择界面）
+      const selectionMessage: ChatMessage = {
         role: 'assistant' as const,
         content: [
-          { type: 'text' as const, text: '你还想继续吗？' },
           { 
             type: 'interactive' as const, 
             interactive: {
-              type: 'reflection-round-complete' as const,
-              data: { completedRounds: [...completedRounds, 'priority'] },
+              type: 'reflection-task-selection' as const,
+              data: { roundType: 'priority' },
               isActive: true
             }
           }
         ]
       }
       
-      setChatMessages(prev => [...prev, confirmMessage, completeMessage])
+      setChatMessages(prev => [...prev, confirmMessage, selectionMessage])
       
     } else if (buttonId === 'skip-decompose-back') {
       // 用户选择不拆解，返回任务选择列表
@@ -4207,7 +4308,7 @@ export default function NotesDashboardPage() {
     setChatMessages(prev => 
       prev.map(msg => ({
         ...msg,
-        content: msg.content.map((c: any) => 
+        content: msg.content.map((c: MessageContent) => 
           c.type === 'interactive' && c.interactive?.type === 'continue-decompose-options'
             ? { ...c, interactive: { ...c.interactive, isActive: false } }
             : c
@@ -4230,7 +4331,7 @@ export default function NotesDashboardPage() {
     setChatMessages(prev => 
       prev.map(msg => ({
         ...msg,
-        content: msg.content.map((c: any) => 
+        content: msg.content.map((c: MessageContent) => 
           c.type === 'interactive' && c.interactive?.type === 'continue-decompose-options'
             ? { ...c, interactive: { ...c.interactive, isActive: false } }
             : c
@@ -4918,7 +5019,7 @@ export default function NotesDashboardPage() {
       if (interactive?.type === 'agent-need-input' && interactive.isActive) {
         return {
           ...msg,
-          content: msg.content.map((c: any) => 
+          content: msg.content.map((c: MessageContent) => 
             c.type === 'interactive' 
               ? { ...c, interactive: { ...c.interactive!, isActive: false } }
               : c
@@ -6317,14 +6418,14 @@ ${matrixStats || '（无待办）'}
                         // 2. 清空相关消息
                         setChatMessages(prev => 
                           prev.filter(msg => 
-                            !msg.content?.some(c => 
+                            !msg.content?.some((c: MessageContent) => 
                               c.type === 'interactive' && 
                               (c.interactive?.type === 'daily-reflection-question' ||
                                c.interactive?.type === 'daily-reflection-complete' ||
                                c.interactive?.type === 'daily-reflection-already-done' ||
                                c.interactive?.type === 'daily-reflection-resume')
                             ) &&
-                            !msg.content?.some(c => 
+                            !msg.content?.some((c: MessageContent) => 
                               c.type === 'text' && 
                               (c.text?.includes('让我们一起回顾今天的任务吧') ||
                                c.text?.includes('正在生成你的反思总结'))
