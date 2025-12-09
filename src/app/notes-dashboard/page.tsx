@@ -6199,72 +6199,154 @@ ${matrixStats || '（无待办）'}
                 <span>历史反思</span>
               </button>
               
-              {/* 🧪 清空反思按钮（仅开发环境） */}
+              {/* 🧪 测试按钮（仅开发环境） */}
               {process.env.NODE_ENV === 'development' && (
-                <button
-                  onClick={async () => {
-                    if (!user) return
-                    
-                    const confirm = window.confirm('确定要清空今天的反思记录和相关消息吗？')
-                    if (!confirm) return
-                    
-                    try {
-                      // 1. 先重置状态（不管数据库操作是否成功）
-                      setIsDailyReflectionMode(false)
-                      setCurrentReflectionId(null)
-                      setDailyReflectionQuestions(null)
-                      setDailyReflectionAnswers([null, null, null])
-                      setCurrentDailyQuestionIndex(0)
+                <>
+                  {/* 清空每日反思 */}
+                  <button
+                    onClick={async () => {
+                      if (!user) return
                       
-                      // 2. 清空相关消息
-                      setChatMessages(prev => 
-                        prev.filter(msg => 
-                          !msg.content?.some(c => 
-                            c.type === 'interactive' && 
-                            (c.interactive?.type === 'daily-reflection-question' ||
-                             c.interactive?.type === 'daily-reflection-complete' ||
-                             c.interactive?.type === 'daily-reflection-already-done' ||
-                             c.interactive?.type === 'daily-reflection-resume')
-                          ) &&
-                          !msg.content?.some(c => 
-                            c.type === 'text' && 
-                            (c.text?.includes('让我们一起回顾今天的任务吧') ||
-                             c.text?.includes('正在生成你的反思总结'))
+                      const confirm = window.confirm('确定要清空今天的反思记录和相关消息吗？')
+                      if (!confirm) return
+                      
+                      try {
+                        // 1. 先重置状态（不管数据库操作是否成功）
+                        setIsDailyReflectionMode(false)
+                        setCurrentReflectionId(null)
+                        setDailyReflectionQuestions(null)
+                        setDailyReflectionAnswers([null, null, null])
+                        setCurrentDailyQuestionIndex(0)
+                        
+                        // 2. 清空相关消息
+                        setChatMessages(prev => 
+                          prev.filter(msg => 
+                            !msg.content?.some(c => 
+                              c.type === 'interactive' && 
+                              (c.interactive?.type === 'daily-reflection-question' ||
+                               c.interactive?.type === 'daily-reflection-complete' ||
+                               c.interactive?.type === 'daily-reflection-already-done' ||
+                               c.interactive?.type === 'daily-reflection-resume')
+                            ) &&
+                            !msg.content?.some(c => 
+                              c.type === 'text' && 
+                              (c.text?.includes('让我们一起回顾今天的任务吧') ||
+                               c.text?.includes('正在生成你的反思总结'))
+                            )
                           )
                         )
-                      )
-                      
-                      // 3. 尝试删除数据库记录（可能失败，不阻止流程）
-                      try {
-                        const today = new Date().toISOString().split('T')[0]
-                        const { getTodayReflection, deleteReflection } = await import('@/lib/dailyReflections')
-                        const reflection = await getTodayReflection(user.id, today)
                         
-                        if (reflection) {
-                          await deleteReflection(reflection.id)
-                          console.log('✅ 已清空今日数据库反思记录')
-                        } else {
-                          console.log('⚠️ 今天数据库中没有反思记录')
+                        // 3. 尝试删除数据库记录（可能失败，不阻止流程）
+                        try {
+                          const today = new Date().toISOString().split('T')[0]
+                          const { getTodayReflection, deleteReflection } = await import('@/lib/dailyReflections')
+                          const reflection = await getTodayReflection(user.id, today)
+                          
+                          if (reflection) {
+                            await deleteReflection(reflection.id)
+                            console.log('✅ 已清空今日数据库反思记录')
+                          } else {
+                            console.log('⚠️ 今天数据库中没有反思记录')
+                          }
+                        } catch (dbError: any) {
+                          console.warn('⚠️ 数据库清空失败（但状态已重置）:', dbError.message)
                         }
-                      } catch (dbError: any) {
-                        console.warn('⚠️ 数据库清空失败（但状态已重置）:', dbError.message)
+                        
+                        alert('✅ 每日反思已重置')
+                        
+                      } catch (error: any) {
+                        console.error('❌ 清空反思失败:', error)
+                        alert(`❌ 清空失败: ${error.message}`)
                       }
+                    }}
+                    className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors flex items-center gap-2 text-sm"
+                    title="清空今日反思（测试用）"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    <span>清空每日反思</span>
+                  </button>
+                  
+                  {/* 清空任务反思会话 */}
+                  <button
+                    onClick={async () => {
+                      if (!user || !selectedDate) return
                       
-                      alert('✅ 反思状态已重置')
+                      const confirm = window.confirm('确定要清空任务反思会话吗？这将删除今天的所有反思记录。')
+                      if (!confirm) return
                       
-                    } catch (error: any) {
-                      console.error('❌ 清空反思失败:', error)
-                      alert(`❌ 清空失败: ${error.message}`)
-                    }
-                  }}
-                  className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors flex items-center gap-2 text-sm"
-                  title="清空今日反思（测试用）"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                  <span>清空反思</span>
-                </button>
+                      try {
+                        const noteDate = format(selectedDate, 'yyyy-MM-dd')
+                        const { createClient } = await import('@/lib/supabase-client')
+                        const supabase = createClient()
+                        
+                        // 1. 查找该日期的所有快照
+                        const { data: snapshots } = await supabase
+                          .from('plan_snapshots')
+                          .select('id')
+                          .eq('user_id', user.id)
+                          .eq('note_date', noteDate)
+                        
+                        if (snapshots && snapshots.length > 0) {
+                          const snapshotIds = snapshots.map((s: any) => s.id)
+                          
+                          // 2. 删除所有相关的反思会话
+                          const { error: deleteSessionError } = await supabase
+                            .from('reflection_sessions')
+                            .delete()
+                            .eq('user_id', user.id)
+                            .in('plan_snapshot_id', snapshotIds)
+                          
+                          if (deleteSessionError) {
+                            console.error('❌ 删除反思会话失败:', deleteSessionError)
+                          } else {
+                            console.log('✅ 已删除今天的反思会话')
+                          }
+                          
+                          // 3. 删除快照（可选，如果想彻底清除）
+                          const { error: deleteSnapshotError } = await supabase
+                            .from('plan_snapshots')
+                            .delete()
+                            .eq('user_id', user.id)
+                            .eq('note_date', noteDate)
+                          
+                          if (deleteSnapshotError) {
+                            console.error('❌ 删除计划快照失败:', deleteSnapshotError)
+                          } else {
+                            console.log('✅ 已删除今天的计划快照')
+                          }
+                        }
+                        
+                        // 4. 重置本地状态
+                        setReflectionSessionId(null)
+                        setIsReflectionMode(false)
+                        setCurrentReflectionRound(null)
+                        setReflectionScanResult(null)
+                        setReflectionTasks([])
+                        setAskedQuestions([])
+                        setIsDecompositionPhase(false)
+                        setDecomposableTasks([])
+                        setDecompositionQueue([])
+                        
+                        // 5. 清空聊天消息
+                        setChatMessages([])
+                        
+                        alert('✅ 已清空任务反思，你可以重新开始了')
+                      } catch (error: any) {
+                        console.error('❌ 清空任务反思会话失败:', error)
+                        alert(`❌ 清空失败: ${error.message}`)
+                      }
+                    }}
+                    className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2 text-sm"
+                    title="清空任务反思会话（测试用）"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    <span>清空任务反思</span>
+                  </button>
+                </>
               )}
               
               <button
