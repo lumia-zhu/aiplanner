@@ -2987,6 +2987,7 @@ export default function NotesDashboardPage() {
                   question: questions[0],
                   questionIndex: 0,
                   totalQuestions: questions.length,
+                  allQuestions: questions,  // 🆕 传递完整的问题数组
                   taskTitle: taskTitle,
                   taskId: pendingRound === 'priority' ? 'multiple' : selectedTasks[0].id,  // Priority 轮使用特殊标识
                   roundType: pendingRound  // 🆕 添加轮次类型，用于后续判断
@@ -3147,8 +3148,26 @@ export default function NotesDashboardPage() {
     
     if (buttonId === 'daily-reflection-close') {
       // 关闭反思界面
+      
+      // 1. 添加结束消息
+      const byeMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [{ type: 'text' as const, text: '✨ 今日反思已保存！期待明天与你再次相见 ~' }]
+      }
+      setChatMessages(prev => [...prev, byeMessage])
+      
+      // 2. 重置状态
       setIsDailyReflectionMode(false)
       setCurrentReflectionId(null)
+      
+      // 3. 延迟关闭侧边栏（让用户看到消息）
+      setTimeout(() => {
+        setIsChatSidebarOpen(false)
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('chatSidebarOpen', JSON.stringify(false))
+        }
+      }, 1500) // 1.5秒后关闭
+      
       return
     }
     
@@ -3203,10 +3222,14 @@ export default function NotesDashboardPage() {
       const currentIndex = context?.questionIndex ?? 0
       const totalQuestionsCount = context?.totalQuestions ?? totalQuestions.length
       
+      // 🆕 从卡片获取完整的问题数组（优先使用卡片数据，回退到状态）
+      const questionsArray = context?.allQuestions || totalQuestions
+      
       console.log('🔘 下一个问题按钮点击', {
         currentIndex,
         totalQuestionsCount,
         totalQuestionsFromState: totalQuestions.length,
+        questionsArrayLength: questionsArray.length,
         currentAnswer
       })
       
@@ -3225,7 +3248,7 @@ export default function NotesDashboardPage() {
       let currentQuestionAnswer: { question: string; answer: string } | null = null
       if (currentIndex < totalQuestionsCount) {
         // 🔧 直接使用 context?.question（当前卡片显示的问题），而不是从状态中获取
-        const currentQuestion = context?.question || totalQuestions[currentIndex] || '未知问题'
+        const currentQuestion = context?.question || questionsArray[currentIndex] || '未知问题'
         currentQuestionAnswer = { 
           question: currentQuestion, 
           answer: currentAnswer || '(跳过)' 
@@ -3263,19 +3286,19 @@ export default function NotesDashboardPage() {
         // 还有下一个问题 - 更新当前卡片而不是创建新消息
         setCurrentQuestionIndex(nextIndex)
         
-        // 🔧 边界检查：确保问题存在
-        // 优先从 totalQuestions 获取，如果为空则使用通用提示
-        const nextQuestion = (totalQuestions.length > nextIndex && totalQuestions[nextIndex]) 
-          ? totalQuestions[nextIndex]
+        // 🔧 边界检查：确保问题存在（使用 questionsArray）
+        const nextQuestion = (questionsArray.length > nextIndex && questionsArray[nextIndex]) 
+          ? questionsArray[nextIndex]
           : '问题加载失败，请跳过或返回重试'
         
-        if (totalQuestions.length === 0 || !totalQuestions[nextIndex]) {
-          console.error(`⚠️ 问题数组异常：尝试访问 totalQuestions[${nextIndex}]，但数组长度为 ${totalQuestions.length}`)
+        if (questionsArray.length === 0 || !questionsArray[nextIndex]) {
+          console.error(`⚠️ 问题数组异常：尝试访问 questionsArray[${nextIndex}]，但数组长度为 ${questionsArray.length}`)
           console.error(`⚠️ Context信息:`, {
             taskId: context?.taskId,
             roundType: context?.roundType,
             totalQuestionsCount,
-            currentIndex
+            currentIndex,
+            hasAllQuestions: !!context?.allQuestions
           })
         }
         
@@ -3293,6 +3316,7 @@ export default function NotesDashboardPage() {
                       question: nextQuestion,  // 🔧 使用经过边界检查的问题
                       questionIndex: nextIndex,
                       totalQuestions: totalQuestionsCount,  // 🔧 使用从 context 获取的值
+                      allQuestions: questionsArray,  // 🆕 传递完整问题数组
                       taskTitle: context?.taskTitle,
                       taskId,
                       roundType: context?.roundType  // 🔧 保留 roundType

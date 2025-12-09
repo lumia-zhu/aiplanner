@@ -722,14 +722,54 @@ const QuestionAnswerCard: React.FC<{
     }
   }
   
+  // 根据轮次类型获取颜色主题
+  const getColorTheme = () => {
+    switch (roundType) {
+      case 'clarity':
+        return {
+          bg: 'bg-blue-50',
+          border: 'border-blue-200',
+          label: 'text-blue-600',
+          button: 'bg-blue-500 hover:bg-blue-600',
+          focus: 'focus:ring-blue-500'
+        }
+      case 'time':
+        return {
+          bg: 'bg-green-50',
+          border: 'border-green-200',
+          label: 'text-green-600',
+          button: 'bg-green-500 hover:bg-green-600',
+          focus: 'focus:ring-green-500'
+        }
+      case 'priority':
+        return {
+          bg: 'bg-orange-50',
+          border: 'border-orange-200',
+          label: 'text-orange-600',
+          button: 'bg-orange-500 hover:bg-orange-600',
+          focus: 'focus:ring-orange-500'
+        }
+      default:
+        return {
+          bg: 'bg-blue-50',
+          border: 'border-blue-200',
+          label: 'text-blue-600',
+          button: 'bg-blue-500 hover:bg-blue-600',
+          focus: 'focus:ring-blue-500'
+        }
+    }
+  }
+  
+  const theme = getColorTheme()
+  
   return (
-    <div className="mt-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+    <div className={`mt-3 p-4 ${theme.bg} rounded-lg border ${theme.border}`}>
       <div className="text-sm font-medium text-gray-700 mb-3">
         {getPromptText()}
       </div>
       
       <div className="mb-3">
-        <div className="text-xs font-semibold text-blue-600 mb-2">
+        <div className={`text-xs font-semibold ${theme.label} mb-2`}>
           问题 {questionIndex + 1}/{totalQuestions}
         </div>
         <div className="text-sm text-gray-800 mb-3">
@@ -741,7 +781,7 @@ const QuestionAnswerCard: React.FC<{
           onChange={(e) => setAnswer(e.target.value)}
           disabled={!isActive}
           placeholder="在这里输入你的回答（可选，也可以直接点「下一个问题」跳过）"
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900 placeholder-gray-400 resize-none disabled:opacity-50 disabled:cursor-not-allowed"
+          className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 ${theme.focus} text-sm text-gray-900 placeholder-gray-400 resize-none disabled:opacity-50 disabled:cursor-not-allowed`}
           rows={3}
         />
       </div>
@@ -754,7 +794,7 @@ const QuestionAnswerCard: React.FC<{
         <button
           onClick={handleNext}
           disabled={!isActive}
-          className="flex-1 px-4 py-2 text-sm font-medium bg-blue-500 text-white hover:bg-blue-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className={`flex-1 px-4 py-2 text-sm font-medium ${theme.button} text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
         >
           {isLastQuestion ? '完成 ✓' : '下一个问题 →'}
         </button>
@@ -1013,6 +1053,17 @@ const ChatSidebar = memo<ChatSidebarProps>(({
       console.log(`🔧 AI 助手模式切换为: ${isAgentMode ? 'Agent 模式' : '普通模式'}`)
     }
   }, [isAgentMode])
+  
+  // ⭐ 自动滚动到底部（当有新消息时）
+  useEffect(() => {
+    if (chatScrollRef.current) {
+      // 使用 smooth 滚动，体验更好
+      chatScrollRef.current.scrollTo({
+        top: chatScrollRef.current.scrollHeight,
+        behavior: 'smooth'
+      })
+    }
+  }, [chatMessages, streamingMessage]) // 监听消息变化和流式消息
   
   // 🆕 矩阵模式下：强制显示 Agent 开关为关闭状态
   const displayAgentMode = viewMode === 'matrix' ? false : isAgentMode
