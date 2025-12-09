@@ -1400,9 +1400,9 @@ export default function NotesDashboardPage() {
     }
   }, [chatScrollRef, currentNote, decomposingTaskTitle, handleNoteSave, decompositionQueue, isReflectionMode])
 
-  // ⭐ 处理拆解取消
+  // ⭐ 处理拆解取消（返回任务选择界面）
   const handleDecompositionCancel = useCallback((parentTask: any) => {
-    console.log('❌ 用户取消拆解')
+    console.log('❌ 用户取消拆解，返回任务选择界面')
     
     // 禁用交互式卡片
     setChatMessages(prev => 
@@ -1419,33 +1419,35 @@ export default function NotesDashboardPage() {
     // 清除拆解状态
     setDecomposingTaskTitle(null)
     setTaskContextInput('')
+    setDecompositionQueue([]) // 清空拆解队列
     console.log('🧹 已取消拆解，清除状态')
     
-    // ⭐ 检查是否还有队列中的任务需要拆解
-    if (decompositionQueue.length > 0) {
-      // 询问用户是否继续拆解下一个任务
-      const remainingTasks = decompositionQueue.map(t => t.title).join('、')
-      const askMessage: ChatMessage = {
-        role: 'assistant',
-        content: [{
-          type: 'text',
-          text: `还有 ${decompositionQueue.length} 个任务可以拆解：${remainingTasks}\n\n要继续拆解吗？`
-        }, {
-          type: 'interactive',
+    // 🔧 返回任务选择界面（和 skip-decompose-back 一样的效果）
+    const confirmMessage: ChatMessage = {
+      role: 'assistant',
+      content: [{ type: 'text', text: '好的，让我们选择其他任务～' }]
+    }
+    
+    // 重新显示任务选择卡片
+    const currentRoundType = 'clarity'  // 当前只在 clarity 轮有拆解建议
+    
+    const selectionMessage: ChatMessage = {
+      role: 'assistant',
+      content: [
+        { 
+          type: 'interactive', 
           interactive: {
-            type: 'continue-decompose-options',
-            data: { remainingCount: decompositionQueue.length },
+            type: 'reflection-task-selection',
+            data: { roundType: currentRoundType },
             isActive: true
           }
-        }]
-      }
-      setChatMessages(prev => [...prev, askMessage])
-    } else if (isReflectionMode) {
-      // 队列为空，如果在反思模式，标记需要进入 Time 轮
-      console.log('📋 拆解队列已空，标记需要进入 Time 轮')
-      setPendingTimeRound(true)
+        }
+      ]
     }
-  }, [decompositionQueue, isReflectionMode])
+    
+    setPendingRound(currentRoundType)
+    setChatMessages(prev => [...prev, confirmMessage, selectionMessage])
+  }, [])
 
   // ⭐ 处理拆解上下文提交（用户回答反思性问题）
   const handleDecompositionContextSubmit = useCallback(async (userInput: string) => {
@@ -3536,14 +3538,10 @@ export default function NotesDashboardPage() {
     }
     
     if (buttonId === 'decompose-with-context') {
-      // 用户选择拆解
+      // 用户选择拆解 - 先问问题收集上下文，再拆解
       const taskTitle = context?.taskTitle
-      const taskId = context?.taskId
       
       if (!taskTitle) return
-      
-      // 获取用户输入的上下文（从 taskContexts 或 taskContextInput）
-      const userContext = taskContexts.get(taskId) || taskContextInput.trim()
       
       // 显示确认消息
       const confirmMsg: ChatMessage = {
@@ -3552,47 +3550,8 @@ export default function NotesDashboardPage() {
       }
       setChatMessages(prev => [...prev, confirmMsg])
       
-      // 调用拆解服务（使用用户输入的上下文）
-      try {
-        const decomposeResult = await doubaoService.decomposeTask(
-          taskTitle,
-          userContext || '用户希望将此任务拆解为更小的步骤'
-        )
-        
-        if (decomposeResult.success && decomposeResult.message) {
-          // 解析子任务
-          const { parseDecompositionResponse } = await import('@/utils/taskDecomposition')
-          const subtasks = parseDecompositionResponse(decomposeResult.message)
-          
-          if (subtasks && subtasks.length > 0) {
-            // 显示拆解结果卡片
-            const decompositionCard: ChatMessage = {
-              role: 'assistant' as const,
-              content: [
-                {
-                  type: 'interactive' as const,
-                  interactive: {
-                    type: 'task-decomposition' as const,
-                    data: {
-                      parentTask: { title: taskTitle },
-                      suggestions: subtasks
-                    },
-                    isActive: true
-                  }
-                }
-              ]
-            }
-            setChatMessages(prev => [...prev, decompositionCard])
-          }
-        }
-      } catch (error) {
-        console.error('拆解失败:', error)
-        const errorMsg: ChatMessage = {
-          role: 'assistant' as const,
-          content: [{ type: 'text' as const, text: '抱歉，拆解失败了，请稍后再试～' }]
-        }
-        setChatMessages(prev => [...prev, errorMsg])
-      }
+      // 🔧 调用问题收集流程（先问问题，再拆解）
+      await handleDecomposeFromNoteEditor(taskTitle)
       
     } else if (buttonId === 'time-round-complete-back') {
       // Time 轮完成后返回到任务选择界面
