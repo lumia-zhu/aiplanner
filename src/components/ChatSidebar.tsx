@@ -1413,71 +1413,12 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                             </div>
                           )}
                           
-                          {/* ⭐ 反思概述按钮组 */}
+                          {/* ⭐ 反思概述 - 引导使用底部快捷按钮 */}
                           {content.interactive.type === 'reflection-overview' && (
-                            <div className="mt-3 space-y-2">
-                              {/* 澄清任务 */}
-                              <button
-                                onClick={() => onOverviewButtonClick?.('clarity')}
-                                disabled={content.interactive.isActive === false}
-                                className="w-full text-left p-3 rounded-lg border-2 transition-all bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 hover:border-blue-400 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                <div className="flex items-center gap-2.5">
-                                  <span className="text-xl">📝</span>
-                                  <div className="flex-1">
-                                    <h3 className="text-sm font-semibold text-blue-900">澄清任务</h3>
-                                    <p className="text-xs text-gray-600">明确任务目标和边界</p>
-                                  </div>
-                                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                  </svg>
-                                </div>
-                              </button>
-                              
-                              {/* 时间规划 */}
-                              <button
-                                onClick={() => onOverviewButtonClick?.('time')}
-                                disabled={content.interactive.isActive === false}
-                                className="w-full text-left p-3 rounded-lg border-2 transition-all bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 hover:border-green-400 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                <div className="flex items-center gap-2.5">
-                                  <span className="text-xl">⏱️</span>
-                                  <div className="flex-1">
-                                    <h3 className="text-sm font-semibold text-green-900">时间规划</h3>
-                                    <p className="text-xs text-gray-600">估算时间和安排节奏</p>
-                                  </div>
-                                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                  </svg>
-                                </div>
-                              </button>
-                              
-                              {/* 优先级排列 */}
-                              <button
-                                onClick={() => onOverviewButtonClick?.('priority')}
-                                disabled={content.interactive.isActive === false}
-                                className="w-full text-left p-3 rounded-lg border-2 transition-all bg-gradient-to-r from-orange-50 to-amber-50 border-orange-200 hover:border-orange-400 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                <div className="flex items-center gap-2.5">
-                                  <span className="text-xl">🎯</span>
-                                  <div className="flex-1">
-                                    <h3 className="text-sm font-semibold text-orange-900">优先级排列</h3>
-                                    <p className="text-xs text-gray-600">决定先做什么后做什么</p>
-                                  </div>
-                                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                  </svg>
-                                </div>
-                              </button>
-                              
-                              {/* 取消 */}
-                              <button
-                                onClick={() => onOverviewButtonClick?.('cancel')}
-                                disabled={content.interactive.isActive === false}
-                                className="w-full text-center p-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                暂时不需要
-                              </button>
+                            <div className="mt-4 pt-3 border-t border-gray-200">
+                              <p className="text-sm text-gray-600 text-center">
+                                👇 请使用下方的快捷按钮开始反思
+                              </p>
                             </div>
                           )}
                           

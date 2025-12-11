@@ -1419,7 +1419,7 @@ export default function NotesDashboardPage() {
       const overviewMessage: ChatMessage = {
         role: 'assistant' as const,
         content: [
-          { type: 'text' as const, text: '你想从哪个方面开始？' },
+          { type: 'text' as const, text: '任务拆解已完成！如需继续反思，请使用下方的快捷按钮～' },
           { 
             type: 'interactive' as const, 
             interactive: {
@@ -1431,7 +1431,7 @@ export default function NotesDashboardPage() {
         ]
       }
       
-      setChatMessages(prev => [...prev, completeMessage, overviewMessage])
+      setChatMessages(prev => [...prev, overviewMessage])
     }
   }, [chatScrollRef, currentNote, decomposingTaskTitle, handleNoteSave, decompositionQueue, isReflectionMode])
 
@@ -1974,7 +1974,7 @@ export default function NotesDashboardPage() {
           const overviewMessage: ChatMessage = {
             role: 'assistant' as const,
             content: [
-              { type: 'text' as const, text: overviewText + '\n\n你想从哪个方面开始？' },
+              { type: 'text' as const, text: overviewText },
               { 
                 type: 'interactive' as const, 
                 interactive: {
@@ -2124,7 +2124,7 @@ export default function NotesDashboardPage() {
         const overviewMessage: ChatMessage = {
           role: 'assistant' as const,
           content: [
-            { type: 'text' as const, text: overviewText + '\n\n你想从哪个方面开始？' },
+            { type: 'text' as const, text: overviewText },
             { 
               type: 'interactive' as const, 
               interactive: {
@@ -3221,16 +3221,10 @@ export default function NotesDashboardPage() {
     setPendingRound(null)
     
     // 显示返回消息
-    const backMessage: ChatMessage = {
-      role: 'assistant' as const,
-      content: [{ type: 'text' as const, text: '好的～' }]
-    }
-    
-    // 直接显示功能选择界面（reflection-overview）
     const overviewMessage: ChatMessage = {
       role: 'assistant' as const,
       content: [
-        { type: 'text' as const, text: '你还想继续吗？' },
+        { type: 'text' as const, text: '好的～ 继续反思请使用下方的快捷按钮\n\n如果觉得反思足够了，可以点击右上角 > 关闭侧边栏' },
         { 
           type: 'interactive' as const, 
           interactive: {
@@ -3242,7 +3236,7 @@ export default function NotesDashboardPage() {
       ]
     }
     
-    setChatMessages(prev => [...prev, backMessage, overviewMessage])
+    setChatMessages(prev => [...prev, overviewMessage])
   }, [reflectionTasks])
   
   // ⭐ 处理拆解建议按钮点击
@@ -4403,15 +4397,10 @@ export default function NotesDashboardPage() {
     )
     
     // 显示消息和任务选择界面
-    const skipMessage: ChatMessage = {
-      role: 'assistant',
-      content: [{ type: 'text', text: '好的，我们继续下一步～' }]
-    }
-    
     const overviewMessage: ChatMessage = {
       role: 'assistant' as const,
       content: [
-        { type: 'text' as const, text: '你想从哪个方面开始？' },
+        { type: 'text' as const, text: '好的，我们继续下一步～' },
         { 
           type: 'interactive' as const, 
           interactive: {
@@ -4423,7 +4412,7 @@ export default function NotesDashboardPage() {
       ]
     }
     
-    setChatMessages(prev => [...prev, skipMessage, overviewMessage])
+    setChatMessages(prev => [...prev, overviewMessage])
   }, [reflectionTasks])
   
   // 切换 AI 侧边栏
