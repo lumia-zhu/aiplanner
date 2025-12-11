@@ -191,6 +191,9 @@ export default function NotesDashboardPage() {
   const [dailyReflectionAnswers, setDailyReflectionAnswers] = useState<(string | null)[]>([null, null, null])  // 3个回答
   const [currentDailyQuestionIndex, setCurrentDailyQuestionIndex] = useState(0)  // 当前问题索引（0-2）
   
+  // ⭐ 任务反思快捷按钮状态
+  const [currentReflectionType, setCurrentReflectionType] = useState<'clarity' | 'time' | 'priority' | null>(null)  // 当前激活的反思类型
+  
   // ⭐ 历史反思状态
   const [reflectionHistoryData, setReflectionHistoryData] = useState<any[]>([])  // 历史记录数据
   const [reflectionHistoryOffset, setReflectionHistoryOffset] = useState(0)  // 分页偏移
@@ -2807,6 +2810,7 @@ export default function NotesDashboardPage() {
         setCurrentReflectionRound(null)
         setCompletedRounds([])
         setPendingRound(null)
+        setCurrentReflectionType(null)  // 🆕 清空反思类型
       }, 1000)
       return
     }
@@ -2819,6 +2823,9 @@ export default function NotesDashboardPage() {
     questionAnswersRef.current = []  // 🔧 同时清空 ref
     setDecomposingTaskTitle(null)
     setTaskContextInput('')
+    
+    // 🆕 设置当前反思类型
+    setCurrentReflectionType(action)
     
     // 设置待选择任务的轮次
     setPendingRound(action)
@@ -2871,6 +2878,60 @@ export default function NotesDashboardPage() {
       setChatMessages(prev => [...prev, confirmMessage, selectionMessage])
     }
   }, [reflectionTasks])
+  
+  // ⭐ 底部快捷按钮启动反思
+  const handleReflectionQuickStart = useCallback(async (type: 'clarity' | 'time' | 'priority') => {
+    console.log('🚀 底部按钮启动反思:', type)
+    
+    // 1. 如果正在进行其他反思，清除相关消息
+    if (currentReflectionType && currentReflectionType !== type) {
+      console.log('🔄 切换反思类型:', currentReflectionType, '->', type)
+      
+      // 清除旧的反思相关消息（问题卡片、任务选择卡片等）
+      setChatMessages(prev => 
+        prev.filter(msg => 
+          !msg.content?.some((c: MessageContent) => 
+            c.type === 'interactive' && 
+            (c.interactive?.type === 'question-answer' ||
+             c.interactive?.type === 'reflection-task-selection' ||
+             c.interactive?.type === 'decomposition-context-input' ||
+             c.interactive?.type === 'priority-matrix-suggestion')
+          )
+        )
+      )
+      
+      // 可选：添加系统提示消息
+      const typeNames = {
+        clarity: '任务澄清',
+        time: '时间规划',
+        priority: '优先级排列'
+      }
+      const switchMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [{ 
+          type: 'text' as const, 
+          text: `已切换到${typeNames[type]}` 
+        }]
+      }
+      setChatMessages(prev => [...prev, switchMessage])
+    }
+    
+    // 2. 设置当前反思类型
+    setCurrentReflectionType(type)
+    
+    // 3. 确保有反思会话（如果没有则创建）
+    if (!reflectionSessionId || !reflectionScanResult) {
+      console.log('🔧 没有反思会话，先启动...')
+      await startReflectionSession()
+      // 等待状态更新后再继续
+      setTimeout(() => {
+        handleOverviewButtonClick(type)
+      }, 500)
+    } else {
+      // 4. 调用现有的反思启动逻辑
+      handleOverviewButtonClick(type)
+    }
+  }, [currentReflectionType, handleOverviewButtonClick, reflectionSessionId, reflectionScanResult, startReflectionSession])
   
   // ⭐ 处理切换到矩阵模式
   const handleSwitchToMatrix = useCallback(() => {
@@ -2978,6 +3039,7 @@ export default function NotesDashboardPage() {
           setCurrentReflectionRound(null)
           setCompletedRounds([])
           setPendingRound(null)
+          setCurrentReflectionType(null)  // 🆕 清空反思类型
         }, 1000)
       }
       return
@@ -4029,6 +4091,7 @@ export default function NotesDashboardPage() {
     // 重置状态
     setIsReflectionMode(false)
     setReflectionSessionId(null)
+    setCurrentReflectionType(null)  // 🆕 清空反思类型
   }, [reflectionSessionId, reflectionTasks, reflectionScanResult])
   
   // ⭐ 处理用户在反思中的回答，进入下一轮
@@ -6895,6 +6958,10 @@ ${matrixStats || '（无待办）'}
               // ⭐ 优先级矩阵建议 props
               onSwitchToMatrix={handleSwitchToMatrix}
               onSkipMatrixSwitch={handleSkipMatrixSwitch}
+              // ⭐ 底部快捷反思按钮 props
+              currentReflectionType={currentReflectionType}
+              onReflectionQuickStart={handleReflectionQuickStart}
+              isDailyReflectionMode={isDailyReflectionMode}
               // ⭐ 反思流程优化 props
               onOverviewButtonClick={handleOverviewButtonClick}
               onRoundCompleteButtonClick={handleRoundCompleteButtonClick}

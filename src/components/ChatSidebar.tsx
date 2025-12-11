@@ -22,6 +22,7 @@ import AgentNeedInputCard from './AgentNeedInputCard'
 import AgentLoadingIndicator from './AgentLoadingIndicator'
 import TaskListCard from './TaskListCard'
 import type { TaskForDisplay } from './TaskListCard'
+import { ReflectionQuickActions } from './ReflectionQuickActions'
 
 // 任务识别相关类型
 interface RecognizedTask {
@@ -938,6 +939,11 @@ interface ChatSidebarProps {
   onSwitchToMatrix?: () => void  // 切换到矩阵模式
   onSkipMatrixSwitch?: () => void  // 跳过矩阵建议，继续优先级反思
   
+  // ⭐ 底部快捷反思按钮
+  currentReflectionType?: 'clarity' | 'time' | 'priority' | null  // 当前激活的反思类型
+  onReflectionQuickStart?: (type: 'clarity' | 'time' | 'priority') => void  // 快捷启动反思
+  isDailyReflectionMode?: boolean  // 是否处于每日反思模式（用于隐藏底部按钮）
+  
   // ⭐ 反思流程优化 - 概述和任务选择
   onOverviewButtonClick?: (action: 'clarity' | 'time' | 'priority' | 'cancel') => void  // 概述页面按钮点击
   onRoundCompleteButtonClick?: (action: 'clarity' | 'time' | 'priority' | 'end') => void  // 轮次完成后按钮点击
@@ -1040,6 +1046,10 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   // ⭐ 优先级矩阵建议
   onSwitchToMatrix,  // 切换到矩阵模式
   onSkipMatrixSwitch,  // 跳过矩阵建议
+  // ⭐ 底部快捷反思按钮
+  currentReflectionType,  // 当前激活的反思类型
+  onReflectionQuickStart,  // 快捷启动反思
+  isDailyReflectionMode,  // 是否处于每日反思模式
   // ⭐ 反思流程优化
   onOverviewButtonClick,  // 概述按钮点击
   onRoundCompleteButtonClick,  // 轮次完成按钮点击
@@ -1490,10 +1500,10 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                               totalQuestions={content.interactive.data.totalQuestions}
                               isActive={content.interactive.isActive !== false}
                               onAnswer={(answer) => onButtonClick?.('daily-reflection-answer', { 
-                                ...content.interactive.data, 
+                                ...content.interactive?.data, 
                                 answer 
                               })}
-                              onSkip={() => onButtonClick?.('daily-reflection-skip', content.interactive.data)}
+                              onSkip={() => onButtonClick?.('daily-reflection-skip', content.interactive?.data)}
                             />
                           )}
                           
@@ -1520,8 +1530,8 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                             <DailyReflectionResumeCard
                               questionNumber={content.interactive.data.questionNumber}
                               totalQuestions={content.interactive.data.totalQuestions}
-                              onResume={() => onButtonClick?.('daily-reflection-resume', content.interactive.data)}
-                              onRestart={() => onButtonClick?.('daily-reflection-restart', content.interactive.data)}
+                              onResume={() => onButtonClick?.('daily-reflection-resume', content.interactive?.data)}
+                              onRestart={() => onButtonClick?.('daily-reflection-restart', content.interactive?.data)}
                             />
                           )}
                           
@@ -1531,7 +1541,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                               reflections={content.interactive.data.reflections || []}
                               hasMore={content.interactive.data.hasMore || false}
                               isLoading={content.interactive.data.isLoading || false}
-                              onLoadMore={() => onButtonClick?.('daily-reflection-load-more', content.interactive.data)}
+                              onLoadMore={() => onButtonClick?.('daily-reflection-load-more', content.interactive?.data)}
                               onClose={() => onButtonClick?.('daily-reflection-history-close', {})}
                             />
                           )}
@@ -1547,10 +1557,10 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                               roundType={content.interactive.data.roundType}
                               isActive={content.interactive.isActive !== false}
                               onNext={(answer) => onButtonClick?.('next-question', { 
-                                ...content.interactive.data, 
+                                ...content.interactive?.data, 
                                 answer 
                               })}
-                              onBack={() => onButtonClick?.('back-to-selection-from-qa', content.interactive.data)}
+                              onBack={() => onButtonClick?.('back-to-selection-from-qa', content.interactive?.data)}
                             />
                           )}
                           
@@ -1875,6 +1885,15 @@ const ChatSidebar = memo<ChatSidebarProps>(({
             />
           </div>
         </div>
+      )}
+      
+      {/* ⭐ 底部快捷反思按钮 */}
+      {onReflectionQuickStart && (
+        <ReflectionQuickActions
+          currentReflectionType={currentReflectionType || null}
+          onReflectionStart={onReflectionQuickStart}
+          isVisible={!isDailyReflectionMode}
+        />
       )}
       
       {/* 输入区域 */}

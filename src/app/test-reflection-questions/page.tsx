@@ -9,7 +9,7 @@ import type { TaskSnapshot } from '@/types/reflection'
 export default function TestReflectionQuestionsPage() {
   // 任务输入状态
   const [taskTitle, setTaskTitle] = useState('')
-  const [priority, setPriority] = useState<'High' | 'Medium' | 'Low' | ''>('')
+  const [priority, setPriority] = useState<'high' | 'medium' | 'low' | ''>('')
   const [estimatedDuration, setEstimatedDuration] = useState('')
   const [deadline, setDeadline] = useState('')
   
@@ -158,9 +158,9 @@ export default function TestReflectionQuestionsPage() {
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="">未设置</option>
-                    <option value="High">High - 高优先级</option>
-                    <option value="Medium">Medium - 中优先级</option>
-                    <option value="Low">Low - 低优先级</option>
+                    <option value="high">High - 高优先级</option>
+                    <option value="medium">Medium - 中优先级</option>
+                    <option value="low">Low - 低优先级</option>
                   </select>
                 </div>
 
@@ -376,4 +376,8 @@ export default function TestReflectionQuestionsPage() {
     </div>
   )
 }
+
+
+
+
 
