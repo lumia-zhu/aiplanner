@@ -553,7 +553,7 @@ const DailyReflectionHistoryCard: React.FC<DailyReflectionHistoryCardProps> = ({
 // ⭐ 反思任务选择卡片组件
 interface ReflectionTaskSelectionCardProps {
   tasks: Array<{ id: string; title: string; isCompleted: boolean }>
-  roundType: 'clarity' | 'time' | 'priority'
+  roundType: 'clarity' | 'decomposition' | 'time' | 'priority'
   isActive: boolean
   onConfirm: (taskIds: string[]) => void
   onBack: () => void
@@ -616,6 +616,7 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
   
   const roundInfo = {
     clarity: { emoji: '📝', label: '澄清', color: 'blue' },
+    decomposition: { emoji: '✂️', label: '任务拆解', color: 'purple' },
     time: { emoji: '⏱️', label: '时间规划', color: 'green' },
     priority: { emoji: '🎯', label: '优先级排列', color: 'orange' }
   }
@@ -717,7 +718,7 @@ const QuestionAnswerCard: React.FC<{
   totalQuestions: number
   taskTitle: string
   taskId: string
-  roundType?: 'clarity' | 'time' | 'priority'
+  roundType?: 'clarity' | 'decomposition' | 'time' | 'priority'
   isActive: boolean
   onNext: (answer: string) => void
   onBack: () => void
@@ -738,6 +739,8 @@ const QuestionAnswerCard: React.FC<{
     switch (roundType) {
       case 'clarity':
         return `我注意到「${taskTitle}」可能比较复杂，想了解一些背景信息：`
+      case 'decomposition':
+        return `关于「${taskTitle}」，想了解一些信息：`
       case 'time':
         return `关于「${taskTitle}」的时间规划，想和你确认一下：`
       case 'priority':
@@ -758,6 +761,14 @@ const QuestionAnswerCard: React.FC<{
           label: 'text-blue-600',
           button: 'bg-blue-500 hover:bg-blue-600',
           focus: 'focus:ring-blue-500'
+        }
+      case 'decomposition':
+        return {
+          bg: 'bg-purple-50',
+          border: 'border-purple-200',
+          label: 'text-purple-600',
+          button: 'bg-purple-500 hover:bg-purple-600',
+          focus: 'focus:ring-purple-500'
         }
       case 'time':
         return {
@@ -940,18 +951,18 @@ interface ChatSidebarProps {
   onSkipMatrixSwitch?: () => void  // 跳过矩阵建议，继续优先级反思
   
   // ⭐ 底部快捷反思按钮
-  currentReflectionType?: 'clarity' | 'time' | 'priority' | null  // 当前激活的反思类型
-  onReflectionQuickStart?: (type: 'clarity' | 'time' | 'priority') => void  // 快捷启动反思
+  currentReflectionType?: 'clarity' | 'decomposition' | 'time' | 'priority' | null  // 当前激活的反思类型
+  onReflectionQuickStart?: (type: 'clarity' | 'decomposition' | 'time' | 'priority') => void  // 快捷启动反思
   isDailyReflectionMode?: boolean  // 是否处于每日反思模式（用于隐藏底部按钮）
   
   // ⭐ 反思流程优化 - 概述和任务选择
-  onOverviewButtonClick?: (action: 'clarity' | 'time' | 'priority' | 'cancel') => void  // 概述页面按钮点击
-  onRoundCompleteButtonClick?: (action: 'clarity' | 'time' | 'priority' | 'end') => void  // 轮次完成后按钮点击
+  onOverviewButtonClick?: (action: 'clarity' | 'decomposition' | 'time' | 'priority' | 'cancel') => void  // 概述页面按钮点击
+  onRoundCompleteButtonClick?: (action: 'clarity' | 'decomposition' | 'time' | 'priority' | 'end') => void  // 轮次完成后按钮点击
   onTaskSelectionConfirm?: (taskIds: string[]) => void  // 任务选择确认
   onTaskSelectionBack?: () => void  // 任务选择返回
-  completedRounds?: ('clarity' | 'time' | 'priority')[]  // 已完成的轮次
+  completedRounds?: ('clarity' | 'decomposition' | 'time' | 'priority')[]  // 已完成的轮次
   availableTasksForSelection?: Array<{ id: string; title: string; isCompleted: boolean }>  // 可选择的任务列表
-  pendingRound?: 'clarity' | 'time' | 'priority' | null  // 待选择任务的轮次
+  pendingRound?: 'clarity' | 'decomposition' | 'time' | 'priority' | null  // 待选择任务的轮次
   
   // ⭐ 问答流程状态
   isAnsweringQuestions?: boolean  // 是否处于问答阶段

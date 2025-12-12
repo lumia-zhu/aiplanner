@@ -16,8 +16,8 @@ import type {
 
 // ==================== 类型定义 ====================
 
-/** 反思轮次类型（三轮） */
-export type ReflectionRoundType = 'clarity' | 'time' | 'priority'
+/** 反思轮次类型（四轮） */
+export type ReflectionRoundType = 'clarity' | 'decomposition' | 'time' | 'priority'
 
 /** 反思问题 */
 export interface ReflectionQuestion {

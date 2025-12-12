@@ -36,7 +36,7 @@ export type ReflectionSessionStatus = 'in_progress' | 'completed' | 'skipped'
 /**
  * 反思轮次
  */
-export type ReflectionRound = 'overview' | 'clarity' | 'time' | 'priority' | 'summary'
+export type ReflectionRound = 'overview' | 'clarity' | 'decomposition' | 'time' | 'priority' | 'summary'
 
 /**
  * Global Scan 结果
@@ -63,10 +63,11 @@ export interface RoundRecord {
 }
 
 /**
- * 三轮反思记录
+ * 四轮反思记录
  */
 export interface RoundsJson {
   clarity?: RoundRecord
+  decomposition?: RoundRecord
   time?: RoundRecord
   priority?: RoundRecord
 }

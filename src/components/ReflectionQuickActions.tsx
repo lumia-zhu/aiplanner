@@ -1,8 +1,8 @@
 import React from 'react'
 
 interface ReflectionQuickActionsProps {
-  currentReflectionType: 'clarity' | 'time' | 'priority' | null
-  onReflectionStart: (type: 'clarity' | 'time' | 'priority') => void
+  currentReflectionType: 'clarity' | 'decomposition' | 'time' | 'priority' | null
+  onReflectionStart: (type: 'clarity' | 'decomposition' | 'time' | 'priority') => void
   isVisible: boolean
 }
 
@@ -20,6 +20,14 @@ export function ReflectionQuickActions({
       baseColor: 'border-blue-200 bg-blue-50 text-blue-700',
       activeRing: 'ring-2 ring-blue-500 ring-offset-2',
       hoverColor: 'hover:border-blue-300 hover:bg-blue-100'
+    },
+    { 
+      type: 'decomposition' as const, 
+      icon: '✂️', 
+      label: '任务拆解',
+      baseColor: 'border-purple-200 bg-purple-50 text-purple-700',
+      activeRing: 'ring-2 ring-purple-500 ring-offset-2',
+      hoverColor: 'hover:border-purple-300 hover:bg-purple-100'
     },
     { 
       type: 'time' as const, 
@@ -51,8 +59,8 @@ export function ReflectionQuickActions({
         <span>任务反思</span>
       </div>
       
-      {/* 三个按钮 */}
-      <div className="flex gap-2">
+      {/* 四个按钮 (2行2列) */}
+      <div className="grid grid-cols-2 gap-2">
         {buttons.map(btn => {
           const isActive = currentReflectionType === btn.type
           
@@ -61,8 +69,8 @@ export function ReflectionQuickActions({
               key={btn.type}
               onClick={() => onReflectionStart(btn.type)}
               className={`
-                flex-1 flex items-center justify-center gap-1.5
-                h-[56px] px-2 rounded-lg border
+                flex items-center justify-center gap-1.5
+                h-[52px] px-3 rounded-lg border
                 transition-all duration-200 ease-out
                 ${btn.baseColor}
                 ${btn.hoverColor}

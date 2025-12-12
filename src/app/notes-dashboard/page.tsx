@@ -192,7 +192,7 @@ export default function NotesDashboardPage() {
   const [currentDailyQuestionIndex, setCurrentDailyQuestionIndex] = useState(0)  // 当前问题索引（0-2）
   
   // ⭐ 任务反思快捷按钮状态
-  const [currentReflectionType, setCurrentReflectionType] = useState<'clarity' | 'time' | 'priority' | null>(null)  // 当前激活的反思类型
+  const [currentReflectionType, setCurrentReflectionType] = useState<'clarity' | 'decomposition' | 'time' | 'priority' | null>(null)  // 当前激活的反思类型
   
   // ⭐ 历史反思状态
   const [reflectionHistoryData, setReflectionHistoryData] = useState<any[]>([])  // 历史记录数据
@@ -993,7 +993,7 @@ export default function NotesDashboardPage() {
     }
   }, [user, selectedDate, isNoteEmpty])
 
-  // ⭐ 处理从笔记编辑器发起的任务拆解
+  // ⭐ 处理从笔记编辑器发起的任务拆解（统一到新流程）
   const handleDecomposeFromNoteEditor = useCallback(async (taskTitle: string) => {
     if (!user) return
     
@@ -1006,63 +1006,99 @@ export default function NotesDashboardPage() {
       console.log('💾 已保存侧边栏状态到 localStorage: true')
     }
     
-    // 2. 显示加载提示
+    // 2. 设置为 decomposition 模式
+    setCurrentReflectionType('decomposition')
+    
+    // 3. 显示欢迎消息
+    const welcomeMessage: ChatMessage = {
+      role: 'assistant',
+      content: [{
+        type: 'text',
+        text: `✂️ 好的，让我们来拆解任务「${taskTitle}」～`
+      }]
+    }
+    setChatMessages(prev => [...prev, welcomeMessage])
+    
+    // 4. 显示加载提示
     const loadingMessage: ChatMessage = {
       role: 'assistant',
       content: [{
         type: 'text',
-        text: '🤔 正在为你生成问题...'
+        text: '让我看看这个任务...'
       }]
     }
     setChatMessages(prev => [...prev, loadingMessage])
     
-    // 3. 生成反思性问题（使用简化的任务对象）
-    const mockTask = { 
-      title: taskTitle, 
-      tags: [] as string[]
-    } as any // ⭐ 强制类型转换，因为我们只需要 title 和 tags
-    
-    // ⭐ 动态生成问题
-    const questions = await generateContextQuestions(mockTask)
-    
-    // 移除加载消息
-    setChatMessages(prev => prev.slice(0, -1))
-    
-    // 4. 添加交互式输入卡片到聊天
-    const aiMessage: ChatMessage = {
-      role: 'assistant',
-      content: [
-        {
+    // 5. 生成context问题
+    try {
+      const mockTask = { 
+        id: `temp-${Date.now()}`,
+        user_id: user.id,
+        title: taskTitle,
+        completed: false,
+        created_at: new Date().toISOString(),
+        tags: [] as string[]
+      } as any
+      
+      const questions = await generateContextQuestions(mockTask)
+      
+      // 移除加载消息
+      setChatMessages(prev => prev.slice(0, -1))
+      
+      // 6. 初始化问答流程
+      setDecomposingTaskTitle(taskTitle)
+      setTotalQuestions(questions)
+      setCurrentQuestionIndex(0)
+      setQuestionAnswers([])
+      questionAnswersRef.current = []
+      setIsAnsweringQuestions(true)
+      
+      // 7. 显示第一个问题
+      const firstQuestionMsg: ChatMessage = {
+        role: 'assistant',
+        content: [{
           type: 'interactive',
           interactive: {
-            type: 'decomposition-context-input',
+            type: 'question-answer',
             data: {
-              taskTitle,
-              questions
+              question: questions[0],
+              questionIndex: 0,
+              totalQuestions: questions.length,
+              allQuestions: questions,
+              taskTitle: taskTitle,
+              taskId: `temp-${Date.now()}`,
+              roundType: 'decomposition'
             },
             isActive: true
           }
+        }]
+      }
+      
+      setChatMessages(prev => [...prev, firstQuestionMsg])
+      
+      console.log('✅ 已进入新的任务拆解流程')
+    } catch (error) {
+      console.error('生成问题失败:', error)
+      setChatMessages(prev => prev.slice(0, -1)) // 移除加载消息
+      setChatMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: [{
+            type: 'text',
+            text: `❌ 抱歉，生成问题失败：${error instanceof Error ? error.message : '未知错误'}`
+          }]
         }
-      ]
+      ])
     }
     
-    setChatMessages(prev => [...prev, aiMessage])
-    
-    // 5. 保存任务标题，标记进入拆解流程
-    setDecomposingTaskTitle(taskTitle)
-    setTaskContextInput('') // 清空之前的上下文
-    console.log('✅ 已进入任务拆解流程，任务标题:', taskTitle)
-    
-    // 6. 自动滚动到最新消息
+    // 8. 自动滚动到最新消息
     setTimeout(() => {
       if (chatScrollRef.current) {
         chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight
-        console.log('📜 自动滚动到聊天底部')
       }
-    }, 100) // 等待 DOM 更新后滚动
-    
-    console.log('✅ 已生成反思性问题，等待用户回答')
-  }, [user])
+    }, 100)
+  }, [user, questionAnswersRef])
 
   // ⭐ 处理任务拆解（用户回答反思性问题后，或跳过问题）
   const handleTaskDecomposition = useCallback(async (userAnswer: string) => {
@@ -2780,7 +2816,7 @@ export default function NotesDashboardPage() {
   }, [user, isLoadingHistory, reflectionHistoryOffset, reflectionHistoryData])
   
   // ⭐ 处理概述页面按钮点击
-  const handleOverviewButtonClick = useCallback((action: 'clarity' | 'time' | 'priority' | 'cancel') => {
+  const handleOverviewButtonClick = useCallback((action: 'clarity' | 'decomposition' | 'time' | 'priority' | 'cancel') => {
     console.log('🔘 概述按钮点击:', action)
     
     // 禁用概述按钮
@@ -2833,6 +2869,7 @@ export default function NotesDashboardPage() {
     // 显示任务选择消息（分成两条）
     const roundInfo = {
       clarity: { emoji: '📝', label: '澄清任务' },
+      decomposition: { emoji: '✂️', label: '任务拆解' },
       time: { emoji: '⏱️', label: '时间规划' },
       priority: { emoji: '🎯', label: '优先级排列' }
     }
@@ -2880,7 +2917,7 @@ export default function NotesDashboardPage() {
   }, [reflectionTasks])
   
   // ⭐ 底部快捷按钮启动反思
-  const handleReflectionQuickStart = useCallback(async (type: 'clarity' | 'time' | 'priority') => {
+  const handleReflectionQuickStart = useCallback(async (type: 'clarity' | 'decomposition' | 'time' | 'priority') => {
     console.log('🚀 底部按钮启动反思:', type)
     
     // 1. 如果正在进行其他反思，清除相关消息
@@ -2903,6 +2940,7 @@ export default function NotesDashboardPage() {
       // 可选：添加系统提示消息
       const typeNames = {
         clarity: '任务澄清',
+        decomposition: '任务拆解',
         time: '时间规划',
         priority: '优先级排列'
       }
@@ -3006,7 +3044,7 @@ export default function NotesDashboardPage() {
   }, [])
   
   // ⭐ 处理轮次完成后按钮点击
-  const handleRoundCompleteButtonClick = useCallback((action: 'clarity' | 'time' | 'priority' | 'end') => {
+  const handleRoundCompleteButtonClick = useCallback((action: 'clarity' | 'decomposition' | 'time' | 'priority' | 'end') => {
     console.log('🔘 轮次完成按钮点击:', action)
     console.log('🔘 当前 completedRounds:', completedRounds)
     
@@ -3060,6 +3098,7 @@ export default function NotesDashboardPage() {
     // 显示任务选择消息（分成两条）
     const roundInfo = {
       clarity: { emoji: '📝', label: '澄清任务' },
+      decomposition: { emoji: '✂️', label: '任务拆解' },
       time: { emoji: '⏱️', label: '时间规划' },
       priority: { emoji: '🎯', label: '优先级排列' }
     }
@@ -3112,8 +3151,8 @@ export default function NotesDashboardPage() {
     const selectedTasks = reflectionTasks.filter(t => taskIds.includes(t.id))
     setSelectedTasksForRound(selectedTasks)
     
-    // 🆕 对于 Clarity、Time 和 Priority 轮，使用单问题卡片流程
-    if ((pendingRound === 'clarity' || pendingRound === 'time' || pendingRound === 'priority') && selectedTasks.length > 0) {
+    // 🆕 对于 Clarity、Decomposition、Time 和 Priority 轮，使用单问题卡片流程
+    if ((pendingRound === 'clarity' || pendingRound === 'decomposition' || pendingRound === 'time' || pendingRound === 'priority') && selectedTasks.length > 0) {
       // 显示加载消息
       const loadingMsg: ChatMessage = {
         role: 'assistant' as const,
@@ -3133,6 +3172,19 @@ export default function NotesDashboardPage() {
           questions = await generateDynamicDecompositionQuestions({
             id: task.id,
             title: task.title,
+            estimatedDuration: task.estimatedDuration,
+            deadline_datetime: task.deadline,
+          } as any)
+        } else if (pendingRound === 'decomposition') {
+          // Decomposition 轮：生成context问题（单个任务）
+          const task = selectedTasks[0]
+          taskTitle = task.title
+          questions = await generateContextQuestions({
+            id: task.id,
+            title: task.title,
+            user_id: user?.id || '',
+            completed: task.isCompleted,
+            created_at: new Date().toISOString(),
             estimatedDuration: task.estimatedDuration,
             deadline_datetime: task.deadline,
           } as any)
@@ -3638,6 +3690,158 @@ export default function NotesDashboardPage() {
               }
             ]
           }
+        } else if (roundType === 'decomposition') {
+          // Decomposition 轮：直接生成拆解建议
+          console.log('✂️ 开始生成任务拆解建议', { taskTitle: context?.taskTitle, taskId })
+          
+          // 先显示总结消息
+          setChatMessages(prev => [...prev, summaryMsg])
+          
+          // 确保设置了 decomposingTaskTitle
+          const taskTitle = context?.taskTitle || '未知任务'
+          setDecomposingTaskTitle(taskTitle)
+          
+          // 显示加载消息
+          const loadingMsg: ChatMessage = {
+            role: 'assistant' as const,
+            content: [{ type: 'text' as const, text: `🤔 正在拆解任务「${taskTitle}」...` }]
+          }
+          setChatMessages(prev => [...prev, loadingMsg])
+          
+          // 调用拆解AI
+          setTimeout(async () => {
+            try {
+              const userContext = allAnswers.map(qa => `Q: ${qa.question}\nA: ${qa.answer}`).join('\n\n')
+              
+              // 调用 AI 生成拆解建议
+              const result = await doubaoService.decomposeTask(
+                taskTitle,
+                undefined,
+                userContext,
+                undefined
+              )
+              
+              // 移除加载消息
+              setChatMessages(prev => prev.slice(0, -1))
+              
+              if (!result.success || !result.message) {
+                console.error('AI拆解失败:', result.error)
+                setChatMessages(prev => [
+                  ...prev,
+                  {
+                    role: 'assistant',
+                    content: [{
+                      type: 'text',
+                      text: `❌ 抱歉，任务拆解失败：${result.error || '未知错误'}`
+                    }]
+                  }
+                ])
+                return
+              }
+              
+              // 解析 AI 返回的 JSON
+              let subtasks: string[] = []
+              try {
+                const jsonMatch = result.message.match(/\[[\s\S]*\]/)
+                if (jsonMatch) {
+                  const parsedData = JSON.parse(jsonMatch[0])
+                  subtasks = parsedData.map((item: any) => item.title || item.name || '')
+                }
+              } catch (parseError) {
+                console.error('解析AI响应失败:', parseError)
+                setChatMessages(prev => [
+                  ...prev,
+                  {
+                    role: 'assistant',
+                    content: [{
+                      type: 'text',
+                      text: `❌ 抱歉，AI返回的数据格式有误，无法解析任务拆解建议。`
+                    }]
+                  }
+                ])
+                return
+              }
+              
+              if (subtasks.length === 0) {
+                setChatMessages(prev => [
+                  ...prev,
+                  {
+                    role: 'assistant',
+                    content: [{
+                      type: 'text',
+                      text: `抱歉，我无法为这个任务生成子任务建议。你可以手动拆解。`
+                    }]
+                  }
+                ])
+                return
+              }
+              
+              // 转换为 SubtaskSuggestion 格式
+              const subtaskSuggestions = subtasks.map((task, index) => ({
+                id: `suggestion-${Date.now()}-${index}`,
+                title: task,
+                order: index + 1,
+                is_selected: true
+              }))
+              
+              // 创建 mock task
+              const mockParentTask = {
+                id: `mock-${Date.now()}`,
+                title: taskTitle,
+                user_id: user?.id || '',
+                is_completed: false,
+                created_at: new Date().toISOString()
+              } as any
+              
+              // 显示拆解卡片
+              setChatMessages(prev => [
+                ...prev,
+                {
+                  role: 'assistant',
+                  content: [
+                    {
+                      type: 'text',
+                      text: `✅ 好的！我为你拆解了任务「${taskTitle}」：`
+                    },
+                    {
+                      type: 'interactive',
+                      interactive: {
+                        type: 'task-decomposition',
+                        data: {
+                          parentTask: mockParentTask,
+                          suggestions: subtaskSuggestions
+                        },
+                        isActive: true
+                      }
+                    }
+                  ]
+                }
+              ])
+              
+              // 滚动到底部
+              setTimeout(() => {
+                if (chatScrollRef.current) {
+                  chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight
+                }
+              }, 100)
+              
+            } catch (error) {
+              console.error('拆解失败:', error)
+              setChatMessages(prev => prev.slice(0, -1)) // 移除加载消息
+              setChatMessages(prev => [
+                ...prev,
+                {
+                  role: 'assistant',
+                  content: [{
+                    type: 'text',
+                    text: `❌ 抱歉，发生了意外错误：${error instanceof Error ? error.message : '未知错误'}`
+                  }]
+                }
+              ])
+            }
+          }, 100)
+          
+          return
         } else if (roundType === 'time') {
           // Time 轮：显示返回按钮
           optionsMsg = {
@@ -3967,34 +4171,8 @@ export default function NotesDashboardPage() {
         }
         setChatMessages(prev => [...prev, questionMessage])
         
-        // ⭐ Clarity 轮特殊处理：使用 LLM 返回的建议拆解任务
-        if (round === 'clarity' && result.tasksToDecompose && result.tasksToDecompose.length > 0) {
-          console.log('✂️ LLM 建议拆解的任务:', result.tasksToDecompose)
-          
-          // 根据任务标题找到对应的 TaskSnapshot
-          const decomposable = tasks.filter(t => 
-            result.tasksToDecompose!.some(title => 
-              t.title.includes(title) || title.includes(t.title)
-            )
-          )
-          
-          if (decomposable.length > 0) {
-            console.log(`✂️ 匹配到 ${decomposable.length} 个可拆解任务`)
-            setDecomposableTasks(decomposable)
-            
-            // 追加拆解询问消息
-            const decompositionMessage = formatDecompositionInquiryMessage(decomposable)
-            const decompositionChatMessage = {
-              role: 'assistant' as const,
-              content: [{ type: 'text' as const, text: decompositionMessage }]
-            }
-            // 稍微延迟一下，让用户先看到反思问题
-            setTimeout(() => {
-              setChatMessages(prev => [...prev, decompositionChatMessage])
-              setIsDecompositionPhase(true)
-            }, 500)
-          }
-        }
+        // ⭐ Clarity 轮已不再自动进入拆解阶段
+        // 用户可以通过底部"任务拆解"按钮主动选择拆解
         
         // 更新会话状态
         await updateReflectionSession(sessionId, {
@@ -4147,6 +4325,7 @@ export default function NotesDashboardPage() {
     // 显示"这一轮完成了" + 4个按钮
     const roundInfo = {
       clarity: { emoji: '📝', label: '任务澄清' },
+      decomposition: { emoji: '✂️', label: '任务拆解' },
       time: { emoji: '⏱️', label: '时间规划' },
       priority: { emoji: '🎯', label: '优先级排列' }
     }
