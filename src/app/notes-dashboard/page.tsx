@@ -1419,57 +1419,41 @@ export default function NotesDashboardPage() {
       }
     }, 100)
     
-    // 6. ⭐ 检查是否还有队列中的任务需要拆解
-    if (decompositionQueue.length > 0) {
-      // 询问用户是否继续拆解下一个任务
-      const remainingTasks = decompositionQueue.map(t => t.title).join('、')
-      const askMessage: ChatMessage = {
-        role: 'assistant',
-        content: [{
-          type: 'text',
-          text: `还有 ${decompositionQueue.length} 个任务可以拆解：${remainingTasks}\n\n要继续拆解吗？`
-        }, {
-          type: 'interactive',
-          interactive: {
-            type: 'continue-decompose-options',
-            data: { remainingCount: decompositionQueue.length },
-            isActive: true
-          }
-        }]
-      }
-      setChatMessages(prev => [...prev, askMessage])
-    } else if (isReflectionMode) {
-      // 队列为空，拆解完成，回到任务选择界面
-      console.log('✅ 拆解队列已空，返回任务选择界面')
-      
-      // 重置拆解状态
-      setIsDecompositionPhase(false)
-      setDecompositionQueue([])
-      
-      // 显示完成消息和任务选择界面
+    // 6. ⭐ 如果是从 decomposition 类型触发的拆解，显示返回按钮
+    if (currentReflectionType === 'decomposition') {
+      // 显示完成消息和返回按钮
       const completeMessage: ChatMessage = {
         role: 'assistant' as const,
-        content: [{ type: 'text' as const, text: '任务拆解已完成！现在你想从哪个方面开始反思呢？' }]
-      }
-      
-      const overviewMessage: ChatMessage = {
-        role: 'assistant' as const,
         content: [
-          { type: 'text' as const, text: '任务拆解已完成！如需继续反思，请使用下方的快捷按钮～' },
           { 
-            type: 'interactive' as const, 
+            type: 'text' as const, 
+            text: `✅ 任务拆解完成！
+
+你可以：
+
+• **返回选择其他任务进行拆解**
+
+• **点击底部任务反思按钮进行其他类型反思**`
+          },
+          {
+            type: 'interactive' as const,
             interactive: {
-              type: 'reflection-overview' as const,
-              data: { taskCount: reflectionTasks.length },
+              type: 'buttons' as const,
+              data: {
+                buttons: [
+                  { id: 'decomposition-round-complete-back', label: '← 返回选择其他任务', variant: 'secondary' }
+                ],
+                context: { roundType: 'decomposition' }
+              },
               isActive: true
             }
           }
         ]
       }
       
-      setChatMessages(prev => [...prev, overviewMessage])
+      setChatMessages(prev => [...prev, completeMessage])
     }
-  }, [chatScrollRef, currentNote, decomposingTaskTitle, handleNoteSave, decompositionQueue, isReflectionMode])
+  }, [chatScrollRef, currentNote, decomposingTaskTitle, handleNoteSave, currentReflectionType])
 
   // ⭐ 处理拆解取消（返回任务选择界面）
   const handleDecompositionCancel = useCallback((parentTask: any) => {
@@ -1493,15 +1477,16 @@ export default function NotesDashboardPage() {
     setDecompositionQueue([]) // 清空拆解队列
     console.log('🧹 已取消拆解，清除状态')
     
-    // 🔧 返回任务选择界面（和 skip-decompose-back 一样的效果）
+    // 🔧 返回任务选择界面（判断当前是哪个反思类型）
+    // 如果是 decomposition 类型，返回任务拆解的任务选择
+    const roundType = currentReflectionType === 'decomposition' ? 'decomposition' : 'clarity'
+    
     const confirmMessage: ChatMessage = {
       role: 'assistant',
       content: [{ type: 'text', text: '好的，让我们选择其他任务～' }]
     }
     
-    // 重新显示任务选择卡片
-    const currentRoundType = 'clarity'  // 当前只在 clarity 轮有拆解建议
-    
+    // 重新显示对应的任务选择卡片
     const selectionMessage: ChatMessage = {
       role: 'assistant',
       content: [
@@ -1509,16 +1494,16 @@ export default function NotesDashboardPage() {
           type: 'interactive', 
           interactive: {
             type: 'reflection-task-selection',
-            data: { roundType: currentRoundType },
+            data: { roundType },
             isActive: true
           }
         }
       ]
     }
     
-    setPendingRound(currentRoundType)
+    setPendingRound(roundType)
     setChatMessages(prev => [...prev, confirmMessage, selectionMessage])
-  }, [])
+  }, [currentReflectionType])
 
   // ⭐ 处理拆解上下文提交（用户回答反思性问题）
   const handleDecompositionContextSubmit = useCallback(async (userInput: string) => {
@@ -3257,7 +3242,7 @@ export default function NotesDashboardPage() {
   
   // ⭐ 处理任务选择返回
   const handleTaskSelectionBack = useCallback(() => {
-    console.log('↩️ 任务选择返回')
+    console.log('↩️ 任务选择返回, 当前类型:', currentReflectionType || pendingRound)
     
     // 禁用任务选择卡片
     setChatMessages(prev => prev.map(msg => ({
@@ -3269,14 +3254,29 @@ export default function NotesDashboardPage() {
       )
     })))
     
-    // 清除待选择状态
+    // 获取当前的反思类型（用于判断显示什么提示）
+    const reflectionType = currentReflectionType || pendingRound
+    
+    // 清除待选择状态和当前反思类型
     setPendingRound(null)
+    setCurrentReflectionType(null)
+    
+    // 根据反思类型显示不同的返回消息
+    const promptText = reflectionType ? 
+      `好的～
+
+你可以：
+
+• **点击下方任务反思按钮进行其他类型反思**
+
+• **或点击右上角关闭侧边栏**` :
+      '好的～ 继续反思请使用下方的快捷按钮\n\n如果觉得反思足够了，可以点击右上角 > 关闭侧边栏'
     
     // 显示返回消息
     const overviewMessage: ChatMessage = {
       role: 'assistant' as const,
       content: [
-        { type: 'text' as const, text: '好的～ 继续反思请使用下方的快捷按钮\n\n如果觉得反思足够了，可以点击右上角 > 关闭侧边栏' },
+        { type: 'text' as const, text: promptText },
         { 
           type: 'interactive' as const, 
           interactive: {
@@ -3289,7 +3289,7 @@ export default function NotesDashboardPage() {
     }
     
     setChatMessages(prev => [...prev, overviewMessage])
-  }, [reflectionTasks])
+  }, [reflectionTasks, currentReflectionType, pendingRound])
   
   // ⭐ 处理拆解建议按钮点击
   const handleDecomposeSuggestionButton = useCallback(async (buttonId: string, context: any) => {
@@ -3666,13 +3666,19 @@ export default function NotesDashboardPage() {
         let optionsMsg: ChatMessage
         
         if (roundType === 'clarity') {
-          // Clarity 轮：显示拆解选项
+          // Clarity 轮：显示返回按钮（不再提供拆解选项）
           optionsMsg = {
             role: 'assistant' as const,
             content: [
               { 
                 type: 'text' as const, 
-                text: `现在，你可以选择：`
+                text: `✅ 任务澄清完成！
+
+你可以：
+
+• **返回选择其他任务进行澄清**
+
+• **点击底部任务反思按钮进行其他类型反思**`
               },
               {
                 type: 'interactive' as const,
@@ -3680,8 +3686,7 @@ export default function NotesDashboardPage() {
                   type: 'buttons' as const,
                   data: {
                     buttons: [
-                      { id: 'decompose-with-context', label: '✂️ 拆解这个任务', variant: 'primary' },
-                      { id: 'skip-decompose-back', label: '不需要拆解，选择其他任务', variant: 'secondary' }
+                      { id: 'clarity-round-complete-back', label: '← 返回选择其他任务', variant: 'secondary' }
                     ],
                     context: { taskId, taskTitle: context?.taskTitle, roundType }
                   },
@@ -3849,7 +3854,13 @@ export default function NotesDashboardPage() {
             content: [
               { 
                 type: 'text' as const, 
-                text: `时间规划反思完成！`
+                text: `✅ 时间规划完成！
+
+你可以：
+
+• **返回选择其他任务进行时间规划**
+
+• **点击底部任务反思按钮进行其他类型反思**`
               },
               {
                 type: 'interactive' as const,
@@ -3857,7 +3868,7 @@ export default function NotesDashboardPage() {
                   type: 'buttons' as const,
                   data: {
                     buttons: [
-                      { id: 'time-round-complete-back', label: '← 返回', variant: 'secondary' }
+                      { id: 'time-round-complete-back', label: '← 返回选择其他任务', variant: 'secondary' }
                     ],
                     context: { taskId, taskTitle: context?.taskTitle, roundType }
                   },
@@ -3873,7 +3884,13 @@ export default function NotesDashboardPage() {
             content: [
               { 
                 type: 'text' as const, 
-                text: `优先级反思完成！`
+                text: `✅ 优先级反思完成！
+
+你可以：
+
+• **返回选择其他任务进行优先级反思**
+
+• **点击底部任务反思按钮进行其他类型反思**`
               },
               {
                 type: 'interactive' as const,
@@ -3881,7 +3898,7 @@ export default function NotesDashboardPage() {
                   type: 'buttons' as const,
                   data: {
                     buttons: [
-                      { id: 'priority-round-complete-back', label: '← 返回', variant: 'secondary' }
+                      { id: 'priority-round-complete-back', label: '← 返回选择其他任务', variant: 'secondary' }
                     ],
                     context: { taskId, taskTitle: context?.taskTitle, roundType }
                   },
@@ -3892,6 +3909,9 @@ export default function NotesDashboardPage() {
           }
         } else {
           // 其他轮次（降级方案）
+          // 根据轮次类型生成对应的返回按钮ID
+          const backButtonId = `${roundType}-round-complete-back`
+          
           optionsMsg = {
             role: 'assistant' as const,
             content: [
@@ -3905,7 +3925,7 @@ export default function NotesDashboardPage() {
                   type: 'buttons' as const,
                   data: {
                     buttons: [
-                      { id: 'skip-decompose-back', label: '← 返回', variant: 'secondary' }
+                      { id: backButtonId, label: '← 返回', variant: 'secondary' }
                     ],
                     context: { taskId, taskTitle: context?.taskTitle, roundType }
                   },
@@ -3997,21 +4017,75 @@ export default function NotesDashboardPage() {
       return
     }
     
-    if (buttonId === 'decompose-with-context') {
-      // 用户选择拆解 - 先问问题收集上下文，再拆解
-      const taskTitle = context?.taskTitle
+    if (buttonId === 'clarity-round-complete-back') {
+      // Clarity 轮完成后返回到任务选择界面
       
-      if (!taskTitle) return
+      // 清空问答状态
+      setIsAnsweringQuestions(false)
+      setCurrentQuestionIndex(0)
+      setTotalQuestions([])
+      setQuestionAnswers([])
+      questionAnswersRef.current = []  // 🔧 同时清空 ref
+      setDecomposingTaskTitle(null)
+      setTaskContextInput('')
       
-      // 显示确认消息
-      const confirmMsg: ChatMessage = {
+      const confirmMessage: ChatMessage = {
         role: 'assistant' as const,
-        content: [{ type: 'text' as const, text: '好的，让我帮你拆解这个任务～' }]
+        content: [{ type: 'text' as const, text: '好的，让我们选择其他任务～' }]
       }
-      setChatMessages(prev => [...prev, confirmMsg])
       
-      // 🔧 调用问题收集流程（先问问题，再拆解）
-      await handleDecomposeFromNoteEditor(taskTitle)
+      // 重新显示澄清任务选择卡片
+      const selectionMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [
+          { 
+            type: 'interactive' as const, 
+            interactive: {
+              type: 'reflection-task-selection' as const,
+              data: { roundType: 'clarity' },
+              isActive: true
+            }
+          }
+        ]
+      }
+      
+      setPendingRound('clarity')
+      setChatMessages(prev => [...prev, confirmMessage, selectionMessage])
+      
+    } else if (buttonId === 'decomposition-round-complete-back') {
+      // Decomposition 轮完成后返回到任务选择界面
+      
+      // 清空问答状态和拆解状态
+      setIsAnsweringQuestions(false)
+      setCurrentQuestionIndex(0)
+      setTotalQuestions([])
+      setQuestionAnswers([])
+      questionAnswersRef.current = []  // 🔧 同时清空 ref
+      setDecomposingTaskTitle(null)
+      setTaskContextInput('')
+      
+      const confirmMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [{ type: 'text' as const, text: '好的，让我们选择其他任务～' }]
+      }
+      
+      // 重新显示任务拆解选择卡片
+      const selectionMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [
+          { 
+            type: 'interactive' as const, 
+            interactive: {
+              type: 'reflection-task-selection' as const,
+              data: { roundType: 'decomposition' },
+              isActive: true
+            }
+          }
+        ]
+      }
+      
+      setPendingRound('decomposition')
+      setChatMessages(prev => [...prev, confirmMessage, selectionMessage])
       
     } else if (buttonId === 'time-round-complete-back') {
       // Time 轮完成后返回到任务选择界面
@@ -4086,37 +4160,6 @@ export default function NotesDashboardPage() {
       }
       
       setChatMessages(prev => [...prev, confirmMessage, selectionMessage])
-      
-    } else if (buttonId === 'skip-decompose-back') {
-      // 用户选择不拆解，返回任务选择列表
-      const confirmMessage: ChatMessage = {
-        role: 'assistant' as const,
-        content: [{ type: 'text' as const, text: '好的，让我们选择其他任务～' }]
-      }
-      
-      // 重新显示任务选择卡片
-      const currentRoundType = 'clarity'  // 当前只在 clarity 轮有拆解建议
-      
-      const selectionMessage: ChatMessage = {
-        role: 'assistant' as const,
-        content: [
-          { 
-            type: 'interactive' as const, 
-            interactive: {
-              type: 'reflection-task-selection' as const,
-              data: { roundType: currentRoundType },
-              isActive: true
-            }
-          }
-        ]
-      }
-      
-      setPendingRound(currentRoundType)
-      setChatMessages(prev => [...prev, confirmMessage, selectionMessage])
-      
-      // 清空拆解状态
-      setDecomposingTaskTitle(null)
-      setTaskContextInput('')
     }
   }, [taskContextInput, user])
   
