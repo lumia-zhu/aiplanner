@@ -46,12 +46,15 @@ export default function TestReflectionQuestionsPage() {
       // 构建任务对象
       const task: Task = {
         id: 'test-task-1',
+        user_id: 'test-user',
         title: taskTitle,
         completed: false,
         priority: priority || undefined,
-        estimatedDuration: estimatedDuration ? parseInt(estimatedDuration) : undefined,
-        deadline: deadline || undefined,
-        tags: []
+        estimated_duration: estimatedDuration ? parseInt(estimatedDuration) : undefined,
+        deadline_datetime: deadline || undefined,
+        tags: [],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       }
 
       // 构建 TaskSnapshot

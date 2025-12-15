@@ -1114,4 +1114,4 @@ ${editedText}
 
 // 导出单例
 export const doubaoService = new DoubaoService()
-export type { ChatMessage, ChatResponse, InteractiveMessage, InteractiveMessageType, TaskListData }
+export type { ChatMessage, ChatResponse, TaskListData }
