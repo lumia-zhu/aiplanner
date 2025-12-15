@@ -25,6 +25,41 @@ const ContextInfo = Node.create({
   
   content: 'text*',
   
+  addAttributes() {
+    return {
+      contextId: {
+        default: null,
+        parseHTML: element => {
+          const value = element.getAttribute('data-context-id')
+          console.log('🔍 parseHTML - contextId:', value)
+          return value
+        },
+        renderHTML: attributes => {
+          console.log('🎨 renderHTML attributes.contextId:', attributes.contextId)
+          if (!attributes.contextId) return {}
+          return {
+            'data-context-id': attributes.contextId
+          }
+        }
+      },
+      taskTitle: {
+        default: null,
+        parseHTML: element => {
+          const value = element.getAttribute('data-task-title')
+          console.log('🔍 parseHTML - taskTitle:', value)
+          return value
+        },
+        renderHTML: attributes => {
+          console.log('🎨 renderHTML attributes.taskTitle:', attributes.taskTitle)
+          if (!attributes.taskTitle) return {}
+          return {
+            'data-task-title': attributes.taskTitle
+          }
+        }
+      }
+    }
+  },
+  
   parseHTML() {
     return [
       {
@@ -33,8 +68,34 @@ const ContextInfo = Node.create({
     ]
   },
   
-  renderHTML({ HTMLAttributes }) {
-    return ['p', mergeAttributes(HTMLAttributes, { class: 'context-info' }), 0]
+  renderHTML({ node, HTMLAttributes }) {
+    const contextId = node.attrs.contextId
+    const taskTitle = node.attrs.taskTitle
+    
+    console.log('🎨 渲染 ContextInfo 节点:', { contextId, taskTitle, allAttrs: node.attrs })
+    
+    return [
+      'div',
+      mergeAttributes(HTMLAttributes, { 
+        class: 'context-info-wrapper group relative',
+        'data-context-id': contextId || '',
+        'data-task-title': taskTitle || ''
+      }),
+      [
+        'p',
+        { class: 'context-info' },
+        0
+      ],
+      [
+        'button',
+        {
+          class: 'context-delete-btn absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-gray-400 text-white text-sm leading-none opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer hover:bg-gray-600',
+          contenteditable: 'false',
+          'data-delete-context': 'true'
+        },
+        '×'
+      ]
+    ]
   },
   
   addKeyboardShortcuts() {
@@ -475,6 +536,205 @@ export default function NoteEditor({
       if (dragImage && document.body.contains(dragImage)) {
         document.body.removeChild(dragImage)
       }
+    }
+  }, [editor])
+
+  // ⭐ 监听上下文信息删除按钮点击
+  useEffect(() => {
+    if (!editor) return
+
+    const editorElement = editor.view.dom
+
+    const handleContextDelete = async (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      
+      // 检查是否点击了删除按钮
+      if (target.getAttribute('data-delete-context') === 'true') {
+        e.preventDefault()
+        e.stopPropagation()
+        
+        console.log('🗑️ 点击删除按钮')
+        
+        // 找到上下文信息容器
+        const wrapper = target.closest('.context-info-wrapper')
+        if (!wrapper) {
+          console.warn('⚠️ 找不到上下文信息容器')
+          return
+        }
+        
+        // 获取 context-id 和 task-title
+        const contextId = wrapper.getAttribute('data-context-id') || ''
+        const taskTitleFromAttr = wrapper.getAttribute('data-task-title') || ''
+        const contentTextRaw = (wrapper.querySelector('p')?.textContent || wrapper.textContent || '')
+          .replace('×', '')
+          .trim()
+        const contextContent = contentTextRaw.replace(/^💡\s*/g, '').trim()
+
+        // 尝试推断所属任务标题（用于旧节点无属性场景）
+        let inferredTaskTitle = ''
+        const taskLi = wrapper.closest('li[data-type="taskItem"]') as HTMLElement | null
+        console.log('🔍 查找父级taskItem:', taskLi ? '找到' : '未找到')
+        
+        if (taskLi) {
+          const taskDiv = taskLi.querySelector('div') as HTMLElement | null
+          const firstP = taskDiv?.querySelector('p') as HTMLParagraphElement | null
+          inferredTaskTitle = (firstP?.textContent || '').trim()
+          console.log('🔍 从DOM推断任务标题:', inferredTaskTitle)
+        }
+
+        // 如果 DOM 层级推断不到（contextInfo 可能被提升到 taskList 外），用文档位置反推"最近的上一条任务"
+        if (!inferredTaskTitle) {
+          console.log('🔍 尝试通过文档位置推断任务标题...')
+          try {
+            const { state, view } = editor
+            const domPos = view.posAtDOM(wrapper as HTMLElement, 0)
+            console.log('🔍 wrapper DOM位置:', domPos)
+            
+            let lastTaskTitle = ''
+            state.doc.nodesBetween(0, domPos, (node, pos) => {
+              console.log('🔍 遍历节点:', node.type.name, 'at pos', pos)
+              if (node.type.name === 'taskItem') {
+                // taskItem 第一个子节点通常是 paragraph（任务标题）
+                const first = node.firstChild
+                lastTaskTitle = (first?.textContent || node.textContent || '').trim()
+                console.log('🔍 找到taskItem, 标题:', lastTaskTitle)
+              }
+              return true
+            })
+            inferredTaskTitle = lastTaskTitle
+            console.log('🔍 最终推断的任务标题:', inferredTaskTitle)
+          } catch (err) {
+            console.warn('⚠️ 通过文档位置推断任务标题失败:', err)
+          }
+        }
+
+        const taskTitle = taskTitleFromAttr || inferredTaskTitle
+        
+        console.log('📋 准备删除:', { contextId, taskTitle, contextContent })
+        
+        // 确认删除
+        if (!confirm(`确定要删除这条上下文信息吗？\n\n"💡 ${contextContent}"`)) {
+          return
+        }
+        
+        try {
+          // 1) 尽可能从数据库删除
+          if (contextId) {
+            const { deleteContextInfo } = await import('@/lib/taskContextService')
+            await deleteContextInfo(contextId)
+            console.log('✅ 数据库删除成功(通过contextId)')
+          } else if (taskTitle && contextContent) {
+            // 兼容旧节点：用「任务标题 + 内容」反查数据库记录
+            const supabase = (await import('@/lib/supabase-client')).createClient()
+            const { data: dailyTasks, error: taskErr } = await supabase
+              .from('daily_tasks')
+              .select('id, title')
+              .eq('title', taskTitle)
+              .limit(1)
+            if (!taskErr && dailyTasks && dailyTasks.length > 0) {
+              const realTaskId = dailyTasks[0].id
+              // 先尝试精确匹配；失败则拉取最近若干条做包含匹配
+              const { data: exactRows, error: exactErr } = await supabase
+                .from('task_context_info')
+                .select('id, content')
+                .eq('task_id', realTaskId)
+                .eq('content', contextContent)
+                .order('created_at', { ascending: false })
+                .limit(1)
+              if (!exactErr && exactRows && exactRows.length > 0) {
+                const { deleteContextInfo } = await import('@/lib/taskContextService')
+                await deleteContextInfo(exactRows[0].id)
+                console.log('✅ 数据库删除成功(通过标题+内容精确匹配)')
+              } else {
+                const { data: ctxRows, error: ctxErr } = await supabase
+                  .from('task_context_info')
+                  .select('id, content')
+                  .eq('task_id', realTaskId)
+                  .order('created_at', { ascending: false })
+                  .limit(30)
+                if (!ctxErr && ctxRows && ctxRows.length > 0) {
+                  const found = ctxRows.find(r => (r.content || '').includes(contextContent) || contextContent.includes(r.content || ''))
+                  if (found) {
+                    const { deleteContextInfo } = await import('@/lib/taskContextService')
+                    await deleteContextInfo(found.id)
+                    console.log('✅ 数据库删除成功(通过标题+内容模糊匹配)')
+                  } else {
+                    console.warn('⚠️ 数据库未找到匹配记录（内容不一致），将仅从笔记删除')
+                  }
+                } else {
+                  console.warn('⚠️ 数据库未找到匹配记录（查询失败或为空），将仅从笔记删除')
+                }
+              }
+            } else {
+              console.warn('⚠️ 数据库未找到对应任务（标题匹配失败），将仅从笔记删除')
+            }
+          } else {
+            console.warn('⚠️ 缺少contextId且无法推断任务标题，将仅从笔记删除')
+          }
+          
+          // 2) 从编辑器中删除节点（优先按contextId匹配；否则按点击位置删除）
+          const { state, view } = editor
+          let deletedPos: number | null = null
+          
+          if (contextId) {
+            state.doc.descendants((node, pos) => {
+              if (node.type.name === 'contextInfo') {
+                const attrs = node.attrs as any
+                console.log('🔍 检查节点属性:', attrs)
+                if (attrs.contextId === contextId) {
+                  deletedPos = pos
+                  return false
+                }
+              }
+            })
+          }
+
+          if (deletedPos === null) {
+            // 兜底：根据DOM位置删除（适配旧节点无attrs）
+            try {
+              const domPos = view.posAtDOM(wrapper as HTMLElement, 0)
+              const resolved = state.doc.resolve(domPos)
+              // 尝试向上找contextInfo节点
+              for (let d = resolved.depth; d > 0; d--) {
+                const n = resolved.node(d)
+                if (n.type.name === 'contextInfo') {
+                  deletedPos = resolved.start(d)
+                  break
+                }
+              }
+              if (deletedPos === null) {
+                // 最后兜底：删除当前位置的父块
+                deletedPos = resolved.before(resolved.depth)
+              }
+            } catch (err) {
+              console.warn('⚠️ posAtDOM 失败，无法定位删除位置:', err)
+            }
+          }
+          
+          if (deletedPos !== null) {
+            const nodeAt = state.doc.nodeAt(deletedPos)
+            if (!nodeAt) {
+              console.warn('⚠️ 删除位置未找到节点，取消删除')
+              return
+            }
+            const transaction = state.tr.delete(deletedPos, deletedPos + nodeAt.nodeSize)
+            view.dispatch(transaction)
+            console.log('✅ 编辑器节点删除成功')
+          } else {
+            console.warn('⚠️ 未找到要删除的节点')
+          }
+          
+        } catch (error) {
+          console.error('❌ 删除失败:', error)
+          alert('删除失败，请重试')
+        }
+      }
+    }
+
+    editorElement.addEventListener('click', handleContextDelete)
+
+    return () => {
+      editorElement.removeEventListener('click', handleContextDelete)
     }
   }, [editor])
 

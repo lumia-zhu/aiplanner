@@ -14,10 +14,10 @@ interface AddContextInfoModalProps {
   isOpen: boolean
   onClose: () => void
   questionAnswer: QuestionAnswerPair
-  defaultTaskId: string
-  availableTasks: Task[]
+  defaultTaskId: string  // 现在是任务标题
+  availableTasks: Task[]  // 现在 id 就是任务标题
   source: string  // 'clarity-reflection', 'time-reflection' 等
-  onSuccess?: (addedContent: string, taskId: string) => void  // 🔧 返回添加的内容和任务ID
+  onSuccess?: (addedContent: string, taskTitle: string, contextId: string) => void  // 🔧 返回添加的内容、任务标题和上下文ID
 }
 
 export default function AddContextInfoModal({
@@ -45,8 +45,10 @@ export default function AddContextInfoModal({
 
   // 更新选中的任务ID
   useEffect(() => {
+    console.log('🔄 更新 selectedTaskId:', defaultTaskId)
+    console.log('  - availableTasks:', availableTasks)
     setSelectedTaskId(defaultTaskId)
-  }, [defaultTaskId])
+  }, [defaultTaskId, availableTasks])
 
   const extractContent = async () => {
     setExtracting(true)
@@ -84,24 +86,50 @@ export default function AddContextInfoModal({
     setError('')
 
     try {
-      // 🔧 验证 taskId 是否为有效的 UUID
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-      if (!uuidRegex.test(selectedTaskId)) {
-        throw new Error(`无效的任务ID格式: ${selectedTaskId}。请从下拉列表中选择一个有效的任务。`)
+      console.log('🔍 调试信息:')
+      console.log('  - selectedTaskId:', selectedTaskId)
+      console.log('  - availableTasks:', availableTasks)
+      console.log('  - defaultTaskId:', defaultTaskId)
+      
+      // 🔧 根据任务标题查找真实的任务ID
+      const taskTitle = selectedTaskId  // selectedTaskId 现在就是任务标题
+      console.log('  - 准备查询的任务标题:', taskTitle)
+      
+      const supabase = (await import('@/lib/supabase-client')).createClient()
+      
+      const { data: dailyTasks, error: queryError } = await supabase
+        .from('daily_tasks')
+        .select('id, title')
+        .eq('title', taskTitle)
+        .limit(1)
+      
+      console.log('  - 查询结果:', { dailyTasks, queryError })
+      
+      if (queryError) {
+        throw new Error(`查询任务失败: ${queryError.message}`)
       }
+      
+      if (!dailyTasks || dailyTasks.length === 0) {
+        throw new Error(`找不到任务"${taskTitle}"，请确保任务已保存到数据库`)
+      }
+      
+      const realTaskId = dailyTasks[0].id
+      console.log('  - 找到真实任务ID:', realTaskId)
 
-      await createContextInfo({
-        task_id: selectedTaskId,
+      const createdContext = await createContextInfo({
+        task_id: realTaskId,
         content: editableContent.trim(),
         source: source,
         source_question: questionAnswer.question,
         source_answer: questionAnswer.answer
       })
 
+      console.log('✅ 上下文信息创建成功, ID:', createdContext.id)
+
       // 成功后关闭弹窗并通知父组件
       onClose()
       if (onSuccess) {
-        onSuccess(editableContent.trim(), selectedTaskId)  // 🔧 传递添加的内容和任务ID
+        onSuccess(editableContent.trim(), taskTitle, createdContext.id)  // 🔧 传递添加的内容、任务标题和上下文ID
       }
     } catch (err: any) {
       console.error('添加失败:', err)
@@ -193,10 +221,10 @@ export default function AddContextInfoModal({
               value={selectedTaskId}
               onChange={(e) => setSelectedTaskId(e.target.value)}
               disabled={loading || extracting}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-gray-900"
             >
               {availableTasks.map((task) => (
-                <option key={task.id} value={task.id}>
+                <option key={task.id} value={task.id} className="text-gray-900">
                   {task.title}
                 </option>
               ))}

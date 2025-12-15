@@ -207,14 +207,15 @@ export default function NotesDashboardPage() {
   const [pendingContextInsert, setPendingContextInsert] = useState<{
     taskTitle: string
     contextContent: string
+    contextId: string
   } | null>(null)  // 待插入的上下文信息
   
   // ⭐ NoteEditor 实例引用
   const editorRef = useRef<any>(null)
   
   // ⭐ 处理上下文信息添加成功
-  const handleContextInfoAdded = useCallback((taskTitle: string, contextContent: string) => {
-    console.log('📝 收到上下文信息添加通知:', { taskTitle, contextContent })
+  const handleContextInfoAdded = useCallback((taskTitle: string, contextContent: string, contextId: string) => {
+    console.log('📝 收到上下文信息添加通知:', { taskTitle, contextContent, contextId })
     
     if (!taskTitle || !contextContent) {
       console.warn('⚠️ 任务标题或内容为空，跳过插入')
@@ -222,19 +223,23 @@ export default function NotesDashboardPage() {
     }
     
     // 保存待插入信息，触发插入逻辑
-    setPendingContextInsert({ taskTitle, contextContent })
+    setPendingContextInsert({ taskTitle, contextContent, contextId })
   }, [])
   
   // ⭐ 监听 pendingContextInsert，执行插入
   useEffect(() => {
     if (pendingContextInsert && editorRef.current) {
-      insertContextToNote(pendingContextInsert.taskTitle, pendingContextInsert.contextContent)
+      insertContextToNote(
+        pendingContextInsert.taskTitle, 
+        pendingContextInsert.contextContent,
+        pendingContextInsert.contextId
+      )
       setPendingContextInsert(null)
     }
   }, [pendingContextInsert])
   
   // ⭐ 插入上下文信息到笔记中
-  const insertContextToNote = useCallback((taskTitle: string, contextContent: string) => {
+  const insertContextToNote = useCallback((taskTitle: string, contextContent: string, contextId: string) => {
     const editor = editorRef.current
     if (!editor) {
       console.warn('⚠️ 编辑器未初始化，无法插入')
@@ -253,11 +258,21 @@ export default function NotesDashboardPage() {
       
       // 检查是否是 taskItem 节点
       if (node.type.name === 'taskItem') {
-        const taskText = node.textContent.trim()
+        // 🔧 只获取第一个 paragraph 的文本作为任务标题（避免包含子任务）
+        let taskText = ''
+        const firstChild = node.firstChild
+        if (firstChild && firstChild.type.name === 'paragraph') {
+          taskText = firstChild.textContent.trim()
+        } else {
+          // 兜底：取整个内容的第一行
+          taskText = node.textContent.split('\n')[0].trim()
+        }
+        
         foundTasks.push(taskText)
         
-        if (taskText === taskTitle.trim()) {
-          console.log('✅ 找到目标任务:', taskTitle, '在位置', pos)
+        // 使用包含匹配：任务标题可能包含额外字符（如标签）
+        if (taskText === taskTitle.trim() || taskText.startsWith(taskTitle.trim())) {
+          console.log('✅ 找到目标任务:', taskTitle, '实际文本:', taskText, '在位置', pos)
           
           // 找到任务内容段落（第一个paragraph）的结束位置
           let insertPos = pos + 1  // 进入taskItem内部
@@ -275,9 +290,13 @@ export default function NotesDashboardPage() {
           
           console.log('📍 插入位置:', insertPos)
           
-          // 创建上下文信息节点
+          // 创建上下文信息节点，包含 contextId 和 taskTitle 属性
           const contextNode = {
             type: 'contextInfo',  // 使用自定义节点类型
+            attrs: {
+              contextId: contextId,
+              taskTitle: taskTitle
+            },
             content: [
               {
                 type: 'text',

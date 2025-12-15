@@ -1121,7 +1121,7 @@ interface ChatSidebarProps {
   onToggleTaskCollapse?: (taskId: string) => void  // 切换折叠状态
   
   // ⭐ 上下文信息回调
-  onContextInfoAdded?: (taskTitle: string, contextContent: string) => void  // 上下文信息添加成功回调
+  onContextInfoAdded?: (taskTitle: string, contextContent: string, contextId: string) => void  // 上下文信息添加成功回调
   
   // 事件处理函数
   handleSendMessage: () => void
@@ -1254,31 +1254,6 @@ const ChatSidebar = memo<ChatSidebarProps>(({
     taskId: string
     source: string
   } | null>(null)
-  const [realTasks, setRealTasks] = useState<Array<{id: string; title: string}>>([])
-  
-  // ⭐ 加载真实的 daily_tasks
-  useEffect(() => {
-    if (contextModalOpen) {
-      loadRealTasks()
-    }
-  }, [contextModalOpen])
-  
-  const loadRealTasks = async () => {
-    try {
-      const supabase = (await import('@/lib/supabase-client')).createClient()
-      const { data, error } = await supabase
-        .from('daily_tasks')
-        .select('id, title')
-        .order('created_at', { ascending: false })
-        .limit(20)
-      
-      if (!error && data) {
-        setRealTasks(data)
-      }
-    } catch (error) {
-      console.error('加载任务失败:', error)
-    }
-  }
   
   // ⭐ Agent 模式状态管理
   const [isAgentMode, setIsAgentMode] = useState(() => {
@@ -1302,44 +1277,24 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   // ⭐ 处理添加上下文信息
   const handleAddContextInfo = (qa: QuestionAnswerPair, taskId: string, source: string) => {
     console.log('📝 打开添加上下文信息弹窗:', { qa, taskId, source })
+    console.log('📋 当前可用任务列表 (availableTasksForSelection):', availableTasksForSelection)
+    
+    // 映射任务列表，使用任务标题作为 id
+    const mappedTasks = availableTasksForSelection?.map(t => ({ id: t.title, title: t.title })) || []
+    console.log('📋 映射后的任务列表:', mappedTasks)
+    console.log('📍 默认任务 ID:', taskId)
+    
     setContextModalData({ qa, taskId, source })
     setContextModalOpen(true)
   }
   
-  const handleContextModalSuccess = (addedContent: string, taskId: string) => {
-    console.log('✅ 上下文信息添加成功:', { addedContent, taskId })
+  const handleContextModalSuccess = async (addedContent: string, selectedTaskTitle: string, contextId: string) => {
+    console.log('✅ 上下文信息添加成功:', { addedContent, selectedTaskTitle, contextId })
     
     // 通知主页面：需要插入上下文信息到笔记
     if (onContextInfoAdded) {
-      // 找到任务标题
-      const snapshotTask = availableTasksForSelection?.find(t => t.id === contextModalData?.taskId)
-      const taskTitle = snapshotTask?.title || ''
-      
-      if (taskTitle) {
-        onContextInfoAdded(taskTitle, addedContent)
-      }
+      onContextInfoAdded(selectedTaskTitle, addedContent, contextId)
     }
-  }
-  
-  // ⭐ 从 taskId 查找匹配的真实任务（根据标题）
-  const findRealTask = (snapshotTaskId: string) => {
-    // 如果已经是有效的 UUID，直接返回
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (uuidRegex.test(snapshotTaskId) && realTasks.some(t => t.id === snapshotTaskId)) {
-      return snapshotTaskId
-    }
-    
-    // 否则根据任务标题匹配（从 availableTasksForSelection 找标题）
-    const snapshotTask = availableTasksForSelection?.find(t => t.id === snapshotTaskId)
-    if (snapshotTask) {
-      const matched = realTasks.find(t => t.title === snapshotTask.title)
-      if (matched) {
-        return matched.id
-      }
-    }
-    
-    // 如果都找不到，返回第一个真实任务
-    return realTasks[0]?.id || snapshotTaskId
   }
   
   // ⭐ 自动滚动到底部（当有新消息时）
@@ -2466,13 +2421,19 @@ const ChatSidebar = memo<ChatSidebarProps>(({
       )}
       
       {/* ⭐ 添加上下文信息弹窗 */}
-      {contextModalOpen && contextModalData && realTasks.length > 0 && (
+      {contextModalOpen && contextModalData && availableTasksForSelection && availableTasksForSelection.length > 0 && (
         <AddContextInfoModal
           isOpen={contextModalOpen}
           onClose={() => setContextModalOpen(false)}
           questionAnswer={contextModalData.qa}
-          defaultTaskId={findRealTask(contextModalData.taskId)}
-          availableTasks={realTasks}
+          defaultTaskId={(() => {
+            // 从快照ID中提取任务标题
+            const snapshot = availableTasksForSelection.find(t => t.id === contextModalData.taskId)
+            const taskTitle = snapshot?.title || availableTasksForSelection[0]?.title || ''
+            console.log('🎯 设置默认任务标题:', taskTitle, '(来自快照ID:', contextModalData.taskId, ')')
+            return taskTitle
+          })()}
+          availableTasks={availableTasksForSelection.map(t => ({ id: t.title, title: t.title }))}
           source={contextModalData.source}
           onSuccess={handleContextModalSuccess}
         />
