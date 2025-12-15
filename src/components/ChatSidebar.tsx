@@ -23,6 +23,8 @@ import AgentLoadingIndicator from './AgentLoadingIndicator'
 import TaskListCard from './TaskListCard'
 import type { TaskForDisplay } from './TaskListCard'
 import { ReflectionQuickActions } from './ReflectionQuickActions'
+import AddContextInfoModal from './AddContextInfoModal'
+import type { QuestionAnswerPair } from '@/types/task-context'
 
 // 任务识别相关类型
 interface RecognizedTask {
@@ -552,7 +554,12 @@ const DailyReflectionHistoryCard: React.FC<DailyReflectionHistoryCardProps> = ({
 
 // ⭐ 反思任务选择卡片组件
 interface ReflectionTaskSelectionCardProps {
-  tasks: Array<{ id: string; title: string; isCompleted: boolean; parent_task_id?: string | null }>
+  tasks: Array<{ 
+    id: string
+    title: string
+    isCompleted: boolean
+    parent_task_id?: string | null
+  }>
   roundType: 'clarity' | 'decomposition' | 'time' | 'priority'
   isActive: boolean
   onConfirm: (taskIds: string[]) => void
@@ -799,6 +806,59 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
 }
 
 // ⭐ 问答输入卡片组件
+// ⭐ 反思问答总结卡片（带添加到任务按钮）
+const ReflectionQASummaryCard: React.FC<{
+  qaList: Array<{ question: string; answer: string }>
+  taskId: string
+  roundType: 'clarity' | 'decomposition' | 'time' | 'priority'
+  onAddContext: (qa: QuestionAnswerPair, taskId: string, source: string) => void
+}> = ({ qaList, taskId, roundType, onAddContext }) => {
+  const sourceMap = {
+    'clarity': 'clarity-reflection',
+    'decomposition': 'decomposition-reflection',
+    'time': 'time-reflection',
+    'priority': 'priority-reflection'
+  }
+  
+  const source = sourceMap[roundType]
+  
+  return (
+    <div className="space-y-2 mt-3">
+      <p className="text-sm font-medium text-gray-700 mb-2">**您的回答总结：**</p>
+      {qaList.map((qa, index) => (
+        <div
+          key={index}
+          className="bg-gray-50 border border-gray-200 rounded-md p-3 hover:border-gray-300 transition-colors relative group"
+        >
+          {/* 添加按钮 - 右上角 */}
+          <button
+            onClick={() => onAddContext(qa, taskId, source)}
+            className="absolute top-2 right-2 p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors opacity-70 group-hover:opacity-100"
+            title="添加到任务"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
+          
+          <div className="pr-8">
+            {/* 问题 */}
+            <div className="mb-1.5">
+              <span className="text-xs text-gray-500">Q{index + 1}: </span>
+              <span className="text-sm text-gray-700">{qa.question}</span>
+            </div>
+            {/* 答案 */}
+            <div>
+              <span className="text-xs text-gray-500">A: </span>
+              <span className="text-sm text-gray-900">{qa.answer}</span>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 const QuestionAnswerCard: React.FC<{
   question: string
   questionIndex: number
@@ -1060,6 +1120,9 @@ interface ChatSidebarProps {
   collapsedTasks?: Set<string>  // 被折叠的主任务ID集合
   onToggleTaskCollapse?: (taskId: string) => void  // 切换折叠状态
   
+  // ⭐ 上下文信息回调
+  onContextInfoAdded?: (taskTitle: string, contextContent: string) => void  // 上下文信息添加成功回调
+  
   // 事件处理函数
   handleSendMessage: () => void
   handleClearChat: () => void
@@ -1167,6 +1230,8 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   // ⭐ 任务选择界面：折叠状态
   collapsedTasks,  // 被折叠的主任务ID集合
   onToggleTaskCollapse,  // 切换折叠状态
+  // ⭐ 上下文信息回调
+  onContextInfoAdded,  // 上下文信息添加成功回调
   handleSendMessage,
   handleClearChat,
   handleDragEnter,
@@ -1181,6 +1246,39 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   handlePaste,
   chatScrollRef
 }) => {
+  
+  // ⭐ 上下文信息弹窗状态
+  const [contextModalOpen, setContextModalOpen] = useState(false)
+  const [contextModalData, setContextModalData] = useState<{
+    qa: QuestionAnswerPair
+    taskId: string
+    source: string
+  } | null>(null)
+  const [realTasks, setRealTasks] = useState<Array<{id: string; title: string}>>([])
+  
+  // ⭐ 加载真实的 daily_tasks
+  useEffect(() => {
+    if (contextModalOpen) {
+      loadRealTasks()
+    }
+  }, [contextModalOpen])
+  
+  const loadRealTasks = async () => {
+    try {
+      const supabase = (await import('@/lib/supabase-client')).createClient()
+      const { data, error } = await supabase
+        .from('daily_tasks')
+        .select('id, title')
+        .order('created_at', { ascending: false })
+        .limit(20)
+      
+      if (!error && data) {
+        setRealTasks(data)
+      }
+    } catch (error) {
+      console.error('加载任务失败:', error)
+    }
+  }
   
   // ⭐ Agent 模式状态管理
   const [isAgentMode, setIsAgentMode] = useState(() => {
@@ -1200,6 +1298,49 @@ const ChatSidebar = memo<ChatSidebarProps>(({
       console.log(`🔧 AI 助手模式切换为: ${isAgentMode ? 'Agent 模式' : '普通模式'}`)
     }
   }, [isAgentMode])
+  
+  // ⭐ 处理添加上下文信息
+  const handleAddContextInfo = (qa: QuestionAnswerPair, taskId: string, source: string) => {
+    console.log('📝 打开添加上下文信息弹窗:', { qa, taskId, source })
+    setContextModalData({ qa, taskId, source })
+    setContextModalOpen(true)
+  }
+  
+  const handleContextModalSuccess = (addedContent: string, taskId: string) => {
+    console.log('✅ 上下文信息添加成功:', { addedContent, taskId })
+    
+    // 通知主页面：需要插入上下文信息到笔记
+    if (onContextInfoAdded) {
+      // 找到任务标题
+      const snapshotTask = availableTasksForSelection?.find(t => t.id === contextModalData?.taskId)
+      const taskTitle = snapshotTask?.title || ''
+      
+      if (taskTitle) {
+        onContextInfoAdded(taskTitle, addedContent)
+      }
+    }
+  }
+  
+  // ⭐ 从 taskId 查找匹配的真实任务（根据标题）
+  const findRealTask = (snapshotTaskId: string) => {
+    // 如果已经是有效的 UUID，直接返回
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (uuidRegex.test(snapshotTaskId) && realTasks.some(t => t.id === snapshotTaskId)) {
+      return snapshotTaskId
+    }
+    
+    // 否则根据任务标题匹配（从 availableTasksForSelection 找标题）
+    const snapshotTask = availableTasksForSelection?.find(t => t.id === snapshotTaskId)
+    if (snapshotTask) {
+      const matched = realTasks.find(t => t.title === snapshotTask.title)
+      if (matched) {
+        return matched.id
+      }
+    }
+    
+    // 如果都找不到，返回第一个真实任务
+    return realTasks[0]?.id || snapshotTaskId
+  }
   
   // ⭐ 自动滚动到底部（当有新消息时）
   useEffect(() => {
@@ -1617,6 +1758,16 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                               isLoading={content.interactive.data.isLoading || false}
                               onLoadMore={() => onButtonClick?.('daily-reflection-load-more', content.interactive?.data)}
                               onClose={() => onButtonClick?.('daily-reflection-history-close', {})}
+                            />
+                          )}
+                          
+                          {/* ⭐ 反思问答总结（带添加按钮） */}
+                          {content.interactive.type === 'reflection-qa-summary' && content.interactive.data && (
+                            <ReflectionQASummaryCard
+                              qaList={content.interactive.data.qaList || []}
+                              taskId={content.interactive.data.taskId}
+                              roundType={content.interactive.data.roundType || 'clarity'}
+                              onAddContext={handleAddContextInfo}
                             />
                           )}
                           
@@ -2312,6 +2463,19 @@ const ChatSidebar = memo<ChatSidebarProps>(({
         {/* </div> */}
       </div>
       </>
+      )}
+      
+      {/* ⭐ 添加上下文信息弹窗 */}
+      {contextModalOpen && contextModalData && realTasks.length > 0 && (
+        <AddContextInfoModal
+          isOpen={contextModalOpen}
+          onClose={() => setContextModalOpen(false)}
+          questionAnswer={contextModalData.qa}
+          defaultTaskId={findRealTask(contextModalData.taskId)}
+          availableTasks={realTasks}
+          source={contextModalData.source}
+          onSuccess={handleContextModalSuccess}
+        />
       )}
     </aside>
     </>

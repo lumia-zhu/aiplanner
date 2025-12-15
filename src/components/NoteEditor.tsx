@@ -17,6 +17,36 @@ import TaskDurationPicker from '@/components/TaskDurationPicker'
 import type { PresetTag } from '@/constants/tags'
 import type { DateTimeSetting } from '@/types/datetime'
 
+// ⭐ 自定义上下文信息节点
+const ContextInfo = Node.create({
+  name: 'contextInfo',
+  
+  group: 'block',
+  
+  content: 'text*',
+  
+  parseHTML() {
+    return [
+      {
+        tag: 'p.context-info',
+      },
+    ]
+  },
+  
+  renderHTML({ HTMLAttributes }) {
+    return ['p', mergeAttributes(HTMLAttributes, { class: 'context-info' }), 0]
+  },
+  
+  addKeyboardShortcuts() {
+    return {
+      // 按Enter键退出上下文信息块
+      Enter: () => {
+        return this.editor.commands.splitBlock()
+      },
+    }
+  },
+})
+
 // 自定义 TaskItem 支持拖拽
 const DraggableTaskItem = TaskItem.extend({
   draggable: true,
@@ -149,6 +179,7 @@ interface NoteEditorProps {
   onDecompose?: (taskTitle: string) => void  // ⭐ 新增：拆解任务回调（传递任务标题）
   placeholder?: string
   editable?: boolean
+  editorRef?: React.MutableRefObject<any>  // ⭐ 新增：暴露 editor 实例
   autoSave?: boolean
   autoSaveDelay?: number
 }
@@ -160,6 +191,7 @@ export default function NoteEditor({
   onDecompose,
   placeholder = '开始记录你的想法... 输入 [] 创建待办，# 创建标题',
   editable = true,
+  editorRef,
   autoSave = true,
   autoSaveDelay = 1000
 }: NoteEditorProps) {
@@ -213,6 +245,7 @@ export default function NoteEditor({
       }),
       TaskTag,
       TaskListMarkdown,
+      ContextInfo,  // ⭐ 上下文信息节点
     ],
     content: initialContent || {
       type: 'doc',
@@ -298,6 +331,13 @@ export default function NoteEditor({
       }
     }
   }, [editor, initialContent])
+
+  // ⭐ 暴露 editor 实例
+  useEffect(() => {
+    if (editor && editorRef) {
+      editorRef.current = editor
+    }
+  }, [editor, editorRef])
 
   // 监听文本选择，显示浮动菜单
   useEffect(() => {

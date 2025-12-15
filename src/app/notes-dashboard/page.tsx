@@ -203,6 +203,113 @@ export default function NotesDashboardPage() {
   const [reflectionHistoryHasMore, setReflectionHistoryHasMore] = useState(false)  // 是否有更多
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)  // 加载中
   
+  // ⭐ 任务上下文信息状态
+  const [pendingContextInsert, setPendingContextInsert] = useState<{
+    taskTitle: string
+    contextContent: string
+  } | null>(null)  // 待插入的上下文信息
+  
+  // ⭐ NoteEditor 实例引用
+  const editorRef = useRef<any>(null)
+  
+  // ⭐ 处理上下文信息添加成功
+  const handleContextInfoAdded = useCallback((taskTitle: string, contextContent: string) => {
+    console.log('📝 收到上下文信息添加通知:', { taskTitle, contextContent })
+    
+    if (!taskTitle || !contextContent) {
+      console.warn('⚠️ 任务标题或内容为空，跳过插入')
+      return
+    }
+    
+    // 保存待插入信息，触发插入逻辑
+    setPendingContextInsert({ taskTitle, contextContent })
+  }, [])
+  
+  // ⭐ 监听 pendingContextInsert，执行插入
+  useEffect(() => {
+    if (pendingContextInsert && editorRef.current) {
+      insertContextToNote(pendingContextInsert.taskTitle, pendingContextInsert.contextContent)
+      setPendingContextInsert(null)
+    }
+  }, [pendingContextInsert])
+  
+  // ⭐ 插入上下文信息到笔记中
+  const insertContextToNote = useCallback((taskTitle: string, contextContent: string) => {
+    const editor = editorRef.current
+    if (!editor) {
+      console.warn('⚠️ 编辑器未初始化，无法插入')
+      return
+    }
+    
+    console.log('🔍 开始查找任务:', taskTitle)
+    
+    const doc = editor.state.doc
+    let inserted = false
+    let foundTasks: string[] = []
+    
+    // 遍历文档，找到目标任务
+    doc.descendants((node: any, pos: number) => {
+      if (inserted) return false  // 已插入，停止遍历
+      
+      // 检查是否是 taskItem 节点
+      if (node.type.name === 'taskItem') {
+        const taskText = node.textContent.trim()
+        foundTasks.push(taskText)
+        
+        if (taskText === taskTitle.trim()) {
+          console.log('✅ 找到目标任务:', taskTitle, '在位置', pos)
+          
+          // 找到任务内容段落（第一个paragraph）的结束位置
+          let insertPos = pos + 1  // 进入taskItem内部
+          let foundFirstParagraph = false
+          
+          // 遍历taskItem的子节点，找到第一个paragraph后的位置
+          node.descendants((childNode: any, childPos: number) => {
+            if (!foundFirstParagraph && childNode.type.name === 'paragraph') {
+              // 在第一个paragraph之后插入（在子任务之前）
+              insertPos = pos + 1 + childPos + childNode.nodeSize
+              foundFirstParagraph = true
+              return false
+            }
+          })
+          
+          console.log('📍 插入位置:', insertPos)
+          
+          // 创建上下文信息节点
+          const contextNode = {
+            type: 'contextInfo',  // 使用自定义节点类型
+            content: [
+              {
+                type: 'text',
+                text: `💡 ${contextContent}`
+              }
+            ]
+          }
+          
+          console.log('📝 准备插入节点:', contextNode)
+          
+          // 插入节点
+          try {
+            const result = editor.chain().focus().insertContentAt(insertPos, contextNode).run()
+            console.log('✅ 插入结果:', result)
+            inserted = true
+          } catch (error) {
+            console.error('❌ 插入失败:', error)
+          }
+          
+          return false  // 停止遍历
+        }
+      }
+      
+      return true  // 继续遍历
+    })
+    
+    if (!inserted) {
+      console.warn('⚠️ 未找到匹配的任务:', taskTitle)
+      console.log('📋 文档中的所有任务:', foundTasks)
+    }
+  }, [])
+  
   logger.debug('Agent 状态:', { agentInstance: !!agentInstance, agentMemory: !!agentMemory, isAgentRunning })
   
   // 任务识别相关状态（笔记模式暂不使用，但 ChatSidebar 需要）
@@ -3681,14 +3788,26 @@ export default function NotesDashboardPage() {
         
         console.log('📊 最终的 allAnswers:', allAnswers)
         
-        // 显示问答总结
-        const summaryText = allAnswers.length > 0 
-          ? `好的，已经保存好您提供的信息，后续提供建议时会考虑～\n\n**您的回答总结：**\n${allAnswers.map((qa, i) => `${i + 1}. ${qa.question}\n   ${qa.answer}`).join('\n\n')}`
-          : '好的，已经保存好您提供的信息，后续提供建议时会考虑～'
-        
+        // 显示问答总结（带添加到任务按钮）
         const summaryMsg: ChatMessage = {
           role: 'assistant' as const,
-          content: [{ type: 'text' as const, text: summaryText }]
+          content: allAnswers.length > 0 
+            ? [
+                { type: 'text' as const, text: '好的，已经保存好您提供的信息，后续提供建议时会考虑～' },
+                {
+                  type: 'interactive' as const,
+                  interactive: {
+                    type: 'reflection-qa-summary' as const,
+                    data: {
+                      qaList: allAnswers,
+                      taskId,
+                      roundType: context?.roundType || 'clarity'
+                    },
+                    isActive: true
+                  }
+                }
+              ]
+            : [{ type: 'text' as const, text: '好的，已经保存好您提供的信息，后续提供建议时会考虑～' }]
         }
         
         // 🆕 根据轮次类型显示不同的后续选项
@@ -7075,6 +7194,7 @@ ${matrixStats || '（无待办）'}
                   onSave={handleNoteSave}
                   onDecompose={handleDecomposeFromNoteEditor}
                   placeholder="开始记录... (按 ? 查看快捷键)"
+                  editorRef={editorRef}
                 />
                     
                     {/* 便签容器（绝对定位在编辑器上方） */}
@@ -7220,6 +7340,8 @@ ${matrixStats || '（无待办）'}
               // ⭐ 任务选择界面：折叠状态
               collapsedTasks={collapsedTasks}
               onToggleTaskCollapse={toggleTaskCollapse}
+              // ⭐ 上下文信息回调
+              onContextInfoAdded={handleContextInfoAdded}
             />
           </div>
         </div>

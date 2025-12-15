@@ -873,3 +873,48 @@ p[data-datetime-display]::after {
   border-top: 1px solid #e5e7eb;
   margin: 1em 0;
 }
+
+/* ============================================ */
+/* 上下文信息样式 */
+/* ============================================ */
+
+/* 上下文信息段落 - 类似子任务但有淡蓝色背景 */
+.ProseMirror p.context-info {
+  padding: 0.5rem 0.75rem;
+  margin: 0.375rem 0;
+  background-color: #eff6ff;  /* 淡蓝色背景 bg-blue-50 */
+  border-radius: 0.25rem;
+  font-size: 0.95em;
+  line-height: 1.6;
+  color: #1e3a8a;  /* 深蓝色文字 */
+  transition: background-color 0.2s ease, transform 0.15s ease;
+  cursor: default;
+  user-select: text;  /* 允许选中文本 */
+}
+
+/* 在taskItem内部的上下文信息 - 继承taskItem的缩进 */
+.ProseMirror ul[data-type="taskList"] li p.context-info {
+  margin-left: 0;  /* 不需要额外左侧margin */
+}
+
+/* 悬停效果 */
+.ProseMirror p.context-info:hover {
+  background-color: #dbeafe;  /* 悬停时稍深 bg-blue-100 */
+  transform: translateX(2px);  /* 微妙的平移效果 */
+}
+
+/* 上下文信息淡入动画 */
+@keyframes contextFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ProseMirror p.context-info {
+  animation: contextFadeIn 0.3s ease-out;
+}

@@ -86,6 +86,7 @@ export type InteractiveMessageType =
   | 'daily-reflection-already-done' // 每日反思已完成提示
   | 'daily-reflection-resume'      // 每日反思恢复提示
   | 'daily-reflection-history'     // 每日反思历史记录
+  | 'reflection-qa-summary'         // ⭐ 反思问答总结（带添加到任务按钮）
   // ⭐ Agent 专用消息类型（Phase 4）
   | 'agent-thought'          // Agent 的思考过程
   | 'agent-action'           // Agent 调用的工具

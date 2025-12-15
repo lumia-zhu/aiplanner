@@ -1,3 +1,8 @@
+import { TaskContextInfo } from './task-context'
+
+// 重新导出任务上下文相关类型
+export * from './task-context'
+
 // 用户类型
 export interface User {
   id: string
@@ -27,6 +32,7 @@ export interface Task {
   // 前端计算字段（不存储在数据库）
   subtasks?: Task[] // 子任务数组
   level?: number // 任务层级深度（用于显示缩进）
+  context_info?: TaskContextInfo[] // 任务上下文信息（从反思问答中提取）
 }
 
 // 任务创建/更新的输入类型
