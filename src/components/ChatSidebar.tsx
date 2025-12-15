@@ -552,11 +552,13 @@ const DailyReflectionHistoryCard: React.FC<DailyReflectionHistoryCardProps> = ({
 
 // ⭐ 反思任务选择卡片组件
 interface ReflectionTaskSelectionCardProps {
-  tasks: Array<{ id: string; title: string; isCompleted: boolean }>
+  tasks: Array<{ id: string; title: string; isCompleted: boolean; parent_task_id?: string | null }>
   roundType: 'clarity' | 'decomposition' | 'time' | 'priority'
   isActive: boolean
   onConfirm: (taskIds: string[]) => void
   onBack: () => void
+  collapsedTasks?: Set<string>  // 被折叠的主任务ID集合
+  onToggleCollapse?: (taskId: string) => void  // 切换折叠状态
 }
 
 const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = ({ 
@@ -564,7 +566,9 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
   roundType, 
   isActive,
   onConfirm, 
-  onBack 
+  onBack,
+  collapsedTasks = new Set(),  // 默认空集合
+  onToggleCollapse
 }) => {
   // 🔧 根据轮次类型决定单选还是多选
   const isMultiSelect = roundType === 'priority'
@@ -574,6 +578,43 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
   
   // 过滤掉已完成的任务
   const uncompletedTasks = tasks.filter(t => !t.isCompleted)
+  
+  // 🆕 构建层级结构：区分主任务和子任务
+  const parentTasks = uncompletedTasks.filter(t => !t.parent_task_id)
+  const childTasksMap = new Map<string, typeof uncompletedTasks>()
+  
+  // 将子任务按父任务分组
+  uncompletedTasks.forEach(task => {
+    if (task.parent_task_id) {
+      if (!childTasksMap.has(task.parent_task_id)) {
+        childTasksMap.set(task.parent_task_id, [])
+      }
+      childTasksMap.get(task.parent_task_id)!.push(task)
+    }
+  })
+  
+  // 🆕 构建显示列表（包含所有任务，用于动画）
+  const visibleTasks: Array<typeof uncompletedTasks[0] & { 
+    isChild?: boolean; 
+    isLastChild?: boolean;
+    parentId?: string;
+  }> = []
+  
+  parentTasks.forEach(parent => {
+    // 添加主任务
+    visibleTasks.push({ ...parent, isChild: false })
+    
+    // 添加所有子任务（不管是否折叠，用CSS控制显示）
+    const children = childTasksMap.get(parent.id) || []
+    children.forEach((child, index) => {
+      visibleTasks.push({ 
+        ...child, 
+        isChild: true, 
+        isLastChild: index === children.length - 1,
+        parentId: parent.id  // 记录父任务ID，用于判断是否应该隐藏
+      })
+    })
+  })
   
   const selectTask = (taskId: string) => {
     if (!isActive) return
@@ -624,14 +665,14 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
   const info = roundInfo[roundType]
   
   return (
-    <div className={`mt-3 p-3 bg-${info.color}-50 rounded-lg border border-${info.color}-200`}>
+    <div className={`mt-3 p-3 bg-${info.color}-50 rounded-lg border border-${info.color}-200 w-full`}>
       {/* 标题和说明 */}
       {roundType === 'priority' ? (
         // 优先级排列的特殊文案
         <div className="mb-3">
-          <div className="text-sm font-medium text-gray-700 mb-2">
+      <div className="text-sm font-medium text-gray-700 mb-2">
             {info.emoji} 请选择需要反思优先级的任务：
-          </div>
+      </div>
           <div className="text-xs text-gray-600 space-y-1 bg-white/50 rounded p-2">
             <div className="flex items-start gap-1.5">
               <span className="text-green-600">•</span>
@@ -654,17 +695,35 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
         </div>
       )}
       
-      <div className="space-y-1.5 mb-3 max-h-48 overflow-y-auto">
-        {uncompletedTasks.map((task, index) => {
+      <div 
+        className="space-y-1.5 mb-3 max-h-48 overflow-y-auto overflow-x-hidden w-full"
+        style={{ scrollbarGutter: 'stable' }}
+      >
+        {visibleTasks.map((task, index) => {
           const isSelected = isMultiSelect ? selectedIds.has(task.id) : selectedId === task.id
+          const isChild = task.isChild || false
+          const isLastChild = task.isLastChild || false
+          const hasChildren = !isChild && (childTasksMap.get(task.id)?.length || 0) > 0
+          const isCollapsed = collapsedTasks.has(task.id)
+          
+          // 🆕 判断子任务是否应该隐藏（父任务被折叠）
+          const isChildHidden = isChild && task.parentId && collapsedTasks.has(task.parentId)
+          
           return (
             <div
               key={`task-selection-${task.id}-${index}`}
-              className={`flex items-center gap-2 p-2 rounded-md transition-colors ${
-                isSelected 
+              className={`flex items-center gap-2 p-2 rounded-md w-full overflow-hidden
+                ${isSelected 
                   ? `bg-${info.color}-100 border border-${info.color}-300` 
                   : 'bg-white border border-gray-200 hover:border-gray-300'
-              } ${!isActive ? 'opacity-50 cursor-not-allowed' : ''}`}
+                }
+                ${!isActive ? 'opacity-50 cursor-not-allowed' : ''}
+                ${isChild ? 'pl-8' : ''}
+                ${isChildHidden 
+                  ? 'max-h-0 opacity-0 py-0 my-0 border-0' 
+                  : 'max-h-20 opacity-100 transition-all duration-150 ease-in-out'
+                }
+              `}
             >
               <input
                 type={isMultiSelect ? 'checkbox' : 'radio'}
@@ -678,18 +737,46 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
                   }
                 }}
                 disabled={!isActive}
-                className={`w-4 h-4 text-${info.color}-600 border-gray-300 focus:ring-${info.color}-500 cursor-pointer`}
+                className={`w-4 h-4 text-${info.color}-600 border-gray-300 focus:ring-${info.color}-500 cursor-pointer flex-shrink-0`}
               />
               <label
                 htmlFor={`task-select-${roundType}-${task.id}-${index}`}
-                className="text-sm text-gray-700 flex-1 truncate cursor-pointer"
+                className="text-sm text-gray-700 flex-1 cursor-pointer overflow-hidden min-w-0"
+                title={task.title}
               >
-                {task.title}
+                <span className="block truncate">{task.title}</span>
               </label>
+              
+              {/* 🆕 主任务折叠图标（右侧） */}
+              {!isChild && hasChildren && onToggleCollapse && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (isActive) {
+                      onToggleCollapse(task.id)
+                    }
+                  }}
+                  disabled={!isActive}
+                  className="text-gray-500 hover:text-gray-700 transition-all duration-200 flex-shrink-0 w-4 h-4 flex items-center justify-center ml-1"
+                  title={isCollapsed ? '点击展开子任务' : '点击折叠子任务'}
+                >
+                  <span className={`text-xs leading-none transition-transform duration-200 ${isCollapsed ? '' : 'rotate-90'}`}>
+                    ▶
+                  </span>
+                </button>
+              )}
             </div>
           )
         })}
       </div>
+      
+      {/* 提示文案 */}
+      {uncompletedTasks.some(t => !t.parent_task_id && childTasksMap.get(t.id)?.length) && (
+        <div className="text-xs text-gray-500 mb-2 flex items-center gap-1">
+          <span>💡</span>
+          <span>任务右侧的 ▶ 可展开查看子任务</span>
+        </div>
+      )}
       
       <div className="flex gap-2">
         <button
@@ -969,6 +1056,10 @@ interface ChatSidebarProps {
   currentQuestionIndex?: number  // 当前问题索引
   totalQuestionsCount?: number  // 总问题数
   
+  // ⭐ 任务选择界面：折叠状态
+  collapsedTasks?: Set<string>  // 被折叠的主任务ID集合
+  onToggleTaskCollapse?: (taskId: string) => void  // 切换折叠状态
+  
   // 事件处理函数
   handleSendMessage: () => void
   handleClearChat: () => void
@@ -1073,6 +1164,9 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   isAnsweringQuestions,  // 是否处于问答阶段
   currentQuestionIndex,  // 当前问题索引
   totalQuestionsCount,  // 总问题数
+  // ⭐ 任务选择界面：折叠状态
+  collapsedTasks,  // 被折叠的主任务ID集合
+  onToggleTaskCollapse,  // 切换折叠状态
   handleSendMessage,
   handleClearChat,
   handleDragEnter,
@@ -1240,8 +1334,12 @@ const ChatSidebar = memo<ChatSidebarProps>(({
           {chatMessages.length === 0 ? null : (
             /* 聊天消息 */
             chatMessages.map((message, index) => {
-              // 检查是否包含任务列表卡片
+              // 检查是否包含任务列表卡片或任务选择卡片
               const hasTaskList = message.content.some(c => c.type === 'task-list')
+              const hasTaskSelection = message.content.some(c => 
+                c.type === 'interactive' && c.interactive?.type === 'reflection-task-selection'
+              )
+              const shouldUseFullWidth = hasTaskList || hasTaskSelection
               
               return (
               <div key={index} className={`flex items-start gap-3 ${message.role === 'user' ? 'flex-row-reverse' : ''}`}>
@@ -1251,30 +1349,52 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                   <img src="/ai-avatar.svg" alt="AI" className="w-8 h-8 rounded-full flex-shrink-0" />
                 )}
                 
-                {/* 任务列表卡片独立显示（不受 max-w-[80%] 限制） */}
-                {hasTaskList ? (
-                  <div className="flex-1 min-w-0">
-                    {message.content.map((content, contentIndex) => (
-                      <div key={contentIndex}>
-                        {content.type === 'task-list' && content.taskList && (
-                          <TaskListCard
-                            tasks={content.taskList.tasks as TaskForDisplay[]}
-                            totalCount={content.taskList.totalCount}
-                            onTaskToggle={(taskId, noteId, newCompletedState) => {
-                              if (onTaskToggleFromList) {
-                                onTaskToggleFromList(taskId, noteId, newCompletedState)
-                              }
-                            }}
-                            onMoveToToday={(taskId, noteId, noteDate) => {
-                              if (onMoveTaskToToday) {
-                                onMoveTaskToToday(taskId, noteId, noteDate)
-                              }
-                            }}
-                            isRefreshing={isRefreshingTaskList}
-                          />
-                        )}
-                      </div>
-                    ))}
+                {/* 任务列表卡片或任务选择卡片独立显示 */}
+                {shouldUseFullWidth ? (
+                  <div className="w-[80%]">
+                    <div className="rounded-lg px-3 py-2 shadow-sm bg-white">
+                      {message.content.map((content, contentIndex) => (
+                        <div key={contentIndex}>
+                          {content.type === 'task-list' && content.taskList && (
+                            <TaskListCard
+                              tasks={content.taskList.tasks as TaskForDisplay[]}
+                              totalCount={content.taskList.totalCount}
+                              onTaskToggle={(taskId, noteId, newCompletedState) => {
+                                if (onTaskToggleFromList) {
+                                  onTaskToggleFromList(taskId, noteId, newCompletedState)
+                                }
+                              }}
+                              onMoveToToday={(taskId, noteId, noteDate) => {
+                                if (onMoveTaskToToday) {
+                                  onMoveTaskToToday(taskId, noteId, noteDate)
+                                }
+                              }}
+                              isRefreshing={isRefreshingTaskList}
+                            />
+                          )}
+                          
+                          {/* 渲染文本内容 */}
+                          {content.type === 'text' && content.text && (
+                            <div className="text-sm prose-chat">
+                              <ReactMarkdown>{content.text}</ReactMarkdown>
+                            </div>
+                          )}
+                          
+                          {/* 渲染交互式内容（包括任务选择卡片） */}
+                          {content.type === 'interactive' && content.interactive?.type === 'reflection-task-selection' && availableTasksForSelection && (
+                            <ReflectionTaskSelectionCard
+                              tasks={availableTasksForSelection}
+                              roundType={content.interactive.data?.roundType || pendingRound || 'clarity'}
+                              isActive={content.interactive.isActive !== false}
+                              onConfirm={(taskIds) => onTaskSelectionConfirm?.(taskIds)}
+                              onBack={() => onTaskSelectionBack?.()}
+                              collapsedTasks={collapsedTasks}
+                              onToggleCollapse={onToggleTaskCollapse}
+                            />
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ) : (
                   /* 普通消息气泡 */
@@ -1382,7 +1502,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                             <div className="mt-3 p-4 bg-gradient-to-r from-orange-50 to-amber-50 border-2 border-orange-200 rounded-lg">
                               <div className="flex items-start gap-3 mb-3">
                                 <span className="text-2xl">💡</span>
-                                <div className="flex-1">
+                                  <div className="flex-1">
                                   <h3 className="text-sm font-semibold text-orange-900 mb-2">小提示</h3>
                                   <p className="text-sm text-gray-700 mb-3">
                                     矩阵模式更适合进行优先级排序！
@@ -1391,37 +1511,37 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                                     <div className="flex items-start gap-2">
                                       <span className="text-orange-600 mt-0.5">•</span>
                                       <p className="text-sm text-gray-600">选择合适的维度（重要/紧急、价值/工作量等）</p>
-                                    </div>
+                                  </div>
                                     <div className="flex items-start gap-2">
                                       <span className="text-orange-600 mt-0.5">•</span>
                                       <p className="text-sm text-gray-600">把已经清晰的任务直接放入矩阵</p>
-                                    </div>
+                                </div>
                                     <div className="flex items-start gap-2">
                                       <span className="text-orange-600 mt-0.5">•</span>
                                       <p className="text-sm text-gray-600">快速可视化任务的优先级分布</p>
-                                    </div>
                                   </div>
                                 </div>
-                              </div>
+                                  </div>
+                                </div>
                               
                               <div className="flex gap-2 mt-4">
-                                <button
+                              <button
                                   onClick={() => onSwitchToMatrix?.()}
-                                  disabled={content.interactive.isActive === false}
+                                disabled={content.interactive.isActive === false}
                                   className="flex-1 px-4 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-lg hover:from-orange-600 hover:to-amber-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium shadow-sm flex items-center justify-center gap-2"
-                                >
+                              >
                                   <span>🎯</span>
                                   <span>切换到矩阵模式</span>
-                                </button>
-                                <button
+                              </button>
+                              <button
                                   onClick={() => onSkipMatrixSwitch?.()}
-                                  disabled={content.interactive.isActive === false}
+                                disabled={content.interactive.isActive === false}
                                   className="px-4 py-2.5 text-gray-600 hover:text-gray-800 hover:bg-white border-2 border-gray-300 rounded-lg transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   暂时不切换
-                                </button>
-                              </div>
-                            </div>
+                              </button>
+                                  </div>
+                                </div>
                           )}
                           
                           {/* ⭐ 反思概述 - 引导使用底部快捷按钮 */}
@@ -1441,6 +1561,8 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                               isActive={content.interactive.isActive !== false}
                               onConfirm={(taskIds) => onTaskSelectionConfirm?.(taskIds)}
                               onBack={() => onTaskSelectionBack?.()}
+                              collapsedTasks={collapsedTasks}
+                              onToggleCollapse={onToggleTaskCollapse}
                             />
                           )}
                           

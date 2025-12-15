@@ -449,18 +449,43 @@ export async function getReflectionHistory(
 
 /**
  * 从 DailyTask 列表创建 TaskSnapshot 列表
+ * ⭐ 根据 depth（层级）建立父子关系
  */
 export function createTaskSnapshots(tasks: any[]): TaskSnapshot[] {
-  return tasks.map((task, index) => ({
-    // 如果任务有 id 就用，没有就用 position 或 index 生成一个唯一 ID
-    id: task.id || `task-${task.position ?? index}-${task.title.substring(0, 10)}`,
-    title: task.title,
-    priority: task.priority,
-    estimatedDuration: task.estimatedDuration,
-    deadline: task.deadlineDatetime || task.deadline,
-    isCompleted: task.completed || task.isCompleted || false,
-    notePosition: task.notePosition || task.position,
-    depth: task.depth ?? 0  // ⭐ 任务层级：0 = 顶层任务
-  }))
+  const snapshots: TaskSnapshot[] = []
+  const parentStack: string[] = [] // 存储各层级的父任务ID
+  
+  tasks.forEach((task, index) => {
+    const depth = task.depth ?? 0
+    const taskId = task.id || `task-${task.position ?? index}-${task.title.substring(0, 10)}`
+    
+    // 根据 depth 确定 parent_task_id
+    let parent_task_id: string | null = null
+    if (depth > 0 && parentStack[depth - 1]) {
+      parent_task_id = parentStack[depth - 1]
+    }
+    
+    // 创建快照
+    const snapshot: TaskSnapshot = {
+      id: taskId,
+      title: task.title,
+      priority: task.priority,
+      estimatedDuration: task.estimatedDuration,
+      deadline: task.deadlineDatetime || task.deadline,
+      isCompleted: task.completed || task.isCompleted || false,
+      notePosition: task.notePosition || task.position,
+      depth: depth,
+      parent_task_id: parent_task_id  // ⭐ 设置父任务ID
+    }
+    
+    snapshots.push(snapshot)
+    
+    // 更新 parentStack：当前任务可能是下一个任务的父任务
+    parentStack[depth] = taskId
+    // 清除更深层级的记录（因为已经返回到当前层级）
+    parentStack.splice(depth + 1)
+  })
+  
+  return snapshots
 }
 

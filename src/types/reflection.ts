@@ -26,6 +26,7 @@ export interface TaskSnapshot {
   isCompleted: boolean
   notePosition?: number
   depth?: number  // 任务层级：0 = 顶层任务，1 = 子任务，2 = 孙任务...
+  parent_task_id?: string | null  // ⭐ 父任务ID（用于建立层级关系）
 }
 
 /**

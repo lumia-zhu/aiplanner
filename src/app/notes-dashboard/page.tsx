@@ -177,6 +177,9 @@ export default function NotesDashboardPage() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)  // 当前问题索引
   const [totalQuestions, setTotalQuestions] = useState<string[]>([])  // 所有问题列表
   const [questionAnswers, setQuestionAnswers] = useState<Array<{question: string, answer: string}>>([])  // 问题和回答的记录
+  
+  // ⭐ 任务选择界面：折叠状态管理
+  const [collapsedTasks, setCollapsedTasks] = useState<Set<string>>(new Set())  // 存储被折叠的主任务ID
   const questionAnswersRef = useRef<Array<{question: string, answer: string}>>([])  // 🔧 同步跟踪回答（解决闭包问题）
   
   // ⭐ Clarity 轮后的任务拆解阶段状态
@@ -1031,20 +1034,20 @@ export default function NotesDashboardPage() {
     
     // 5. 生成context问题
     try {
-      const mockTask = { 
+    const mockTask = { 
         id: `temp-${Date.now()}`,
         user_id: user.id,
-        title: taskTitle,
+      title: taskTitle, 
         completed: false,
         created_at: new Date().toISOString(),
-        tags: [] as string[]
+      tags: [] as string[]
       } as any
-      
-      const questions = await generateContextQuestions(mockTask)
-      
-      // 移除加载消息
-      setChatMessages(prev => prev.slice(0, -1))
-      
+    
+    const questions = await generateContextQuestions(mockTask)
+    
+    // 移除加载消息
+    setChatMessages(prev => prev.slice(0, -1))
+    
       // 6. 初始化问答流程
       setDecomposingTaskTitle(taskTitle)
       setTotalQuestions(questions)
@@ -1055,7 +1058,7 @@ export default function NotesDashboardPage() {
       
       // 7. 显示第一个问题
       const firstQuestionMsg: ChatMessage = {
-        role: 'assistant',
+      role: 'assistant',
         content: [{
           type: 'interactive',
           interactive: {
@@ -1072,8 +1075,8 @@ export default function NotesDashboardPage() {
             isActive: true
           }
         }]
-      }
-      
+    }
+    
       setChatMessages(prev => [...prev, firstQuestionMsg])
       
       console.log('✅ 已进入新的任务拆解流程')
@@ -1437,7 +1440,7 @@ export default function NotesDashboardPage() {
           },
           {
             type: 'interactive' as const,
-            interactive: {
+          interactive: {
               type: 'buttons' as const,
               data: {
                 buttons: [
@@ -1445,8 +1448,8 @@ export default function NotesDashboardPage() {
                 ],
                 context: { roundType: 'decomposition' }
               },
-              isActive: true
-            }
+            isActive: true
+          }
           }
         ]
       }
@@ -1482,7 +1485,7 @@ export default function NotesDashboardPage() {
     const roundType = currentReflectionType === 'decomposition' ? 'decomposition' : 'clarity'
     
     const confirmMessage: ChatMessage = {
-      role: 'assistant',
+        role: 'assistant',
       content: [{ type: 'text', text: '好的，让我们选择其他任务～' }]
     }
     
@@ -1491,7 +1494,7 @@ export default function NotesDashboardPage() {
       role: 'assistant',
       content: [
         { 
-          type: 'interactive', 
+          type: 'interactive',
           interactive: {
             type: 'reflection-task-selection',
             data: { roundType },
@@ -1499,7 +1502,7 @@ export default function NotesDashboardPage() {
           }
         }
       ]
-    }
+      }
     
     setPendingRound(roundType)
     setChatMessages(prev => [...prev, confirmMessage, selectionMessage])
@@ -2800,6 +2803,33 @@ export default function NotesDashboardPage() {
     }
   }, [user, isLoadingHistory, reflectionHistoryOffset, reflectionHistoryData])
   
+  // ⭐ 处理任务折叠状态切换
+  const toggleTaskCollapse = useCallback((taskId: string) => {
+    setCollapsedTasks(prev => {
+      const next = new Set(prev)
+      if (next.has(taskId)) {
+        next.delete(taskId)  // 展开
+      } else {
+        next.add(taskId)  // 折叠
+      }
+      console.log('🔄 切换折叠状态:', taskId, next.has(taskId) ? '折叠' : '展开')
+      return next
+    })
+  }, [])
+  
+  // ⭐ 初始化默认折叠状态（折叠所有有子任务的主任务）
+  const initializeCollapsedTasks = useCallback(() => {
+    const tasksWithChildren = reflectionTasks
+      .filter(task => !task.parent_task_id) // 主任务
+      .filter(task => reflectionTasks.some(t => t.parent_task_id === task.id)) // 有子任务
+      .map(task => task.id)
+    
+    if (tasksWithChildren.length > 0) {
+      setCollapsedTasks(new Set(tasksWithChildren))
+      console.log('📁 默认折叠任务:', tasksWithChildren.length, '个主任务')
+    }
+  }, [reflectionTasks])
+  
   // ⭐ 处理概述页面按钮点击
   const handleOverviewButtonClick = useCallback((action: 'clarity' | 'decomposition' | 'time' | 'priority' | 'cancel') => {
     console.log('🔘 概述按钮点击:', action)
@@ -2851,6 +2881,9 @@ export default function NotesDashboardPage() {
     // 设置待选择任务的轮次
     setPendingRound(action)
     
+    // ⭐ 初始化默认折叠状态
+    initializeCollapsedTasks()
+    
     // 显示任务选择消息（分成两条）
     const roundInfo = {
       clarity: { emoji: '📝', label: '澄清任务' },
@@ -2884,22 +2917,22 @@ export default function NotesDashboardPage() {
       setChatMessages(prev => [...prev, confirmMessage, matrixSuggestionMessage])
     } else {
       // 澄清任务和时间规划：直接显示任务选择卡片
-      const selectionMessage: ChatMessage = {
-        role: 'assistant' as const,
-        content: [
-          { 
-            type: 'interactive' as const, 
-            interactive: {
-              type: 'reflection-task-selection' as const,
-              data: { roundType: action },
-              isActive: true
-            }
+    const selectionMessage: ChatMessage = {
+      role: 'assistant' as const,
+      content: [
+        { 
+          type: 'interactive' as const, 
+          interactive: {
+            type: 'reflection-task-selection' as const,
+            data: { roundType: action },
+            isActive: true
           }
-        ]
-      }
-      setChatMessages(prev => [...prev, confirmMessage, selectionMessage])
+        }
+      ]
     }
-  }, [reflectionTasks])
+    setChatMessages(prev => [...prev, confirmMessage, selectionMessage])
+    }
+  }, [reflectionTasks, initializeCollapsedTasks])
   
   // ⭐ 底部快捷按钮启动反思
   const handleReflectionQuickStart = useCallback(async (type: 'clarity' | 'decomposition' | 'time' | 'priority') => {
@@ -3328,11 +3361,11 @@ export default function NotesDashboardPage() {
         }
         
         const nextQuestion: ChatMessage = {
-          role: 'assistant' as const,
-          content: [
-            {
-              type: 'interactive' as const,
-              interactive: {
+        role: 'assistant' as const,
+        content: [
+          { 
+            type: 'interactive' as const, 
+            interactive: {
                 type: 'daily-reflection-question',
                 data: {
                   question: dailyReflectionQuestions[nextQuestionIndex],
@@ -3341,11 +3374,11 @@ export default function NotesDashboardPage() {
                   reflectionId: currentReflectionId,
                   allQuestions: dailyReflectionQuestions
                 },
-                isActive: true
-              }
+              isActive: true
             }
-          ]
-        }
+          }
+        ]
+      }
         setChatMessages(prev => [...prev, confirmMessage, nextQuestion])
         setIsDailyReflectionMode(true)
       }
@@ -3400,7 +3433,7 @@ export default function NotesDashboardPage() {
             newReflection = await createDailyReflection(user.id, today)
             console.log('✅ 重新创建反思会话成功:', newReflection.id)
           }
-        } else {
+    } else {
           throw error
         }
       }
@@ -3429,8 +3462,8 @@ export default function NotesDashboardPage() {
       const firstQuestionMessage: ChatMessage = {
         role: 'assistant' as const,
         content: [
-          {
-            type: 'interactive' as const,
+          { 
+            type: 'interactive' as const, 
             interactive: {
               type: 'daily-reflection-question',
               data: {
@@ -4036,18 +4069,18 @@ export default function NotesDashboardPage() {
       
       // 重新显示澄清任务选择卡片
       const selectionMessage: ChatMessage = {
-        role: 'assistant' as const,
-        content: [
-          { 
-            type: 'interactive' as const, 
-            interactive: {
+              role: 'assistant' as const,
+              content: [
+                {
+                  type: 'interactive' as const,
+                  interactive: {
               type: 'reflection-task-selection' as const,
               data: { roundType: 'clarity' },
-              isActive: true
+                    isActive: true
+                  }
+                }
+              ]
             }
-          }
-        ]
-      }
       
       setPendingRound('clarity')
       setChatMessages(prev => [...prev, confirmMessage, selectionMessage])
@@ -4071,7 +4104,7 @@ export default function NotesDashboardPage() {
       
       // 重新显示任务拆解选择卡片
       const selectionMessage: ChatMessage = {
-        role: 'assistant' as const,
+          role: 'assistant' as const,
         content: [
           { 
             type: 'interactive' as const, 
@@ -4082,7 +4115,7 @@ export default function NotesDashboardPage() {
             }
           }
         ]
-      }
+        }
       
       setPendingRound('decomposition')
       setChatMessages(prev => [...prev, confirmMessage, selectionMessage])
@@ -4629,7 +4662,7 @@ export default function NotesDashboardPage() {
             type: 'reflection-overview' as const,
             data: { taskCount: reflectionTasks.length },
             isActive: true
-          }
+    }
         }
       ]
     }
@@ -7184,6 +7217,9 @@ ${matrixStats || '（无待办）'}
               isAnsweringQuestions={isAnsweringQuestions}
               currentQuestionIndex={currentQuestionIndex}
               totalQuestionsCount={totalQuestions.length}
+              // ⭐ 任务选择界面：折叠状态
+              collapsedTasks={collapsedTasks}
+              onToggleTaskCollapse={toggleTaskCollapse}
             />
           </div>
         </div>
