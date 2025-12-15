@@ -5,7 +5,7 @@
 // ============================================
 
 import { doubaoService } from './doubaoService'
-import type { ExtractedContext } from '@/types/task-context'
+import type { ExtractedContext, QuestionAnswerPair } from '@/types/task-context'
 
 /**
  * 从问答对话中提取核心信息
@@ -121,5 +121,97 @@ export async function batchExtractContext(
   }
 
   return results
+}
+
+/**
+ * 整合多个问答，提取为一个完整的段落
+ * @param qaList 多个问答对
+ * @returns 整合后的精简段落
+ */
+export async function extractContextFromMultipleQA(
+  qaList: QuestionAnswerPair[]
+): Promise<ExtractedContext> {
+  try {
+    console.log('🤖 开始整合提取多个问答...')
+    console.log('问答数量:', qaList.length)
+
+    // 构建整合提取的 Prompt
+    const prompt = buildMultipleQAPrompt(qaList)
+
+    // 调用 LLM
+    const response = await doubaoService.sendMessage(prompt)
+
+    // 检查响应
+    if (!response || !response.success || !response.message) {
+      console.error('❌ LLM 响应无效:', response)
+      throw new Error(response?.error || 'LLM 响应无效')
+    }
+
+    // 提取内容
+    const extractedContent = response.message.trim()
+
+    console.log('✅ 整合提取完成:', extractedContent)
+
+    return {
+      content: extractedContent
+    }
+  } catch (error: any) {
+    console.error('❌ 整合提取失败:', error)
+    console.error('错误详情:', error.message || error)
+    
+    // 降级方案：简单拼接所有答案
+    console.warn('⚠️ 使用降级方案：简单拼接答案')
+    const fallback = qaList
+      .map((qa, i) => `${i + 1}) ${qa.answer}`)
+      .join(' ')
+    
+    return {
+      content: fallback
+    }
+  }
+}
+
+/**
+ * 构建整合多个问答的 Prompt
+ */
+function buildMultipleQAPrompt(qaList: QuestionAnswerPair[]): string {
+  // 格式化问答列表
+  const formattedQA = qaList
+    .map((qa, i) => `【问题${i + 1}】\n${qa.question}\n【回答${i + 1}】\n${qa.answer}`)
+    .join('\n\n')
+
+  return `你是一个任务管理助手，需要从多个问答对话中提取关键信息，并整合成一个完整、简洁的段落。
+
+${formattedQA}
+
+【任务】
+请将上述多个问答的核心信息整合成一个简洁的段落，要求：
+
+1. **完整段落**：将多个问答的信息整合成一个流畅的段落（50-150字）
+2. **分点表达**：如果信息较多，可以用分号或分点（1、2、3）组织
+3. **去重合并**：去除重复信息，合并相关内容
+4. **突出重点**：优先保留最重要的背景、目标、约束等信息
+5. **自然流畅**：语句通顺，像人说话一样自然
+
+【示例】
+问题1：这个原型开发是针对什么产品或项目的？
+回答1：ADHD任务管理研究项目，目前已经有一些需求文档了
+
+问题2：你希望这个原型开发完成后达到什么样的效果？
+回答2：希望能够验证我们的研究假设，完成用户测试
+
+问题3：现在已经有哪些关于这个原型的设计文档或需求说明？
+回答3：有一个需求说明文档和一些初步的原型图
+
+整合输出：
+这是一个ADHD任务管理研究项目，目前已有需求文档和原型图。希望通过原型验证研究假设，完成用户测试收集反馈。
+
+【注意】
+- 直接返回整合后的段落文本，不要加任何前缀
+- 不要添加任何解释或说明
+- 不要使用 JSON 格式
+- 只返回纯文本段落
+
+请整合上述问答的核心信息：`
 }
 

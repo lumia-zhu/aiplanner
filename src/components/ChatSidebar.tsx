@@ -812,7 +812,8 @@ const ReflectionQASummaryCard: React.FC<{
   taskId: string
   roundType: 'clarity' | 'decomposition' | 'time' | 'priority'
   onAddContext: (qa: QuestionAnswerPair, taskId: string, source: string) => void
-}> = ({ qaList, taskId, roundType, onAddContext }) => {
+  onAddAllContext?: (qaList: Array<{question: string, answer: string}>, taskId: string, source: string) => void  // 🆕 批量添加回调
+}> = ({ qaList, taskId, roundType, onAddContext, onAddAllContext }) => {
   const sourceMap = {
     'clarity': 'clarity-reflection',
     'decomposition': 'decomposition-reflection',
@@ -855,6 +856,19 @@ const ReflectionQASummaryCard: React.FC<{
           </div>
         </div>
       ))}
+      
+      {/* 🆕 批量添加按钮 */}
+      {onAddAllContext && qaList.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-gray-200 flex justify-center">
+          <button
+            onClick={() => onAddAllContext(qaList, taskId, source)}
+            className="px-5 py-2 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-100 hover:border-blue-300 flex items-center gap-2 transition-all text-sm font-medium shadow-sm hover:shadow"
+          >
+            <span>💡</span>
+            <span>一键添加所有上下文</span>
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -1251,6 +1265,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   const [contextModalOpen, setContextModalOpen] = useState(false)
   const [contextModalData, setContextModalData] = useState<{
     qa: QuestionAnswerPair
+    qaList?: Array<{question: string, answer: string}>  // 🆕 批量添加时使用
     taskId: string
     source: string
   } | null>(null)
@@ -1285,6 +1300,14 @@ const ChatSidebar = memo<ChatSidebarProps>(({
     console.log('📍 默认任务 ID:', taskId)
     
     setContextModalData({ qa, taskId, source })
+    setContextModalOpen(true)
+  }
+  
+  // ⭐ 处理批量添加所有上下文信息
+  const handleAddAllContext = (qaList: Array<{question: string, answer: string}>, taskId: string, source: string) => {
+    console.log('📦 打开批量添加上下文弹窗:', { qaList, taskId, source })
+    
+    setContextModalData({ qa: qaList[0], qaList, taskId, source })
     setContextModalOpen(true)
   }
   
@@ -1723,6 +1746,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                               taskId={content.interactive.data.taskId}
                               roundType={content.interactive.data.roundType || 'clarity'}
                               onAddContext={handleAddContextInfo}
+                              onAddAllContext={handleAddAllContext}
                             />
                           )}
                           
@@ -2425,7 +2449,8 @@ const ChatSidebar = memo<ChatSidebarProps>(({
         <AddContextInfoModal
           isOpen={contextModalOpen}
           onClose={() => setContextModalOpen(false)}
-          questionAnswer={contextModalData.qa}
+          questionAnswer={contextModalData.qaList ? undefined : contextModalData.qa}  // 单个问答
+          questionAnswers={contextModalData.qaList}  // 🆕 多个问答（批量模式）
           defaultTaskId={(() => {
             // 从快照ID中提取任务标题
             const snapshot = availableTasksForSelection.find(t => t.id === contextModalData.taskId)

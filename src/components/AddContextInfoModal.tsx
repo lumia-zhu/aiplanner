@@ -13,7 +13,8 @@ interface Task {
 interface AddContextInfoModalProps {
   isOpen: boolean
   onClose: () => void
-  questionAnswer: QuestionAnswerPair
+  questionAnswer?: QuestionAnswerPair  // 单个问答（可选）
+  questionAnswers?: QuestionAnswerPair[]  // 多个问答（可选，批量添加时使用）
   defaultTaskId: string  // 现在是任务标题
   availableTasks: Task[]  // 现在 id 就是任务标题
   source: string  // 'clarity-reflection', 'time-reflection' 等
@@ -24,6 +25,7 @@ export default function AddContextInfoModal({
   isOpen,
   onClose,
   questionAnswer,
+  questionAnswers,  // 🆕 多个问答
   defaultTaskId,
   availableTasks,
   source,
@@ -35,13 +37,20 @@ export default function AddContextInfoModal({
   const [loading, setLoading] = useState(false)
   const [extracting, setExtracting] = useState(false)
   const [error, setError] = useState('')
+  
+  // 🆕 判断是单个还是批量
+  const isBatchMode = !!questionAnswers && questionAnswers.length > 0
 
   // 当弹窗打开时，自动调用 LLM 提取
   useEffect(() => {
-    if (isOpen && questionAnswer) {
-      extractContent()
+    if (isOpen) {
+      if (isBatchMode) {
+        extractMultipleQA()
+      } else if (questionAnswer) {
+        extractContent()
+      }
     }
-  }, [isOpen, questionAnswer])
+  }, [isOpen, questionAnswer, questionAnswers])
 
   // 更新选中的任务ID
   useEffect(() => {
@@ -56,16 +65,46 @@ export default function AddContextInfoModal({
 
     try {
       const result = await extractContextFromQA(
-        questionAnswer.question,
-        questionAnswer.answer
+        questionAnswer!.question,
+        questionAnswer!.answer
       )
       setExtractedContent(result.content)
       setEditableContent(result.content)
     } catch (err: any) {
       console.error('提取失败:', err)
       setError('提取失败，使用原始答案')
-      setExtractedContent(questionAnswer.answer)
-      setEditableContent(questionAnswer.answer)
+      setExtractedContent(questionAnswer!.answer)
+      setEditableContent(questionAnswer!.answer)
+    } finally {
+      setExtracting(false)
+    }
+  }
+  
+  // 🆕 批量提取并整合多个问答
+  const extractMultipleQA = async () => {
+    setExtracting(true)
+    setError('')
+
+    try {
+      console.log('📦 开始整合提取:', questionAnswers)
+      
+      // 调用整合提取API（下一步实现）
+      const { extractContextFromMultipleQA } = await import('@/lib/contextExtractionService')
+      const result = await extractContextFromMultipleQA(questionAnswers!)
+      
+      setExtractedContent(result.content)
+      setEditableContent(result.content)
+      console.log('✅ 整合提取成功:', result.content)
+    } catch (err: any) {
+      console.error('整合提取失败:', err)
+      setError('提取失败，使用原始答案拼接')
+      
+      // 兜底：简单拼接所有答案
+      const fallback = questionAnswers!
+        .map((qa, i) => `${i + 1}) ${qa.answer}`)
+        .join(' ')
+      setExtractedContent(fallback)
+      setEditableContent(fallback)
     } finally {
       setExtracting(false)
     }
@@ -120,8 +159,13 @@ export default function AddContextInfoModal({
         task_id: realTaskId,
         content: editableContent.trim(),
         source: source,
-        source_question: questionAnswer.question,
-        source_answer: questionAnswer.answer
+        // 🔧 如果是批量模式，保存所有问答的JSON；否则保存单个问答
+        source_question: isBatchMode
+          ? JSON.stringify(questionAnswers!.map(qa => qa.question))
+          : questionAnswer?.question,
+        source_answer: isBatchMode
+          ? JSON.stringify(questionAnswers!.map(qa => qa.answer))
+          : questionAnswer?.answer
       })
 
       console.log('✅ 上下文信息创建成功, ID:', createdContext.id)
@@ -171,29 +215,62 @@ export default function AddContextInfoModal({
         </div>
 
         <div className="p-6 space-y-6">
-          {/* 原始问答 */}
-          <div>
-            <h3 className="text-sm font-medium text-gray-700 mb-2">📌 原始问答</h3>
-            <div className="bg-gray-50 p-4 rounded-md space-y-2">
-              <div>
-                <p className="text-xs text-gray-500">问题：</p>
-                <p className="text-sm text-gray-700">{questionAnswer.question}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500">回答：</p>
-                <p className="text-sm text-gray-700">{questionAnswer.answer}</p>
-              </div>
+          {/* 原始问答 - 区分单个和批量模式 */}
+          {isBatchMode ? (
+            /* 批量模式：折叠显示多个问答 */
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-2">
+                📌 原始问答 ({questionAnswers!.length}条)
+              </h3>
+              <details className="bg-gray-50 border border-gray-200 rounded-md">
+                <summary className="cursor-pointer text-xs text-gray-600 p-3 hover:bg-gray-100 transition-colors">
+                  点击展开查看详细问答 ▼
+                </summary>
+                <div className="p-3 pt-2 space-y-3 border-t border-gray-200">
+                  {questionAnswers!.map((qa, i) => (
+                    <div key={i} className="pb-3 border-b border-gray-200 last:border-b-0 last:pb-0">
+                      <div className="mb-1.5">
+                        <p className="text-xs text-gray-500">问题 {i + 1}：</p>
+                        <p className="text-sm text-gray-700">{qa.question}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">回答 {i + 1}：</p>
+                        <p className="text-sm text-gray-700">{qa.answer}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </details>
             </div>
-          </div>
+          ) : (
+            /* 单个模式：原有显示方式 */
+            questionAnswer && (
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 mb-2">📌 原始问答</h3>
+                <div className="bg-gray-50 p-4 rounded-md space-y-2">
+                  <div>
+                    <p className="text-xs text-gray-500">问题：</p>
+                    <p className="text-sm text-gray-700">{questionAnswer.question}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">回答：</p>
+                    <p className="text-sm text-gray-700">{questionAnswer.answer}</p>
+                  </div>
+                </div>
+              </div>
+            )
+          )}
 
           {/* 提取的信息 */}
           <div>
             <h3 className="text-sm font-medium text-gray-700 mb-2">
-              ✨ 提取的关键信息（可编辑）
+              {isBatchMode ? '✨ 整合的上下文信息（可编辑）' : '✨ 提取的关键信息（可编辑）'}
             </h3>
             {extracting ? (
               <div className="bg-blue-50 p-4 rounded-md text-center">
-                <p className="text-blue-600">🤖 正在调用 LLM 提取关键信息...</p>
+                <p className="text-blue-600">
+                  {isBatchMode ? '🤖 正在整合提取关键信息...' : '🤖 正在调用 LLM 提取关键信息...'}
+                </p>
               </div>
             ) : (
               <div>
@@ -201,8 +278,8 @@ export default function AddContextInfoModal({
                   value={editableContent}
                   onChange={(e) => setEditableContent(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                  rows={3}
-                  placeholder="编辑提取的信息..."
+                  rows={isBatchMode ? 6 : 3}
+                  placeholder={isBatchMode ? '整合后的上下文信息...' : '编辑提取的信息...'}
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   {editableContent.length} 字
