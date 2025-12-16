@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { extractContextFromQA } from '@/lib/contextExtractionService'
 import { createContextInfo } from '@/lib/taskContextService'
+import { sanitizeTaskTitle } from '@/lib/taskSync'
 import type { QuestionAnswerPair } from '@/types/task-context'
 
 interface Task {
@@ -132,17 +133,40 @@ export default function AddContextInfoModal({
       
       // 🔧 根据任务标题查找真实的任务ID
       const taskTitle = selectedTaskId  // selectedTaskId 现在就是任务标题
+      // 🔧 使用 sanitizeTaskTitle 清理标题，与数据库存储的格式保持一致
+      const cleanedTitle = sanitizeTaskTitle(taskTitle)
       console.log('  - 准备查询的任务标题:', taskTitle)
+      console.log('  - 清理后的标题:', cleanedTitle)
       
       const supabase = (await import('@/lib/supabase-client')).createClient()
       
-      const { data: dailyTasks, error: queryError } = await supabase
+      // 🔧 先尝试精确匹配清理后的标题
+      let { data: dailyTasks, error: queryError } = await supabase
         .from('daily_tasks')
         .select('id, title')
-        .eq('title', taskTitle)
+        .eq('title', cleanedTitle)
         .limit(1)
       
-      console.log('  - 查询结果:', { dailyTasks, queryError })
+      console.log('  - 精确查询结果:', { dailyTasks, queryError })
+      
+      // 🔧 如果精确匹配失败，尝试模糊匹配（使用 ilike）
+      if ((!dailyTasks || dailyTasks.length === 0) && !queryError) {
+        console.log('  - 精确匹配失败，尝试模糊匹配...')
+        const { data: fuzzyTasks, error: fuzzyError } = await supabase
+          .from('daily_tasks')
+          .select('id, title')
+          .ilike('title', `%${cleanedTitle}%`)
+          .limit(1)
+        
+        console.log('  - 模糊查询结果:', { fuzzyTasks, fuzzyError })
+        
+        if (!fuzzyError && fuzzyTasks && fuzzyTasks.length > 0) {
+          dailyTasks = fuzzyTasks
+        }
+        if (fuzzyError) {
+          queryError = fuzzyError
+        }
+      }
       
       if (queryError) {
         throw new Error(`查询任务失败: ${queryError.message}`)

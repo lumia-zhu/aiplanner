@@ -313,19 +313,30 @@ export default function NotesDashboardPage() {
         if (taskText === taskTitle.trim() || taskText.startsWith(taskTitle.trim())) {
           console.log('✅ 找到目标任务:', taskTitle, '实际文本:', taskText, '在位置', pos)
           
-          // 找到任务内容段落（第一个paragraph）的结束位置
+          // 🔧 找到最佳插入位置：在已有上下文信息之后，或在第一个paragraph之后
           let insertPos = pos + 1  // 进入taskItem内部
           let foundFirstParagraph = false
+          let lastContextInfoEndPos = -1
           
-          // 遍历taskItem的子节点，找到第一个paragraph后的位置
+          // 遍历taskItem的子节点
           node.descendants((childNode: any, childPos: number) => {
-            if (!foundFirstParagraph && childNode.type.name === 'paragraph') {
-              // 在第一个paragraph之后插入（在子任务之前）
+            if (childNode.type.name === 'paragraph' && !foundFirstParagraph) {
+              // 记录第一个paragraph之后的位置
               insertPos = pos + 1 + childPos + childNode.nodeSize
               foundFirstParagraph = true
-              return false
+            }
+            if (childNode.type.name === 'contextInfo') {
+              // 记录最后一个contextInfo之后的位置
+              lastContextInfoEndPos = pos + 1 + childPos + childNode.nodeSize
+              console.log('📍 发现已有上下文信息，位置:', lastContextInfoEndPos)
             }
           })
+          
+          // 如果有已存在的上下文信息，在其后插入（保持上下文信息连续）
+          if (lastContextInfoEndPos > 0) {
+            insertPos = lastContextInfoEndPos
+            console.log('📍 使用已有上下文信息后的位置:', insertPos)
+          }
           
           console.log('📍 插入位置:', insertPos)
           
@@ -1512,15 +1523,30 @@ export default function NotesDashboardPage() {
                       taskItem.content = []
                     }
                     
-                    // 找到 paragraph 的索引
-                    const paragraphIndex = taskItem.content.findIndex((c: any) => c.type === 'paragraph')
+                    // 🔧 找到最佳插入位置：在上下文信息之后插入
+                    // 结构顺序：paragraph → contextInfo → subtasks
+                    let insertIndex = taskItem.content.length // 默认添加到末尾
                     
-                    // 在 paragraph 后插入子任务列表
-                    if (paragraphIndex !== -1) {
-                      taskItem.content.splice(paragraphIndex + 1, 0, nestedTaskList)
+                    // 找到最后一个 contextInfo 的位置
+                    const lastContextIndex = taskItem.content.map((c: any, i: number) => 
+                      c.type === 'contextInfo' ? i : -1
+                    ).filter((i: number) => i !== -1).pop()
+                    
+                    if (lastContextIndex !== undefined && lastContextIndex !== -1) {
+                      // 在最后一个 contextInfo 之后插入
+                      insertIndex = lastContextIndex + 1
+                      console.log('📍 在上下文信息后插入子任务，位置:', insertIndex)
                     } else {
-                      taskItem.content.push(nestedTaskList)
+                      // 没有上下文信息，找 paragraph 的位置
+                      const paragraphIndex = taskItem.content.findIndex((c: any) => c.type === 'paragraph')
+                      if (paragraphIndex !== -1) {
+                        insertIndex = paragraphIndex + 1
+                        console.log('📍 在段落后插入子任务，位置:', insertIndex)
+                      }
                     }
+                    
+                    // 插入子任务列表
+                    taskItem.content.splice(insertIndex, 0, nestedTaskList)
                     
                     console.log('✅ 子任务已插入到笔记中')
                     return true
@@ -1555,7 +1581,13 @@ export default function NotesDashboardPage() {
         
         // 执行插入
         if (findAndInsertSubtasks(newContent)) {
-          // 更新笔记内容
+          // 🔧 直接通过编辑器实例更新内容（绕过 isInitializedRef 限制）
+          if (editorRef.current) {
+            editorRef.current.commands.setContent(newContent)
+            console.log('✅ 通过编辑器实例插入子任务')
+          }
+          
+          // 同时更新状态（保持同步）
           setCurrentNote(newContent)
           
           // 触发保存
@@ -6531,6 +6563,10 @@ ${matrixStats || '（无待办）'}
       if (selectedDateStr === noteDateStr) {
         // 使用深拷贝确保 React 检测到状态变化
         const newContent = JSON.parse(JSON.stringify(updatedContent))
+        // 🔧 直接通过编辑器实例更新内容（绕过 isInitializedRef 限制）
+        if (editorRef.current) {
+          editorRef.current.commands.setContent(newContent)
+        }
         setCurrentNote(newContent)
         logger.debug('✅ 编辑器内容已刷新')
       } else {
@@ -6884,6 +6920,10 @@ ${matrixStats || '（无待办）'}
           // 如果是当前日期，更新本地编辑器状态
           if (updatedTask.noteDate === formatNoteDate(selectedDate)) {
             console.log('📝 更新本地编辑器状态（因为是当前日期）')
+            // 🔧 直接通过编辑器实例更新内容（绕过 isInitializedRef 限制）
+            if (editorRef.current) {
+              editorRef.current.commands.setContent(newContent)
+            }
             setCurrentNote(newContent)
             // 更新任务统计
             calculateTaskStats(newContent)

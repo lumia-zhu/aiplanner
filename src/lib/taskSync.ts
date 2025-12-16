@@ -109,7 +109,7 @@ export function parseTasksFromNote(noteContent: string | any): ParsedTask[] {
 
 /**
  * 从节点中提取纯文本
- * 注意：跳过嵌套的 taskList，避免把子任务的文本合并到父任务标题中
+ * 注意：跳过嵌套的 taskList 和 contextInfo，避免把子任务和上下文信息的文本合并到父任务标题中
  */
 function extractTextFromNode(node: any): string {
   let text = ''
@@ -120,6 +120,11 @@ function extractTextFromNode(node: any): string {
 
   // 跳过嵌套的 taskList（子任务列表），避免把子任务文本合并到父任务
   if (node.type === 'taskList') {
+    return ''
+  }
+  
+  // 🔧 跳过 contextInfo（上下文信息），避免把上下文内容合并到任务标题
+  if (node.type === 'contextInfo') {
     return ''
   }
 
