@@ -52,15 +52,15 @@ export function ReflectionQuickActions({
   }
 
   return (
-    <div className="sticky bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white to-transparent border-t border-gray-200 px-4 py-3">
+    <div className="sticky bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white to-transparent border-t border-gray-200 px-3 pt-2 pb-1">
       {/* 标题 */}
-      <div className="text-xs font-medium text-gray-500 mb-2 flex items-center gap-1">
-        <span>⚡</span>
+      <div className="text-[11px] font-medium text-gray-500 mb-1.5 flex items-center gap-1">
+        <span className="text-xs">⚡</span>
         <span>任务反思</span>
       </div>
       
       {/* 四个按钮 (2行2列) */}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-1.5">
         {buttons.map(btn => {
           const isActive = currentReflectionType === btn.type
           
@@ -70,19 +70,19 @@ export function ReflectionQuickActions({
               onClick={() => onReflectionStart(btn.type)}
               className={`
                 flex items-center justify-center gap-1.5
-                h-[52px] px-3 rounded-lg border
+                h-[42px] px-2 rounded-md border
                 transition-all duration-200 ease-out
                 ${btn.baseColor}
                 ${btn.hoverColor}
                 ${isActive ? btn.activeRing : ''}
               `}
             >
-              <span className={`text-xl transition-transform ${
+              <span className={`text-lg transition-transform ${
                 isActive ? 'scale-110' : ''
               }`}>
                 {btn.icon}
               </span>
-              <span className="text-sm font-medium whitespace-nowrap">
+              <span className="text-xs font-medium whitespace-nowrap">
                 {btn.label}
               </span>
             </button>

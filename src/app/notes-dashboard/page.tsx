@@ -7003,10 +7003,10 @@ ${matrixStats || '（无待办）'}
       </nav>
 
       {/* 主要内容区域 */}
-      <main className="pt-20 py-6 px-4 sm:px-6 lg:px-8">
+      <main className="pt-20 pb-0.5 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           {/* flex布局容器：在主内容区域内部分左右 */}
-          <div className="flex gap-6 h-[calc(100vh-12rem)]">
+          <div className="flex gap-6 h-[calc(100vh-10.5rem)]">
             {/* 左侧：笔记管理区域 */}
             <div className="flex-1 flex flex-col transition-all duration-300 ease-in-out relative overflow-visible">
               

@@ -38,7 +38,7 @@ export default function UnclassifiedZone({
   const taskIds = tasks.map(t => t.id)
   
   return (
-    <div className="w-72 flex-shrink-0">
+    <div className="w-56 flex-shrink-0">
       <div 
         ref={setNodeRef}
         className={`

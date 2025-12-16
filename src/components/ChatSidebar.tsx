@@ -859,13 +859,13 @@ const ReflectionQASummaryCard: React.FC<{
       
       {/* 🆕 批量添加按钮 */}
       {onAddAllContext && qaList.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-gray-200 flex justify-center">
+        <div className="mt-2 flex justify-center">
           <button
             onClick={() => onAddAllContext(qaList, taskId, source)}
-            className="px-5 py-2 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-100 hover:border-blue-300 flex items-center gap-2 transition-all text-sm font-medium shadow-sm hover:shadow"
+            className="px-3 py-1 bg-blue-50 text-blue-600 border border-blue-200 rounded-md hover:bg-blue-100 hover:border-blue-300 flex items-center gap-1.5 transition-all text-xs font-medium"
           >
-            <span>💡</span>
-            <span>一键添加所有上下文</span>
+            <span className="text-sm">💡</span>
+            <span>添加所有上下文</span>
           </button>
         </div>
       )}
@@ -2101,7 +2101,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
       )}
       
       {/* 输入区域 */}
-      <div className="p-4 border-t border-gray-100 flex-shrink-0">
+      <div className="px-4 pt-4 pb-2 border-t border-gray-100 flex-shrink-0">
         {/* 显示选中的图片 */}
               {selectedImage && (
           <div className="mb-3 p-2 bg-blue-50 rounded-lg border border-blue-200">
