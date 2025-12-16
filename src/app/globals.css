@@ -373,7 +373,7 @@ body {
 /* 为任务项添加拖拽手柄 */
 .ProseMirror ul[data-type="taskList"] li {
   position: relative;
-  padding-left: 2rem; /* 为拖拽手柄留出更多空间 */
+  padding-left: 1.5rem; /* 为拖拽手柄留出空间 */
   transition: background-color 0.2s ease, transform 0.2s ease;
 }
 
@@ -384,8 +384,8 @@ body {
   left: 0;
   top: 50%;
   transform: translateY(-50%);
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   cursor: grab;
   opacity: 0;
   transition: opacity 0.2s ease, transform 0.2s ease, background-color 0.2s ease;
@@ -399,7 +399,7 @@ body {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%239ca3af'%3E%3Ccircle cx='9' cy='6' r='1.5'/%3E%3Ccircle cx='15' cy='6' r='1.5'/%3E%3Ccircle cx='9' cy='12' r='1.5'/%3E%3Ccircle cx='15' cy='12' r='1.5'/%3E%3Ccircle cx='9' cy='18' r='1.5'/%3E%3Ccircle cx='15' cy='18' r='1.5'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: center;
-  background-size: 16px 16px;
+  background-size: 14px 14px;
 }
 
 /* 悬停时显示拖拽手柄 */
@@ -419,6 +419,15 @@ body {
   cursor: grabbing;
   transform: translateY(-50%) scale(1.05);
   background-color: rgba(156, 163, 175, 0.25);
+}
+
+/* 使整个任务项可拖拽 - 通过点击左侧区域 */
+.ProseMirror ul[data-type="taskList"] li[draggable="true"] {
+  cursor: grab;
+}
+
+.ProseMirror ul[data-type="taskList"] li[draggable="true"]:active {
+  cursor: grabbing;
 }
 
 /* 任务项悬停效果 */

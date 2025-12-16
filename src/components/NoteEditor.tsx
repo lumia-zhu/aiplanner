@@ -5,7 +5,7 @@ import StarterKit from '@tiptap/starter-kit'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
 import Placeholder from '@tiptap/extension-placeholder'
-import { useEffect, useCallback, useState } from 'react'
+import { useEffect, useCallback, useRef, useState } from 'react'
 import type { JSONContent } from '@tiptap/core'
 import { Extension, InputRule, Node } from '@tiptap/core'
 import { mergeAttributes } from '@tiptap/core'
@@ -100,17 +100,37 @@ const ContextInfo = Node.create({
   
   addKeyboardShortcuts() {
     return {
-      // 按Enter键退出上下文信息块
-      Enter: () => {
-        return this.editor.commands.splitBlock()
+      // 按Enter键退出上下文信息块（只在 contextInfo 节点内生效）
+      Enter: ({ editor }) => {
+        // 检查当前节点是否是 contextInfo
+        const { $from } = editor.state.selection
+        const node = $from.node()
+        const parent = $from.parent
+        
+        // 只有在 contextInfo 节点内才处理
+        if (parent.type.name === 'contextInfo' || node.type.name === 'contextInfo') {
+          return editor.commands.splitBlock()
+        }
+        
+        // 否则让其他扩展处理（比如 TaskItem）
+        return false
       },
     }
   },
 })
 
-// 自定义 TaskItem 支持拖拽
+// 自定义 TaskItem 支持拖拽和键盘快捷键
 const DraggableTaskItem = TaskItem.extend({
   draggable: true,
+  
+  addKeyboardShortcuts() {
+    return {
+      ...this.parent?.() || {},
+      Enter: () => this.editor.commands.splitListItem('taskItem'),
+      'Shift-Tab': () => this.editor.commands.liftListItem('taskItem'),
+      Tab: () => this.editor.commands.sinkListItem('taskItem'),
+    }
+  },
   
   addAttributes() {
     return {
@@ -259,6 +279,8 @@ export default function NoteEditor({
   
   const [showBubbleMenu, setShowBubbleMenu] = useState(false)
   const [bubbleMenuPosition, setBubbleMenuPosition] = useState({ top: 0, left: 0 })
+  // ⭐ 拖拽开关：只有“把手区域”按下才允许 dragstart
+  const allowDragRef = useRef<HTMLElement | null>(null)
   
   // 任务操作菜单状态
   const [showTaskActionMenu, setShowTaskActionMenu] = useState(false)
@@ -299,6 +321,7 @@ export default function NoteEditor({
         nested: true,
         HTMLAttributes: {
           class: 'task-item-with-drag-handle',
+          draggable: 'true', // ⭐ 让浏览器始终能触发 dragstart（再用“把手区域开关”限制真正拖拽）
         },
       }),
       Placeholder.configure({
@@ -441,13 +464,72 @@ export default function NoteEditor({
     const editorElement = editor.view.dom
     let draggedElement: HTMLElement | null = null
     let dragImage: HTMLElement | null = null
+    // ⭐ 记录被拖拽任务在 ProseMirror 文档中的位置（用于真正“移动任务”）
+    let draggedTaskFromPos: number | null = null
+    let draggedTaskToPos: number | null = null
+    let draggedTaskParentListPos: number | null = null
 
     const handleDragStart = (e: DragEvent) => {
       const target = e.target as HTMLElement
       const taskItem = target.closest('li[data-type="taskItem"]')
       
       if (taskItem) {
+        // ⭐ 只有从“把手区域”按下才允许拖拽
+        if (allowDragRef.current !== taskItem) {
+          // 不允许的拖拽：直接取消，避免误触
+          if (e.cancelable) e.preventDefault()
+          return
+        }
+
         draggedElement = taskItem as HTMLElement
+
+        // --- 1) 记录被拖拽任务的文档位置 ---
+        try {
+          const view = editor.view
+          const state = editor.state
+          const pos = view.posAtDOM(taskItem, 0)
+          const $pos = state.doc.resolve(pos)
+
+          // 找到 taskItem 的深度
+          let taskItemDepth: number | null = null
+          for (let d = $pos.depth; d >= 0; d--) {
+            if ($pos.node(d).type.name === 'taskItem') {
+              taskItemDepth = d
+              break
+            }
+          }
+
+          if (taskItemDepth == null) {
+            console.warn('⚠️ 拖拽开始：无法定位 taskItem 节点，取消拖拽移动逻辑')
+            draggedTaskFromPos = null
+            draggedTaskToPos = null
+            draggedTaskParentListPos = null
+          } else {
+            const fromPos = $pos.before(taskItemDepth)
+            const node = $pos.node(taskItemDepth)
+            const toPos = fromPos + node.nodeSize
+
+            // 记录父 taskList 位置（用于限制只在同一层级移动）
+            const parentDepth = taskItemDepth - 1
+            const parentPos = parentDepth >= 0 ? $pos.before(parentDepth) : null
+
+            draggedTaskFromPos = fromPos
+            draggedTaskToPos = toPos
+            draggedTaskParentListPos = parentPos
+
+            console.log('🧲 拖拽开始(记录位置):', {
+              fromPos,
+              toPos,
+              parentListPos: parentPos,
+              nodeSize: node.nodeSize,
+            })
+          }
+        } catch (err) {
+          console.warn('⚠️ 拖拽开始：记录文档位置失败，取消移动逻辑', err)
+          draggedTaskFromPos = null
+          draggedTaskToPos = null
+          draggedTaskParentListPos = null
+        }
         
         // 添加拖拽样式
         draggedElement.classList.add('dragging')
@@ -467,6 +549,10 @@ export default function NoteEditor({
         document.body.appendChild(dragImage)
         
         // 设置拖拽图像
+        // 某些浏览器需要 setData 才会真正进入可 drop 状态
+        try {
+          e.dataTransfer?.setData('text/plain', 'taskItem')
+        } catch {}
         e.dataTransfer!.effectAllowed = 'move'
         e.dataTransfer!.setDragImage(dragImage, 0, 0)
         
@@ -486,6 +572,12 @@ export default function NoteEditor({
         draggedElement.style.transition = ''
         draggedElement = null
       }
+      // 清理“允许拖拽”开关
+      allowDragRef.current = null
+      // 清理记录的文档位置
+      draggedTaskFromPos = null
+      draggedTaskToPos = null
+      draggedTaskParentListPos = null
       
       // 清理拖拽预览
       if (dragImage && document.body.contains(dragImage)) {
@@ -519,11 +611,93 @@ export default function NoteEditor({
       }
     }
 
+    // ⭐ drop：真正移动任务（调整任务顺序）
+    const handleDrop = (e: DragEvent) => {
+      if (!editor) return
+      if (draggedTaskFromPos == null || draggedTaskToPos == null) return
+
+      e.preventDefault()
+      e.stopPropagation()
+
+      const view = editor.view
+      const state = editor.state
+
+      // 找到 drop 的目标 taskItem（DOM 级别）
+      const target = e.target as HTMLElement
+      const targetTaskLi = target.closest('li[data-type="taskItem"]') as HTMLElement | null
+      if (!targetTaskLi || !draggedElement) return
+      if (targetTaskLi === draggedElement) return
+
+      // 找到目标 taskItem 在文档中的位置
+      let targetFromPos: number | null = null
+      let targetToPos: number | null = null
+      let targetParentListPos: number | null = null
+      try {
+        const pos = view.posAtDOM(targetTaskLi, 0)
+        const $pos = state.doc.resolve(pos)
+        let taskItemDepth: number | null = null
+        for (let d = $pos.depth; d >= 0; d--) {
+          if ($pos.node(d).type.name === 'taskItem') {
+            taskItemDepth = d
+            break
+          }
+        }
+        if (taskItemDepth == null) return
+        const node = $pos.node(taskItemDepth)
+        targetFromPos = $pos.before(taskItemDepth)
+        targetToPos = targetFromPos + node.nodeSize
+        const parentDepth = taskItemDepth - 1
+        targetParentListPos = parentDepth >= 0 ? $pos.before(parentDepth) : null
+      } catch (err) {
+        console.warn('⚠️ drop：解析目标位置失败', err)
+        return
+      }
+
+      // 限制：只允许同一层级（同一个 taskList）内移动，避免嵌套结构被破坏
+      if (
+        draggedTaskParentListPos != null &&
+        targetParentListPos != null &&
+        draggedTaskParentListPos !== targetParentListPos
+      ) {
+        console.warn('⚠️ 当前仅支持同一层级任务排序（不同父任务/不同列表暂不支持）')
+        return
+      }
+
+      // 判断插入到目标的“上方/下方”
+      const rect = targetTaskLi.getBoundingClientRect()
+      const midpoint = rect.top + rect.height / 2
+      let insertPos = e.clientY < midpoint ? targetFromPos! : targetToPos!
+
+      const fromPos = draggedTaskFromPos
+      const toPos = draggedTaskToPos
+      const movedSize = toPos - fromPos
+
+      // 如果插入点落在被删除区间内部，直接忽略
+      if (insertPos >= fromPos && insertPos <= toPos) {
+        return
+      }
+
+      // 删除源节点后，如果 insertPos 在源节点之后，需要减去 movedSize 进行位置修正
+      if (insertPos > fromPos) {
+        insertPos -= movedSize
+      }
+
+      const slice = state.doc.slice(fromPos, toPos)
+      const tr = state.tr
+        .delete(fromPos, toPos)
+        .replaceRange(insertPos, insertPos, slice)
+        .scrollIntoView()
+
+      console.log('✅ 任务排序 drop 成功:', { fromPos, toPos, insertPos })
+      view.dispatch(tr)
+    }
+
     editorElement.addEventListener('dragstart', handleDragStart)
     editorElement.addEventListener('dragend', handleDragEnd)
     editorElement.addEventListener('dragover', handleDragOver)
     editorElement.addEventListener('dragenter', handleDragEnter)
     editorElement.addEventListener('dragleave', handleDragLeave)
+    editorElement.addEventListener('drop', handleDrop)
 
     return () => {
       editorElement.removeEventListener('dragstart', handleDragStart)
@@ -531,6 +705,7 @@ export default function NoteEditor({
       editorElement.removeEventListener('dragover', handleDragOver)
       editorElement.removeEventListener('dragenter', handleDragEnter)
       editorElement.removeEventListener('dragleave', handleDragLeave)
+      editorElement.removeEventListener('drop', handleDrop)
       
       // 清理可能残留的拖拽预览
       if (dragImage && document.body.contains(dragImage)) {
@@ -744,6 +919,14 @@ export default function NoteEditor({
 
     const editorElement = editor.view.dom
 
+    // 记录鼠标按下位置，用于区分点击和拖拽
+    let mouseDownX = 0
+    let mouseDownY = 0
+    let mouseDownTime = 0
+    let clickedTaskItem: HTMLElement | null = null
+    // ⭐ 只有在“把手区域”按下，才允许本次 dragstart 生效
+    let allowDragForTaskItem: HTMLElement | null = null
+    
     const handleMouseDown = (e: MouseEvent) => {
       if (e.button !== 0) {
         return
@@ -754,48 +937,78 @@ export default function NoteEditor({
       // 检查是否点击了任务项的拖拽手柄区域
       const taskItem = target.closest('li[data-drag-handle]') as HTMLElement | null
       
-      if (taskItem) {
+        if (taskItem) {
         const rect = taskItem.getBoundingClientRect()
         const clickX = e.clientX - rect.left
         
         // 如果点击在左侧 30px 区域（拖拽手柄区域）
         if (clickX >= 0 && clickX < 30) {
-          e.preventDefault()
-          e.stopPropagation()
+          // 记录鼠标按下位置和时间
+          mouseDownX = e.clientX
+          mouseDownY = e.clientY
+          mouseDownTime = Date.now()
+          clickedTaskItem = taskItem
+          allowDragRef.current = taskItem
+        }
+      }
+    }
+    
+    const handleMouseUp = (e: MouseEvent) => {
+      if (clickedTaskItem) {
+        const timeDiff = Date.now() - mouseDownTime
+        const dx = Math.abs(e.clientX - mouseDownX)
+        const dy = Math.abs(e.clientY - mouseDownY)
+        
+        // 如果是短按（< 200ms）且没有移动太多（< 5px），显示任务操作菜单
+        if (timeDiff < 200 && dx < 5 && dy < 5) {
+          const rect = clickedTaskItem.getBoundingClientRect()
           
-          // 设置任务操作菜单位置（紧贴拖拽手柄左侧，让用户感知关联）
-          // 菜单宽度约 180px
+          // 设置任务操作菜单位置 - 显示在拖拽把手右侧
           const menuWidth = 180
+          // 菜单显示在拖拽把手的右边（任务内容的左侧）
+          let menuX = rect.left + 30  // 拖拽把手区域约 30px
           
-          // 紧贴拖拽手柄左侧（rect.left 是任务行左边缘，手柄在最左边）
-          let menuX = rect.left - menuWidth
+          // 如果右侧空间不够，就显示在左侧
+          if (menuX + menuWidth > window.innerWidth - 10) {
+            menuX = rect.left - menuWidth - 10
+          }
           
-          // 如果左侧空间不够，就贴靠左边缘
-          if (menuX < 5) {
-            menuX = 5
+          // 确保不超出左边界
+          if (menuX < 10) {
+            menuX = 10
+          }
+          
+          // 确保不超出上下边界
+          let menuY = rect.top
+          if (menuY < 10) {
+            menuY = 10
+          }
+          if (menuY + 300 > window.innerHeight) {  // 假设菜单高度约 300px
+            menuY = window.innerHeight - 310
           }
           
           setTaskActionMenuPosition({
             x: menuX,
-            y: rect.top
+            y: menuY
           })
           
-          // 保存当前任务元素
-          setCurrentTaskElement(taskItem)
-          
-          // TODO: 提取当前任务的已有标签
+          setCurrentTaskElement(clickedTaskItem)
           setSelectedTags([])
-          
-          // 显示任务操作菜单
           setShowTaskActionMenu(true)
         }
+        
+        // 清理状态
+        clickedTaskItem = null
+        allowDragRef.current = null
       }
     }
 
     editorElement.addEventListener('mousedown', handleMouseDown, true)
+    document.addEventListener('mouseup', handleMouseUp)
 
     return () => {
       editorElement.removeEventListener('mousedown', handleMouseDown, true)
+      document.removeEventListener('mouseup', handleMouseUp)
     }
   }, [editor])
 
