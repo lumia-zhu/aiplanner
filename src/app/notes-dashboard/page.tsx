@@ -112,6 +112,37 @@ export default function NotesDashboardPage() {
   // 日历视图日期（追踪日历当前显示的月份，用于用户浏览不同月份时加载笔记）
   const [calendarViewDate, setCalendarViewDate] = useState<Date>(selectedDate)
   
+  // ⭐ 带超时保护的loading设置函数
+  const setReflectionLoadingWithTimeout = useCallback((
+    loading: boolean, 
+    type: 'clarity' | 'decomposition' | 'time' | 'priority' | null = null
+  ) => {
+    if (loading) {
+      // 清除旧的定时器
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current)
+      }
+      
+      // 5秒后自动清除loading（超时保护）
+      loadingTimeoutRef.current = setTimeout(() => {
+        setIsReflectionLoading(false)
+        setLoadingReflectionType(null)
+        console.warn('⚠️ Loading状态超时自动清除')
+      }, 5000)
+      
+      setIsReflectionLoading(true)
+      setLoadingReflectionType(type)
+    } else {
+      // 清除定时器并清除loading
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current)
+        loadingTimeoutRef.current = null
+      }
+      setIsReflectionLoading(false)
+      setLoadingReflectionType(null)
+    }
+  }, [])
+  
   // 处理日历月份切换（用户点击左右箭头浏览不同月份）
   const handleCalendarViewDateChange = useCallback((newDate: Date) => {
     console.log('📅 用户切换日历月份:', `${newDate.getFullYear()}-${newDate.getMonth() + 1}`)
@@ -142,6 +173,12 @@ export default function NotesDashboardPage() {
   const [chatMessages, setChatMessages] = useState<any[]>([])
   const [isSending, setIsSending] = useState(false)
   const [streamingMessage, setStreamingMessage] = useState('')
+  
+  // ⭐ 反思操作loading状态（防止误触）
+  const [isReflectionLoading, setIsReflectionLoading] = useState(false)
+  const [loadingReflectionType, setLoadingReflectionType] = useState<'clarity' | 'decomposition' | 'time' | 'priority' | null>(null)
+  const [isTaskSelectionLoading, setIsTaskSelectionLoading] = useState(false)
+  const [isReflectionControlLoading, setIsReflectionControlLoading] = useState(false)
   const [isDragOver, setIsDragOver] = useState(false)
   // 🆕 记录最后一次任务查询的条件（用于刷新任务列表）
   const [lastTaskQueryFilters, setLastTaskQueryFilters] = useState<any>(null)
@@ -338,6 +375,9 @@ export default function NotesDashboardPage() {
   
   // Chat 滚动 ref
   const chatScrollRef = useRef<HTMLDivElement | null>(null)
+  
+  // ⭐ Loading超时保护ref
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   
   // ⭐ 任务拆解相关状态
   const [decomposingTaskTitle, setDecomposingTaskTitle] = useState<string | null>(null)
@@ -2978,6 +3018,9 @@ export default function NotesDashboardPage() {
       }
       setChatMessages(prev => [...prev, byeMessage])
       
+      // 清除loading状态
+      setReflectionLoadingWithTimeout(false)
+      
       // 1秒后关闭侧边栏
       setTimeout(() => {
         setIsChatSidebarOpen(false)
@@ -3058,11 +3101,27 @@ export default function NotesDashboardPage() {
     }
     setChatMessages(prev => [...prev, confirmMessage, selectionMessage])
     }
-  }, [reflectionTasks, initializeCollapsedTasks])
+    
+    // 延迟清除loading状态（让按钮有时间显示loading并等待消息渲染完成）
+    setTimeout(() => {
+      console.log('🔓 清除loading状态')
+      setReflectionLoadingWithTimeout(false)
+    }, 500)  // 500ms后清除，确保UI已完全更新
+  }, [reflectionTasks, initializeCollapsedTasks, setReflectionLoadingWithTimeout])
   
   // ⭐ 底部快捷按钮启动反思
   const handleReflectionQuickStart = useCallback(async (type: 'clarity' | 'decomposition' | 'time' | 'priority') => {
+    // 🔒 防止重复点击
+    if (isReflectionLoading) {
+      console.log('⚠️ 正在处理中，忽略重复点击')
+      return
+    }
+    
     console.log('🚀 底部按钮启动反思:', type)
+    
+    // 设置loading状态
+    setReflectionLoadingWithTimeout(true, type)
+    console.log('🔒 已设置loading状态:', { isReflectionLoading: true, loadingReflectionType: type })
     
     // 1. 如果正在进行其他反思，清除相关消息
     if (currentReflectionType && currentReflectionType !== type) {
@@ -3108,12 +3167,16 @@ export default function NotesDashboardPage() {
       // 等待状态更新后再继续
       setTimeout(() => {
         handleOverviewButtonClick(type)
+        // loading会在handleOverviewButtonClick中清除
       }, 500)
     } else {
-      // 4. 调用现有的反思启动逻辑
-      handleOverviewButtonClick(type)
+      // 4. 延迟调用反思启动逻辑，让loading状态有机会渲染
+      setTimeout(() => {
+        handleOverviewButtonClick(type)
+        // loading会在handleOverviewButtonClick中清除
+      }, 50)  // 最小延迟，确保至少有一次渲染周期显示loading
     }
-  }, [currentReflectionType, handleOverviewButtonClick, reflectionSessionId, reflectionScanResult, startReflectionSession])
+  }, [currentReflectionType, handleOverviewButtonClick, reflectionSessionId, reflectionScanResult, startReflectionSession, isReflectionLoading, setReflectionLoadingWithTimeout])
   
   // ⭐ 处理切换到矩阵模式
   const handleSwitchToMatrix = useCallback(() => {
@@ -7345,6 +7408,8 @@ ${matrixStats || '（无待办）'}
               currentReflectionType={currentReflectionType}
               onReflectionQuickStart={handleReflectionQuickStart}
               isDailyReflectionMode={isDailyReflectionMode}
+              isReflectionLoading={isReflectionLoading}
+              loadingReflectionType={loadingReflectionType}
               // ⭐ 反思流程优化 props
               onOverviewButtonClick={handleOverviewButtonClick}
               onRoundCompleteButtonClick={handleRoundCompleteButtonClick}

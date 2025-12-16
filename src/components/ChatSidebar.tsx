@@ -1115,6 +1115,8 @@ interface ChatSidebarProps {
   currentReflectionType?: 'clarity' | 'decomposition' | 'time' | 'priority' | null  // 当前激活的反思类型
   onReflectionQuickStart?: (type: 'clarity' | 'decomposition' | 'time' | 'priority') => void  // 快捷启动反思
   isDailyReflectionMode?: boolean  // 是否处于每日反思模式（用于隐藏底部按钮）
+  isReflectionLoading?: boolean  // ⭐ 反思操作是否正在加载
+  loadingReflectionType?: 'clarity' | 'decomposition' | 'time' | 'priority' | null  // ⭐ 正在加载的反思类型
   
   // ⭐ 反思流程优化 - 概述和任务选择
   onOverviewButtonClick?: (action: 'clarity' | 'decomposition' | 'time' | 'priority' | 'cancel') => void  // 概述页面按钮点击
@@ -1229,6 +1231,8 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   currentReflectionType,  // 当前激活的反思类型
   onReflectionQuickStart,  // 快捷启动反思
   isDailyReflectionMode,  // 是否处于每日反思模式
+  isReflectionLoading,  // ⭐ 反思操作是否正在加载
+  loadingReflectionType,  // ⭐ 正在加载的反思类型
   // ⭐ 反思流程优化
   onOverviewButtonClick,  // 概述按钮点击
   onRoundCompleteButtonClick,  // 轮次完成按钮点击
@@ -2097,6 +2101,8 @@ const ChatSidebar = memo<ChatSidebarProps>(({
           currentReflectionType={currentReflectionType || null}
           onReflectionStart={onReflectionQuickStart}
           isVisible={!isDailyReflectionMode}
+          isLoading={isReflectionLoading}
+          loadingType={loadingReflectionType}
         />
       )}
       

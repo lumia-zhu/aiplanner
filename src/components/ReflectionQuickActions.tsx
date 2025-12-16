@@ -4,13 +4,19 @@ interface ReflectionQuickActionsProps {
   currentReflectionType: 'clarity' | 'decomposition' | 'time' | 'priority' | null
   onReflectionStart: (type: 'clarity' | 'decomposition' | 'time' | 'priority') => void
   isVisible: boolean
+  isLoading?: boolean  // ⭐ 是否正在加载
+  loadingType?: 'clarity' | 'decomposition' | 'time' | 'priority' | null  // ⭐ 正在加载的类型
 }
 
 export function ReflectionQuickActions({
   currentReflectionType,
   onReflectionStart,
-  isVisible
+  isVisible,
+  isLoading = false,
+  loadingType = null
 }: ReflectionQuickActionsProps) {
+  
+  console.log('🔘 ReflectionQuickActions 渲染:', { isLoading, loadingType, currentReflectionType })
   
   const buttons = [
     { 
@@ -63,28 +69,41 @@ export function ReflectionQuickActions({
       <div className="grid grid-cols-2 gap-1.5">
         {buttons.map(btn => {
           const isActive = currentReflectionType === btn.type
+          const isThisLoading = isLoading && loadingType === btn.type
           
           return (
             <button
               key={btn.type}
               onClick={() => onReflectionStart(btn.type)}
+              disabled={isLoading}
               className={`
                 flex items-center justify-center gap-1.5
                 h-[42px] px-2 rounded-md border
                 transition-all duration-200 ease-out
                 ${btn.baseColor}
-                ${btn.hoverColor}
+                ${isLoading ? 'opacity-50 cursor-not-allowed' : btn.hoverColor}
                 ${isActive ? btn.activeRing : ''}
               `}
             >
-              <span className={`text-lg transition-transform ${
-                isActive ? 'scale-110' : ''
-              }`}>
-                {btn.icon}
-              </span>
-              <span className="text-xs font-medium whitespace-nowrap">
-                {btn.label}
-              </span>
+              {isThisLoading ? (
+                <>
+                  <span className="text-lg animate-spin">⏳</span>
+                  <span className="text-xs font-medium whitespace-nowrap">
+                    处理中...
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className={`text-lg transition-transform ${
+                    isActive ? 'scale-110' : ''
+                  }`}>
+                    {btn.icon}
+                  </span>
+                  <span className="text-xs font-medium whitespace-nowrap">
+                    {btn.label}
+                  </span>
+                </>
+              )}
             </button>
           )
         })}
