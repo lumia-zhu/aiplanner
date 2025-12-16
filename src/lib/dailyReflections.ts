@@ -103,19 +103,21 @@ export async function getTodayReflection(
  * 
  * @param userId - 用户ID
  * @param date - 日期（YYYY-MM-DD格式），默认为今天
+ * @param customQuestions - 可选的自定义问题（用于个性化问题）
  * @returns 新创建的反思记录
  */
 export async function createDailyReflection(
   userId: string,
-  date?: string
+  date?: string,
+  customQuestions?: [string, string, string]
 ): Promise<DailyReflection> {
   try {
     const targetDate = date || new Date().toISOString().split('T')[0]
     
-    // 随机抽取3个问题
-    const [question1, question2, question3] = getRandomQuestions()
+    // 使用自定义问题或随机抽取3个问题
+    const [question1, question2, question3] = customQuestions || getRandomQuestions()
     
-    logger.debug('创建反思记录:', { userId, date: targetDate, questions: [question1, question2, question3] })
+    logger.debug('创建反思记录:', { userId, date: targetDate, questions: [question1, question2, question3], isCustom: !!customQuestions })
     
     const input: CreateReflectionInput = {
       user_id: userId,

@@ -384,35 +384,55 @@ export default function NoteEditor({
     [onSave, autoSaveDelay]
   )
 
-  // 当 initialContent 改变时更新编辑器
+  // 🔧 修复：使用 ref 记录编辑器是否已初始化
+  // 只在首次加载时设置内容，之后忽略外部 initialContent 变化
+  // 防止保存后的 setCurrentNote 导致编辑器内容被覆盖
+  const isInitializedRef = useRef(false)
+  
+  // 当 initialContent 改变时更新编辑器（仅首次）
   useEffect(() => {
-    if (editor && initialContent) {
-      // 使用更可靠的比较方式：直接设置内容
-      // 之前的 JSON.stringify 比较可能因为属性顺序不同而失败
-      try {
-        const currentContent = editor.getJSON()
-        const currentStr = JSON.stringify(currentContent)
-        const newStr = JSON.stringify(initialContent)
-        
-        if (currentStr !== newStr) {
-          console.log('📝 NoteEditor: 检测到内容变化，更新编辑器')
-          // 保存当前光标位置
-          const { from, to } = editor.state.selection
-          // 设置新内容
-          editor.commands.setContent(initialContent)
-          // 尝试恢复光标位置（如果位置有效）
-          try {
-            const docLength = editor.state.doc.content.size
-            const safeFrom = Math.min(from, docLength)
-            const safeTo = Math.min(to, docLength)
-            editor.commands.setTextSelection({ from: safeFrom, to: safeTo })
-          } catch {
-            // 忽略光标恢复错误
-          }
+    // 如果 initialContent 为空（正在加载中），不做任何操作
+    // 等待真正的内容到来
+    if (!editor || !initialContent) {
+      console.log('📝 NoteEditor: 等待内容加载...')
+      return
+    }
+    
+    // 如果已经初始化过，忽略外部内容变化
+    // 这样用户编辑过程中不会被保存后的旧内容覆盖
+    if (isInitializedRef.current) {
+      console.log('📝 NoteEditor: 已初始化，忽略外部内容更新')
+      return
+    }
+    
+    try {
+      const currentContent = editor.getJSON()
+      const currentStr = JSON.stringify(currentContent)
+      const newStr = JSON.stringify(initialContent)
+      
+      if (currentStr !== newStr) {
+        console.log('📝 NoteEditor: 首次加载，设置编辑器内容')
+        // 保存当前光标位置
+        const { from, to } = editor.state.selection
+        // 设置新内容
+        editor.commands.setContent(initialContent)
+        // 标记已初始化
+        isInitializedRef.current = true
+        // 尝试恢复光标位置（如果位置有效）
+        try {
+          const docLength = editor.state.doc.content.size
+          const safeFrom = Math.min(from, docLength)
+          const safeTo = Math.min(to, docLength)
+          editor.commands.setTextSelection({ from: safeFrom, to: safeTo })
+        } catch {
+          // 忽略光标恢复错误
         }
-      } catch (error) {
-        console.error('📝 NoteEditor: 更新内容失败:', error)
+      } else {
+        // 内容相同也标记为已初始化
+        isInitializedRef.current = true
       }
+    } catch (error) {
+      console.error('📝 NoteEditor: 更新内容失败:', error)
     }
   }, [editor, initialContent])
 

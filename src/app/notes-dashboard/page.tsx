@@ -85,7 +85,9 @@ import {
   batchUpdateReflectionAnswers
 } from '@/lib/dailyReflections'
 import { generateReflectionSummary as generateDailyReflectionSummary } from '@/lib/reflectionSummaryAI'
+import { generatePersonalizedQuestions, selectThreeQuestions } from '@/lib/personalizedReflectionAI'
 import type { DailyReflection } from '@/types/daily-reflection'
+import { getDailyTasksByNoteDate } from '@/lib/dailyTasks'
 
 export default function NotesDashboardPage() {
   logger.debug('NotesDashboardPage 组件开始渲染')
@@ -507,6 +509,10 @@ export default function NotesDashboardPage() {
   // 加载指定日期的笔记
   const loadNote = useCallback(async (userId: string, date: Date) => {
     try {
+      // 🔧 先清空 currentNote，让 NoteEditor 等待新数据
+      // 这样当新日期的编辑器创建时，不会用旧数据初始化
+      setCurrentNote(null)
+      
       const note = await getNoteByDate(userId, date)
       if (note) {
         setCurrentNote(note.content)
@@ -2414,11 +2420,35 @@ export default function NotesDashboardPage() {
         return
       }
       
-      // 3. 创建新的反思会话
-      const newReflection = await createDailyReflection(user.id, today)
+      // 3. 显示加载状态
+      const loadingMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [{ type: 'text' as const, text: '⏳ 正在为你生成个性化问题，请稍候...' }]
+      }
+      setChatMessages(prev => [...prev, loadingMessage])
+      
+      // 4. 生成个性化问题
+      console.log('🎯 开始生成个性化反思问题...')
+      const todayTasks = await getDailyTasksByNoteDate(user.id, today)
+      console.log(`📋 今日任务数: ${todayTasks.length}`)
+      
+      // 获取今天的任务反思会话（澄清、拆解、时间规划、优先级）
+      const todayTaskReflection = await getCompletedReflectionSession(user.id, today)
+      console.log(`📝 今日任务反思: ${todayTaskReflection ? '有' : '无'}`)
+      
+      const personalizedQuestions = await generatePersonalizedQuestions({
+        tasks: todayTasks,
+        todayDailyReflection: null,  // 新创建，没有已有每日反思
+        todayTaskReflection: todayTaskReflection  // 今天的任务反思会话
+      })
+      const selectedQuestions = selectThreeQuestions(personalizedQuestions)
+      console.log('✨ 个性化问题已生成:', selectedQuestions)
+      
+      // 5. 创建新的反思会话
+      const newReflection = await createDailyReflection(user.id, today, selectedQuestions)
       console.log('✅ 创建新反思会话:', newReflection.id)
       
-      // 设置状态
+      // 6. 设置状态
       setIsDailyReflectionMode(true)
       setCurrentReflectionId(newReflection.id)
       setDailyReflectionQuestions([
@@ -2429,7 +2459,7 @@ export default function NotesDashboardPage() {
       setDailyReflectionAnswers([null, null, null])
       setCurrentDailyQuestionIndex(0)
       
-      // 4. 显示欢迎消息 + 第一个问题
+      // 7. 移除加载消息，显示欢迎消息 + 第一个问题
       const welcomeMessage: ChatMessage = {
         role: 'assistant' as const,
         content: [
@@ -2454,24 +2484,93 @@ export default function NotesDashboardPage() {
         ]
       }
       
-      setChatMessages(prev => [...prev, welcomeMessage])
+      // 移除加载消息，添加欢迎消息
+      setChatMessages(prev => prev.slice(0, -1).concat(welcomeMessage))
       
     } catch (error: any) {
       console.error('❌ 开启每日反思失败:', error)
       
+      const today = new Date().toISOString().split('T')[0]
+      
       if (error.message === 'DUPLICATE_REFLECTION') {
-        // 唯一约束冲突，查询现有记录
+        // 唯一约束冲突，直接使用已有记录
+        console.log('⚠️ 检测到重复记录，使用已有记录')
         const existing = await getTodayReflection(user.id, today)
         if (existing) {
-          // 重新调用，这次会走到已有记录的逻辑
-          startDailyReflection()
+          // 设置状态
+          setIsDailyReflectionMode(true)
+          setCurrentReflectionId(existing.id)
+          setDailyReflectionQuestions([
+            existing.question_1,
+            existing.question_2,
+            existing.question_3
+          ])
+          setDailyReflectionAnswers([
+            existing.answer_1,
+            existing.answer_2,
+            existing.answer_3
+          ])
+          setCurrentDailyQuestionIndex(existing.current_question_index)
+          
+          // 根据状态显示不同内容
+          if (existing.status === 'completed') {
+            // 已完成
+            setChatMessages(prev => prev.slice(0, -1).concat({
+              role: 'assistant' as const,
+              content: [
+                { type: 'text' as const, text: '你今天已经完成了每日反思 ✅' },
+                {
+                  type: 'interactive' as const,
+                  interactive: {
+                    type: 'daily-reflection-already-done',
+                    data: {
+                      summary: existing.ai_summary || '暂无总结',
+                      reflectionId: existing.id
+                    },
+                    isActive: true
+                  }
+                }
+              ]
+            }))
+          } else {
+            // 进行中，显示恢复界面
+            setChatMessages(prev => prev.slice(0, -1).concat({
+              role: 'assistant' as const,
+              content: [
+                { type: 'text' as const, text: '发现你还有未完成的反思 ⏸️' },
+                {
+                  type: 'interactive' as const,
+                  interactive: {
+                    type: 'daily-reflection-resume',
+                    data: {
+                      questionNumber: existing.current_question_index,
+                      totalQuestions: 3,
+                      reflectionId: existing.id
+                    },
+                    isActive: true
+                  }
+                }
+              ]
+            }))
+          }
+        } else {
+          // 找不到记录，显示错误
+          setChatMessages(prev => prev.slice(0, -1).concat({
+            role: 'assistant' as const,
+            content: [{ type: 'text' as const, text: '❌ 系统异常，请稍后重试' }]
+          }))
         }
       } else {
-        const errorMessage: ChatMessage = {
-          role: 'assistant' as const,
-          content: [{ type: 'text' as const, text: `❌ 开启反思失败: ${error.message}` }]
-        }
-        setChatMessages(prev => [...prev, errorMessage])
+        // 其他错误，移除加载消息，显示错误
+        setChatMessages(prev => {
+          const lastMsg = prev[prev.length - 1]
+          const isLoading = lastMsg?.content?.[0]?.text?.includes('正在为你生成个性化问题')
+          const messages = isLoading ? prev.slice(0, -1) : prev
+          return [...messages, {
+            role: 'assistant' as const,
+            content: [{ type: 'text' as const, text: `❌ 开启反思失败: ${error.message}` }]
+          }]
+        })
       }
     }
   }, [user])
@@ -3530,46 +3629,110 @@ export default function NotesDashboardPage() {
     
     if (buttonId === 'daily-reflection-resume') {
       // 恢复未完成的反思
-      // context.questionNumber 是已回答的问题数量（0-3），下一个问题索引就是 questionNumber
-      const nextQuestionIndex = context.questionNumber // 0-based index
+      if (!user) return
       
-      if (nextQuestionIndex < 3 && dailyReflectionQuestions) {
-        // 禁用恢复卡片
-        setChatMessages(prev => prev.map(msg => ({
-          ...msg,
-          content: msg.content.map((c: MessageContent) => 
-            c.type === 'interactive' && c.interactive?.type === 'daily-reflection-resume'
-              ? { ...c, interactive: { ...c.interactive, isActive: false } }
-              : c
-          )
-        })))
+      console.log('🔄 继续反思按钮被点击')
+      
+      // 禁用恢复卡片，显示加载状态
+      setChatMessages(prev => prev.map(msg => ({
+        ...msg,
+        content: msg.content.map((c: MessageContent) => 
+          c.type === 'interactive' && c.interactive?.type === 'daily-reflection-resume'
+            ? { ...c, interactive: { ...c.interactive, isActive: false } }
+            : c
+        )
+      })))
+      
+      // 显示加载提示
+      const loadingMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [{ type: 'text' as const, text: '⏳ 正在恢复反思...' }]
+      }
+      setChatMessages(prev => [...prev, loadingMessage])
+      
+      try {
+        // 从数据库获取反思记录（确保数据准确）
+        const reflectionId = context.reflectionId
+        const today = new Date().toISOString().split('T')[0]
+        const existingReflection = await getTodayReflection(user.id, today)
         
-        const confirmMessage: ChatMessage = {
-          role: 'assistant' as const,
-          content: [{ type: 'text' as const, text: '好的，让我们继续～' }]
+        if (!existingReflection) {
+          console.error('❌ 找不到反思记录')
+          // 移除加载消息，显示错误
+          setChatMessages(prev => prev.slice(0, -1).concat({
+            role: 'assistant' as const,
+            content: [{ type: 'text' as const, text: '❌ 找不到反思记录，请重新开始' }]
+          }))
+          return
         }
         
-        const nextQuestion: ChatMessage = {
-        role: 'assistant' as const,
-        content: [
-          { 
-            type: 'interactive' as const, 
-            interactive: {
-                type: 'daily-reflection-question',
-                data: {
-                  question: dailyReflectionQuestions[nextQuestionIndex],
-                  questionNumber: nextQuestionIndex + 1, // 显示用，从1开始
-                  totalQuestions: 3,
-                  reflectionId: currentReflectionId,
-                  allQuestions: dailyReflectionQuestions
-                },
-              isActive: true
-            }
-          }
+        // 获取问题和当前进度
+        const questions: [string, string, string] = [
+          existingReflection.question_1,
+          existingReflection.question_2,
+          existingReflection.question_3
         ]
-      }
-        setChatMessages(prev => [...prev, confirmMessage, nextQuestion])
-        setIsDailyReflectionMode(true)
+        const nextQuestionIndex = existingReflection.current_question_index // 0-based
+        
+        console.log('📋 恢复反思:', { 
+          reflectionId: existingReflection.id, 
+          nextQuestionIndex,
+          questions 
+        })
+        
+        // 更新状态
+        setCurrentReflectionId(existingReflection.id)
+        setDailyReflectionQuestions(questions)
+        setDailyReflectionAnswers([
+          existingReflection.answer_1,
+          existingReflection.answer_2,
+          existingReflection.answer_3
+        ])
+        setCurrentDailyQuestionIndex(nextQuestionIndex)
+        
+        if (nextQuestionIndex < 3) {
+          // 移除加载消息，显示下一个问题
+          const confirmMessage: ChatMessage = {
+            role: 'assistant' as const,
+            content: [{ type: 'text' as const, text: '好的，让我们继续～' }]
+          }
+          
+          const nextQuestion: ChatMessage = {
+            role: 'assistant' as const,
+            content: [
+              { 
+                type: 'interactive' as const, 
+                interactive: {
+                  type: 'daily-reflection-question',
+                  data: {
+                    question: questions[nextQuestionIndex],
+                    questionNumber: nextQuestionIndex + 1,
+                    totalQuestions: 3,
+                    reflectionId: existingReflection.id,
+                    allQuestions: questions
+                  },
+                  isActive: true
+                }
+              }
+            ]
+          }
+          
+          setChatMessages(prev => prev.slice(0, -1).concat([confirmMessage, nextQuestion]))
+          setIsDailyReflectionMode(true)
+        } else {
+          // 已经回答完所有问题，直接生成总结
+          setChatMessages(prev => prev.slice(0, -1).concat({
+            role: 'assistant' as const,
+            content: [{ type: 'text' as const, text: '你已经回答完所有问题了，正在生成总结...' }]
+          }))
+          // 这里可以触发生成总结的逻辑
+        }
+      } catch (error: any) {
+        console.error('❌ 恢复反思失败:', error)
+        setChatMessages(prev => prev.slice(0, -1).concat({
+          role: 'assistant' as const,
+          content: [{ type: 'text' as const, text: `❌ 恢复失败: ${error.message}` }]
+        }))
       }
       return
     }
@@ -3577,6 +3740,8 @@ export default function NotesDashboardPage() {
     if (buttonId === 'daily-reflection-restart') {
       // 重新开始反思（删除旧记录）
       if (!user) return
+      
+      console.log('🔄 重新开始反思按钮被点击')
       
       // 禁用恢复卡片
       setChatMessages(prev => prev.map(msg => ({
@@ -3588,38 +3753,63 @@ export default function NotesDashboardPage() {
         )
       })))
       
-      // 删除旧记录
-      if (currentReflectionId) {
-        const { deleteReflection } = await import('@/lib/dailyReflections')
-        await deleteReflection(currentReflectionId)
-        console.log('🗑️ 已删除旧的反思记录')
+      // 显示加载提示
+      const loadingMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [{ type: 'text' as const, text: '⏳ 正在为你生成个性化问题，请稍候...' }]
       }
+      setChatMessages(prev => [...prev, loadingMessage])
       
-      // 重置状态
-      setCurrentReflectionId(null)
-      setDailyReflectionQuestions(null)
-      setDailyReflectionAnswers([null, null, null])
-      setCurrentDailyQuestionIndex(0)
-      
-      // 创建新的反思会话（处理可能的重复错误）
-      const today = new Date().toISOString().split('T')[0]
-      const { createDailyReflection, getTodayReflection } = await import('@/lib/dailyReflections')
+      try {
+        // 删除旧记录
+        if (currentReflectionId) {
+          const { deleteReflection } = await import('@/lib/dailyReflections')
+          await deleteReflection(currentReflectionId)
+          console.log('🗑️ 已删除旧的反思记录')
+        }
+        
+        // 重置状态
+        setCurrentReflectionId(null)
+        setDailyReflectionQuestions(null)
+        setDailyReflectionAnswers([null, null, null])
+        setCurrentDailyQuestionIndex(0)
+        
+        // 创建新的反思会话（处理可能的重复错误）
+        const today = new Date().toISOString().split('T')[0]
+        const { createDailyReflection: createReflection, getTodayReflection: getReflection } = await import('@/lib/dailyReflections')
+        
+        // 生成个性化问题
+        console.log('🎯 开始生成个性化反思问题...')
+        const todayTasks = await getDailyTasksByNoteDate(user.id, today)
+        console.log(`📋 今日任务数: ${todayTasks.length}`)
+        
+        // 获取今天的任务反思会话
+        const todayTaskReflection = await getCompletedReflectionSession(user.id, today)
+        console.log(`📝 今日任务反思: ${todayTaskReflection ? '有' : '无'}`)
+        
+        const personalizedQuestions = await generatePersonalizedQuestions({
+          tasks: todayTasks,
+          todayDailyReflection: null,
+          todayTaskReflection: todayTaskReflection
+        })
+        const selectedQuestions = selectThreeQuestions(personalizedQuestions)
+        console.log('✨ 个性化问题已生成:', selectedQuestions)
       
       let newReflection
       try {
-        newReflection = await createDailyReflection(user.id, today)
+        newReflection = await createReflection(user.id, today, selectedQuestions)
         console.log('✅ 创建新反思会话:', newReflection.id)
       } catch (error: any) {
         if (error.message === 'DUPLICATE_REFLECTION') {
           // 如果有重复，等待一下再尝试删除并重新创建
           console.log('⚠️ 检测到重复记录，重新处理...')
           await new Promise(resolve => setTimeout(resolve, 200)) // 等待200ms
-          const existingReflection = await getTodayReflection(user.id, today)
+          const existingReflection = await getReflection(user.id, today)
           if (existingReflection) {
             const { deleteReflection } = await import('@/lib/dailyReflections')
             await deleteReflection(existingReflection.id)
             await new Promise(resolve => setTimeout(resolve, 200)) // 再等待200ms
-            newReflection = await createDailyReflection(user.id, today)
+            newReflection = await createReflection(user.id, today, selectedQuestions)
             console.log('✅ 重新创建反思会话成功:', newReflection.id)
           }
     } else {
@@ -3668,7 +3858,17 @@ export default function NotesDashboardPage() {
         ]
       }
       
-      setChatMessages(prev => [...prev, confirmMessage, firstQuestionMessage])
+        // 移除加载消息，显示实际问题
+        setChatMessages(prev => prev.slice(0, -1).concat([confirmMessage, firstQuestionMessage]))
+        
+      } catch (error: any) {
+        console.error('❌ 重新开始反思失败:', error)
+        // 移除加载消息，显示错误
+        setChatMessages(prev => prev.slice(0, -1).concat({
+          role: 'assistant' as const,
+          content: [{ type: 'text' as const, text: `❌ 生成问题失败: ${error.message}，请稍后重试` }]
+        }))
+      }
       return
     }
     
@@ -7271,6 +7471,7 @@ ${matrixStats || '（无待办）'}
                     }}
                   >
                 <NoteEditor
+                  key={formatNoteDate(selectedDate)}  // 🔧 切换日期时重新创建编辑器实例
                   initialContent={currentNote ?? undefined}
                   onUpdate={handleNoteUpdate}
                   onSave={handleNoteSave}

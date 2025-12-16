@@ -1476,25 +1476,25 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                 {shouldUseFullWidth ? (
                   <div className="w-[80%]">
                     <div className="rounded-lg px-3 py-2 shadow-sm bg-white">
-                      {message.content.map((content, contentIndex) => (
-                        <div key={contentIndex}>
-                          {content.type === 'task-list' && content.taskList && (
-                            <TaskListCard
-                              tasks={content.taskList.tasks as TaskForDisplay[]}
-                              totalCount={content.taskList.totalCount}
-                              onTaskToggle={(taskId, noteId, newCompletedState) => {
-                                if (onTaskToggleFromList) {
-                                  onTaskToggleFromList(taskId, noteId, newCompletedState)
-                                }
-                              }}
-                              onMoveToToday={(taskId, noteId, noteDate) => {
-                                if (onMoveTaskToToday) {
-                                  onMoveTaskToToday(taskId, noteId, noteDate)
-                                }
-                              }}
-                              isRefreshing={isRefreshingTaskList}
-                            />
-                          )}
+                    {message.content.map((content, contentIndex) => (
+                      <div key={contentIndex}>
+                        {content.type === 'task-list' && content.taskList && (
+                          <TaskListCard
+                            tasks={content.taskList.tasks as TaskForDisplay[]}
+                            totalCount={content.taskList.totalCount}
+                            onTaskToggle={(taskId, noteId, newCompletedState) => {
+                              if (onTaskToggleFromList) {
+                                onTaskToggleFromList(taskId, noteId, newCompletedState)
+                              }
+                            }}
+                            onMoveToToday={(taskId, noteId, noteDate) => {
+                              if (onMoveTaskToToday) {
+                                onMoveTaskToToday(taskId, noteId, noteDate)
+                              }
+                            }}
+                            isRefreshing={isRefreshingTaskList}
+                          />
+                        )}
                           
                           {/* 渲染文本内容 */}
                           {content.type === 'text' && content.text && (
@@ -1515,8 +1515,8 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                               onToggleCollapse={onToggleTaskCollapse}
                             />
                           )}
-                        </div>
-                      ))}
+                      </div>
+                    ))}
                     </div>
                   </div>
                 ) : (
