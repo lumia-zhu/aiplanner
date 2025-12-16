@@ -46,7 +46,7 @@ export default function Quadrant({
     <div 
       ref={setNodeRef}
       className={`
-        rounded-xl border-2 p-4 flex flex-col overflow-hidden transition-all duration-200 relative z-0 h-full
+        rounded-xl border-2 p-4 flex flex-col overflow-hidden transition-all duration-200 relative z-0 h-full min-h-0
         ${isOver ? 'ring-4 ring-blue-400 ring-opacity-50 scale-[1.02]' : ''}
       `}
       style={{
@@ -54,9 +54,9 @@ export default function Quadrant({
         borderColor: isOver ? '#3b82f6' : config.borderColor,
       }}
     >
-      {/* 任务列表 */}
+      {/* 任务列表 - 添加 max-h-full 确保滚动条生效 */}
       <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
-        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 min-h-0 pr-1">
+        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 min-h-0 max-h-full pr-1">
           {tasks.length > 0 ? (
             tasks.map(task => (
               <TaskCard

@@ -600,8 +600,21 @@ export default function NotesDashboardPage() {
       console.log(`📊 加载任务矩阵: ${dateStr}`)
       
       // 1. 获取当天的所有笔记任务（从 daily_tasks 表）
-      const dailyTasks = await getDailyTasksByDate(userId, dateStr)
-      console.log(`📝 找到 ${dailyTasks.length} 个笔记任务`)
+      const rawDailyTasks = await getDailyTasksByDate(userId, dateStr)
+      console.log(`📝 找到 ${rawDailyTasks.length} 个笔记任务（原始）`)
+      
+      // 🔧 去重：按标题去重，保留第一个（位置最前的）
+      const seenTitles = new Set<string>()
+      const dailyTasks = rawDailyTasks.filter(task => {
+        const cleanTitle = sanitizeTaskTitle(task.title).toLowerCase().trim()
+        if (seenTitles.has(cleanTitle)) {
+          console.log(`⚠️ 发现重复任务，跳过: ${task.title}`)
+          return false
+        }
+        seenTitles.add(cleanTitle)
+        return true
+      })
+      console.log(`📝 去重后剩余 ${dailyTasks.length} 个笔记任务`)
       
       // 2. 获取任务的矩阵信息
       const matrixData = await getTaskMatrixByDate(userId, dateStr)
@@ -7310,8 +7323,8 @@ ${matrixStats || '（无待办）'}
         <div className="max-w-7xl mx-auto">
           {/* flex布局容器：在主内容区域内部分左右 */}
           <div className="flex gap-6 h-[calc(100vh-6.5rem)]">
-            {/* 左侧：笔记管理区域 */}
-            <div className="flex-1 flex flex-col transition-all duration-300 ease-in-out relative overflow-visible">
+            {/* 左侧：笔记管理区域 - 使用 overflow-hidden 和 min-h-0 确保子元素滚动条生效 */}
+            <div className="flex-1 flex flex-col transition-all duration-300 ease-in-out relative overflow-hidden min-h-0">
               
               {/* 日期范围选择器 - 暂时隐藏 */}
               {/* <DateScopeSelector 
@@ -7500,8 +7513,8 @@ ${matrixStats || '（无待办）'}
                 </div>
               </div>
 
-              {/* 笔记编辑器 / 任务矩阵 切换区域（占满剩余空间） */}
-              <div className="flex-1 flex flex-col min-h-0 mt-4 relative">
+              {/* 笔记编辑器 / 任务矩阵 切换区域（占满剩余空间）- h-0 flex-1 确保高度正确计算 */}
+              <div className="h-0 flex-1 flex flex-col min-h-0 mt-4 relative overflow-hidden">
                 {viewMode === 'editor' ? (
                   /* 笔记编辑器模式 */
                   <div 
@@ -7548,9 +7561,9 @@ ${matrixStats || '（无待办）'}
                     
                   </div>
                 ) : (
-                  /* 任务矩阵模式 */
+                  /* 任务矩阵模式 - 使用 h-full overflow-hidden 确保滚动条生效 */
                   <div 
-                    className="flex-1 bg-white rounded-lg shadow-sm border border-gray-200 overflow-visible animate-fadeIn relative"
+                    className="flex-1 h-full min-h-0 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden animate-fadeIn relative"
                     style={{
                       animation: 'fadeIn 0.3s ease-in-out'
                     }}

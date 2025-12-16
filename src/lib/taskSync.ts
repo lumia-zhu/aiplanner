@@ -221,8 +221,21 @@ export async function syncTasksFromNote(
     console.log(`🔄 开始同步任务: noteDate=${noteDate}`)
 
     // 1. 从笔记内容中解析任务
-    const parsedTasks = parseTasksFromNote(noteContent)
-    console.log(`📋 解析到 ${parsedTasks.length} 个任务`)
+    const rawParsedTasks = parseTasksFromNote(noteContent)
+    console.log(`📋 解析到 ${rawParsedTasks.length} 个任务（原始）`)
+    
+    // 🔧 去重：按标题去重，保留第一个出现的
+    const seenTitles = new Set<string>()
+    const parsedTasks = rawParsedTasks.filter(task => {
+      const cleanTitle = task.title.toLowerCase().trim()
+      if (seenTitles.has(cleanTitle)) {
+        console.log(`⚠️ 发现重复任务，跳过: ${task.title}`)
+        return false
+      }
+      seenTitles.add(cleanTitle)
+      return true
+    })
+    console.log(`📋 去重后剩余 ${parsedTasks.length} 个任务`)
 
     // 2. 获取数据库中现有的任务
     const existingTasks = await getDailyTasksByNoteDate(userId, noteDate)

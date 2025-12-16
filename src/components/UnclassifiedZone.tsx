@@ -38,11 +38,11 @@ export default function UnclassifiedZone({
   const taskIds = tasks.map(t => t.id)
   
   return (
-    <div className="w-56 flex-shrink-0">
+    <div className="w-56 flex-shrink-0 h-full min-h-0">
       <div 
         ref={setNodeRef}
         className={`
-          bg-gray-50 rounded-xl border-2 border-dashed p-4 h-full flex flex-col transition-all duration-200
+          bg-gray-50 rounded-xl border-2 border-dashed p-4 h-full flex flex-col transition-all duration-200 overflow-hidden
           ${isOver ? 'border-blue-400 bg-blue-50 ring-4 ring-blue-400 ring-opacity-30' : 'border-gray-300'}
         `}
       >

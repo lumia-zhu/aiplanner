@@ -214,8 +214,8 @@ export default function TaskMatrix({
           </div>
         )}
         
-        {/* 主内容区 */}
-        <div className="flex-1 flex gap-6 p-6 overflow-hidden min-h-0">
+        {/* 主内容区 - 使用 h-0 flex-1 确保子元素高度继承正确 */}
+        <div className="h-0 flex-1 flex gap-6 p-6 overflow-hidden">
           {/* 左侧：待分类区域 */}
           <UnclassifiedZone
             tasks={tasks.unclassified || []}
@@ -223,9 +223,9 @@ export default function TaskMatrix({
           />
           
           {/* 右侧：四象限矩阵 */}
-          <div className="flex-1 flex flex-col min-w-0 min-h-0">
+          <div className="flex-1 flex flex-col min-w-0 h-full">
             {/* 四象限网格（带坐标轴） */}
-            <div className="w-full h-full grid grid-cols-2 grid-rows-2 gap-4 relative">
+            <div className="w-full h-full grid grid-cols-2 grid-rows-2 gap-4 relative min-h-0">
               {/* 左上象限 */}
               <Quadrant
                 quadrantId="not-urgent-important"
