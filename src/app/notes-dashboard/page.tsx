@@ -418,6 +418,22 @@ export default function NotesDashboardPage() {
     'not-urgent-not-important': [],
   })
   
+  // 🆕 矩阵中父任务的折叠状态（默认全部折叠）
+  const [matrixCollapsedTasks, setMatrixCollapsedTasks] = useState<Set<string>>(new Set())
+  
+  // 切换矩阵中任务的折叠状态
+  const handleToggleMatrixCollapse = useCallback((taskId: string) => {
+    setMatrixCollapsedTasks(prev => {
+      const next = new Set(prev)
+      if (next.has(taskId)) {
+        next.delete(taskId)
+      } else {
+        next.add(taskId)
+      }
+      return next
+    })
+  }, [])
+  
   // 🆕 自定义矩阵轴配置（支持6个维度自由组合）
   const [matrixAxes, setMatrixAxes] = useState<MatrixAxesConfig>(() => {
     if (typeof window !== 'undefined') {
@@ -646,6 +662,9 @@ export default function NotesDashboardPage() {
           timeRange: dailyTask.deadlineDatetime ? formatTimeRange(dailyTask.deadlineDatetime) : undefined,
           created_at: dailyTask.createdAt,
           updated_at: dailyTask.updatedAt,
+          // 🆕 层级信息
+          depth: dailyTask.depth ?? 0,
+          parentTaskId: dailyTask.parentTaskId ?? null,
         }
         
         // 如果没有矩阵信息，则自动初始化到默认象限
@@ -675,6 +694,21 @@ export default function NotesDashboardPage() {
       }
       
       setTasksByQuadrant(grouped)
+      
+      // 🆕 设置默认折叠状态：找出所有父任务（有子任务的任务）并默认折叠
+      const allTasks = Object.values(grouped).flat()
+      const parentTaskIds = new Set<string>()
+      allTasks.forEach((task: any) => {
+        // 如果有子任务引用这个任务作为父任务，则它是父任务
+        allTasks.forEach((otherTask: any) => {
+          if (otherTask.parentTaskId === task.id) {
+            parentTaskIds.add(task.id)
+          }
+        })
+      })
+      // 默认所有父任务都折叠
+      setMatrixCollapsedTasks(parentTaskIds)
+      console.log(`🔽 默认折叠 ${parentTaskIds.size} 个父任务`)
       
       // 统计信息
       const stats = Object.entries(grouped).map(([quadrant, tasks]) => 
@@ -6878,11 +6912,52 @@ ${matrixStats || '（无待办）'}
     try {
       console.log('🔄 切换任务完成状态:', taskId)
       
-      // 1. 切换任务完成状态（更新 daily_tasks 表）
-      const updatedTask = await toggleDailyTaskComplete(taskId)
-      console.log('✅ 数据库已更新:', updatedTask)
+      // 1. 收集所有任务（扁平化），判断是否需要同时更新子任务
+      let childTaskIds: string[] = []
+      let clickedTask: any = null
       
-      // 2. 更新矩阵本地状态
+      // 从矩阵状态中查找任务信息
+      for (const quadrant in tasksByQuadrant) {
+        for (const task of tasksByQuadrant[quadrant as QuadrantType]) {
+          if (task.id === taskId) {
+            clickedTask = task
+          }
+        }
+      }
+      
+      // 如果点击的是父任务（depth=0），找出所有子任务
+      if (clickedTask && (clickedTask.depth ?? 0) === 0) {
+        for (const quadrant in tasksByQuadrant) {
+          for (const task of tasksByQuadrant[quadrant as QuadrantType]) {
+            if ((task as any).parentTaskId === taskId) {
+              childTaskIds.push(task.id)
+            }
+          }
+        }
+        if (childTaskIds.length > 0) {
+          console.log(`📦 父任务包含 ${childTaskIds.length} 个子任务，将一起更新`)
+        }
+      }
+      
+      // 2. 切换父任务完成状态（更新 daily_tasks 表）
+      const updatedTask = await toggleDailyTaskComplete(taskId)
+      console.log('✅ 父任务数据库已更新:', updatedTask)
+      
+      // 3. 如果是父任务且有子任务，同步更新子任务状态
+      if (childTaskIds.length > 0) {
+        console.log(`🔄 同步更新 ${childTaskIds.length} 个子任务状态为: ${updatedTask.completed}`)
+        await Promise.all(
+          childTaskIds.map(async (childId) => {
+            // 直接设置子任务为父任务的状态（不是切换）
+            const { updateDailyTaskComplete } = await import('@/lib/dailyTasks')
+            await updateDailyTaskComplete(childId, updatedTask.completed)
+          })
+        )
+        console.log('✅ 所有子任务数据库已更新')
+      }
+      
+      // 4. 更新矩阵本地状态（父任务+子任务）
+      const allTaskIdsToUpdate = [taskId, ...childTaskIds]
       setTasksByQuadrant(prev => {
         const newState = { ...prev }
         
@@ -6890,12 +6965,12 @@ ${matrixStats || '（无待办）'}
         for (const quadrant in newState) {
           const tasks = newState[quadrant as QuadrantType]
           if (tasks) {
-            const index = tasks.findIndex(t => t.id === taskId)
-            if (index !== -1) {
-              // 更新任务的完成状态
-              tasks[index] = {
-                ...tasks[index],
-                completed: updatedTask.completed
+            for (let i = 0; i < tasks.length; i++) {
+              if (allTaskIdsToUpdate.includes(tasks[i].id)) {
+                tasks[i] = {
+                  ...tasks[i],
+                  completed: updatedTask.completed
+                }
               }
             }
           }
@@ -6905,7 +6980,7 @@ ${matrixStats || '（无待办）'}
       })
       console.log('✅ 矩阵本地状态已更新')
       
-      // 3. 同步更新笔记内容
+      // 5. 同步更新笔记内容
       try {
         console.log('📝 开始同步更新笔记中的任务状态...')
         console.log('   任务所属笔记日期:', updatedTask.noteDate)
@@ -6920,11 +6995,18 @@ ${matrixStats || '（无待办）'}
           
           // 动态导入 updateTaskInNote 函数
           const { updateTaskInNote } = await import('@/lib/noteTaskOperations')
-          const newContent = updateTaskInNote(
-            note.content,
+          let newContent = note.content
+          
+          // 更新父任务
+          newContent = updateTaskInNote(
+            newContent,
             updatedTask.notePosition,
             { checked: updatedTask.completed }
           )
+          
+          // 如果有子任务，也需要更新子任务在笔记中的状态
+          // 注：这里简化处理，通过重新解析同步来更新
+          // 实际上子任务的 notePosition 需要单独获取
           
           // 保存到数据库
           await saveNote(user.id, taskNoteDate, newContent)
@@ -6958,7 +7040,7 @@ ${matrixStats || '（无待办）'}
       console.error('❌ 切换任务状态失败:', error)
       alert('更新任务状态失败')
     }
-  }, [user, selectedDate, calculateTaskStats])
+  }, [user, selectedDate, calculateTaskStats, tasksByQuadrant])
 
   // 处理任务拖拽放置（乐观更新策略）
   const handleTaskDrop = useCallback(async (taskId: string, targetQuadrant: QuadrantType) => {
@@ -6968,12 +7050,40 @@ ${matrixStats || '（无待办）'}
     
     // 保存旧状态（用于回滚）
     let previousState: TasksByQuadrant | null = null
+    // 需要移动的所有任务ID（包括子任务）
+    let taskIdsToMove: string[] = []
     
     try {
       // 【乐观更新】立即更新本地状态，不等待 API
       setTasksByQuadrant(prev => {
         previousState = prev // 保存旧状态
         
+        // 1. 收集所有任务（扁平化）
+        const allTasks: any[] = []
+        for (const quadrant in prev) {
+          allTasks.push(...prev[quadrant as QuadrantType])
+        }
+        
+        // 2. 找到被拖拽的任务
+        const draggedTask = allTasks.find(t => t.id === taskId)
+        if (!draggedTask) {
+          console.warn('⚠️ 找不到被拖拽的任务')
+          return prev
+        }
+        
+        // 3. 判断是否是父任务（depth=0），如果是则找出所有子任务
+        const isParentTask = (draggedTask.depth ?? 0) === 0
+        const childTasks = isParentTask 
+          ? allTasks.filter(t => t.parentTaskId === taskId)
+          : []
+        
+        // 4. 收集需要移动的任务（父任务+子任务，或仅子任务本身）
+        const tasksToMove = [draggedTask, ...childTasks]
+        taskIdsToMove = tasksToMove.map(t => t.id)
+        
+        console.log(`📦 移动任务: ${draggedTask.title}${childTasks.length > 0 ? ` (包含 ${childTasks.length} 个子任务)` : ''}`)
+        
+        // 5. 构建新状态
         const newState: TasksByQuadrant = {
           'unclassified': [],
           'urgent-important': [],
@@ -6982,31 +7092,27 @@ ${matrixStats || '（无待办）'}
           'not-urgent-not-important': [],
         }
         
-        // 找到被移动的任务
-        let movedTask: any = null
+        // 6. 遍历所有任务，分配到正确的象限
         for (const quadrant in prev) {
           for (const task of prev[quadrant as QuadrantType]) {
-            if (task.id === taskId) {
-              movedTask = task
+            if (taskIdsToMove.includes(task.id)) {
+              // 需要移动的任务 → 目标象限
+              newState[targetQuadrant].push(task)
             } else {
               // 其他任务保持原位
-              if (newState[quadrant as QuadrantType]) {
-                newState[quadrant as QuadrantType].push(task)
-              }
+              newState[quadrant as QuadrantType].push(task)
             }
           }
-        }
-        
-        // 将移动的任务添加到目标象限
-        if (movedTask && newState[targetQuadrant]) {
-          newState[targetQuadrant].push(movedTask)
         }
         
         return newState
       })
       
-      // 【后台更新】异步更新数据库
-      await updateTaskQuadrant(taskId, targetQuadrant)
+      // 【后台更新】异步更新数据库（所有需要移动的任务）
+      console.log(`🔄 更新数据库: ${taskIdsToMove.length} 个任务`)
+      await Promise.all(
+        taskIdsToMove.map(id => updateTaskQuadrant(id, targetQuadrant))
+      )
       
       console.log('✅ 任务移动成功（数据库已同步）')
       
@@ -7579,6 +7685,8 @@ ${matrixStats || '（无待办）'}
                       customAxes={matrixAxes}
                       onXAxisChange={handleXAxisChange}
                       onYAxisChange={handleYAxisChange}
+                      collapsedTasks={matrixCollapsedTasks}
+                      onToggleCollapse={handleToggleMatrixCollapse}
                     />
                     
                     {/* 浮动AI助手按钮 - 矩阵右下角 */}

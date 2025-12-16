@@ -56,6 +56,9 @@ interface TaskMatrixProps {
   customAxes?: MatrixAxesConfig              // 自定义X/Y轴维度
   onXAxisChange?: (dimension: DimensionType) => void  // X轴切换回调
   onYAxisChange?: (dimension: DimensionType) => void  // Y轴切换回调
+  // 🆕 层级折叠相关
+  collapsedTasks?: Set<string>                     // 折叠的父任务ID集合
+  onToggleCollapse?: (taskId: string) => void      // 切换折叠状态回调
 }
 
 // ============================================
@@ -73,6 +76,8 @@ export default function TaskMatrix({
   customAxes,
   onXAxisChange,
   onYAxisChange,
+  collapsedTasks = new Set(),
+  onToggleCollapse,
 }: TaskMatrixProps) {
   
   // 获取当前矩阵维度的配置
@@ -220,6 +225,8 @@ export default function TaskMatrix({
           <UnclassifiedZone
             tasks={tasks.unclassified || []}
             onTaskComplete={onTaskComplete}
+            collapsedTasks={collapsedTasks}
+            onToggleCollapse={onToggleCollapse}
           />
           
           {/* 右侧：四象限矩阵 */}
@@ -236,6 +243,8 @@ export default function TaskMatrix({
                 }}
                 tasks={tasks['not-urgent-important'] || []}
                 onTaskComplete={onTaskComplete}
+                collapsedTasks={collapsedTasks}
+                onToggleCollapse={onToggleCollapse}
               />
               
               {/* 右上象限 */}
@@ -248,6 +257,8 @@ export default function TaskMatrix({
                 }}
                 tasks={tasks['urgent-important'] || []}
                 onTaskComplete={onTaskComplete}
+                collapsedTasks={collapsedTasks}
+                onToggleCollapse={onToggleCollapse}
               />
               
               {/* 左下象限 */}
@@ -260,6 +271,8 @@ export default function TaskMatrix({
                 }}
                 tasks={tasks['not-urgent-not-important'] || []}
                 onTaskComplete={onTaskComplete}
+                collapsedTasks={collapsedTasks}
+                onToggleCollapse={onToggleCollapse}
               />
               
               {/* 右下象限 */}
@@ -272,6 +285,8 @@ export default function TaskMatrix({
                 }}
                 tasks={tasks['urgent-not-important'] || []}
                 onTaskComplete={onTaskComplete}
+                collapsedTasks={collapsedTasks}
+                onToggleCollapse={onToggleCollapse}
               />
               
               {/* 坐标轴覆盖层 */}

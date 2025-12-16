@@ -21,6 +21,8 @@ export interface DailyTask {
   updatedAt: string             // 更新时间
   tags?: string[]               // 任务标签（可选）
   priority?: 'low' | 'medium' | 'high'  // 优先级（可选）
+  depth?: number                // 🆕 任务层级：0 = 主任务，1 = 子任务
+  parentTaskId?: string | null  // 🆕 父任务ID（用于建立层级关系）
 }
 
 /**
@@ -34,6 +36,8 @@ export interface CreateDailyTaskInput {
   deadlineDatetime?: string     // 截止时间（可选）
   estimatedDuration?: number    // ⭐ 预估时长（分钟）
   notePosition?: number         // 在笔记中的位置（默认 0）
+  depth?: number                // 🆕 任务层级（0=主任务，1=子任务）
+  parentTaskId?: string | null  // 🆕 父任务ID
 }
 
 /**
@@ -58,6 +62,7 @@ export interface ParsedTask {
   deadlineDatetime?: string     // 截止时间（如果有 @时间 标记）
   estimatedDuration?: number    // ⭐ 预估时长（分钟）
   depth?: number                // 任务层级：0 = 顶层任务，1 = 子任务，2 = 孙任务...
+  parentPosition?: number       // 🆕 父任务的位置（用于后续建立父子关系）
 }
 
 /**

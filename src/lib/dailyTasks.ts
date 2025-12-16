@@ -23,6 +23,8 @@ function mapDbTaskToTask(dbTask: any): DailyTask {
     notePosition: dbTask.note_position || 0,
     createdAt: dbTask.created_at,
     updatedAt: dbTask.updated_at,
+    depth: dbTask.depth ?? 0,                    // 🆕 任务层级
+    parentTaskId: dbTask.parent_task_id || null, // 🆕 父任务ID
   }
 }
 
@@ -115,6 +117,8 @@ export async function createDailyTask(
       deadline_datetime: input.deadlineDatetime || null,
       estimated_duration: input.estimatedDuration || null,
       note_position: input.notePosition ?? 0,
+      depth: input.depth ?? 0,                      // 🆕 任务层级
+      parent_task_id: input.parentTaskId || null,   // 🆕 父任务ID
     }
 
     const { data, error } = await supabase
@@ -280,6 +284,37 @@ export async function toggleDailyTaskComplete(taskId: string): Promise<DailyTask
 
   } catch (error) {
     console.error('❌ toggleDailyTaskComplete 异常:', error)
+    throw error
+  }
+}
+
+/**
+ * 直接设置任务完成状态（不切换，用于批量更新子任务）
+ */
+export async function updateDailyTaskComplete(taskId: string, completed: boolean): Promise<DailyTask> {
+  try {
+    const supabase = createClient()
+
+    console.log(`🔄 设置任务完成状态: ${taskId} → ${completed}`)
+
+    const { data, error } = await supabase
+      .from('daily_tasks')
+      .update({ completed })
+      .eq('id', taskId)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('❌ 设置任务状态失败:', error)
+      throw new Error(`设置任务状态失败: ${error.message}`)
+    }
+
+    const task = mapDbTaskToTask(data)
+    console.log(`✅ 任务状态已设置: ${taskId} → ${completed}`)
+    return task
+
+  } catch (error) {
+    console.error('❌ updateDailyTaskComplete 异常:', error)
     throw error
   }
 }

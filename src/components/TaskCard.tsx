@@ -20,9 +20,14 @@ interface TaskCardProps {
     title: string              // 任务标题
     isCompleted: boolean       // 是否已完成
   }
-  onComplete?: (id: string) => void  // 完成/取消完成回调
-  showCheckbox?: boolean             // 是否显示复选框（默认显示）
-  isDraggable?: boolean              // 是否可拖拽（默认可拖拽）
+  onComplete?: (id: string) => void       // 完成/取消完成回调
+  showCheckbox?: boolean                  // 是否显示复选框（默认显示）
+  isDraggable?: boolean                   // 是否可拖拽（默认可拖拽）
+  // 🆕 层级相关属性
+  depth?: number                          // 任务层级深度 (0=父任务, 1+=子任务)
+  hasChildren?: boolean                   // 是否有子任务
+  isCollapsed?: boolean                   // 是否折叠（仅当有子任务时有效）
+  onToggleCollapse?: (taskId: string) => void  // 切换折叠状态
 }
 
 // ============================================
@@ -34,6 +39,10 @@ export default function TaskCard({
   onComplete,
   showCheckbox = true,
   isDraggable = true,
+  depth = 0,
+  hasChildren = false,
+  isCollapsed = true,
+  onToggleCollapse,
 }: TaskCardProps) {
   
   // 拖拽功能
@@ -62,6 +71,14 @@ export default function TaskCard({
     }
   }
   
+  // 🆕 处理折叠/展开点击
+  const handleToggleCollapse = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (onToggleCollapse) {
+      onToggleCollapse(task.id)
+    }
+  }
+  
   return (
     <div
       ref={setNodeRef}
@@ -74,9 +91,25 @@ export default function TaskCard({
         ${isDraggable ? 'cursor-move' : 'cursor-default'}
         ${isDragging ? 'opacity-50 scale-95 shadow-lg z-50' : ''}
         ${task.isCompleted ? 'opacity-60 bg-gray-50' : ''}
+        ${depth > 0 ? 'ml-4' : ''}
       `}
     >
       <div className="flex items-start gap-2.5">
+        {/* 🆕 折叠/展开按钮 - 仅对有子任务的父任务显示 */}
+        {hasChildren && (
+          <button
+            onClick={handleToggleCollapse}
+            className="flex-shrink-0 w-5 h-5 flex items-center justify-center 
+                       text-gray-400 hover:text-gray-600 hover:bg-gray-100 
+                       rounded transition-colors"
+            title={isCollapsed ? '展开子任务' : '折叠子任务'}
+          >
+            <span className={`text-xs transform transition-transform ${isCollapsed ? '' : 'rotate-90'}`}>
+              ▶
+            </span>
+          </button>
+        )}
+        
         {/* 复选框 */}
         {showCheckbox && (
           <div 

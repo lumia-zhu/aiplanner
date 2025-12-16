@@ -53,7 +53,8 @@ export function parseTasksFromNote(noteContent: string | any): ParsedTask[] {
 
     // 递归遍历 JSON 结构，查找 taskItem 节点
     // depth: 当前任务的层级（0 = 顶层，1 = 子任务，2 = 孙任务...）
-    function traverseContent(node: any, position: { count: number }, depth: number = 0) {
+    // parentPosition: 父任务在列表中的位置（用于建立父子关系）
+    function traverseContent(node: any, position: { count: number }, depth: number = 0, parentPosition?: number) {
       if (!node) return
 
       // 找到 taskItem 节点
@@ -67,23 +68,26 @@ export function parseTasksFromNote(noteContent: string | any): ParsedTask[] {
             ? Number(node.attrs.estimatedDuration) 
             : undefined
 
+          const currentPosition = position.count
           tasks.push({
             title: taskText,
             completed: node.attrs?.checked || false,
-            position: position.count,
+            position: currentPosition,
             deadlineDatetime: undefined, // TODO: 从文本中提取 @时间 标记
             estimatedDuration: duration,  // ⭐ 提取时长
             depth: depth,  // ⭐ 记录任务层级
+            parentPosition: depth > 0 ? parentPosition : undefined,  // 🆕 记录父任务位置
           })
           position.count++
-        }
         
-        // taskItem 的子节点中如果有 taskList，那是子任务，层级 +1
-        if (node.content && Array.isArray(node.content)) {
-          for (const child of node.content) {
-            if (child.type === 'taskList') {
-              // 子任务列表，层级 +1
-              traverseContent(child, position, depth + 1)
+          // taskItem 的子节点中如果有 taskList，那是子任务，层级 +1
+          // 🆕 传递当前任务位置作为子任务的 parentPosition
+          if (node.content && Array.isArray(node.content)) {
+            for (const child of node.content) {
+              if (child.type === 'taskList') {
+                // 子任务列表，层级 +1，传递当前位置作为父位置
+                traverseContent(child, position, depth + 1, currentPosition)
+              }
             }
           }
         }
@@ -93,12 +97,12 @@ export function parseTasksFromNote(noteContent: string | any): ParsedTask[] {
       // 递归遍历子节点（非 taskItem 的情况）
       if (node.content && Array.isArray(node.content)) {
         for (const child of node.content) {
-          traverseContent(child, position, depth)
+          traverseContent(child, position, depth, parentPosition)
         }
       }
     }
 
-    traverseContent(contentJson, { count: 0 }, 0)
+    traverseContent(contentJson, { count: 0 }, 0, undefined)
 
   } catch (error) {
     console.error('❌ 解析任务失败:', error)
@@ -249,10 +253,24 @@ export async function syncTasksFromNote(
 
     // 4. 同步任务
     const processedPositions = new Set<number>()
+    
+    // 🆕 position → taskId 映射（用于建立父子关系）
+    const positionToTaskId = new Map<number, string>()
+    
+    // 先建立已存在任务的 position → id 映射
+    for (const task of existingTasks) {
+      positionToTaskId.set(task.notePosition, task.id)
+    }
 
     for (const parsedTask of parsedTasks) {
       processedPositions.add(parsedTask.position)
       const existingTask = existingTaskMap.get(parsedTask.position)
+      
+      // 🆕 查找父任务ID
+      let parentTaskId: string | null = null
+      if (parsedTask.parentPosition !== undefined) {
+        parentTaskId = positionToTaskId.get(parsedTask.parentPosition) || null
+      }
 
       if (existingTask) {
         // 任务已存在，检查是否需要更新
@@ -275,6 +293,8 @@ export async function syncTasksFromNote(
             console.error('❌ 更新任务失败:', error)
           }
         }
+        // 记录已存在任务的 ID 映射
+        positionToTaskId.set(parsedTask.position, existingTask.id)
       } else {
         // 新任务，创建
         try {
@@ -286,13 +306,18 @@ export async function syncTasksFromNote(
             notePosition: parsedTask.position,
             deadlineDatetime: parsedTask.deadlineDatetime,
             estimatedDuration: parsedTask.estimatedDuration,
+            depth: parsedTask.depth ?? 0,           // 🆕 保存层级
+            parentTaskId: parentTaskId,              // 🆕 保存父任务ID
           })
+          
+          // 🆕 记录新建任务的 ID 映射（供后续子任务使用）
+          positionToTaskId.set(parsedTask.position, newTask.id)
 
           // 为新任务创建矩阵记录（默认：待分类）
           await ensureTaskMatrix(userId, newTask.id)
 
           result.created++
-          console.log(`✅ 创建任务: ${parsedTask.title}`)
+          console.log(`✅ 创建任务: ${parsedTask.title} (depth=${parsedTask.depth}, parentId=${parentTaskId})`)
         } catch (error) {
           result.errors.push(`创建任务失败: ${parsedTask.title}`)
           console.error('❌ 创建任务失败:', error)
