@@ -154,28 +154,43 @@ export async function generateOverviewMessage(
 ): Promise<string> {
   const uncompletedTasks = tasks.filter(t => !t.isCompleted)
   
+  // 只统计父类任务（顶层任务）
+  const parentTasks = uncompletedTasks.filter(t => (t.depth ?? 0) === 0)
+  
   // 如果没有任务，返回空消息
-  if (uncompletedTasks.length === 0) {
+  if (parentTasks.length === 0) {
     return '📭 今天还没有任务呢，先在左边添加一些任务吧～'
   }
   
-  // 构建任务列表
-  const taskList = uncompletedTasks
+  // 检查哪些父任务有子任务
+  const parentTasksWithChildren = parentTasks.filter(parent => 
+    uncompletedTasks.some(child => child.parent_task_id === parent.id)
+  )
+  const parentIdsWithChildren = new Set(parentTasksWithChildren.map(t => t.id))
+  
+  // 构建任务列表（只包含父类任务，并标注是否有子任务）
+  const taskList = parentTasks
     .map(t => {
       const parts = [`- ${t.title}`]
+      if (parentIdsWithChildren.has(t.id)) parts.push(`(有子任务)`)
       if (t.estimatedDuration) parts.push(`(${t.estimatedDuration}分钟)`)
       if (t.deadline) parts.push(`截止: ${t.deadline}`)
       return parts.join(' ')
     })
     .join('\n')
   
+  // 统计父类任务的未估时数量
+  const unestimatedParentCount = parentTasks.filter(t => !t.estimatedDuration).length
+  
   const prompt = `你是一个专业的任务规划助手，帮助用户快速诊断今天的任务情况。
 
-【用户今天的任务】（共 ${uncompletedTasks.length} 个）
+【用户今天的主要任务】（共 ${parentTasks.length} 个父类任务，不含子任务）
 ${taskList}
 
-【任务扫描结果】
-- 未估时任务数量: ${scanResult.unestimatedTaskCount}
+注意：以下所有诊断都只针对父类任务，不要分析子任务。
+
+【任务扫描结果】（仅统计父类任务）
+- 未估时任务数量: ${unestimatedParentCount}
 - 工作负载: ${scanResult.workloadLevel === 'light' ? '轻松' : scanResult.workloadLevel === 'medium' ? '适中' : '较重'}
 - 有截止时间的任务: ${scanResult.deadlineConflicts.length > 0 ? scanResult.deadlineConflicts.join('、') : '无'}
 
@@ -235,16 +250,16 @@ ${taskList}
 【输出格式要求】
 使用以下结构化格式（每个方面独立段落，用空行分隔）：
 
-📋 今天有 X 个任务！
+📋 今天有 ${parentTasks.length} 个任务！
 
 📝 **任务澄清**
-[1句话，≤40字]
+[1句话，≤50字，只针对父类任务]
 
 ⏱️ **时间规划**
-[1句话，≤50字，多个任务可合并说]
+[1句话，≤50字，只针对父类任务]
 
 🎯 **优先级排列**
-[1句话，≤40字]
+[1句话，≤40字，只针对父类任务]
 
 【注意事项 - ADHD友好】
 - 极致简洁：总字数≤150字
@@ -272,6 +287,7 @@ ${taskList}
 
 /**
  * 降级方案：规则生成概述（简洁版）
+ * 注意：只统计和分析父类任务（顶层任务）
  */
 function generateFallbackOverview(
   tasks: TaskSnapshot[],
@@ -279,16 +295,15 @@ function generateFallbackOverview(
 ): string {
   const lines: string[] = []
   
-  // 只统计父任务数量（有子任务的任务标记为父任务）
-  const parentTaskCount = tasks.length
-  lines.push(`📋 今天有 ${parentTaskCount} 个任务！`)
-  lines.push('')
-  
-  // 任务澄清建议 - 更智能的判断
-  lines.push('📝 **任务澄清**')
-  
   // 只检查顶层任务（depth = 0 或 undefined）
   const topLevelTasks = tasks.filter(t => (t.depth ?? 0) === 0)
+  
+  // 父类任务数量
+  lines.push(`📋 今天有 ${topLevelTasks.length} 个任务！`)
+  lines.push('')
+  
+  // 任务澄清建议 - 更智能的判断（只针对父类任务）
+  lines.push('📝 **任务澄清**')
   
   // 找出可能需要澄清的任务（简单规则）
   const vaguePatterns = [
@@ -322,23 +337,24 @@ function generateFallbackOverview(
   }
   lines.push('')
   
-  // 时间规划建议
+  // 时间规划建议（只针对父类任务）
   lines.push('⏱️ **时间规划**')
-  if (scanResult.unestimatedTaskCount > 0) {
-    lines.push(`有 ${scanResult.unestimatedTaskCount} 个任务可以考虑估算下时间？`)
+  const unestimatedParentCount = topLevelTasks.filter(t => !t.estimatedDuration).length
+  if (unestimatedParentCount > 0) {
+    lines.push(`有 ${unestimatedParentCount} 个任务可以考虑估算下时间？`)
   } else {
     lines.push(`时间规划看起来不错～`)
   }
   lines.push('')
   
-  // 优先级建议
+  // 优先级建议（只针对父类任务）
   lines.push('🎯 **优先级排列**')
   if (scanResult.deadlineConflicts.length > 0) {
     lines.push(`「${scanResult.deadlineConflicts[0]}」今天截止，可以想想是不是要优先安排？`)
-  } else if (scanResult.noPriorityCount > 0) {
+  } else if (topLevelTasks.length > 1) {
     lines.push(`可以想想先做哪个任务？`)
   } else {
-    lines.push(`可以想想先做哪个～`)
+    lines.push(`今天任务不多，按自己的节奏来～`)
   }
   
   return lines.join('\n')
