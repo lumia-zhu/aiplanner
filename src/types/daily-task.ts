@@ -50,6 +50,8 @@ export interface UpdateDailyTaskInput {
   deadlineDatetime?: string     // 截止时间
   estimatedDuration?: number    // ⭐ 预估时长（分钟）
   notePosition?: number         // 在笔记中的位置
+  depth?: number                // 🆕 任务层级深度
+  parentTaskId?: string | null  // 🆕 父任务ID
 }
 
 /**

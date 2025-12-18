@@ -18,7 +18,7 @@ import StickyNotesDropdown from '@/components/StickyNotesDropdown'
 import TaskMatrix from '@/components/TaskMatrix'
 import ViewModeToggle from '@/components/ViewModeToggle'
 import type { DateScope, UserProfile, UserProfileInput, ChatMessage, MessageContent, StickyNote as StickyNoteType, TasksByQuadrant, TaskMatrixDimension, MatrixContext } from '@/types'
-import type { ReflectionSession, TaskSnapshot, ScanResult } from '@/types/reflection'
+import type { ReflectionSession, TaskSnapshot, ScanResult, MatrixContextForPriority, MatrixAxisInfo, QuadrantInfo } from '@/types/reflection'
 import { 
   createPlanSnapshot, 
   createReflectionSession, 
@@ -52,7 +52,8 @@ import {
   DEFAULT_MATRIX_AXES, 
   PRESET_MATRIX_CONFIGS,
   isDimensionConflict,
-  getDimensionConfig
+  getDimensionConfig,
+  getAxisLabels
 } from '@/constants/dimensions'
 import { getUserProfile, upsertUserProfile } from '@/lib/userProfile'
 import { doubaoService } from '@/lib/doubaoService'
@@ -160,16 +161,8 @@ export default function NotesDashboardPage() {
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)  // 延迟关闭定时器
   
   // AI 对话框状态
-  // ✅ 从 localStorage 读取侧边栏状态（永久保存）
-  const [isChatSidebarOpen, setIsChatSidebarOpen] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('chatSidebarOpen')
-      const isOpen = saved !== null ? JSON.parse(saved) : false
-      console.log('🔧 初始化侧边栏状态:', { saved, isOpen })
-      return isOpen
-    }
-    return false
-  })
+  // ✅ 默认关闭侧边栏，用户点击机器人图标才展开
+  const [isChatSidebarOpen, setIsChatSidebarOpen] = useState(false)
   const [chatMessage, setChatMessage] = useState('')
   const [selectedImage, setSelectedImage] = useState<File | null>(null)
   const [chatMessages, setChatMessages] = useState<any[]>([])
@@ -1205,17 +1198,20 @@ export default function NotesDashboardPage() {
       // ✅ 同步更新 currentNote 状态，确保 AI 助手能读取最新内容
       setCurrentNote(savedNote.content)
       
-      // 🔄 同步任务到 daily_tasks 表
-      try {
-        const syncResult = await syncTasksFromNote(user.id, dateKey, savedNote.content)
-        console.log(`✅ 任务同步完成: 创建 ${syncResult.created}, 更新 ${syncResult.updated}, 删除 ${syncResult.deleted}`)
-        
-        // 同步完成后，重新加载任务矩阵
-        await loadTaskMatrix(user.id, selectedDate)
-      } catch (syncError) {
-        console.error('❌ 任务同步失败:', syncError)
-        // 任务同步失败不影响笔记保存，只记录错误
-      }
+      // 🔄 后台异步同步任务到 daily_tasks 表（不阻塞UI）
+      syncTasksFromNote(user.id, dateKey, savedNote.content)
+        .then(async (syncResult) => {
+          console.log(`✅ 任务同步完成: 创建 ${syncResult.created}, 更新 ${syncResult.updated}, 删除 ${syncResult.deleted}`)
+          
+          // 同步完成后，后台刷新任务矩阵
+          if (syncResult.created > 0 || syncResult.updated > 0 || syncResult.deleted > 0) {
+            loadTaskMatrix(user.id, selectedDate)
+          }
+        })
+        .catch((syncError) => {
+          console.error('❌ 任务同步失败:', syncError)
+          // 任务同步失败不影响笔记保存，只记录错误
+        })
       
     } catch (error) {
       console.error('保存笔记失败:', error)
@@ -2222,18 +2218,7 @@ export default function NotesDashboardPage() {
         // 🆕 使用新的概述界面恢复
         // 如果当前轮次是 overview 或者没有设置，显示概述 + 4按钮
         if (!existingSession.currentRound || existingSession.currentRound === 'overview') {
-          // 显示加载消息
-          const loadingMessage: ChatMessage = {
-            role: 'assistant' as const,
-            content: [{ type: 'text' as const, text: '📂 欢迎回来！让我重新看看你的任务...' }]
-          }
-          setChatMessages(prev => {
-            const hasLoading = prev.some(m => m.content?.[0]?.text?.includes('欢迎回来'))
-            if (hasLoading) return prev
-            return [...prev, loadingMessage]
-          })
-          
-          // 生成概述消息
+          // 加载消息已由 toggleChatSidebar 显示，这里直接生成概述消息
           const scan = existingSession.scanResult || {
             totalTaskCount: taskSnapshots.length,
             vagueTaskCount: 0,
@@ -2261,12 +2246,15 @@ export default function NotesDashboardPage() {
             ]
           }
           setChatMessages(prev => {
-            // 移除加载消息，添加概述消息
-            const filtered = prev.filter(m => !m.content?.[0]?.text?.includes('欢迎回来！让我重新看看你的任务'))
+            // 移除所有加载消息，添加概述消息
+            const filtered = prev.filter(m => {
+              const text = m.content?.[0]?.text || ''
+              return !text.includes('让我看看') && !text.includes('欢迎回来')
+            })
             const hasOverview = filtered.some(m => 
               m.content?.some((c: any) => c.interactive?.type === 'reflection-overview')
             )
-            if (hasOverview) return prev
+            if (hasOverview) return filtered
             return [...filtered, overviewMessage]
           })
         } else {
@@ -2384,14 +2372,7 @@ export default function NotesDashboardPage() {
           currentRound: 'overview'  // 停留在概述阶段，等待用户选择
         })
         
-        // 显示加载消息
-        const loadingMessage: ChatMessage = {
-          role: 'assistant' as const,
-          content: [{ type: 'text' as const, text: '让我看看你今天的任务...' }]
-        }
-        setChatMessages(prev => [...prev, loadingMessage])
-        
-        // 🆕 使用 LLM 生成概述消息
+        // 🆕 使用 LLM 生成概述消息（加载消息已在 toggleChatSidebar 中显示）
         console.log('🤖 生成 LLM 概述消息...')
         const overviewText = await generateOverviewMessage(taskSnapshots, scan)
         
@@ -2411,8 +2392,16 @@ export default function NotesDashboardPage() {
           ]
         }
         setChatMessages(prev => {
-          // 移除加载消息，添加概述消息
-          const filtered = prev.filter(m => m.content?.[0]?.text !== '让我看看你今天的任务...')
+          // 移除所有加载消息，添加概述消息
+          const filtered = prev.filter(m => {
+            const text = m.content?.[0]?.text || ''
+            return !text.includes('让我看看') && !text.includes('欢迎回来')
+          })
+          // 检查是否已有概述消息，避免重复
+          const hasOverview = filtered.some(m => 
+            m.content?.some((c: any) => c.interactive?.type === 'reflection-overview')
+          )
+          if (hasOverview) return filtered  // 已有概述消息，不重复添加
           return [...filtered, overviewMessage]
         })
         
@@ -3246,22 +3235,59 @@ export default function NotesDashboardPage() {
       content: [{ type: 'text' as const, text: `${info.emoji} 好的，让我们来做「${info.label}」～` }]
     }
     
-    // 🆕 优先级排列的特殊处理：先显示矩阵建议
+    // 🆕 优先级排列的特殊处理
     if (action === 'priority') {
-      const matrixSuggestionMessage: ChatMessage = {
-        role: 'assistant' as const,
-        content: [
-          { 
-            type: 'interactive' as const, 
-            interactive: {
-              type: 'priority-matrix-suggestion' as const,
-              data: { taskCount: reflectionTasks.length },
-              isActive: true
+      // 如果用户已经在矩阵模式，直接显示使用指南
+      if (viewMode === 'matrix') {
+        // 直接显示使用指南 + 任务选择卡片
+        const guideMessage: ChatMessage = {
+          role: 'assistant' as const,
+          content: [{ 
+            type: 'text' as const, 
+            text: `📊 太好了，你已经在矩阵模式了！
+
+**使用指南**：
+
+✓ 选择合适的维度（重要/紧急、价值/工作量等）
+
+✓ 建议直接拖入矩阵对应的象限
+
+✓ 请在下面勾选，我会帮你思考优先级`
+          }]
+        }
+        
+        const selectionMessage: ChatMessage = {
+          role: 'assistant' as const,
+          content: [
+            { 
+              type: 'interactive' as const, 
+              interactive: {
+                type: 'reflection-task-selection' as const,
+                data: { roundType: 'priority' },
+                isActive: true
+              }
             }
-          }
-        ]
+          ]
+        }
+        
+        setChatMessages(prev => [...prev, confirmMessage, guideMessage, selectionMessage])
+      } else {
+        // 不在矩阵模式：先显示矩阵建议
+        const matrixSuggestionMessage: ChatMessage = {
+          role: 'assistant' as const,
+          content: [
+            { 
+              type: 'interactive' as const, 
+              interactive: {
+                type: 'priority-matrix-suggestion' as const,
+                data: { taskCount: reflectionTasks.length },
+                isActive: true
+              }
+            }
+          ]
+        }
+        setChatMessages(prev => [...prev, confirmMessage, matrixSuggestionMessage])
       }
-      setChatMessages(prev => [...prev, confirmMessage, matrixSuggestionMessage])
     } else {
       // 澄清任务和时间规划：直接显示任务选择卡片
     const selectionMessage: ChatMessage = {
@@ -3285,7 +3311,7 @@ export default function NotesDashboardPage() {
       console.log('🔓 清除loading状态')
       setReflectionLoadingWithTimeout(false)
     }, 500)  // 500ms后清除，确保UI已完全更新
-  }, [reflectionTasks, initializeCollapsedTasks, setReflectionLoadingWithTimeout])
+  }, [reflectionTasks, initializeCollapsedTasks, setReflectionLoadingWithTimeout, viewMode])
   
   // ⭐ 底部快捷按钮启动反思
   const handleReflectionQuickStart = useCallback(async (type: 'clarity' | 'decomposition' | 'time' | 'priority') => {
@@ -3373,10 +3399,21 @@ export default function NotesDashboardPage() {
     // 切换到矩阵视图（侧边栏不关闭）
     setViewMode('matrix')
     
-    // 显示切换成功消息
+    // 显示切换成功消息 + 使用指南
     const switchMessage: ChatMessage = {
       role: 'assistant' as const,
-      content: [{ type: 'text' as const, text: '✨ 已切换到矩阵模式！' }]
+      content: [{ 
+        type: 'text' as const, 
+        text: `✨ 已切换到矩阵模式！
+
+**使用指南**：
+
+✓ 选择合适的维度（重要/紧急、价值/工作量等）
+
+✓ 建议直接拖入矩阵对应的象限
+
+✓ 请在下面勾选，我会帮你思考优先级` 
+      }]
     }
     
     // 显示任务选择卡片
@@ -3581,7 +3618,10 @@ export default function NotesDashboardPage() {
         } else {
           // Priority 轮：生成优先级问题（多个任务）
           taskTitle = selectedTasks.map(t => t.title).join('、')
-          questions = await generatePriorityQuestions(selectedTasks)
+          // 传入矩阵上下文，让 LLM 知道当前维度和已分类任务
+          const matrixContext = buildMatrixContextForPriority()
+          console.log('🎯 优先级反思矩阵上下文:', matrixContext)
+          questions = await generatePriorityQuestions(selectedTasks, matrixContext)
         }
         
         console.log(`🔍 生成的问题数量: ${questions.length}`, questions)
@@ -5163,8 +5203,23 @@ export default function NotesDashboardPage() {
       console.log('💾 已保存到 localStorage:', newState)
     }
     
-    // ⭐ 侧栏展开时，启动反思流程
+    // ⭐ 侧栏展开时，立即显示加载消息，然后启动反思流程
     if (newState) {
+      // 🆕 立即显示加载消息（带动画效果）
+      const loadingMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [{ type: 'text' as const, text: '让我看看你今天的任务...' }]
+      }
+      setChatMessages(prev => {
+        // 先清除所有加载消息，再添加新的
+        const filtered = prev.filter(m => {
+          const text = m.content?.[0]?.text || ''
+          return !text.includes('让我看看') && !text.includes('欢迎回来')
+        })
+        return [...filtered, loadingMessage]
+      })
+      
+      // 异步启动反思流程（会替换加载消息）
       const session = await startReflectionSession()
       if (session) {
         console.log('✅ 反思会话已启动:', session.id)
@@ -5288,6 +5343,88 @@ export default function NotesDashboardPage() {
     
     return context
   }, [viewMode, selectedDate, selectedMatrixDimension, tasksByQuadrant])
+
+  /**
+   * 构建优先级反思的矩阵上下文
+   * 用于生成更有针对性的优先级反思问题
+   */
+  const buildMatrixContextForPriority = useCallback((): MatrixContextForPriority => {
+    // 获取当前矩阵轴配置
+    const axesConfig = matrixAxes || DEFAULT_MATRIX_AXES
+    const xDimConfig = getDimensionConfig(axesConfig.xAxis)
+    const yDimConfig = getDimensionConfig(axesConfig.yAxis)
+    const axisLabels = getAxisLabels(axesConfig)
+    
+    // 构建轴信息
+    const xAxisInfo: MatrixAxisInfo = {
+      id: xDimConfig.id,
+      name: xDimConfig.name,
+      highLabel: xDimConfig.levels.high,
+      lowLabel: xDimConfig.levels.low
+    }
+    
+    const yAxisInfo: MatrixAxisInfo = {
+      id: yDimConfig.id,
+      name: yDimConfig.name,
+      highLabel: yDimConfig.levels.high,
+      lowLabel: yDimConfig.levels.low
+    }
+    
+    // 辅助函数：构建象限信息
+    const buildQuadrantInfo = (quadrantKey: string, label: string): QuadrantInfo => {
+      const tasks = tasksByQuadrant[quadrantKey as keyof typeof tasksByQuadrant] || []
+      return {
+        label,
+        tasks: tasks
+          .filter(t => !t.checked)  // 只考虑未完成的任务
+          .map(t => t.title)
+      }
+    }
+    
+    // 动态生成象限标签
+    // top-left: 高Y + 低X, top-right: 高Y + 高X
+    // bottom-left: 低Y + 低X, bottom-right: 低Y + 高X
+    const topLeftLabel = `${yAxisInfo.highLabel}但${xAxisInfo.lowLabel}`  // 如：重要但不紧急
+    const topRightLabel = `${yAxisInfo.highLabel}且${xAxisInfo.highLabel}`  // 如：重要且紧急
+    const bottomLeftLabel = `${yAxisInfo.lowLabel}且${xAxisInfo.lowLabel}`  // 如：不重要且不紧急
+    const bottomRightLabel = `${yAxisInfo.lowLabel}但${xAxisInfo.highLabel}`  // 如：不重要但紧急
+    
+    // 构建象限任务分布
+    // 注意：tasksByQuadrant 使用的是静态键名，需要映射到实际象限位置
+    const quadrants = {
+      topLeft: buildQuadrantInfo('not-urgent-important', topLeftLabel),
+      topRight: buildQuadrantInfo('urgent-important', topRightLabel),
+      bottomLeft: buildQuadrantInfo('not-urgent-not-important', bottomLeftLabel),
+      bottomRight: buildQuadrantInfo('urgent-not-important', bottomRightLabel)
+    }
+    
+    // 获取待分类任务（未完成的）
+    const unclassifiedTasks = (tasksByQuadrant['unclassified'] || [])
+      .filter(t => !t.checked)
+      .map(t => t.title)
+    
+    const context: MatrixContextForPriority = {
+      axes: {
+        xAxis: xAxisInfo,
+        yAxis: yAxisInfo
+      },
+      quadrants,
+      unclassifiedTasks
+    }
+    
+    console.log('🎯 优先级反思矩阵上下文:', {
+      axes: `${yAxisInfo.name} × ${xAxisInfo.name}`,
+      quadrantCounts: {
+        topLeft: quadrants.topLeft.tasks.length,
+        topRight: quadrants.topRight.tasks.length,
+        bottomLeft: quadrants.bottomLeft.tasks.length,
+        bottomRight: quadrants.bottomRight.tasks.length
+      },
+      unclassifiedCount: unclassifiedTasks.length
+    })
+    
+    return context
+  }, [matrixAxes, tasksByQuadrant])
 
   // ⭐⭐⭐ Agent Message Handling Functions ⭐⭐⭐
   
@@ -6905,82 +7042,79 @@ ${matrixStats || '（无待办）'}
     }
   }, [user, selectedDate, viewMode, notesCache, loadNotesInRange, loadNote, loadTaskMatrix, refreshTaskListInChat])
 
-  // 处理任务完成状态切换（矩阵模式）
+  // 处理任务完成状态切换（矩阵模式）- 乐观更新
   const handleTaskComplete = useCallback(async (taskId: string) => {
     if (!user) return
     
-    try {
-      console.log('🔄 切换任务完成状态:', taskId)
-      
-      // 1. 收集所有任务（扁平化），判断是否需要同时更新子任务
-      let childTaskIds: string[] = []
-      let clickedTask: any = null
-      
-      // 从矩阵状态中查找任务信息
+    console.log('🔄 切换任务完成状态:', taskId)
+    
+    // 1. 收集所有任务（扁平化），判断是否需要同时更新子任务
+    let childTaskIds: string[] = []
+    let clickedTask: any = null
+    let currentCompleted = false
+    
+    // 从矩阵状态中查找任务信息
+    for (const quadrant in tasksByQuadrant) {
+      for (const task of tasksByQuadrant[quadrant as QuadrantType]) {
+        if (task.id === taskId) {
+          clickedTask = task
+          currentCompleted = task.completed
+        }
+      }
+    }
+    
+    // 如果点击的是父任务（depth=0），找出所有子任务
+    if (clickedTask && (clickedTask.depth ?? 0) === 0) {
       for (const quadrant in tasksByQuadrant) {
         for (const task of tasksByQuadrant[quadrant as QuadrantType]) {
-          if (task.id === taskId) {
-            clickedTask = task
+          if ((task as any).parentTaskId === taskId) {
+            childTaskIds.push(task.id)
           }
         }
       }
-      
-      // 如果点击的是父任务（depth=0），找出所有子任务
-      if (clickedTask && (clickedTask.depth ?? 0) === 0) {
-        for (const quadrant in tasksByQuadrant) {
-          for (const task of tasksByQuadrant[quadrant as QuadrantType]) {
-            if ((task as any).parentTaskId === taskId) {
-              childTaskIds.push(task.id)
+      if (childTaskIds.length > 0) {
+        console.log(`📦 父任务包含 ${childTaskIds.length} 个子任务，将一起更新`)
+      }
+    }
+    
+    // 🚀 2. 乐观更新：立即更新UI（不等待数据库）
+    const newCompleted = !currentCompleted
+    const allTaskIdsToUpdate = [taskId, ...childTaskIds]
+    setTasksByQuadrant(prev => {
+      const newState = { ...prev }
+      for (const quadrant in newState) {
+        const tasks = newState[quadrant as QuadrantType]
+        if (tasks) {
+          for (let i = 0; i < tasks.length; i++) {
+            if (allTaskIdsToUpdate.includes(tasks[i].id)) {
+              tasks[i] = { ...tasks[i], completed: newCompleted }
             }
           }
         }
-        if (childTaskIds.length > 0) {
-          console.log(`📦 父任务包含 ${childTaskIds.length} 个子任务，将一起更新`)
-        }
       }
-      
-      // 2. 切换父任务完成状态（更新 daily_tasks 表）
+      return newState
+    })
+    console.log('✅ 矩阵UI已即时更新')
+    
+    // 3. 后台异步更新数据库（不阻塞UI）
+    try {
       const updatedTask = await toggleDailyTaskComplete(taskId)
       console.log('✅ 父任务数据库已更新:', updatedTask)
       
-      // 3. 如果是父任务且有子任务，同步更新子任务状态
+      // 如果是父任务且有子任务，同步更新子任务状态
       if (childTaskIds.length > 0) {
-        console.log(`🔄 同步更新 ${childTaskIds.length} 个子任务状态为: ${updatedTask.completed}`)
-        await Promise.all(
+        console.log(`🔄 同步更新 ${childTaskIds.length} 个子任务状态为: ${newCompleted}`)
+        Promise.all(
           childTaskIds.map(async (childId) => {
-            // 直接设置子任务为父任务的状态（不是切换）
             const { updateDailyTaskComplete } = await import('@/lib/dailyTasks')
-            await updateDailyTaskComplete(childId, updatedTask.completed)
+            await updateDailyTaskComplete(childId, newCompleted)
           })
-        )
-        console.log('✅ 所有子任务数据库已更新')
+        ).then(() => {
+          console.log('✅ 所有子任务数据库已更新')
+        })
       }
       
-      // 4. 更新矩阵本地状态（父任务+子任务）
-      const allTaskIdsToUpdate = [taskId, ...childTaskIds]
-      setTasksByQuadrant(prev => {
-        const newState = { ...prev }
-        
-        // 遍历所有象限，找到并更新任务
-        for (const quadrant in newState) {
-          const tasks = newState[quadrant as QuadrantType]
-          if (tasks) {
-            for (let i = 0; i < tasks.length; i++) {
-              if (allTaskIdsToUpdate.includes(tasks[i].id)) {
-                tasks[i] = {
-                  ...tasks[i],
-                  completed: updatedTask.completed
-                }
-              }
-            }
-          }
-        }
-        
-        return newState
-      })
-      console.log('✅ 矩阵本地状态已更新')
-      
-      // 5. 同步更新笔记内容
+      // 4. 后台同步更新笔记内容
       try {
         console.log('📝 开始同步更新笔记中的任务状态...')
         console.log('   任务所属笔记日期:', updatedTask.noteDate)

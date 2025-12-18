@@ -161,6 +161,9 @@ export async function updateDailyTask(
     if (updates.deadlineDatetime !== undefined) updateData.deadline_datetime = updates.deadlineDatetime
     if (updates.estimatedDuration !== undefined) updateData.estimated_duration = updates.estimatedDuration
     if (updates.notePosition !== undefined) updateData.note_position = updates.notePosition
+    // 🆕 层级字段
+    if (updates.depth !== undefined) updateData.depth = updates.depth
+    if (updates.parentTaskId !== undefined) updateData.parent_task_id = updates.parentTaskId
 
     const { data, error } = await supabase
       .from('daily_tasks')

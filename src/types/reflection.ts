@@ -123,3 +123,46 @@ export interface UpdateReflectionSessionInput {
   completedAt?: string
 }
 
+// ============================================
+// 优先级反思矩阵上下文
+// ============================================
+
+/**
+ * 矩阵轴信息
+ */
+export interface MatrixAxisInfo {
+  id: string           // 'urgent' | 'important' | 'impact' | 'effort' | 'interesting' | 'exciting'
+  name: string         // '紧急性' | '重要性' | ...
+  highLabel: string    // '紧急' | '重要' | ...
+  lowLabel: string     // '不紧急' | '不重要' | ...
+}
+
+/**
+ * 象限信息（包含标签和任务列表）
+ */
+export interface QuadrantInfo {
+  label: string        // 象限名称，如 "重要且紧急"
+  tasks: string[]      // 该象限中的任务标题
+}
+
+/**
+ * 优先级反思的矩阵上下文
+ * 用于生成更有针对性的优先级反思问题
+ */
+export interface MatrixContextForPriority {
+  // 当前矩阵的X轴和Y轴配置
+  axes: {
+    xAxis: MatrixAxisInfo
+    yAxis: MatrixAxisInfo
+  }
+  // 四个象限及其任务分布
+  quadrants: {
+    topLeft: QuadrantInfo      // 高Y低X（如：重要不紧急）
+    topRight: QuadrantInfo     // 高Y高X（如：重要且紧急）
+    bottomLeft: QuadrantInfo   // 低Y低X（如：不重要不紧急）
+    bottomRight: QuadrantInfo  // 低Y高X（如：不重要但紧急）
+  }
+  // 待分类的任务（用户正在反思的）
+  unclassifiedTasks: string[]
+}
+

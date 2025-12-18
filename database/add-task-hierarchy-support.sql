@@ -56,3 +56,6 @@ WHERE table_name = 'daily_tasks'
 AND column_name IN ('depth', 'parent_task_id')
 ORDER BY ordinal_position;
 
+
+
+

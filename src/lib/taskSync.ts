@@ -274,10 +274,13 @@ export async function syncTasksFromNote(
 
       if (existingTask) {
         // 任务已存在，检查是否需要更新
+        const taskDepth = parsedTask.depth ?? 0
         const needsUpdate = 
           existingTask.title !== parsedTask.title ||
           existingTask.completed !== parsedTask.completed ||
-          existingTask.estimatedDuration !== parsedTask.estimatedDuration
+          existingTask.estimatedDuration !== parsedTask.estimatedDuration ||
+          (existingTask.depth ?? 0) !== taskDepth ||
+          existingTask.parentTaskId !== parentTaskId
 
         if (needsUpdate) {
           try {
@@ -285,9 +288,11 @@ export async function syncTasksFromNote(
               title: parsedTask.title,
               completed: parsedTask.completed,
               estimatedDuration: parsedTask.estimatedDuration,
+              depth: taskDepth,               // 🆕 更新层级
+              parentTaskId: parentTaskId,     // 🆕 更新父任务ID
             })
             result.updated++
-            console.log(`✅ 更新任务: ${parsedTask.title}`)
+            console.log(`✅ 更新任务: ${parsedTask.title} (depth=${taskDepth}, parentId=${parentTaskId})`)
           } catch (error) {
             result.errors.push(`更新任务失败: ${parsedTask.title}`)
             console.error('❌ 更新任务失败:', error)

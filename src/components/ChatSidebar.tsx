@@ -659,8 +659,8 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
     }
   }
   
-  // 判断确认按钮是否可用
-  const isConfirmDisabled = !isActive || (isMultiSelect ? selectedIds.size < 1 : !selectedId)
+  // 判断确认按钮是否可用（无任务时也禁用）
+  const isConfirmDisabled = !isActive || visibleTasks.length === 0 || (isMultiSelect ? selectedIds.size < 1 : !selectedId)
   
   const roundInfo = {
     clarity: { emoji: '📝', label: '澄清', color: 'blue' },
@@ -683,15 +683,15 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
           <div className="text-xs text-gray-600 space-y-1 bg-white/50 rounded p-2">
             <div className="flex items-start gap-1.5">
               <span className="text-green-600">•</span>
-              <span><span className="font-medium">已清晰的任务</span> → 建议使用矩阵模式直观展示</span>
+              <span><span className="font-medium">已清晰的任务</span> → 建议直接拖入矩阵对应的象限</span>
             </div>
             <div className="flex items-start gap-1.5">
               <span className="text-orange-600">•</span>
-              <span><span className="font-medium">不清晰的任务</span> → 我会帮你反思并确定优先级</span>
+              <span><span className="font-medium">不清晰的任务</span> → 请在下面勾选，我会帮你思考优先级</span>
             </div>
             <div className="flex items-start gap-1.5 mt-1.5 pt-1.5 border-t border-gray-200">
               <span className="text-gray-500">💡</span>
-              <span className="text-gray-500">至少选择1个任务</span>
+              <span className="text-gray-500">至少选择1个任务（只显示未完成的任务）</span>
             </div>
           </div>
         </div>
@@ -706,7 +706,14 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
         className="space-y-1.5 mb-3 max-h-48 overflow-y-auto overflow-x-hidden w-full"
         style={{ scrollbarGutter: 'stable' }}
       >
-        {visibleTasks.map((task, index) => {
+        {/* 🆕 空状态提示 */}
+        {visibleTasks.length === 0 ? (
+          <div className="text-center py-6 text-gray-500">
+            <div className="text-3xl mb-2">📭</div>
+            <p className="text-sm">暂无可选择的任务</p>
+            <p className="text-xs text-gray-400 mt-1">请先在笔记中添加任务</p>
+          </div>
+        ) : visibleTasks.map((task, index) => {
           const isSelected = isMultiSelect ? selectedIds.has(task.id) : selectedId === task.id
           const isChild = task.isChild || false
           const isLastChild = task.isLastChild || false
@@ -777,7 +784,7 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
         })}
       </div>
       
-      {/* 提示文案 */}
+      {/* 提示文案 - 仅在有任务时显示 */}
       {uncompletedTasks.some(t => !t.parent_task_id && childTasksMap.get(t.id)?.length) && (
         <div className="text-xs text-gray-500 mb-2 flex items-center gap-1">
           <span>💡</span>
@@ -823,6 +830,9 @@ const ReflectionQASummaryCard: React.FC<{
   
   const source = sourceMap[roundType]
   
+  // 🆕 优先级排列不显示添加上下文功能
+  const showAddContext = roundType !== 'priority'
+  
   return (
     <div className="space-y-2 mt-3">
       <p className="text-sm font-medium text-gray-700 mb-2">**您的回答总结：**</p>
@@ -831,18 +841,20 @@ const ReflectionQASummaryCard: React.FC<{
           key={index}
           className="bg-gray-50 border border-gray-200 rounded-md p-3 hover:border-gray-300 transition-colors relative group"
         >
-          {/* 添加按钮 - 右上角 */}
-          <button
-            onClick={() => onAddContext(qa, taskId, source)}
-            className="absolute top-2 right-2 p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors opacity-70 group-hover:opacity-100"
-            title="添加到任务"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-          </button>
+          {/* 添加按钮 - 右上角（优先级排列时隐藏） */}
+          {showAddContext && (
+            <button
+              onClick={() => onAddContext(qa, taskId, source)}
+              className="absolute top-2 right-2 p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors opacity-70 group-hover:opacity-100"
+              title="添加到任务"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
+          )}
           
-          <div className="pr-8">
+          <div className={showAddContext ? "pr-8" : ""}>
             {/* 问题 */}
             <div className="mb-1.5">
               <span className="text-xs text-gray-500">Q{index + 1}: </span>
@@ -857,14 +869,14 @@ const ReflectionQASummaryCard: React.FC<{
         </div>
       ))}
       
-      {/* 🆕 批量添加按钮 */}
-      {onAddAllContext && qaList.length > 0 && (
-        <div className="mt-2 flex justify-center">
+      {/* 🆕 批量添加按钮（优先级排列时隐藏） */}
+      {showAddContext && onAddAllContext && qaList.length > 0 && (
+        <div className="mt-3 flex justify-center">
           <button
             onClick={() => onAddAllContext(qaList, taskId, source)}
-            className="px-3 py-1 bg-blue-50 text-blue-600 border border-blue-200 rounded-md hover:bg-blue-100 hover:border-blue-300 flex items-center gap-1.5 transition-all text-xs font-medium"
+            className="px-4 py-2 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-100 hover:border-blue-300 flex items-center gap-2 transition-all text-sm font-medium"
           >
-            <span className="text-sm">💡</span>
+            <span className="text-base">💡</span>
             <span>添加所有上下文</span>
           </button>
         </div>
@@ -1542,6 +1554,18 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                                   </div>
                                 )}
                               </div>
+                            ) : content.text.includes('让我看看你今天的任务') || content.text.includes('让我重新看看你的任务') ? (
+                              /* 🆕 加载状态动画 - 圆点替代省略号 */
+                              <div className="flex items-center gap-2 py-1">
+                                <span className="text-sm text-gray-600">
+                                  {content.text.replace('⏳ ', '').replace('📂 ', '').replace('...', '')}
+                                </span>
+                                <div className="flex gap-1">
+                                  <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                                  <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                                  <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                                </div>
+                              </div>
                             ) : (
                               <div className="text-sm prose-chat">
                                 <ReactMarkdown>{content.text}</ReactMarkdown>
@@ -1620,51 +1644,40 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                             </div>
                           )}
                           
-                          {/* ⭐ 优先级矩阵建议卡片 */}
+                          {/* ⭐ 优先级矩阵建议卡片 - 简化版，只显示建议 */}
                           {content.interactive.type === 'priority-matrix-suggestion' && (
                             <div className="mt-3 p-4 bg-gradient-to-r from-orange-50 to-amber-50 border-2 border-orange-200 rounded-lg">
                               <div className="flex items-start gap-3 mb-3">
                                 <span className="text-2xl">💡</span>
-                                  <div className="flex-1">
+                                <div className="flex-1">
                                   <h3 className="text-sm font-semibold text-orange-900 mb-2">小提示</h3>
-                                  <p className="text-sm text-gray-700 mb-3">
+                                  <p className="text-sm text-gray-700 mb-1.5">
                                     矩阵模式更适合进行优先级排序！
                                   </p>
-                                  <div className="space-y-1.5">
-                                    <div className="flex items-start gap-2">
-                                      <span className="text-orange-600 mt-0.5">•</span>
-                                      <p className="text-sm text-gray-600">选择合适的维度（重要/紧急、价值/工作量等）</p>
-                                  </div>
-                                    <div className="flex items-start gap-2">
-                                      <span className="text-orange-600 mt-0.5">•</span>
-                                      <p className="text-sm text-gray-600">把已经清晰的任务直接放入矩阵</p>
+                                  <p className="text-xs text-gray-600">
+                                    可以通过拖拽直观地看到任务分布，更容易做出决策
+                                  </p>
                                 </div>
-                                    <div className="flex items-start gap-2">
-                                      <span className="text-orange-600 mt-0.5">•</span>
-                                      <p className="text-sm text-gray-600">快速可视化任务的优先级分布</p>
-                                  </div>
-                                </div>
-                                  </div>
-                                </div>
+                              </div>
                               
-                              <div className="flex gap-2 mt-4">
-                              <button
+                              <div className="flex gap-2">
+                                <button
                                   onClick={() => onSwitchToMatrix?.()}
-                                disabled={content.interactive.isActive === false}
+                                  disabled={content.interactive.isActive === false}
                                   className="flex-1 px-4 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-lg hover:from-orange-600 hover:to-amber-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium shadow-sm flex items-center justify-center gap-2"
-                              >
+                                >
                                   <span>🎯</span>
                                   <span>切换到矩阵模式</span>
-                              </button>
-                              <button
+                                </button>
+                                <button
                                   onClick={() => onSkipMatrixSwitch?.()}
-                                disabled={content.interactive.isActive === false}
+                                  disabled={content.interactive.isActive === false}
                                   className="px-4 py-2.5 text-gray-600 hover:text-gray-800 hover:bg-white border-2 border-gray-300 rounded-lg transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   暂时不切换
-                              </button>
-                                  </div>
-                                </div>
+                                </button>
+                              </div>
+                            </div>
                           )}
                           
                           {/* ⭐ 反思概述 - 引导使用底部快捷按钮 */}

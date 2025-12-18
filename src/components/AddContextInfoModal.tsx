@@ -248,7 +248,7 @@ export default function AddContextInfoModal({
               </h3>
               <details className="bg-gray-50 border border-gray-200 rounded-md">
                 <summary className="cursor-pointer text-xs text-gray-600 p-3 hover:bg-gray-100 transition-colors">
-                  点击展开查看详细问答 ▼
+                  点击展开查看详细问答
                 </summary>
                 <div className="p-3 pt-2 space-y-3 border-t border-gray-200">
                   {questionAnswers!.map((qa, i) => (

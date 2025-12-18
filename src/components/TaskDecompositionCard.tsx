@@ -145,7 +145,7 @@ export default function TaskDecompositionCard({
                   if (e.key === 'Enter') handleSaveEdit(subtask.id)
                   if (e.key === 'Escape') handleCancelEdit()
                 }}
-                className="flex-1 px-2 py-1 border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                className="flex-1 px-2 py-1 border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900"
                 autoFocus
                 disabled={!isActive}
               />
@@ -235,7 +235,7 @@ export default function TaskDecompositionCard({
       {isActive && (
         <div className="mb-4">
           {isAddingNew ? (
-            <div className="flex items-center gap-2 p-3 bg-white rounded-lg border-2 border-green-300">
+            <div className="flex items-center gap-2 p-3 bg-white rounded-lg border-2 border-blue-300">
               <input
                 type="text"
                 value={newTaskTitle}
@@ -248,12 +248,12 @@ export default function TaskDecompositionCard({
                   }
                 }}
                 placeholder="输入新子任务标题..."
-                className="flex-1 px-2 py-1 border-none focus:outline-none text-sm"
+                className="flex-1 px-2 py-1 border-none focus:outline-none text-sm text-gray-900 placeholder-gray-400"
                 autoFocus
               />
               <button
                 onClick={handleAddNew}
-                className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 transition-colors text-sm"
+                className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors text-sm"
               >
                 添加
               </button>
