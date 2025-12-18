@@ -21,6 +21,7 @@ interface TaskActionMenuProps {
   onOpenDateTimePicker: () => void    // 打开时间选择器
   onOpenDurationPicker?: () => void   // 打开时长选择器 (可选，暂做兼容)
   onDecompose: () => void             // ⭐ 拆解任务
+  onDelete: () => void                // 🗑️ 删除任务
   onClose: () => void                 // 关闭菜单
 }
 
@@ -30,6 +31,7 @@ export default function TaskActionMenu({
   onOpenDateTimePicker,
   onOpenDurationPicker,
   onDecompose,
+  onDelete,
   onClose
 }: TaskActionMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
@@ -132,22 +134,14 @@ export default function TaskActionMenu({
         onDecompose()
         onClose()
       }
-    }
-  ]
-  
-  // 禁用的菜单项（用分隔线隔开）
-  const disabledMenuItems: MenuItem[] = [
-    {
-      icon: '✏️',
-      label: '编辑任务',
-      disabled: true,
-      onClick: () => {}
     },
     {
       icon: '🗑️',
       label: '删除任务',
-      disabled: true,
-      onClick: () => {}
+      onClick: () => {
+        onDelete()
+        onClose()
+      }
     }
   ]
   
@@ -160,7 +154,7 @@ export default function TaskActionMenu({
         left: `${adjustedPosition.x}px`,
       }}
     >
-      {/* 主菜单项 */}
+      {/* 菜单项 */}
       {menuItems.map((item, index) => (
         <button
           key={index}
@@ -179,26 +173,6 @@ export default function TaskActionMenu({
               {item.badge}
             </span>
           )}
-        </button>
-      ))}
-      
-      {/* 分隔线 */}
-      <div className="my-1 border-t border-gray-200"></div>
-      
-      {/* 禁用的菜单项 */}
-      {disabledMenuItems.map((item, index) => (
-        <button
-          key={index}
-          onClick={item.onClick}
-          disabled={item.disabled}
-          className={`w-full px-3 py-2.5 flex items-center gap-3 text-sm transition-colors text-left ${
-            item.disabled
-              ? 'text-gray-400 cursor-not-allowed'
-              : 'text-gray-700 hover:bg-gray-50'
-          }`}
-        >
-          <span className="text-base">{item.icon}</span>
-          <span className="flex-1">{item.label}</span>
         </button>
       ))}
     </div>

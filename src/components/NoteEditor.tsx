@@ -1219,6 +1219,64 @@ export default function NoteEditor({
     }
   }, [editor, currentTaskElement, onDecompose])
 
+  // 🗑️ 删除任务（从任务操作菜单调用）
+  const handleDeleteTask = useCallback(() => {
+    if (!editor || !currentTaskElement) return
+    
+    try {
+      // 找到任务在编辑器中的位置
+      const pos = editor.view.posAtDOM(currentTaskElement, 0)
+      const resolvedPos = editor.state.doc.resolve(pos)
+      const taskNode = resolvedPos.parent
+      
+      if (taskNode && taskNode.type.name === 'taskItem') {
+        // 提取任务标题用于确认
+        let taskTitle = ''
+        taskNode.forEach((child) => {
+          if (child.type.name === 'paragraph') {
+            child.forEach((textNode) => {
+              if (textNode.type.name === 'text') {
+                taskTitle += textNode.text || ''
+              }
+            })
+          }
+        })
+        
+        // 清理任务标题
+        taskTitle = taskTitle
+          .replace(/#[\w\u4e00-\u9fa5]+/g, '')
+          .replace(/📅.*$/g, '')
+          .trim()
+        
+        // 确认删除
+        if (!confirm(`确定要删除任务「${taskTitle}」吗？`)) {
+          return
+        }
+        
+        // 找到 taskItem 的起始位置和结束位置
+        const taskItemPos = resolvedPos.before(resolvedPos.depth)
+        const taskItemEndPos = taskItemPos + taskNode.nodeSize
+        
+        // 删除任务节点
+        editor
+          .chain()
+          .focus()
+          .command(({ tr }) => {
+            tr.delete(taskItemPos, taskItemEndPos)
+            return true
+          })
+          .run()
+        
+        console.log('🗑️ 任务已删除:', taskTitle)
+      }
+    } catch (error) {
+      console.error('❌ 删除任务失败:', error)
+    }
+    
+    // 关闭菜单
+    setShowTaskActionMenu(false)
+  }, [editor, currentTaskElement])
+
   // 设置日期时间
   const handleSetDateTime = useCallback((value: DateTimeSetting) => {
     if (!editor || !currentTaskElement) return
@@ -1819,6 +1877,7 @@ export default function NoteEditor({
           onOpenDateTimePicker={handleOpenDateTimePicker}
           onOpenDurationPicker={handleOpenDurationPicker}
           onDecompose={handleDecomposeTask}
+          onDelete={handleDeleteTask}
           onClose={() => setShowTaskActionMenu(false)}
         />
       )}

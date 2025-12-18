@@ -113,12 +113,20 @@ export function parseTasksFromNote(noteContent: string | any): ParsedTask[] {
 
 /**
  * 从节点中提取纯文本
- * 注意：跳过嵌套的 taskList 和 contextInfo，避免把子任务和上下文信息的文本合并到父任务标题中
+ * 注意：跳过嵌套的 taskList、contextInfo 和带 taskTag mark 的文本，
+ * 避免把子任务、上下文信息和标签的文本合并到父任务标题中
  */
 function extractTextFromNode(node: any): string {
   let text = ''
 
   if (node.type === 'text') {
+    // 🔧 跳过带有 taskTag mark 的文本（标签）
+    if (node.marks && Array.isArray(node.marks)) {
+      const hasTaskTag = node.marks.some((mark: any) => mark.type === 'taskTag')
+      if (hasTaskTag) {
+        return ''
+      }
+    }
     return node.text || ''
   }
 
@@ -151,8 +159,14 @@ export function sanitizeTaskTitle(rawTitle: string): string {
 
   let cleaned = rawTitle
 
-  // 移除从📅开始的时间信息
+  // 移除从📅开始的时间信息（截止时间）
   cleaned = cleaned.replace(/\s*📅.*$/, '')
+
+  // 移除从⏳开始的时长信息
+  cleaned = cleaned.replace(/\s*⏳\s*\d+[mh分时]?\s*/gi, '')
+
+  // 移除从⌛开始的时长信息（备用格式）
+  cleaned = cleaned.replace(/\s*⌛\s*\d+[mh分时]?\s*/gi, '')
 
   // 移除 #标签 或 @tag 之类的标记
   cleaned = cleaned.replace(/[#@][^\s#@]+/g, '')
