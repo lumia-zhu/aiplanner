@@ -174,7 +174,6 @@ export async function generateOverviewMessage(
       const parts = [`- ${t.title}`]
       if (parentIdsWithChildren.has(t.id)) parts.push(`(有子任务)`)
       if (t.estimatedDuration) parts.push(`(${t.estimatedDuration}分钟)`)
-      if (t.deadline) parts.push(`截止: ${t.deadline}`)
       return parts.join(' ')
     })
     .join('\n')
@@ -192,7 +191,6 @@ ${taskList}
 【任务扫描结果】（仅统计父类任务）
 - 未估时任务数量: ${unestimatedParentCount}
 - 工作负载: ${scanResult.workloadLevel === 'light' ? '轻松' : scanResult.workloadLevel === 'medium' ? '适中' : '较重'}
-- 有截止时间的任务: ${scanResult.deadlineConflicts.length > 0 ? scanResult.deadlineConflicts.join('、') : '无'}
 
 【你的任务】
 生成一段**简洁、启发性**的任务诊断，包含三个方面。语气轻松友好，不替用户做决策。
@@ -235,12 +233,8 @@ ${taskList}
 - 总字数≤50字
 
 **3. 🎯 优先级诊断**
-只陈述客观事实：
-- 哪些任务有DDL，哪些没有
-- 今天是否有多个DDL
-
 输出要求：
-- 陈述事实 + 启发性问题："「XX」今天截止，可以想想是不是要优先安排？"
+- 用一个**不带结论**的启发式提问，帮助用户决定先做哪一个（例如：收益/影响、阻力/可启动性、是否能带动后续）。
 - **绝对不要**重复任务数量（前面已经说过了）
 - **绝对不要**臆想依赖关系（如"A可能是B的前置"）
 - **绝对不要**替用户决策（如"建议先做XX"）
@@ -349,10 +343,8 @@ function generateFallbackOverview(
   
   // 优先级建议（只针对父类任务）
   lines.push('🎯 **优先级排列**')
-  if (scanResult.deadlineConflicts.length > 0) {
-    lines.push(`「${scanResult.deadlineConflicts[0]}」今天截止，可以想想是不是要优先安排？`)
-  } else if (topLevelTasks.length > 1) {
-    lines.push(`可以想想先做哪个任务？`)
+  if (topLevelTasks.length > 1) {
+    lines.push(`可以想想：先做哪个任务最“好启动”，又能带动后续？`)
   } else {
     lines.push(`今天任务不多，按自己的节奏来～`)
   }

@@ -4,6 +4,7 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
+import Paragraph from '@tiptap/extension-paragraph'
 import Placeholder from '@tiptap/extension-placeholder'
 import { useEffect, useCallback, useRef, useState } from 'react'
 import type { JSONContent } from '@tiptap/core'
@@ -18,6 +19,22 @@ import DateTimePicker from '@/components/DateTimePicker'
 import TaskDurationPicker from '@/components/TaskDurationPicker'
 import type { PresetTag } from '@/constants/tags'
 import type { DateTimeSetting } from '@/types/datetime'
+
+// ⭐ 让 paragraph 支持 data-datetime-display（必须写进文档 JSON，才能稳定被 CSS 命中）
+const DatetimeParagraph = Paragraph.extend({
+  addAttributes() {
+    return {
+      datetimeDisplay: {
+        default: null,
+        parseHTML: (element: HTMLElement) => element.getAttribute('data-datetime-display'),
+        renderHTML: (attributes: Record<string, unknown>) => {
+          if (!attributes.datetimeDisplay) return {}
+          return { 'data-datetime-display': String(attributes.datetimeDisplay) }
+        },
+      },
+    }
+  },
+})
 
 // ⭐ 自定义上下文信息节点
 const ContextInfo = Node.create({
@@ -306,11 +323,16 @@ export default function NoteEditor({
   // ⏳ 时长选择器状态
   const [showDurationPicker, setShowDurationPicker] = useState(false)
   const [durationPickerPosition, setDurationPickerPosition] = useState({ x: 0, y: 0 })
+
+  // 用于节流 DOM 同步：避免 editor update 时频繁全量遍历造成卡顿
+  const datetimeSyncScheduledRef = useRef(false)
   
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
       StarterKit.configure({
+        // 我们用自定义的 DatetimeParagraph 替代默认 paragraph（否则自定义属性会被 ProseMirror 清掉）
+        paragraph: false,
         heading: {
           levels: [1, 2, 3]
         },
@@ -323,6 +345,7 @@ export default function NoteEditor({
           keepAttributes: false,
         },
       }),
+      DatetimeParagraph,
       TaskList,
       DraggableTaskItem.configure({
         nested: true,
@@ -1276,186 +1299,140 @@ export default function NoteEditor({
     setShowTaskActionMenu(false)
   }, [editor, currentTaskElement])
 
+  /**
+   * 从当前点击的 DOM 节点定位到 ProseMirror 的 taskItem 节点位置
+   * 关键：posAtDOM 拿到的通常不是 taskItem 的起始位置，必须向上找祖先节点。
+   */
+  const getTaskItemPos = useCallback((): { pos: number; node: ProseMirrorNode } | null => {
+    if (!editor || !currentTaskElement) return null
+
+    try {
+      const domPos = editor.view.posAtDOM(currentTaskElement, 0)
+      const $pos = editor.state.doc.resolve(domPos)
+
+      for (let depth = $pos.depth; depth > 0; depth--) {
+        const node = $pos.node(depth)
+        if (node.type.name === 'taskItem') {
+          return { pos: $pos.before(depth), node }
+        }
+      }
+    } catch (e) {
+      console.warn('⚠️ 无法定位 taskItem 节点位置:', e)
+    }
+
+    return null
+  }, [editor, currentTaskElement])
+
   // 设置日期时间
   const handleSetDateTime = useCallback((value: DateTimeSetting) => {
     if (!editor || !currentTaskElement) return
-    
-    console.log('✅ 设置时间:', value)
-    
-    const pos = editor.view.posAtDOM(currentTaskElement, 0)
+
+    const taskInfo = getTaskItemPos()
+    if (!taskInfo) {
+      console.warn('⚠️ 设置时间失败：未找到 taskItem 节点')
+      return
+    }
+    const taskPos = taskInfo.pos
+    const taskNode = taskInfo.node
     
     if (value.mode === 'deadline') {
       // 截止时间模式
-      editor.chain()
+      const deadlineIso = value.time.toISOString()
+      const formatted = formatDateTime(value.time)
+
+      // ✅ 关键：同时把显示字符串写入 paragraph attrs（写进文档 JSON），避免仅写 DOM 被 ProseMirror 清掉
+      editor
+        .chain()
         .focus()
         .command(({ tr }: { tr: Transaction }) => {
-          const node = tr.doc.nodeAt(pos)
-          if (node && node.type.name === 'taskItem') {
-            tr.setNodeMarkup(pos, undefined, {
-              ...node.attrs,
-              datetimeMode: 'deadline',
-              deadlineTime: value.time.toISOString(),
-              intervalStart: null,
-              intervalEnd: null,
+          // 1) 写 taskItem attrs（用于解析/概览）
+          tr.setNodeMarkup(taskPos, undefined, {
+            ...taskNode.attrs,
+            datetimeMode: 'deadline',
+            deadlineTime: deadlineIso,
+            intervalStart: null,
+            intervalEnd: null,
+          })
+
+          // 2) 写 paragraph attrs（用于稳定显示）
+          const paraPos = taskPos + 1
+          const paraNode = tr.doc.nodeAt(paraPos)
+          if (paraNode?.type.name === 'paragraph') {
+            tr.setNodeMarkup(paraPos, undefined, {
+              ...paraNode.attrs,
+              datetimeDisplay: formatted,
             })
-            return true
           }
-          return false
+
+          return true
         })
         .run()
-      
-      // 更新显示 - 直接插入 DOM 元素
-      const formatted = formatDateTime(value.time)
+
+      // DOM attribute 只作为兜底（不插入节点，不修改可编辑文本）
       currentTaskElement.setAttribute('data-datetime-mode', 'deadline')
-      currentTaskElement.setAttribute('data-deadline-time', value.time.toISOString())
-      
-      console.log('🔍 调试信息:')
-      console.log('  - 格式化时间:', formatted)
-      console.log('  - 任务元素:', currentTaskElement)
-      
-      const contentDiv = currentTaskElement.querySelector(':scope > div') as HTMLElement | null
-      console.log('  - contentDiv:', contentDiv)
-      
-      if (contentDiv) {
-        // 清除旧的时间徽章
-        const oldBadge = contentDiv.querySelector('.task-datetime-badge')
-        if (oldBadge) {
-          console.log('  - 清除旧徽章')
-          oldBadge.remove()
-        }
-        
-        // 找到最后一个 p 标签，插入到其内部
-        const paragraphs = contentDiv.querySelectorAll('p')
-        const targetP = paragraphs.length > 0 ? (paragraphs[paragraphs.length - 1] as HTMLElement) : null
-        
-        if (targetP) {
-          // 创建新的时间徽章
-          const badge = document.createElement('span')
-          badge.className = 'task-datetime-badge'
-          badge.textContent = ` 📅 ${formatted}`
-          badge.contentEditable = 'false'  // 禁止编辑
-          badge.style.cssText = `
-            margin-left: 0.75rem;
-            font-size: 1rem;
-            font-weight: normal;
-            color: #1f2937;
-            white-space: nowrap;
-            user-select: none;
-            font-family: inherit;
-          `
-          
-          // 插入到 p 标签的末尾（和文本在同一行）
-          targetP.appendChild(badge)
-          
-          // 在徽章后面插入一个零宽空格，确保光标位置正确
-          const zeroWidthSpace = document.createTextNode('\u200B')
-          targetP.appendChild(zeroWidthSpace)
-          
-          console.log('  ✅ 时间徽章已插入到 p 标签内!')
-          console.log('  - 徽章内容:', badge.textContent)
-          console.log('  - 徽章在 DOM 中:', document.body.contains(badge))
-        } else {
-          console.log('  ⚠️ 找不到目标 p 标签')
-        }
-      }
+      currentTaskElement.setAttribute('data-deadline-time', deadlineIso)
     } else {
       // 时间间隔模式
-      editor.chain()
+      const startIso = value.startTime.toISOString()
+      const endIso = value.endTime.toISOString()
+      const formatted = formatTimeInterval(value.startTime, value.endTime)
+
+      editor
+        .chain()
         .focus()
         .command(({ tr }: { tr: Transaction }) => {
-          const node = tr.doc.nodeAt(pos)
-          if (node && node.type.name === 'taskItem') {
-            tr.setNodeMarkup(pos, undefined, {
-              ...node.attrs,
-              datetimeMode: 'interval',
-              deadlineTime: null,
-              intervalStart: value.startTime.toISOString(),
-              intervalEnd: value.endTime.toISOString(),
+          // 1) 写 taskItem attrs
+          tr.setNodeMarkup(taskPos, undefined, {
+            ...taskNode.attrs,
+            datetimeMode: 'interval',
+            deadlineTime: null,
+            intervalStart: startIso,
+            intervalEnd: endIso,
+          })
+
+          // 2) 写 paragraph attrs（用于稳定显示）
+          const paraPos = taskPos + 1
+          const paraNode = tr.doc.nodeAt(paraPos)
+          if (paraNode?.type.name === 'paragraph') {
+            tr.setNodeMarkup(paraPos, undefined, {
+              ...paraNode.attrs,
+              datetimeDisplay: formatted,
             })
-            return true
           }
-          return false
+
+          return true
         })
         .run()
       
-      // 更新显示 - 直接插入 DOM 元素
-      const formatted = formatTimeInterval(value.startTime, value.endTime)
+      // 更新显示：使用 data-datetime-display + CSS ::after（避免插入 DOM 节点引发 ProseMirror update 循环）
       currentTaskElement.setAttribute('data-datetime-mode', 'interval')
-      currentTaskElement.setAttribute('data-interval-start', value.startTime.toISOString())
-      currentTaskElement.setAttribute('data-interval-end', value.endTime.toISOString())
-      
-      console.log('🔍 调试信息 (时间间隔):')
-      console.log('  - 格式化时间:', formatted)
-      
-      const contentDiv = currentTaskElement.querySelector(':scope > div') as HTMLElement | null
-      if (contentDiv) {
-        // 清除旧的时间徽章
-        const oldBadge = contentDiv.querySelector('.task-datetime-badge')
-        if (oldBadge) {
-          console.log('  - 清除旧徽章')
-          oldBadge.remove()
-        }
-        
-        // 找到最后一个 p 标签，插入到其内部
-        const paragraphs = contentDiv.querySelectorAll('p')
-        const targetP = paragraphs.length > 0 ? (paragraphs[paragraphs.length - 1] as HTMLElement) : null
-        
-        if (targetP) {
-          // 创建新的时间徽章
-          const badge = document.createElement('span')
-          badge.className = 'task-datetime-badge'
-          badge.textContent = ` 📅 ${formatted}`
-          badge.contentEditable = 'false'  // 禁止编辑
-          badge.style.cssText = `
-            margin-left: 0.75rem;
-            font-size: 1rem;
-            font-weight: normal;
-            color: #1f2937;
-            white-space: nowrap;
-            user-select: none;
-            font-family: inherit;
-          `
-          
-          // 插入到 p 标签的末尾（和文本在同一行）
-          targetP.appendChild(badge)
-          
-          // 在徽章后面插入一个零宽空格，确保光标位置正确
-          const zeroWidthSpace = document.createTextNode('\u200B')
-          targetP.appendChild(zeroWidthSpace)
-          
-          console.log('  ✅ 时间徽章已插入到 p 标签内!')
-          console.log('  - 徽章内容:', badge.textContent)
-          console.log('  - 徽章在 DOM 中:', document.body.contains(badge))
-        } else {
-          console.log('  ⚠️ 找不到目标 p 标签')
-        }
-      }
+      currentTaskElement.setAttribute('data-interval-start', startIso)
+      currentTaskElement.setAttribute('data-interval-end', endIso)
     }
     
     setShowDateTimePicker(false)
-    console.log('✅ 时间设置完成')
-  }, [editor, currentTaskElement])
+  }, [editor, currentTaskElement, getTaskItemPos])
 
   // 处理时长设置
   const handleSetDuration = useCallback((duration: number) => {
     if (!editor || !currentTaskElement) return
-    
-    console.log('✅ 设置时长:', duration)
-    
-    const pos = editor.view.posAtDOM(currentTaskElement, 0)
+
+    const taskInfo = getTaskItemPos()
+    if (!taskInfo) {
+      console.warn('⚠️ 设置时长失败：未找到 taskItem 节点')
+      return
+    }
+    const taskPos = taskInfo.pos
+    const taskNode = taskInfo.node
     
     editor.chain()
       .focus()
       .command(({ tr }: { tr: Transaction }) => {
-        const node = tr.doc.nodeAt(pos)
-        if (node && node.type.name === 'taskItem') {
-          tr.setNodeMarkup(pos, undefined, {
-            ...node.attrs,
-            estimatedDuration: duration
-          })
-          return true
-        }
-        return false
+        tr.setNodeMarkup(taskPos, undefined, {
+          ...taskNode.attrs,
+          estimatedDuration: duration
+        })
+        return true
       })
       .run()
       
@@ -1498,7 +1475,7 @@ export default function NoteEditor({
     }
     
     setShowDurationPicker(false)
-  }, [editor, currentTaskElement])
+  }, [editor, currentTaskElement, getTaskItemPos])
   
   // 格式化单个时间
   function formatDateTime(date: Date): string {
@@ -1546,90 +1523,57 @@ export default function NoteEditor({
     return `${startStr} - ${endStr}`
   }
 
-  // 清理任务项中错误的时间徽章
+  // 同步所有任务项的时间显示（不插 DOM 节点，只写 data-datetime-display 给 CSS 渲染）
   useEffect(() => {
     if (!editor) return
 
-    const cleanUpBadges = () => {
-      const editorElement = editor.view.dom
-      
-      // 清理所有不应该有时间徽章的任务
-      const allTasks = editorElement.querySelectorAll('li[data-drag-handle]')
-      allTasks.forEach((task: Element) => {
-        const hasDatetime = task.hasAttribute('data-datetime-mode')
-        
-        if (!hasDatetime) {
-          // 这个任务不应该有时间，清除所有时间徽章
-          const badges = task.querySelectorAll('.task-datetime-badge')
-          badges.forEach((badge: Element) => badge.remove())
-        }
-      })
-    }
-
-    cleanUpBadges()
-    
-    const handler = () => cleanUpBadges()
-    editor.on('update', handler)
-
-    return () => {
-      editor.off('update', handler)
-    }
-  }, [editor])
-
-  // 同步所有任务项的时间显示 - 使用真实 DOM 元素
-  useEffect(() => {
-    console.log('⚡ useEffect 触发了，editor:', !!editor)
-    if (!editor) {
-      console.log('❌ editor 不存在，退出')
-      return
-    }
-
     const updateDateTimeDisplays = () => {
-      console.log('🔄 开始更新时间显示...')
       const editorElement = editor.view.dom
-      const taskItems = editorElement.querySelectorAll('li[data-datetime-mode]')
-      console.log('📋 找到任务数:', taskItems.length)
+      const taskItems = editorElement.querySelectorAll('li[data-drag-handle]')
 
-      taskItems.forEach((item: Element, index: number) => {
-        console.log(`\n处理任务 ${index + 1}:`)
+      taskItems.forEach((item: Element) => {
+        const contentDiv =
+          (item.querySelector(':scope > div') as HTMLElement | null) ||
+          (item.querySelector('div') as HTMLElement | null)
+
+        if (!contentDiv) return
+
+        // 清理历史遗留的 DOM 徽章（避免重复显示/触发 ProseMirror DOM observer 循环）
+        contentDiv.querySelectorAll('.task-datetime-badge').forEach(el => el.remove())
+
+        // 目标段落：CSS 使用 p[data-datetime-display]::after 显示
+        const paragraphs = contentDiv.querySelectorAll('p')
+        const targetP = paragraphs.length > 0 ? (paragraphs[0] as HTMLElement) : null
+        if (!targetP) return
+
+        // 如果任务没有时间模式，确保没有徽章
         const mode = item.getAttribute('data-datetime-mode')
-        console.log('  - 模式:', mode)
-        
-        const contentDiv = (item.querySelector(':scope > div') as HTMLElement | null) || (item.querySelector('div') as HTMLElement | null)
-        console.log('  - 找到 contentDiv:', !!contentDiv)
-        
-        if (!contentDiv) {
-          console.log('  ❌ 没有 contentDiv，跳过')
+        if (!mode) {
+          targetP.removeAttribute('data-datetime-display')
+          item.classList.remove('datetime-expired', 'datetime-active')
           return
-        }
-        
-        // 清除旧的时间显示元素
-        const oldBadge = contentDiv.querySelector('.task-datetime-badge')
-        if (oldBadge) {
-          console.log('  - 清除旧徽章')
-          oldBadge.remove()
         }
 
         let formatted = ''
-        let icon = ''
         let color = ''
         const now = Date.now()
 
         if (mode === 'deadline') {
           const iso = item.getAttribute('data-deadline-time')
           if (!iso) {
+            targetP.removeAttribute('data-datetime-display')
             item.classList.remove('datetime-expired', 'datetime-active')
             return
           }
 
           const deadline = new Date(iso)
           if (Number.isNaN(deadline.getTime())) {
+            targetP.removeAttribute('data-datetime-display')
             item.classList.remove('datetime-expired', 'datetime-active')
             return
           }
 
           formatted = formatDateTime(deadline)
-          icon = '📅'
           const isExpired = deadline.getTime() < now
           color = isExpired ? '#dc2626' : '#f59e0b'
           item.classList.toggle('datetime-expired', isExpired)
@@ -1639,6 +1583,7 @@ export default function NoteEditor({
           const endIso = item.getAttribute('data-interval-end')
 
           if (!startIso || !endIso) {
+            targetP.removeAttribute('data-datetime-display')
             item.classList.remove('datetime-expired', 'datetime-active')
             return
           }
@@ -1647,12 +1592,12 @@ export default function NoteEditor({
           const endDate = new Date(endIso)
 
           if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+            targetP.removeAttribute('data-datetime-display')
             item.classList.remove('datetime-expired', 'datetime-active')
             return
           }
 
           formatted = formatTimeInterval(startDate, endDate)
-          icon = '⏰'
 
           const nowTime = now
           const isExpired = endDate.getTime() < nowTime
@@ -1670,46 +1615,39 @@ export default function NoteEditor({
           item.classList.toggle('datetime-active', isActive)
         }
 
-        if (formatted) {
-          console.log('  ✅ 准备插入徽章:', `${icon} ${formatted}`)
-          
-          // 创建真实的 DOM 元素来显示时间
-          const badge = document.createElement('span')
-          badge.className = 'task-datetime-badge'
-          badge.textContent = ` ${icon} ${formatted}`
-          badge.style.cssText = `
-            margin-left: 0.75rem;
-            font-size: 0.875rem;
-            font-weight: 500;
-            color: ${color};
-            white-space: nowrap;
-          `
-          
-          // 插入到 contentDiv 的末尾
-          contentDiv.appendChild(badge)
-          console.log('  ✅ 徽章已插入，当前 contentDiv 子元素数:', contentDiv.children.length)
-          console.log('  ✅ 徽章是否在 DOM 中:', document.body.contains(badge))
-        } else {
-          console.log('  ⚠️ 没有格式化的时间，跳过插入')
+        if (!formatted) {
+          targetP.removeAttribute('data-datetime-display')
+          return
         }
+
+        // 写入 data 属性，让 CSS ::after 渲染时间文本
+        if (targetP.getAttribute('data-datetime-display') !== formatted) {
+          targetP.setAttribute('data-datetime-display', formatted)
+        }
+
+        // 颜色交给 CSS（通过类），这里保留 color 变量不再写 style，避免 DOM 变化触发 observer
       })
     }
 
-    console.log('🚀 初始调用 updateDateTimeDisplays')
-    updateDateTimeDisplays()
-
-    const handler = () => {
-      console.log('📝 编辑器 update 事件触发')
-      updateDateTimeDisplays()
+    const scheduleUpdate = () => {
+      if (datetimeSyncScheduledRef.current) return
+      datetimeSyncScheduledRef.current = true
+      requestAnimationFrame(() => {
+        datetimeSyncScheduledRef.current = false
+        updateDateTimeDisplays()
+      })
     }
+
+    // 初始同步一次
+    scheduleUpdate()
+
+    const handler = () => scheduleUpdate()
     editor.on('update', handler)
-    console.log('✅ 已注册 update 事件监听')
 
     return () => {
-      console.log('🧹 清理 update 事件监听')
       editor.off('update', handler)
     }
-  }, [editor])
+  }, [editor, datetimeSyncScheduledRef])
 
   // 处理点击标签删除
   useEffect(() => {

@@ -537,13 +537,6 @@ body {
 /* 任务时间显示样式 */
 /* ============================================ */
 
-/* 测试：最简单的选择器 */
-p[data-datetime-display]::after {
-  content: ' 🔴测试' !important;
-  color: red !important;
-  font-size: 20px !important;
-}
-
 /* 截止时间显示 - 强制优先级 */
 .ProseMirror ul[data-type="taskList"] li[data-datetime-mode="deadline"] p[data-datetime-display]::after {
   content: ' 📅 ' attr(data-datetime-display) !important;

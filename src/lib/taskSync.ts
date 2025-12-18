@@ -68,12 +68,16 @@ export function parseTasksFromNote(noteContent: string | any): ParsedTask[] {
             ? Number(node.attrs.estimatedDuration) 
             : undefined
 
+          // 提取 deadlineTime
+          // Tiptap node attrs 中的字段名是 deadlineTime
+          const deadlineTime = node.attrs?.deadlineTime || undefined
+          
           const currentPosition = position.count
           tasks.push({
             title: taskText,
             completed: node.attrs?.checked || false,
             position: currentPosition,
-            deadlineDatetime: undefined, // TODO: 从文本中提取 @时间 标记
+            deadlineDatetime: deadlineTime,  // ⭐ 从 node.attrs 提取截止时间
             estimatedDuration: duration,  // ⭐ 提取时长
             depth: depth,  // ⭐ 记录任务层级
             parentPosition: depth > 0 ? parentPosition : undefined,  // 🆕 记录父任务位置
