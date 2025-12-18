@@ -48,6 +48,11 @@ const ROUND_CONFIG: Record<ReflectionRoundType, {
     description: '让我们先看看这些任务是否足够清晰～',
     emoji: '🟦'
   },
+  decomposition: {
+    title: '任务拆解',
+    description: '看看有没有需要拆解的大任务～',
+    emoji: '✂️'
+  },
   time: {
     title: '时间规划',
     description: '接下来想想时间安排～',
@@ -82,6 +87,23 @@ const FALLBACK_QUESTIONS: Record<ReflectionRoundType, ReflectionQuestion[]> = {
       id: 'clarity-fallback-3',
       text: '预期的完成标准是什么？怎样算修改完成？',
       hint: '确定任务的完成条件'
+    }
+  ],
+  decomposition: [
+    {
+      id: 'decomposition-fallback-1',
+      text: '这个任务可以分成哪几个独立的小步骤？',
+      hint: '识别可独立完成的子任务'
+    },
+    {
+      id: 'decomposition-fallback-2',
+      text: '如果只做5分钟，你会从哪一步开始？',
+      hint: '找到最小启动单元'
+    },
+    {
+      id: 'decomposition-fallback-3',
+      text: '这些步骤需要按顺序做，还是可以任选一个开始？',
+      hint: '理清任务依赖关系'
     }
   ],
   time: [
@@ -153,7 +175,6 @@ export async function generateOverviewMessage(
 ${taskList}
 
 【任务扫描结果】
-- 模糊任务数量: ${scanResult.vagueTaskCount}
 - 未估时任务数量: ${scanResult.unestimatedTaskCount}
 - 工作负载: ${scanResult.workloadLevel === 'light' ? '轻松' : scanResult.workloadLevel === 'medium' ? '适中' : '较重'}
 - 有截止时间的任务: ${scanResult.deadlineConflicts.length > 0 ? scanResult.deadlineConflicts.join('、') : '无'}
@@ -161,18 +182,29 @@ ${taskList}
 【你的任务】
 生成一段**简洁、启发性**的任务诊断，包含三个方面。语气轻松友好，不替用户做决策。
 
-**1. 📝 任务澄清诊断**（阈值要高，只提示真正模糊的）
-只有同时满足以下至少2项，才标记为"需要澄清"：
-- 标题≤3字 或 仅包含"学习""准备""整理""处理"等单独动词
-- 无DDL
-- 无时间估计
-- 标题不含具体对象（如"学习"而非"学习Python"）
+**1. 📝 任务澄清诊断**（智能判断，关注"可执行性"）
+
+判断标准——一个任务是否"清晰可执行"，需要满足：
+1. **目标明确**：能一眼看出要做什么，不是模糊的动词（如"学习""整理""处理"）
+2. **范围可控**：能在一次工作时段内完成，不是需要拆解的大任务
+3. **有具体对象**：说明了要操作的具体内容（如"学习Python第3章"而非"学习"）
+
+**哪些任务需要澄清？**
+- ❌ 纯动词：「学习」「整理」「准备」「处理」
+- ❌ 笼统范围：「完善XXX」「准备XXX」（没说清楚要完善/准备什么方面）
+- ❌ 大任务：「写论文」「做项目」（需要拆解）
+- ✅ 清晰任务：「计算机网络20年考试卷」「和导师Meeting」「锻炼30分钟」
+
+**有子任务的任务可以不需要澄清**（因为已经被拆解了）
 
 输出要求：
-- 只陈述事实，用建议式语气："「XX」可以考虑具体化一下～"
-- 如果大部分清晰，就说"任务信息都挺完整的"
-- **绝对不要**批评用户（如"还没有设置截止时间"）
-- 总字数≤40字
+- 如果有需要澄清的任务：简要说明哪些任务可以更具体，并**用"如..."简短提示可以从什么角度补充**
+  示例：「完善开发原型」可以更具体～如明确要完善哪些功能
+  示例：「学习」「准备材料」可以更具体～如明确学什么、准备什么
+- 如果有子任务的任务和简单任务：可以点明"「XXX」有子任务，其他可考虑更具体～"
+- 如果大部分清晰：就说"任务信息都挺完整的～"
+- **绝对不要**批评用户
+- 总字数≤50字
 
 **2. ⏱️ 时间规划诊断**
 只标记明显复杂/耗时的任务：
@@ -247,13 +279,44 @@ function generateFallbackOverview(
 ): string {
   const lines: string[] = []
   
-  lines.push(`📋 今天有 ${tasks.length} 个任务！`)
+  // 只统计父任务数量（有子任务的任务标记为父任务）
+  const parentTaskCount = tasks.length
+  lines.push(`📋 今天有 ${parentTaskCount} 个任务！`)
   lines.push('')
   
-  // 任务澄清建议
+  // 任务澄清建议 - 更智能的判断
   lines.push('📝 **任务澄清**')
-  if (scanResult.vagueTaskCount > 0) {
-    lines.push(`有 ${scanResult.vagueTaskCount} 个任务可以考虑具体化一下～`)
+  
+  // 只检查顶层任务（depth = 0 或 undefined）
+  const topLevelTasks = tasks.filter(t => (t.depth ?? 0) === 0)
+  
+  // 找出可能需要澄清的任务（简单规则）
+  const vaguePatterns = [
+    /^(学习|复习|准备|整理|处理|完成|做|写|弄|搞)$/,  // 纯动词
+    /^(完善|优化|改进|更新).{2,6}$/,  // 笼统的"完善XXX"
+  ]
+  
+  // 检查是否有任务有子任务（通过检查是否有 depth > 0 的任务）
+  const hasChildTasks = tasks.some(t => (t.depth ?? 0) > 0)
+  const tasksWithChildren = hasChildTasks ? topLevelTasks.filter(parent => 
+    tasks.some(child => child.parent_task_id === parent.id)
+  ) : []
+  
+  const vagueTasks = topLevelTasks.filter(t => {
+    const title = t.title.trim()
+    // 有子任务的不算模糊
+    if (tasksWithChildren.some(p => p.id === t.id)) return false
+    // 匹配模糊模式
+    return vaguePatterns.some(p => p.test(title)) || title.length <= 2
+  })
+  
+  if (vagueTasks.length > 0) {
+    const vagueNames = vagueTasks.slice(0, 2).map(t => `「${t.title}」`).join('')
+    lines.push(`${vagueNames}可以更具体～如明确具体内容`)
+  } else if (tasksWithChildren.length > 0 && topLevelTasks.length > tasksWithChildren.length) {
+    // 有些任务有子任务，其他任务可能需要更具体
+    const taskWithChildNames = tasksWithChildren.slice(0, 2).map(t => `「${t.title}」`).join('')
+    lines.push(`${taskWithChildNames}有子任务，其他可考虑更具体～`)
   } else {
     lines.push(`任务信息都挺完整的～`)
   }
@@ -836,7 +899,6 @@ export async function generateTimeQuestions(tasks: TaskSnapshot[]): Promise<stri
 任务名称：${task.title}
 ${task.estimatedDuration ? `已估时长：${task.estimatedDuration}分钟` : '未估时'}
 ${task.deadline ? `截止时间：${task.deadline}` : '无截止时间'}
-${task.tags && task.tags.length > 0 ? `标签：${task.tags.join('、')}` : ''}
 `.trim()
 
     const systemPrompt = `你是一位擅长时间管理的智能助手。你的目标是：通过 1-3 个精准的开放式问题，帮助用户**校准时间估计**、**识别隐形依赖**、**预留缓冲**。
