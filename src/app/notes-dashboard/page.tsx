@@ -148,7 +148,6 @@ export default function NotesDashboardPage() {
   
   // 处理日历月份切换（用户点击左右箭头浏览不同月份）
   const handleCalendarViewDateChange = useCallback((newDate: Date) => {
-    console.log('📅 用户切换日历月份:', `${newDate.getFullYear()}-${newDate.getMonth() + 1}`)
     setCalendarViewDate(newDate)
   }, [])
   
@@ -183,7 +182,6 @@ export default function NotesDashboardPage() {
   // ⭐ Agent 相关状态
   const [agentInstance, setAgentInstance] = useState<ReactAgent | null>(null)
   const [agentMemory] = useState(() => {
-    console.log('📝 创建 AgentMemory 实例')
     return new AgentMemory()
   })
   const [agentResumeContext, setAgentResumeContext] = useState<any | null>(null)
@@ -247,7 +245,6 @@ export default function NotesDashboardPage() {
   
   // ⭐ 处理上下文信息添加成功
   const handleContextInfoAdded = useCallback((taskTitle: string, contextContent: string, contextId: string) => {
-    console.log('📝 收到上下文信息添加通知:', { taskTitle, contextContent, contextId })
     
     if (!taskTitle || !contextContent) {
       console.warn('⚠️ 任务标题或内容为空，跳过插入')
@@ -278,7 +275,6 @@ export default function NotesDashboardPage() {
       return
     }
     
-    console.log('🔍 开始查找任务:', taskTitle)
     
     const doc = editor.state.doc
     let inserted = false
@@ -304,7 +300,6 @@ export default function NotesDashboardPage() {
         
         // 使用包含匹配：任务标题可能包含额外字符（如标签）
         if (taskText === taskTitle.trim() || taskText.startsWith(taskTitle.trim())) {
-          console.log('✅ 找到目标任务:', taskTitle, '实际文本:', taskText, '在位置', pos)
           
           // 🔧 找到最佳插入位置：在已有上下文信息之后，或在第一个paragraph之后
           let insertPos = pos + 1  // 进入taskItem内部
@@ -321,17 +316,14 @@ export default function NotesDashboardPage() {
             if (childNode.type.name === 'contextInfo') {
               // 记录最后一个contextInfo之后的位置
               lastContextInfoEndPos = pos + 1 + childPos + childNode.nodeSize
-              console.log('📍 发现已有上下文信息，位置:', lastContextInfoEndPos)
             }
           })
           
           // 如果有已存在的上下文信息，在其后插入（保持上下文信息连续）
           if (lastContextInfoEndPos > 0) {
             insertPos = lastContextInfoEndPos
-            console.log('📍 使用已有上下文信息后的位置:', insertPos)
           }
           
-          console.log('📍 插入位置:', insertPos)
           
           // 创建上下文信息节点，包含 contextId 和 taskTitle 属性
           const contextNode = {
@@ -348,12 +340,10 @@ export default function NotesDashboardPage() {
             ]
           }
           
-          console.log('📝 准备插入节点:', contextNode)
           
           // 插入节点
           try {
             const result = editor.chain().focus().insertContentAt(insertPos, contextNode).run()
-            console.log('✅ 插入结果:', result)
             inserted = true
           } catch (error) {
             console.error('❌ 插入失败:', error)
