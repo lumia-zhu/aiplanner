@@ -269,7 +269,7 @@ export async function syncTasksFromNote(
       existingTaskMap.set(task.notePosition, task)
     }
 
-    // 4. 同步任务
+    // 4. 同步任务（分两轮：先父任务，再子任务）
     const processedPositions = new Set<number>()
     
     // 🆕 position → taskId 映射（用于建立父子关系）
@@ -280,15 +280,13 @@ export async function syncTasksFromNote(
       positionToTaskId.set(task.notePosition, task.id)
     }
 
-    for (const parsedTask of parsedTasks) {
+    // 🆕 第一轮：处理父任务（depth = 0）和更新已有任务
+    for (const parsedTask of parsedTasks.filter(t => (t.depth ?? 0) === 0)) {
       processedPositions.add(parsedTask.position)
       const existingTask = existingTaskMap.get(parsedTask.position)
       
-      // 🆕 查找父任务ID
-      let parentTaskId: string | null = null
-      if (parsedTask.parentPosition !== undefined) {
-        parentTaskId = positionToTaskId.get(parsedTask.parentPosition) || null
-      }
+      // 父任务没有 parentTaskId
+      const parentTaskId: string | null = null
 
       if (existingTask) {
         // 任务已存在，检查是否需要更新
@@ -344,6 +342,75 @@ export async function syncTasksFromNote(
         } catch (error) {
           result.errors.push(`创建任务失败: ${parsedTask.title}`)
           console.error('❌ 创建任务失败:', error)
+        }
+      }
+    }
+
+    // 🆕 第二轮：处理子任务（depth > 0）
+    for (const parsedTask of parsedTasks.filter(t => (t.depth ?? 0) > 0)) {
+      processedPositions.add(parsedTask.position)
+      const existingTask = existingTaskMap.get(parsedTask.position)
+      
+      // 查找父任务ID
+      let parentTaskId: string | null = null
+      if (parsedTask.parentPosition !== undefined) {
+        parentTaskId = positionToTaskId.get(parsedTask.parentPosition) || null
+        if (!parentTaskId) {
+          console.warn(`⚠️ 子任务 "${parsedTask.title}" 的父任务(position=${parsedTask.parentPosition})不存在，跳过`)
+          continue
+        }
+      }
+
+      if (existingTask) {
+        // 任务已存在，检查是否需要更新
+        const taskDepth = parsedTask.depth ?? 0
+        const needsUpdate = 
+          existingTask.title !== parsedTask.title ||
+          existingTask.completed !== parsedTask.completed ||
+          existingTask.estimatedDuration !== parsedTask.estimatedDuration ||
+          (existingTask.depth ?? 0) !== taskDepth ||
+          existingTask.parentTaskId !== parentTaskId
+
+        if (needsUpdate) {
+          try {
+            await updateDailyTask(existingTask.id, {
+              title: parsedTask.title,
+              completed: parsedTask.completed,
+              estimatedDuration: parsedTask.estimatedDuration,
+              depth: taskDepth,
+              parentTaskId: parentTaskId,
+            })
+            result.updated++
+            console.log(`✅ 更新子任务: ${parsedTask.title} (depth=${taskDepth}, parentId=${parentTaskId})`)
+          } catch (error) {
+            result.errors.push(`更新子任务失败: ${parsedTask.title}`)
+            console.error('❌ 更新子任务失败:', error)
+          }
+        }
+        positionToTaskId.set(parsedTask.position, existingTask.id)
+      } else {
+        // 新子任务，创建
+        try {
+          const newTask = await createDailyTask(userId, {
+            title: parsedTask.title,
+            completed: parsedTask.completed,
+            date: noteDate,
+            noteDate: noteDate,
+            notePosition: parsedTask.position,
+            deadlineDatetime: parsedTask.deadlineDatetime,
+            estimatedDuration: parsedTask.estimatedDuration,
+            depth: parsedTask.depth ?? 0,
+            parentTaskId: parentTaskId,
+          })
+          
+          positionToTaskId.set(parsedTask.position, newTask.id)
+          await ensureTaskMatrix(userId, newTask.id)
+          
+          result.created++
+          console.log(`✅ 创建子任务: ${parsedTask.title} (depth=${parsedTask.depth}, parentId=${parentTaskId})`)
+        } catch (error) {
+          result.errors.push(`创建子任务失败: ${parsedTask.title}`)
+          console.error('❌ 创建子任务失败:', error)
         }
       }
     }
