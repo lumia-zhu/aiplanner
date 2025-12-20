@@ -219,17 +219,20 @@ ${taskList}
 - **绝对不要**批评用户
 - 总字数≤50字
 
-**2. ⏱️ 估算时间诊断**
-只标记明显复杂/耗时的任务：
+**2. ⏱️✂️ 拆分步骤与估算时间诊断**（合并诊断）
+重点关注明显复杂/耗时的任务：
 - 标题含：论文、报告、项目、开发、会议、准备XX
 - 标题>10字
 - 已估时>60分钟
+- 明显是大任务需要拆解的
 
 输出要求：
-- 多个任务可以合并说："「XX」和「YY」看起来比较复杂，可以考虑估算下时间？"
+- **优先建议拆分步骤**，拆分后顺带提醒估算时间
+  示例1：「XX」和「YY」看起来比较复杂，可以考虑拆分步骤并估算下时间？
+  示例2：「XX」可以拆分成几个小步骤～估算时间也会更准确
+- 如果任务都简单或已拆分/已估时：就说"拆分和估算看起来不错～"
 - **不要给原因**（容易变成臆测）
 - 用建议式语气："可以考虑..." "要不要..."
-- 如果任务都简单或已估时，就说"估算时间看起来不错～"
 - 总字数≤50字
 
 **3. 🎯 优先级诊断**
@@ -249,8 +252,8 @@ ${taskList}
 📝 **明确任务**
 [1句话，≤50字，只针对父类任务]
 
-⏱️ **估算时间**
-[1句话，≤50字，只针对父类任务]
+⏱️✂️ **拆分步骤与估算时间**
+[1句话，≤50字，只针对父类任务，优先提拆分建议]
 
 🎯 **安排优先级**
 [1句话，≤40字，只针对父类任务]
@@ -331,13 +334,29 @@ function generateFallbackOverview(
   }
   lines.push('')
   
-  // 估算时间建议（只针对父类任务）
-  lines.push('⏱️ **估算时间**')
-  const unestimatedParentCount = topLevelTasks.filter(t => !t.estimatedDuration).length
-  if (unestimatedParentCount > 0) {
-    lines.push(`有 ${unestimatedParentCount} 个任务可以考虑估算下时间？`)
+  // 拆分步骤与估算时间建议（只针对父类任务）
+  lines.push('⏱️✂️ **拆分步骤与估算时间**')
+  
+  // 找出可能需要拆分的复杂任务
+  const complexTasks = topLevelTasks.filter(t => {
+    const title = t.title.trim()
+    const hasNoChildren = !tasks.some(child => child.parent_task_id === t.id)
+    // 标题长 或 包含复杂关键词 且没有子任务
+    return hasNoChildren && (
+      title.length > 10 ||
+      /论文|报告|项目|开发|完善|准备/.test(title)
+    )
+  })
+  
+  const unestimatedCount = topLevelTasks.filter(t => !t.estimatedDuration).length
+  
+  if (complexTasks.length > 0) {
+    const complexNames = complexTasks.slice(0, 2).map(t => `「${t.title}」`).join('')
+    lines.push(`${complexNames}可以考虑拆分步骤～估算时间也会更准确`)
+  } else if (unestimatedCount > 0) {
+    lines.push(`有 ${unestimatedCount} 个任务可以考虑估算下时间？`)
   } else {
-    lines.push(`估算时间看起来不错～`)
+    lines.push(`拆分和估算看起来不错～`)
   }
   lines.push('')
   
