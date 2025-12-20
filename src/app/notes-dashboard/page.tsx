@@ -592,11 +592,10 @@ export default function NotesDashboardPage() {
       const textContent = message.content.filter((c: any) => c.type === 'text')
       if (textContent.length > 0) {
         await saveChatMessage(user.id, chatDate, message.role, textContent, chatDate)
-        logger.debug(`✅ ${messageType} 消息已保存到数据库`)
+        console.log(`✅ ${messageType} 消息已保存到数据库`)
       }
     } catch (error) {
-      logger.error(`保存 ${messageType} 消息失败:`, error)
-      // 保存失败不影响用户使用
+      console.error(`❌ 保存 ${messageType} 消息失败:`, error)
     }
   }, [user, currentContextDate])
 
@@ -2274,6 +2273,17 @@ export default function NotesDashboardPage() {
             if (hasOverview) return filtered
             return [...filtered, overviewMessage]
           })
+          
+          // ✅ 保存恢复的任务概览到数据库
+          if (user) {
+            const chatDate = format(selectedDate, 'yyyy-MM-dd')
+            const textContent = overviewMessage.content.filter((c: any) => c.type === 'text')
+            if (textContent.length > 0) {
+              saveChatMessage(user.id, chatDate, 'assistant', textContent, chatDate)
+                .then(() => console.log('✅ 恢复的概览消息已保存到数据库'))
+                .catch(err => console.error('❌ 保存恢复的概览消息失败:', err))
+            }
+          }
         } else {
           // 如果有正在进行的轮次，恢复到该轮次
           const round = existingSession.currentRound as ReflectionRoundType
@@ -2467,6 +2477,17 @@ export default function NotesDashboardPage() {
           })
           return [...filtered, overviewMessage]
         })
+        
+        // ✅ 保存降级的任务概览到数据库
+        if (user) {
+          const chatDate = format(selectedDate, 'yyyy-MM-dd')
+          const textContent = overviewMessage.content.filter((c: any) => c.type === 'text')
+          if (textContent.length > 0) {
+            saveChatMessage(user.id, chatDate, 'assistant', textContent, chatDate)
+              .then(() => console.log('✅ 降级概览消息已保存到数据库'))
+              .catch(err => console.error('❌ 保存降级概览消息失败:', err))
+          }
+        }
       }
       
       return session
@@ -2475,7 +2496,7 @@ export default function NotesDashboardPage() {
       console.error('❌ 启动反思会话失败:', error)
       return null
     }
-  }, [user, selectedDate, currentNote])
+  }, [user, selectedDate, currentNote, saveKeyMessageToDb])
   
   // ⭐ 开启每日回顾（从顶部按钮触发）
   const startDailyReflection = useCallback(async () => {
