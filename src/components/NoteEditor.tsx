@@ -298,7 +298,7 @@ export default function NoteEditor({
   editable = true,
   editorRef,
   autoSave = true,
-  autoSaveDelay = 1000
+  autoSaveDelay = 500  // ⚡ 减少到 500ms，让保存更及时
 }: NoteEditorProps) {
   
   const [showBubbleMenu, setShowBubbleMenu] = useState(false)
@@ -412,7 +412,24 @@ export default function NoteEditor({
         debouncedSave(content)
       }
     },
+    onBlur: ({ editor }) => {
+      // ⭐ 编辑器失焦时立即保存
+      if (autoSave && onSave) {
+        const content = editor.getJSON()
+        console.log('👁️ 编辑器失焦，立即保存')
+        onSave(content)
+      }
+    },
   })
+
+  // 立即保存函数（不防抖）
+  const immediateSave = useCallback(() => {
+    if (editor && onSave) {
+      const content = editor.getJSON()
+      console.log('💾 立即保存笔记内容')
+      onSave(content)
+    }
+  }, [editor, onSave])
 
   // 防抖保存函数
   const debouncedSave = useCallback(
@@ -421,6 +438,24 @@ export default function NoteEditor({
     }, autoSaveDelay),
     [onSave, autoSaveDelay]
   )
+
+  // ⭐ 页面卸载前强制保存
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (editor && onSave) {
+        const content = editor.getJSON()
+        console.log('🔄 页面卸载前保存')
+        onSave(content)
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      // 组件卸载时也保存
+      handleBeforeUnload()
+    }
+  }, [editor, onSave])
 
   // 🔧 修复：使用 ref 记录编辑器是否已初始化
   // 只在首次加载时设置内容，之后忽略外部 initialContent 变化

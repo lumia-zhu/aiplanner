@@ -951,8 +951,33 @@ export default function NotesDashboardPage() {
     }
   }, [lastLoadedRange])
 
-  // 初始化：检查登录状态
+  // 初始化：检查登录状态 + 版本检查
   useEffect(() => {
+    // ✅ 版本检查：清除旧版本的缓存数据
+    const APP_VERSION = '1.1.0' // 🔄 每次重大更新时修改这个版本号
+    const cachedVersion = localStorage.getItem('app_version')
+    
+    if (cachedVersion !== APP_VERSION) {
+      console.log(`🔄 检测到版本更新: ${cachedVersion || '未知'} → ${APP_VERSION}，清除旧缓存...`)
+      
+      // 保存当前登录用户信息
+      const currentUser = localStorage.getItem('user')
+      
+      // 清除所有 localStorage 数据
+      localStorage.clear()
+      
+      // 恢复用户登录信息
+      if (currentUser) {
+        localStorage.setItem('user', currentUser)
+      }
+      
+      // 保存新版本号
+      localStorage.setItem('app_version', APP_VERSION)
+      
+      console.log('✅ 缓存已清除，版本已更新')
+    }
+    
+    // 检查登录状态
     const userData = getUserFromStorage()
     if (!userData) {
       router.push('/auth/login')
