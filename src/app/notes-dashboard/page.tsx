@@ -74,7 +74,7 @@ import type { AgentContext } from '@/lib/agent/AgentTypes'
 // ⭐ 任务拆解imports
 import { generateContextQuestions } from '@/lib/contextQuestions'
 import { generateDynamicDecompositionQuestions } from '@/lib/decompositionAI'
-// ⭐ 每日反思imports
+// ⭐ 每日回顾imports
 import { 
   getTodayReflection, 
   createDailyReflection, 
@@ -218,9 +218,9 @@ export default function NotesDashboardPage() {
   const [decomposableTasks, setDecomposableTasks] = useState<TaskSnapshot[]>([])  // 可拆解的任务列表
   const [decompositionQueue, setDecompositionQueue] = useState<TaskSnapshot[]>([])  // 待拆解任务队列
   
-  // ⭐ 每日反思状态
-  const [isDailyReflectionMode, setIsDailyReflectionMode] = useState(false)  // 是否处于每日反思模式
-  const [currentReflectionId, setCurrentReflectionId] = useState<string | null>(null)  // 当前反思记录ID
+  // ⭐ 每日回顾状态
+  const [isDailyReflectionMode, setIsDailyReflectionMode] = useState(false)  // 是否处于每日回顾模式
+  const [currentReflectionId, setCurrentReflectionId] = useState<string | null>(null)  // 当前回顾记录ID
   const [dailyReflectionQuestions, setDailyReflectionQuestions] = useState<[string, string, string] | null>(null)  // 3个问题
   const [dailyReflectionAnswers, setDailyReflectionAnswers] = useState<(string | null)[]>([null, null, null])  // 3个回答
   const [currentDailyQuestionIndex, setCurrentDailyQuestionIndex] = useState(0)  // 当前问题索引（0-2）
@@ -228,7 +228,7 @@ export default function NotesDashboardPage() {
   // ⭐ 任务反思快捷按钮状态
   const [currentReflectionType, setCurrentReflectionType] = useState<'clarity' | 'decomposition' | 'time' | 'priority' | null>(null)  // 当前激活的反思类型
   
-  // ⭐ 历史反思状态
+  // ⭐ 历史回顾状态
   const [reflectionHistoryData, setReflectionHistoryData] = useState<any[]>([])  // 历史记录数据
   const [reflectionHistoryOffset, setReflectionHistoryOffset] = useState(0)  // 分页偏移
   const [reflectionHistoryHasMore, setReflectionHistoryHasMore] = useState(false)  // 是否有更多
@@ -1194,16 +1194,16 @@ export default function NotesDashboardPage() {
       // 🔄 后台异步同步任务到 daily_tasks 表（不阻塞UI）
       syncTasksFromNote(user.id, dateKey, savedNote.content)
         .then(async (syncResult) => {
-          console.log(`✅ 任务同步完成: 创建 ${syncResult.created}, 更新 ${syncResult.updated}, 删除 ${syncResult.deleted}`)
-          
+        console.log(`✅ 任务同步完成: 创建 ${syncResult.created}, 更新 ${syncResult.updated}, 删除 ${syncResult.deleted}`)
+        
           // 同步完成后，后台刷新任务矩阵
           if (syncResult.created > 0 || syncResult.updated > 0 || syncResult.deleted > 0) {
             loadTaskMatrix(user.id, selectedDate)
           }
         })
         .catch((syncError) => {
-          console.error('❌ 任务同步失败:', syncError)
-          // 任务同步失败不影响笔记保存，只记录错误
+        console.error('❌ 任务同步失败:', syncError)
+        // 任务同步失败不影响笔记保存，只记录错误
         })
       
     } catch (error) {
@@ -2453,15 +2453,15 @@ export default function NotesDashboardPage() {
     }
   }, [user, selectedDate, currentNote])
   
-  // ⭐ 开启每日反思（从顶部按钮触发）
+  // ⭐ 开启每日回顾（从顶部按钮触发）
   const startDailyReflection = useCallback(async () => {
     if (!user) return
     
     const today = new Date().toISOString().split('T')[0]
-    console.log('💭 开启每日反思:', { userId: user.id, date: today })
+    console.log('💭 开启每日回顾:', { userId: user.id, date: today })
     
     try {
-      // 1. 检查今天是否已有反思记录
+      // 1. 检查今天是否已有回顾记录
       const existingReflection = await getTodayReflection(user.id, today)
       
       if (existingReflection) {
@@ -2470,7 +2470,7 @@ export default function NotesDashboardPage() {
           const message: ChatMessage = {
             role: 'assistant' as const,
             content: [
-              { type: 'text' as const, text: '你今天已经完成了每日反思 ✅' },
+              { type: 'text' as const, text: '你今天已经完成了每日回顾 ✅' },
               {
                 type: 'interactive' as const,
                 interactive: {
@@ -2543,7 +2543,7 @@ export default function NotesDashboardPage() {
       
       const personalizedQuestions = await generatePersonalizedQuestions({
         tasks: todayTasks,
-        todayDailyReflection: null,  // 新创建，没有已有每日反思
+        todayDailyReflection: null,  // 新创建，没有已有每日回顾
         todayTaskReflection: todayTaskReflection  // 今天的任务反思会话
       })
       const selectedQuestions = selectThreeQuestions(personalizedQuestions)
@@ -2593,7 +2593,7 @@ export default function NotesDashboardPage() {
       setChatMessages(prev => prev.slice(0, -1).concat(welcomeMessage))
       
     } catch (error: any) {
-      console.error('❌ 开启每日反思失败:', error)
+      console.error('❌ 开启每日回顾失败:', error)
       
       const today = new Date().toISOString().split('T')[0]
       
@@ -2623,7 +2623,7 @@ export default function NotesDashboardPage() {
             setChatMessages(prev => prev.slice(0, -1).concat({
               role: 'assistant' as const,
               content: [
-                { type: 'text' as const, text: '你今天已经完成了每日反思 ✅' },
+                { type: 'text' as const, text: '你今天已经完成了每日回顾 ✅' },
                 {
                   type: 'interactive' as const,
                   interactive: {
@@ -2673,16 +2673,16 @@ export default function NotesDashboardPage() {
           const messages = isLoading ? prev.slice(0, -1) : prev
           return [...messages, {
             role: 'assistant' as const,
-            content: [{ type: 'text' as const, text: `❌ 开启反思失败: ${error.message}` }]
+            content: [{ type: 'text' as const, text: `❌ 开启回顾失败: ${error.message}` }]
           }]
         })
       }
     }
   }, [user])
   
-  // ⭐ 完成每日反思（生成AI总结）
+  // ⭐ 完成每日回顾（生成AI总结）
   const completeDailyReflection = useCallback(async () => {
-    console.log('🎉 完成每日反思，开始生成AI总结...')
+    console.log('🎉 完成每日回顾，开始生成AI总结...')
     
     if (!user) {
       console.error('❌ 用户未登录')
@@ -2697,12 +2697,12 @@ export default function NotesDashboardPage() {
       }
       setChatMessages(prev => [...prev, loadingMessage])
       
-      // 2. 始终从数据库获取今天的反思记录（确保使用正确的 ID）
+      // 2. 始终从数据库获取今天的回顾记录（确保使用正确的 ID）
       const today = new Date().toISOString().split('T')[0]
       const todayReflection = await getTodayReflection(user.id, today)
       
       if (!todayReflection) {
-        throw new Error('找不到今天的反思记录')
+        throw new Error('找不到今天的回顾记录')
       }
       
       const reflectionId = todayReflection.id
@@ -2756,7 +2756,7 @@ export default function NotesDashboardPage() {
       setDailyReflectionAnswers([null, null, null])
       setCurrentDailyQuestionIndex(0)
       
-      console.log('✅ 每日反思完成')
+      console.log('✅ 每日回顾完成')
       
     } catch (error: any) {
       console.error('❌ 完成反思失败:', error)
@@ -2772,7 +2772,7 @@ export default function NotesDashboardPage() {
     }
   }, [user])
   
-  // ⭐ 处理每日反思回答（优化版：批量提交，减少等待时间）
+  // ⭐ 处理每日回顾回答（优化版：批量提交，减少等待时间）
   const handleDailyReflectionAnswer = useCallback(async (data: any) => {
     console.log('💬 handleDailyReflectionAnswer 被调用:', { 
       data, 
@@ -2833,7 +2833,7 @@ export default function NotesDashboardPage() {
           const messages = [...prev]
           let foundIndex = -1
           
-          // 从后往前找最后一个每日反思问题卡片
+          // 从后往前找最后一个每日回顾问题卡片
           for (let i = messages.length - 1; i >= 0; i--) {
             const msg = messages[i]
             const hasReflectionQuestion = msg.content?.some((c: MessageContent) => 
@@ -2931,7 +2931,7 @@ export default function NotesDashboardPage() {
     }
   }, [currentReflectionId, dailyReflectionQuestions, completeDailyReflection])
   
-  // ⭐ 处理每日反思跳过（优化版：立即切换，减少等待）
+  // ⭐ 处理每日回顾跳过（优化版：立即切换，减少等待）
   const handleDailyReflectionSkip = useCallback(async (data: any) => {
     console.log('⏭️ handleDailyReflectionSkip 被调用:', { 
       data, 
@@ -2990,7 +2990,7 @@ export default function NotesDashboardPage() {
           const messages = [...prev]
           let foundIndex = -1
           
-          // 从后往前找最后一个每日反思问题卡片
+          // 从后往前找最后一个每日回顾问题卡片
           for (let i = messages.length - 1; i >= 0; i--) {
             const msg = messages[i]
             const hasReflectionQuestion = msg.content?.some((c: MessageContent) => 
@@ -3070,11 +3070,11 @@ export default function NotesDashboardPage() {
     }
   }, [currentReflectionId, dailyReflectionQuestions, completeDailyReflection])
   
-  // ⭐ 查看历史反思
+  // ⭐ 查看历史回顾
   const viewReflectionHistory = useCallback(async () => {
     if (!user) return
     
-    console.log('📚 查看历史反思')
+    console.log('📚 查看历史回顾')
     setIsLoadingHistory(true)
     
     try {
@@ -3111,7 +3111,7 @@ export default function NotesDashboardPage() {
       setChatMessages(prev => [...prev, historyMessage])
       
     } catch (error: any) {
-      console.error('❌ 查看历史反思失败:', error)
+      console.error('❌ 查看历史回顾失败:', error)
       const errorMessage: ChatMessage = {
         role: 'assistant' as const,
         content: [{ type: 'text' as const, text: `❌ 加载历史记录失败: ${error.message}` }]
@@ -3122,11 +3122,11 @@ export default function NotesDashboardPage() {
     }
   }, [user])
   
-  // ⭐ 加载更多历史反思
+  // ⭐ 加载更多历史回顾
   const loadMoreReflectionHistory = useCallback(async () => {
     if (!user || isLoadingHistory) return
     
-    console.log('📚 加载更多历史反思, offset:', reflectionHistoryOffset)
+    console.log('📚 加载更多历史回顾, offset:', reflectionHistoryOffset)
     setIsLoadingHistory(true)
     
     try {
@@ -3293,20 +3293,20 @@ export default function NotesDashboardPage() {
           }]
         }
         
-        const selectionMessage: ChatMessage = {
-          role: 'assistant' as const,
-          content: [
-            { 
-              type: 'interactive' as const, 
-              interactive: {
-                type: 'reflection-task-selection' as const,
+    const selectionMessage: ChatMessage = {
+      role: 'assistant' as const,
+      content: [
+        { 
+          type: 'interactive' as const, 
+          interactive: {
+            type: 'reflection-task-selection' as const,
                 data: { roundType: 'priority' },
-                isActive: true
-              }
-            }
-          ]
+            isActive: true
+          }
         }
-        
+      ]
+    }
+    
         setChatMessages(prev => [...prev, confirmMessage, guideMessage, selectionMessage])
       } else {
         // 不在矩阵模式：先显示矩阵建议
@@ -3772,7 +3772,7 @@ export default function NotesDashboardPage() {
   const handleDecomposeSuggestionButton = useCallback(async (buttonId: string, context: any) => {
     console.log('🔘 按钮点击:', buttonId, context)
     
-    // ⭐ 处理每日反思相关按钮
+    // ⭐ 处理每日回顾相关按钮
     if (buttonId === 'daily-reflection-answer') {
       await handleDailyReflectionAnswer(context)
       return
@@ -3807,17 +3807,17 @@ export default function NotesDashboardPage() {
       setChatMessages(prev => [...prev, loadingMessage])
       
       try {
-        // 从数据库获取反思记录（确保数据准确）
+        // 从数据库获取回顾记录（确保数据准确）
         const reflectionId = context.reflectionId
         const today = new Date().toISOString().split('T')[0]
         const existingReflection = await getTodayReflection(user.id, today)
         
         if (!existingReflection) {
-          console.error('❌ 找不到反思记录')
+          console.error('❌ 找不到回顾记录')
           // 移除加载消息，显示错误
           setChatMessages(prev => prev.slice(0, -1).concat({
             role: 'assistant' as const,
-            content: [{ type: 'text' as const, text: '❌ 找不到反思记录，请重新开始' }]
+            content: [{ type: 'text' as const, text: '❌ 找不到回顾记录，请重新开始' }]
           }))
           return
         }
@@ -3854,11 +3854,11 @@ export default function NotesDashboardPage() {
           }
           
           const nextQuestion: ChatMessage = {
-            role: 'assistant' as const,
-            content: [
-              { 
-                type: 'interactive' as const, 
-                interactive: {
+        role: 'assistant' as const,
+        content: [
+          { 
+            type: 'interactive' as const, 
+            interactive: {
                   type: 'daily-reflection-question',
                   data: {
                     question: questions[nextQuestionIndex],
@@ -3867,15 +3867,15 @@ export default function NotesDashboardPage() {
                     reflectionId: existingReflection.id,
                     allQuestions: questions
                   },
-                  isActive: true
-                }
-              }
-            ]
+              isActive: true
+            }
           }
+        ]
+      }
           
           setChatMessages(prev => prev.slice(0, -1).concat([confirmMessage, nextQuestion]))
           setIsDailyReflectionMode(true)
-        } else {
+    } else {
           // 已经回答完所有问题，直接生成总结
           setChatMessages(prev => prev.slice(0, -1).concat({
             role: 'assistant' as const,
@@ -3921,7 +3921,7 @@ export default function NotesDashboardPage() {
         if (currentReflectionId) {
           const { deleteReflection } = await import('@/lib/dailyReflections')
           await deleteReflection(currentReflectionId)
-          console.log('🗑️ 已删除旧的反思记录')
+          console.log('🗑️ 已删除旧的回顾记录')
         }
         
         // 重置状态
@@ -4034,7 +4034,7 @@ export default function NotesDashboardPage() {
       // 1. 添加结束消息
       const byeMessage: ChatMessage = {
         role: 'assistant' as const,
-        content: [{ type: 'text' as const, text: '✨ 今日反思已保存！期待明天与你再次相见 ~' }]
+        content: [{ type: 'text' as const, text: '✨ 今日回顾已保存！期待明天与你再次相见 ~' }]
       }
       setChatMessages(prev => [...prev, byeMessage])
       
@@ -4054,7 +4054,7 @@ export default function NotesDashboardPage() {
     }
     
     if (buttonId === 'daily-reflection-view-history') {
-      // 查看历史反思
+      // 查看历史回顾
       await viewReflectionHistory()
       return
     }
@@ -7086,8 +7086,8 @@ ${matrixStats || '（无待办）'}
   const handleTaskComplete = useCallback(async (taskId: string) => {
     if (!user) return
     
-    console.log('🔄 切换任务完成状态:', taskId)
-    
+      console.log('🔄 切换任务完成状态:', taskId)
+      
     // 1. 收集所有任务（扁平化），判断是否需要同时更新子任务
     let childTaskIds: string[] = []
     let clickedTask: any = null
@@ -7120,11 +7120,11 @@ ${matrixStats || '（无待办）'}
     // 🚀 2. 乐观更新：立即更新UI（不等待数据库）
     const newCompleted = !currentCompleted
     const allTaskIdsToUpdate = [taskId, ...childTaskIds]
-    setTasksByQuadrant(prev => {
-      const newState = { ...prev }
-      for (const quadrant in newState) {
-        const tasks = newState[quadrant as QuadrantType]
-        if (tasks) {
+      setTasksByQuadrant(prev => {
+        const newState = { ...prev }
+        for (const quadrant in newState) {
+          const tasks = newState[quadrant as QuadrantType]
+          if (tasks) {
           for (let i = 0; i < tasks.length; i++) {
             if (allTaskIdsToUpdate.includes(tasks[i].id)) {
               tasks[i] = { ...tasks[i], completed: newCompleted }
@@ -7132,8 +7132,8 @@ ${matrixStats || '（无待办）'}
           }
         }
       }
-      return newState
-    })
+        return newState
+      })
     console.log('✅ 矩阵UI已即时更新')
     
     // 3. 后台异步更新数据库（不阻塞UI）
@@ -7277,7 +7277,7 @@ ${matrixStats || '（无待办）'}
               newState[targetQuadrant].push(task)
             } else {
               // 其他任务保持原位
-              newState[quadrant as QuadrantType].push(task)
+                newState[quadrant as QuadrantType].push(task)
             }
           }
         }
@@ -7393,7 +7393,7 @@ ${matrixStats || '（无待办）'}
                   <span className="absolute top-1 right-1 w-2 h-2 bg-green-500 rounded-full border border-white"></span>
                 )}
               </button>
-              {/* 开启今日反思按钮 */}
+              {/* 开启今日回顾按钮 */}
               <button
                 onClick={async () => {
                   // 如果侧边栏未打开，先打开但不触发任务反思
@@ -7405,19 +7405,19 @@ ${matrixStats || '（无待办）'}
                     // 等待状态更新
                     await new Promise(resolve => setTimeout(resolve, 100))
                   }
-                  // 调用每日反思函数（而不是任务反思）
+                  // 调用每日回顾函数（而不是任务反思）
                   startDailyReflection()
                 }}
                 className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2 text-sm"
-                title="开启今日反思"
+                title="开启今日回顾"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                 </svg>
-                <span>开启今日反思</span>
+                <span>开启今日回顾</span>
               </button>
               
-              {/* 历史反思按钮 */}
+              {/* 历史回顾按钮 */}
               <button
                 onClick={async () => {
                   // 如果侧边栏未打开，先打开
@@ -7428,27 +7428,27 @@ ${matrixStats || '（无待办）'}
                     }
                     await new Promise(resolve => setTimeout(resolve, 100))
                   }
-                  // 调用查看历史反思函数
+                  // 调用查看历史回顾函数
                   viewReflectionHistory()
                 }}
                 className="bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600 transition-colors flex items-center gap-2 text-sm"
-                title="查看历史反思"
+                title="查看历史回顾"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <span>历史反思</span>
+                <span>历史回顾</span>
               </button>
               
               {/* 🧪 测试按钮（仅开发环境） */}
               {process.env.NODE_ENV === 'development' && (
                 <>
-                  {/* 清空每日反思 */}
+                  {/* 清空每日回顾 */}
                   <button
                     onClick={async () => {
                       if (!user) return
                       
-                      const confirm = window.confirm('确定要清空今天的反思记录和相关消息吗？')
+                      const confirm = window.confirm('确定要清空今天的回顾记录和相关消息吗？')
                       if (!confirm) return
                       
                       try {
@@ -7485,15 +7485,15 @@ ${matrixStats || '（无待办）'}
                           
                           if (reflection) {
                             await deleteReflection(reflection.id)
-                            console.log('✅ 已清空今日数据库反思记录')
+                            console.log('✅ 已清空今日数据库回顾记录')
                           } else {
-                            console.log('⚠️ 今天数据库中没有反思记录')
+                            console.log('⚠️ 今天数据库中没有回顾记录')
                           }
                         } catch (dbError: any) {
                           console.warn('⚠️ 数据库清空失败（但状态已重置）:', dbError.message)
                         }
                         
-                        alert('✅ 每日反思已重置')
+                        alert('✅ 每日回顾已重置')
                         
                       } catch (error: any) {
                         console.error('❌ 清空反思失败:', error)
@@ -7501,12 +7501,12 @@ ${matrixStats || '（无待办）'}
                       }
                     }}
                     className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors flex items-center gap-2 text-sm"
-                    title="清空今日反思（测试用）"
+                    title="清空今日回顾（测试用）"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                     </svg>
-                    <span>清空每日反思</span>
+                    <span>清空每日回顾</span>
                   </button>
                   
                   {/* 清空任务反思会话 */}
@@ -7514,7 +7514,7 @@ ${matrixStats || '（无待办）'}
                     onClick={async () => {
                       if (!user || !selectedDate) return
                       
-                      const confirm = window.confirm('确定要清空任务反思会话吗？这将删除今天的所有反思记录。')
+                      const confirm = window.confirm('确定要清空任务反思会话吗？这将删除今天的所有回顾记录。')
                       if (!confirm) return
                       
                       try {
@@ -7542,7 +7542,7 @@ ${matrixStats || '（无待办）'}
                           if (deleteSessionError) {
                             console.error('❌ 删除反思会话失败:', deleteSessionError)
                           } else {
-                            console.log('✅ 已删除今天的反思会话')
+                            console.log('✅ 已删除今天的回顾会话')
                           }
                           
                           // 3. 删除快照（可选，如果想彻底清除）
@@ -7819,15 +7819,15 @@ ${matrixStats || '（无待办）'}
                     </div>
                   </div>
                 ) : (
-                  <NoteEditor
+                <NoteEditor
                     key={formatNoteDate(selectedDate)}  // 🔧 切换日期时重新创建编辑器实例
-                    initialContent={currentNote ?? undefined}
-                    onUpdate={handleNoteUpdate}
-                    onSave={handleNoteSave}
-                    onDecompose={handleDecomposeFromNoteEditor}
-                    placeholder="开始记录... (按 ? 查看快捷键)"
+                  initialContent={currentNote ?? undefined}
+                  onUpdate={handleNoteUpdate}
+                  onSave={handleNoteSave}
+                  onDecompose={handleDecomposeFromNoteEditor}
+                  placeholder="开始记录... (按 ? 查看快捷键)"
                     editorRef={editorRef}
-                  />
+                />
                 )}
                     
                     {/* 便签容器（绝对定位在编辑器上方） */}

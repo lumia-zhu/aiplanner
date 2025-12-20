@@ -115,7 +115,7 @@ const DecompositionSelector: React.FC<DecompositionSelectorProps> = ({ tasks, on
   )
 }
 
-// ⭐ 每日反思 - 问题卡片组件
+// ⭐ 每日回顾 - 问题卡片组件
 interface DailyReflectionQuestionCardProps {
   question: string
   questionNumber: number
@@ -173,7 +173,7 @@ const DailyReflectionQuestionCard: React.FC<DailyReflectionQuestionCardProps> = 
       <div className="mt-3 p-4 bg-gray-100 rounded-lg border border-gray-200 opacity-70 min-h-[280px]">
         <div className="flex items-center justify-between mb-3">
           <div className="text-xs text-gray-500 font-medium">
-            ✅ 每日反思 · 问题 {questionNumber}/{totalQuestions}
+            ✅ 每日回顾 · 问题 {questionNumber}/{totalQuestions}
           </div>
           <div className="flex gap-1">
             {Array.from({ length: totalQuestions }).map((_, i) => (
@@ -199,7 +199,7 @@ const DailyReflectionQuestionCard: React.FC<DailyReflectionQuestionCardProps> = 
       {/* 进度指示器 */}
       <div className="flex items-center justify-between mb-3">
         <div className="text-xs text-blue-600 font-medium">
-          💭 每日反思 · 问题 {questionNumber}/{totalQuestions}
+          💭 每日回顾 · 问题 {questionNumber}/{totalQuestions}
         </div>
         <div className="flex gap-1">
           {Array.from({ length: totalQuestions }).map((_, i) => (
@@ -255,7 +255,7 @@ const DailyReflectionQuestionCard: React.FC<DailyReflectionQuestionCardProps> = 
   )
 }
 
-// ⭐ 每日反思 - 完成卡片组件
+// ⭐ 每日回顾 - 完成卡片组件
 interface DailyReflectionCompleteCardProps {
   summary: string
   onViewHistory?: () => void
@@ -271,7 +271,7 @@ const DailyReflectionCompleteCard: React.FC<DailyReflectionCompleteCardProps> = 
     <div className="mt-3 p-4 bg-green-50 rounded-lg border border-green-200">
       <div className="text-sm font-medium text-green-800 mb-2 flex items-center gap-2">
         <span className="text-2xl">🎉</span>
-        <span>今日反思已完成</span>
+        <span>今日回顾已完成</span>
       </div>
       
       {/* AI 总结 */}
@@ -289,7 +289,7 @@ const DailyReflectionCompleteCard: React.FC<DailyReflectionCompleteCardProps> = 
             onClick={onViewHistory}
             className="flex-1 px-4 py-2 text-sm font-medium text-green-700 hover:text-green-800 hover:bg-green-100 border border-green-300 rounded-lg transition-colors"
           >
-            查看历史反思
+            查看历史回顾
           </button>
         )}
         <button
@@ -303,7 +303,7 @@ const DailyReflectionCompleteCard: React.FC<DailyReflectionCompleteCardProps> = 
   )
 }
 
-// ⭐ 每日反思 - 已完成提示卡片
+// ⭐ 每日回顾 - 已完成提示卡片
 interface DailyReflectionAlreadyDoneCardProps {
   summary: string
   onViewHistory?: () => void
@@ -323,7 +323,7 @@ const DailyReflectionAlreadyDoneCard: React.FC<DailyReflectionAlreadyDoneCardPro
       </div>
       
       <div className="text-xs text-gray-600 mb-3">
-        你今天已经完成了每日反思，明天再来吧！
+        你今天已经完成了每日回顾，明天再来吧！
       </div>
       
       {/* 显示今天的总结 */}
@@ -343,7 +343,7 @@ const DailyReflectionAlreadyDoneCard: React.FC<DailyReflectionAlreadyDoneCardPro
             onClick={onViewHistory}
             className="flex-1 px-4 py-2 text-sm font-medium text-blue-700 hover:text-blue-800 hover:bg-blue-100 border border-blue-300 rounded-lg transition-colors"
           >
-            查看历史反思
+            查看历史回顾
           </button>
         )}
         <button
@@ -357,7 +357,7 @@ const DailyReflectionAlreadyDoneCard: React.FC<DailyReflectionAlreadyDoneCardPro
   )
 }
 
-// ⭐ 每日反思 - 恢复提示卡片
+// ⭐ 每日回顾 - 恢复提示卡片
 interface DailyReflectionResumeCardProps {
   questionNumber: number
   totalQuestions: number
@@ -379,7 +379,7 @@ const DailyReflectionResumeCard: React.FC<DailyReflectionResumeCardProps> = ({
       </div>
       
       <div className="text-xs text-gray-600 mb-3">
-        你还有未完成的每日反思（已回答 {questionNumber}/{totalQuestions} 个问题），是否继续？
+        你还有未完成的每日回顾（已回答 {questionNumber}/{totalQuestions} 个问题），是否继续？
       </div>
       
       {/* 按钮 */}
@@ -401,7 +401,7 @@ const DailyReflectionResumeCard: React.FC<DailyReflectionResumeCardProps> = ({
   )
 }
 
-// ⭐ 每日反思 - 历史记录卡片组件
+// ⭐ 每日回顾 - 历史记录卡片组件
 interface DailyReflectionHistoryCardProps {
   reflections: Array<{
     id: string
@@ -448,7 +448,7 @@ const DailyReflectionHistoryCard: React.FC<DailyReflectionHistoryCardProps> = ({
       <div className="flex items-center justify-between mb-4">
         <div className="text-sm font-medium text-purple-800 flex items-center gap-2">
           <span className="text-lg">📚</span>
-          <span>历史反思记录</span>
+          <span>历史回顾记录</span>
           <span className="text-xs text-purple-500">({reflections.length}条)</span>
         </div>
         <button
@@ -464,7 +464,7 @@ const DailyReflectionHistoryCard: React.FC<DailyReflectionHistoryCardProps> = ({
       {/* 反思列表 */}
       {reflections.length === 0 ? (
         <div className="text-center py-8 text-gray-500 text-sm">
-          暂无历史反思记录
+          暂无历史回顾记录
         </div>
       ) : (
         <div className="space-y-3 max-h-96 overflow-y-auto">
@@ -1126,7 +1126,7 @@ interface ChatSidebarProps {
   // ⭐ 底部快捷反思按钮
   currentReflectionType?: 'clarity' | 'decomposition' | 'time' | 'priority' | null  // 当前激活的反思类型
   onReflectionQuickStart?: (type: 'clarity' | 'decomposition' | 'time' | 'priority') => void  // 快捷启动反思
-  isDailyReflectionMode?: boolean  // 是否处于每日反思模式（用于隐藏底部按钮）
+  isDailyReflectionMode?: boolean  // 是否处于每日回顾模式（用于隐藏底部按钮）
   isReflectionLoading?: boolean  // ⭐ 反思操作是否正在加载
   loadingReflectionType?: 'clarity' | 'decomposition' | 'time' | 'priority' | null  // ⭐ 正在加载的反思类型
   
@@ -1242,7 +1242,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   // ⭐ 底部快捷反思按钮
   currentReflectionType,  // 当前激活的反思类型
   onReflectionQuickStart,  // 快捷启动反思
-  isDailyReflectionMode,  // 是否处于每日反思模式
+  isDailyReflectionMode,  // 是否处于每日回顾模式
   isReflectionLoading,  // ⭐ 反思操作是否正在加载
   loadingReflectionType,  // ⭐ 正在加载的反思类型
   // ⭐ 反思流程优化
@@ -1702,7 +1702,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                             />
                           )}
                           
-                          {/* ⭐ 每日反思 - 问题卡片 */}
+                          {/* ⭐ 每日回顾 - 问题卡片 */}
                           {content.interactive.type === 'daily-reflection-question' && content.interactive.data && (
                             <DailyReflectionQuestionCard
                               question={content.interactive.data.question}
@@ -1717,7 +1717,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                             />
                           )}
                           
-                          {/* ⭐ 每日反思 - 完成卡片 */}
+                          {/* ⭐ 每日回顾 - 完成卡片 */}
                           {content.interactive.type === 'daily-reflection-complete' && content.interactive.data && (
                             <DailyReflectionCompleteCard
                               summary={content.interactive.data.summary}
@@ -1726,7 +1726,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                             />
                           )}
                           
-                          {/* ⭐ 每日反思 - 已完成提示 */}
+                          {/* ⭐ 每日回顾 - 已完成提示 */}
                           {content.interactive.type === 'daily-reflection-already-done' && content.interactive.data && (
                             <DailyReflectionAlreadyDoneCard
                               summary={content.interactive.data.summary}
@@ -1735,7 +1735,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                             />
                           )}
                           
-                          {/* ⭐ 每日反思 - 恢复提示 */}
+                          {/* ⭐ 每日回顾 - 恢复提示 */}
                           {content.interactive.type === 'daily-reflection-resume' && content.interactive.data && (
                             <DailyReflectionResumeCard
                               questionNumber={content.interactive.data.questionNumber}
@@ -1745,7 +1745,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                             />
                           )}
                           
-                          {/* ⭐ 每日反思 - 历史记录 */}
+                          {/* ⭐ 每日回顾 - 历史记录 */}
                           {content.interactive.type === 'daily-reflection-history' && content.interactive.data && (
                             <DailyReflectionHistoryCard
                               reflections={content.interactive.data.reflections || []}
