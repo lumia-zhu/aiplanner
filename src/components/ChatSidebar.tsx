@@ -696,11 +696,11 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
           <div className="text-xs text-gray-600 space-y-1 bg-white/50 rounded p-2">
             <div className="flex items-start gap-1.5">
               <span className="text-green-600">•</span>
-              <span><span className="font-medium">已清晰的任务</span> → 建议直接拖入矩阵对应的象限</span>
+              <span><span className="font-medium">已经清晰的任务</span> → 建议直接拖入矩阵对应的象限</span>
             </div>
             <div className="flex items-start gap-1.5">
               <span className="text-orange-600">•</span>
-              <span><span className="font-medium">不清晰的任务</span> → 请在下面勾选，我会帮你思考优先级</span>
+              <span><span className="font-medium">还不清晰的任务</span> → 请在下面勾选，我会帮你思考优先级</span>
             </div>
             <div className="flex items-start gap-1.5 mt-1.5 pt-1.5 border-t border-gray-200">
               <span className="text-gray-500">💡</span>
