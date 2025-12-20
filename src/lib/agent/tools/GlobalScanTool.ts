@@ -141,16 +141,29 @@ export class GlobalScanTool implements AgentTool {
 
       // 4. 检查跨天任务（deadline 不是今天）
       if (task.deadline) {
-        const deadlineDate = task.deadline.split('T')[0]
-        if (deadlineDate !== today) {
-          crossDayTasks.push(task.title)
-        }
-        
-        // 5. 检查 deadline 冲突（deadline 已过或今天截止但优先级低）
-        if (deadlineDate < today) {
-          deadlineConflicts.push(`${task.title}（已过期）`)
-        } else if (deadlineDate === today && task.priority === 'low') {
-          deadlineConflicts.push(`${task.title}（今天截止但优先级低）`)
+        try {
+          // 确保 deadline 是字符串，并且包含有效的日期格式
+          const deadlineStr = String(task.deadline)
+          // 尝试提取日期部分（支持 ISO 格式和纯日期格式）
+          const deadlineDate = deadlineStr.includes('T') 
+            ? deadlineStr.split('T')[0] 
+            : deadlineStr.substring(0, 10)
+          
+          if (deadlineDate && deadlineDate.length >= 10) {
+            if (deadlineDate !== today) {
+              crossDayTasks.push(task.title)
+            }
+            
+            // 5. 检查 deadline 冲突（deadline 已过或今天截止但优先级低）
+            if (deadlineDate < today) {
+              deadlineConflicts.push(`${task.title}（已过期）`)
+            } else if (deadlineDate === today && task.priority === 'low') {
+              deadlineConflicts.push(`${task.title}（今天截止但优先级低）`)
+            }
+          }
+        } catch (e) {
+          // 如果解析 deadline 失败，跳过这个任务的 deadline 检查
+          console.warn(`⚠️ 解析任务 "${task.title}" 的 deadline 失败:`, task.deadline, e)
         }
       }
     }

@@ -2402,6 +2402,47 @@ export default function NotesDashboardPage() {
         })
         
         console.log('✅ 概述消息已显示，等待用户选择')
+      } else {
+        // 🆕 GlobalScan 失败时的降级处理
+        console.error('❌ GlobalScan 失败:', scanResult)
+        
+        // 使用空的扫描结果继续
+        const emptyScan: ScanResult = {
+          totalTaskCount: taskSnapshots.length,
+          vagueTaskCount: 0,
+          unestimatedTaskCount: 0,
+          noPriorityCount: 0,
+          workloadLevel: 'medium' as const,
+          crossDayTasks: [],
+          deadlineConflicts: []
+        }
+        
+        setReflectionScanResult(emptyScan)
+        setReflectionTasks(taskSnapshots)
+        
+        // 仍然生成概述消息
+        const overviewText = await generateOverviewMessage(taskSnapshots, emptyScan)
+        const overviewMessage: ChatMessage = {
+          role: 'assistant' as const,
+          content: [
+            { type: 'text' as const, text: overviewText },
+            { 
+              type: 'interactive' as const, 
+              interactive: {
+                type: 'reflection-overview' as const,
+                data: { taskCount: taskSnapshots.length },
+                isActive: true
+              }
+            }
+          ]
+        }
+        setChatMessages(prev => {
+          const filtered = prev.filter(m => {
+            const text = m.content?.[0]?.text || ''
+            return !text.includes('让我看看') && !text.includes('欢迎回来')
+          })
+          return [...filtered, overviewMessage]
+        })
       }
       
       return session
