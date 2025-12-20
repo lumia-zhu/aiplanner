@@ -44,7 +44,7 @@ const ROUND_CONFIG: Record<ReflectionRoundType, {
   emoji: string
 }> = {
   clarity: {
-    title: '任务澄清',
+    title: '明确任务',
     description: '让我们先看看这些任务是否足够清晰～',
     emoji: '🟦'
   },
@@ -54,7 +54,7 @@ const ROUND_CONFIG: Record<ReflectionRoundType, {
     emoji: '✂️'
   },
   time: {
-    title: '时间规划',
+    title: '估算时间',
     description: '接下来想想时间安排～',
     emoji: '🟩'
   },
@@ -195,7 +195,7 @@ ${taskList}
 【你的任务】
 生成一段**简洁、启发性**的任务诊断，包含三个方面。语气轻松友好，不替用户做决策。
 
-**1. 📝 任务澄清诊断**（智能判断，关注"可执行性"）
+**1. 📝 明确任务诊断**（智能判断，关注"可执行性"）
 
 判断标准——一个任务是否"清晰可执行"，需要满足：
 1. **目标明确**：能一眼看出要做什么，不是模糊的动词（如"学习""整理""处理"）
@@ -219,7 +219,7 @@ ${taskList}
 - **绝对不要**批评用户
 - 总字数≤50字
 
-**2. ⏱️ 时间规划诊断**
+**2. ⏱️ 估算时间诊断**
 只标记明显复杂/耗时的任务：
 - 标题含：论文、报告、项目、开发、会议、准备XX
 - 标题>10字
@@ -229,7 +229,7 @@ ${taskList}
 - 多个任务可以合并说："「XX」和「YY」看起来比较复杂，可以考虑估算下时间？"
 - **不要给原因**（容易变成臆测）
 - 用建议式语气："可以考虑..." "要不要..."
-- 如果任务都简单或已估时，就说"时间规划看起来不错～"
+- 如果任务都简单或已估时，就说"估算时间看起来不错～"
 - 总字数≤50字
 
 **3. 🎯 优先级诊断**
@@ -246,13 +246,13 @@ ${taskList}
 
 📋 今天有 ${parentTasks.length} 个任务！
 
-📝 **任务澄清**
+📝 **明确任务**
 [1句话，≤50字，只针对父类任务]
 
-⏱️ **时间规划**
+⏱️ **估算时间**
 [1句话，≤50字，只针对父类任务]
 
-🎯 **优先级排列**
+🎯 **安排优先级**
 [1句话，≤40字，只针对父类任务]
 
 【注意事项 - ADHD友好】
@@ -296,8 +296,8 @@ function generateFallbackOverview(
   lines.push(`📋 今天有 ${topLevelTasks.length} 个任务！`)
   lines.push('')
   
-  // 任务澄清建议 - 更智能的判断（只针对父类任务）
-  lines.push('📝 **任务澄清**')
+  // 明确任务建议 - 更智能的判断（只针对父类任务）
+  lines.push('📝 **明确任务**')
   
   // 找出可能需要澄清的任务（简单规则）
   const vaguePatterns = [
@@ -331,18 +331,18 @@ function generateFallbackOverview(
   }
   lines.push('')
   
-  // 时间规划建议（只针对父类任务）
-  lines.push('⏱️ **时间规划**')
+  // 估算时间建议（只针对父类任务）
+  lines.push('⏱️ **估算时间**')
   const unestimatedParentCount = topLevelTasks.filter(t => !t.estimatedDuration).length
   if (unestimatedParentCount > 0) {
     lines.push(`有 ${unestimatedParentCount} 个任务可以考虑估算下时间？`)
   } else {
-    lines.push(`时间规划看起来不错～`)
+    lines.push(`估算时间看起来不错～`)
   }
   lines.push('')
   
   // 优先级建议（只针对父类任务）
-  lines.push('🎯 **优先级排列**')
+  lines.push('🎯 **安排优先级**')
   if (topLevelTasks.length > 1) {
     lines.push(`可以想想：先做哪个任务最“好启动”，又能带动后续？`)
   } else {
@@ -657,7 +657,7 @@ ${previousContext}
       })
       .join('\n')
     
-    return `你是一个专业的元认知教练。在时间规划层面，你的目标是帮助用户**克服规划谬误（Planning Fallacy）**和**时间盲区（Time Blindness）**。
+    return `你是一个专业的元认知教练。在估算时间层面，你的目标是帮助用户**克服规划谬误（Planning Fallacy）**和**时间盲区（Time Blindness）**。
 
 【用户的主要任务】（只关注这些顶层任务，不要问子任务）
 ${topLevelTaskList}
@@ -887,7 +887,7 @@ ${previousQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
 // ==================== 时间规划问题生成 ====================
 
 /**
- * 为选定的任务生成时间规划反思问题（1-3个）
+ * 为选定的任务生成估算时间反思问题（1-3个）
  * 
  * 聚焦于帮助用户校准时间估计、识别隐形依赖、预留缓冲
  * 
@@ -913,7 +913,7 @@ ${task.deadline ? `截止时间：${task.deadline}` : '无截止时间'}
 
 ### 【核心分析框架】
 
-基于任务性质，从以下角度诊断时间规划的盲点：
+基于任务性质，从以下角度诊断估算时间的盲点：
 
 **1. 参考类预测（Reference Class）**
    - 用户过去做类似任务时，实际花费的时间是否比预想的长？
@@ -986,7 +986,7 @@ ${taskInfo}
     )
 
     if (!response.success || !response.message) {
-      console.error('❌ 生成时间规划问题失败:', response.error)
+      console.error('❌ 生成估算时间问题失败:', response.error)
       // 降级：返回通用问题
       return [
         `回想一下上次做类似「${task.title}」的时候，实际花费的时间是不是比预想的要长？`,
@@ -1014,11 +1014,11 @@ ${taskInfo}
       ]
     }
 
-    console.log(`✅ 生成了 ${questions.length} 个时间规划问题`)
+    console.log(`✅ 生成了 ${questions.length} 个估算时间问题`)
     return questions.slice(0, 3) // 最多返回3个
 
   } catch (error) {
-    console.error('❌ 生成时间规划问题失败:', error)
+    console.error('❌ 生成估算时间问题失败:', error)
     // 降级：返回通用问题
     const taskTitle = tasks[0]?.title || '这个任务'
     return [

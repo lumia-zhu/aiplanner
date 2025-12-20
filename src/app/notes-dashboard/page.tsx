@@ -225,7 +225,7 @@ export default function NotesDashboardPage() {
   const [dailyReflectionAnswers, setDailyReflectionAnswers] = useState<(string | null)[]>([null, null, null])  // 3个回答
   const [currentDailyQuestionIndex, setCurrentDailyQuestionIndex] = useState(0)  // 当前问题索引（0-2）
   
-  // ⭐ 任务反思快捷按钮状态
+  // ⭐ 任务规划快捷按钮状态
   const [currentReflectionType, setCurrentReflectionType] = useState<'clarity' | 'decomposition' | 'time' | 'priority' | null>(null)  // 当前激活的反思类型
   
   // ⭐ 历史回顾状态
@@ -1679,7 +1679,7 @@ export default function NotesDashboardPage() {
 
 • **返回选择其他任务进行拆解**
 
-• **点击底部任务反思按钮进行其他类型反思**`
+• **点击底部任务规划按钮进行其他类型规划**`
           },
           {
             type: 'interactive' as const,
@@ -2289,11 +2289,11 @@ export default function NotesDashboardPage() {
           role: 'assistant' as const,
           content: [{ 
             type: 'text' as const, 
-            text: `**欢迎回来！你今天已经完成过任务反思了** 🌟\n\n**之前的总结：**\n${completedSession.finalSummary}\n\n**执行建议：**\n${completedSession.executionSuggestions}\n\n如果你想重新开始一轮新的反思，可以点击下方的按钮👇`
+            text: `**欢迎回来！你今天已经完成过任务规划了** 🌟\n\n**之前的总结：**\n${completedSession.finalSummary}\n\n**执行建议：**\n${completedSession.executionSuggestions}\n\n如果你想重新开始一轮新的反思，可以点击下方的按钮👇`
           }]
         }
         setChatMessages(prev => {
-          const hasSummary = prev.some(m => m.content?.[0]?.text?.includes('欢迎回来！你今天已经完成过任务反思了'))
+          const hasSummary = prev.some(m => m.content?.[0]?.text?.includes('欢迎回来！你今天已经完成过任务规划了'))
           if (hasSummary) return prev
           return [...prev, summaryMessage]
         })
@@ -2537,14 +2537,14 @@ export default function NotesDashboardPage() {
       const todayTasks = await getDailyTasksByNoteDate(user.id, today)
       console.log(`📋 今日任务数: ${todayTasks.length}`)
       
-      // 获取今天的任务反思会话（澄清、拆解、时间规划、优先级）
+      // 获取今天的任务规划会话（澄清、拆解、时间规划、优先级）
       const todayTaskReflection = await getCompletedReflectionSession(user.id, today)
-      console.log(`📝 今日任务反思: ${todayTaskReflection ? '有' : '无'}`)
+      console.log(`📝 今日任务规划: ${todayTaskReflection ? '有' : '无'}`)
       
       const personalizedQuestions = await generatePersonalizedQuestions({
         tasks: todayTasks,
         todayDailyReflection: null,  // 新创建，没有已有每日回顾
-        todayTaskReflection: todayTaskReflection  // 今天的任务反思会话
+        todayTaskReflection: todayTaskReflection  // 今天的任务规划会话
       })
       const selectedQuestions = selectThreeQuestions(personalizedQuestions)
       console.log('✨ 个性化问题已生成:', selectedQuestions)
@@ -3744,7 +3744,7 @@ export default function NotesDashboardPage() {
 
 你可以：
 
-• **点击下方任务反思按钮进行其他类型反思**
+• **点击下方任务规划按钮进行其他类型反思**
 
 • **或点击右上角关闭侧边栏**` :
       '好的～ 继续反思请使用下方的快捷按钮\n\n如果觉得反思足够了，可以点击右上角 > 关闭侧边栏'
@@ -3939,9 +3939,9 @@ export default function NotesDashboardPage() {
         const todayTasks = await getDailyTasksByNoteDate(user.id, today)
         console.log(`📋 今日任务数: ${todayTasks.length}`)
         
-        // 获取今天的任务反思会话
+        // 获取今天的任务规划会话
         const todayTaskReflection = await getCompletedReflectionSession(user.id, today)
-        console.log(`📝 今日任务反思: ${todayTaskReflection ? '有' : '无'}`)
+        console.log(`📝 今日任务规划: ${todayTaskReflection ? '有' : '无'}`)
         
         const personalizedQuestions = await generatePersonalizedQuestions({
           tasks: todayTasks,
@@ -4329,7 +4329,7 @@ export default function NotesDashboardPage() {
 
 • **返回选择其他任务进行澄清**
 
-• **点击底部任务反思按钮进行其他类型反思**`
+• **点击底部任务规划按钮进行其他类型规划**`
               },
               {
                 type: 'interactive' as const,
@@ -4511,7 +4511,7 @@ export default function NotesDashboardPage() {
 
 • **返回选择其他任务进行时间规划**
 
-• **点击底部任务反思按钮进行其他类型反思**`
+• **点击底部任务规划按钮进行其他类型规划**`
               },
               {
                 type: 'interactive' as const,
@@ -4541,7 +4541,7 @@ export default function NotesDashboardPage() {
 
 • **返回选择其他任务进行优先级反思**
 
-• **点击底部任务反思按钮进行其他类型反思**`
+• **点击底部任务规划按钮进行其他类型规划**`
               },
               {
                 type: 'interactive' as const,
@@ -7457,7 +7457,7 @@ ${matrixStats || '（无待办）'}
               {/* 开启今日回顾按钮 */}
               <button
                 onClick={async () => {
-                  // 如果侧边栏未打开，先打开但不触发任务反思
+                  // 如果侧边栏未打开，先打开但不触发任务规划
                   if (!isChatSidebarOpen) {
                     setIsChatSidebarOpen(true)
                     if (typeof window !== 'undefined') {
@@ -7466,7 +7466,7 @@ ${matrixStats || '（无待办）'}
                     // 等待状态更新
                     await new Promise(resolve => setTimeout(resolve, 100))
                   }
-                  // 调用每日回顾函数（而不是任务反思）
+                  // 调用每日回顾函数（而不是任务规划）
                   startDailyReflection()
                 }}
                 className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2 text-sm"
@@ -7570,12 +7570,12 @@ ${matrixStats || '（无待办）'}
                     <span>清空每日回顾</span>
                   </button>
                   
-                  {/* 清空任务反思会话 */}
+                  {/* 清空任务规划会话 */}
                   <button
                     onClick={async () => {
                       if (!user || !selectedDate) return
                       
-                      const confirm = window.confirm('确定要清空任务反思会话吗？这将删除今天的所有回顾记录。')
+                      const confirm = window.confirm('确定要清空任务规划会话吗？这将删除今天的所有回顾记录。')
                       if (!confirm) return
                       
                       try {
@@ -7634,19 +7634,19 @@ ${matrixStats || '（无待办）'}
                         // 5. 清空聊天消息
                         setChatMessages([])
                         
-                        alert('✅ 已清空任务反思，你可以重新开始了')
+                        alert('✅ 已清空任务规划，你可以重新开始了')
                       } catch (error: any) {
-                        console.error('❌ 清空任务反思会话失败:', error)
+                        console.error('❌ 清空任务规划会话失败:', error)
                         alert(`❌ 清空失败: ${error.message}`)
                       }
                     }}
                     className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2 text-sm"
-                    title="清空任务反思会话（测试用）"
+                    title="清空任务规划会话（测试用）"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
-                    <span>清空任务反思</span>
+                    <span>清空任务规划</span>
                   </button>
                 </>
               )}

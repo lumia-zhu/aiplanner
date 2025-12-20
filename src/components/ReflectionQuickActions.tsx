@@ -22,7 +22,7 @@ export function ReflectionQuickActions({
     { 
       type: 'clarity' as const, 
       icon: '📝', 
-      label: '澄清任务',
+      label: '明确任务',
       baseColor: 'border-blue-200 bg-blue-50 text-blue-700',
       activeRing: 'ring-2 ring-blue-500 ring-offset-2',
       hoverColor: 'hover:border-blue-300 hover:bg-blue-100'
@@ -30,7 +30,7 @@ export function ReflectionQuickActions({
     { 
       type: 'decomposition' as const, 
       icon: '✂️', 
-      label: '任务拆解',
+      label: '拆分步骤',
       baseColor: 'border-purple-200 bg-purple-50 text-purple-700',
       activeRing: 'ring-2 ring-purple-500 ring-offset-2',
       hoverColor: 'hover:border-purple-300 hover:bg-purple-100'
@@ -38,7 +38,7 @@ export function ReflectionQuickActions({
     { 
       type: 'time' as const, 
       icon: '⏱️', 
-      label: '时间规划',
+      label: '估算时间',
       baseColor: 'border-green-200 bg-green-50 text-green-700',
       activeRing: 'ring-2 ring-green-500 ring-offset-2',
       hoverColor: 'hover:border-green-300 hover:bg-green-100'
@@ -46,7 +46,7 @@ export function ReflectionQuickActions({
     { 
       type: 'priority' as const, 
       icon: '🎯', 
-      label: '优先级排列',
+      label: '安排优先级',
       baseColor: 'border-orange-200 bg-orange-50 text-orange-700',
       activeRing: 'ring-2 ring-orange-500 ring-offset-2',
       hoverColor: 'hover:border-orange-300 hover:bg-orange-100'
@@ -62,7 +62,7 @@ export function ReflectionQuickActions({
       {/* 标题 */}
       <div className="text-[11px] font-medium text-gray-500 mb-1.5 flex items-center gap-1">
         <span className="text-xs">⚡</span>
-        <span>任务反思</span>
+        <span>任务规划</span>
       </div>
       
       {/* 四个按钮 (2行2列) */}

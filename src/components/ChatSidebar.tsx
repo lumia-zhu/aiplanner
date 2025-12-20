@@ -37,7 +37,7 @@ interface RecognizedTask {
   isSelected: boolean
 }
 
-// ⭐ 任务拆解选择器组件
+      // ⭐ 拆分步骤选择器组件
 interface DecompositionSelectorProps {
   tasks: Array<{ id: string; title: string }>
   onSelect?: (taskIds: string[]) => void
@@ -676,10 +676,10 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
   const isConfirmDisabled = !isActive || visibleTasks.length === 0 || (isMultiSelect ? selectedIds.size < 1 : !selectedId)
   
   const roundInfo = {
-    clarity: { emoji: '📝', label: '澄清', color: 'blue' },
-    decomposition: { emoji: '✂️', label: '任务拆解', color: 'purple' },
-    time: { emoji: '⏱️', label: '时间规划', color: 'green' },
-    priority: { emoji: '🎯', label: '优先级排列', color: 'orange' }
+    clarity: { emoji: '📝', label: '明确任务', color: 'blue' },
+    decomposition: { emoji: '✂️', label: '拆分步骤', color: 'purple' },
+    time: { emoji: '⏱️', label: '估算时间', color: 'green' },
+    priority: { emoji: '🎯', label: '安排优先级', color: 'orange' }
   }
   
   const info = roundInfo[roundType]
@@ -688,7 +688,7 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
     <div className={`mt-3 p-3 bg-${info.color}-50 rounded-lg border border-${info.color}-200 w-full`}>
       {/* 标题和说明 */}
       {roundType === 'priority' ? (
-        // 优先级排列的特殊文案
+        // 安排优先级的特殊文案
         <div className="mb-3">
       <div className="text-sm font-medium text-gray-700 mb-2">
             {info.emoji} 请选择需要反思优先级的任务：
@@ -709,7 +709,7 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
           </div>
         </div>
       ) : (
-        // 澄清任务和时间规划的文案
+        // 明确任务和估算时间的文案
         <div className="text-sm font-medium text-gray-700 mb-2">
           {info.emoji} 请选择要进行「{info.label}」的任务：
         </div>
@@ -1693,11 +1693,11 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                             </div>
                           )}
                           
-                          {/* ⭐ 反思概述 - 引导使用底部快捷按钮 */}
+                          {/* ⭐ 规划概述 - 引导使用底部快捷按钮 */}
                           {content.interactive.type === 'reflection-overview' && (
                             <div className="mt-4 pt-3 border-t border-gray-200">
                               <p className="text-sm text-gray-600 text-center">
-                                👇 请使用下方的快捷按钮开始反思
+                                👇 请使用下方的快捷按钮开始规划
                               </p>
                             </div>
                           )}
@@ -1953,7 +1953,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
         <div className="border-t border-gray-200 bg-blue-50 p-3 flex-shrink-0">
           <div className="flex items-center justify-between">
             <span className="text-xs text-blue-600">
-              💭 {currentReflectionRound === 'clarity' ? '任务澄清' : currentReflectionRound === 'time' ? '时间规划' : '优先级'}
+              💭 {currentReflectionRound === 'clarity' ? '明确任务' : currentReflectionRound === 'time' ? '估算时间' : '安排优先级'}
             </span>
             <div className="flex gap-1.5">
               <button
@@ -2122,7 +2122,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
         </div>
       )}
       
-      {/* ⭐ 底部快捷反思按钮 */}
+      {/* ⭐ 底部快捷规划按钮 */}
       {onReflectionQuickStart && (
         <ReflectionQuickActions
           currentReflectionType={currentReflectionType || null}
