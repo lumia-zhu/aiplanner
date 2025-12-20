@@ -2579,8 +2579,10 @@ export default function NotesDashboardPage() {
       
       // 4. 生成个性化问题
       console.log('🎯 开始生成个性化反思问题...')
+      console.log('🔑 当前用户ID:', user.id, '用户名:', user.username)
       const todayTasks = await getDailyTasksByNoteDate(user.id, today)
       console.log(`📋 今日任务数: ${todayTasks.length}`)
+      console.log('📋 任务标题:', todayTasks.map(t => t.title))
       
       // 获取今天的任务规划会话（澄清、拆解、时间规划、优先级）
       const todayTaskReflection = await getCompletedReflectionSession(user.id, today)

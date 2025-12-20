@@ -212,19 +212,22 @@ ${reflectionContext}
 生成5个【高度个性化】且【开放式】的反思问题，每个问题都要提到用户的具体任务。
 
 **🔴 关键规则（必须遵守）**：
-1. 【所有5个问题】都必须直接引用用户任务的具体名称（用「」包裹），可以是不同的任务
-2. 【禁止】使用封闭式问法，如：
+1. 【所有5个问题】都必须直接引用用户任务的具体名称（用「」包裹）
+2. ⚠️【重要】5个问题必须【分散覆盖多个不同任务】，不能只问同一个任务！
+   - 如果用户有2个以上任务，至少覆盖2个不同任务
+   - 如果用户有3个以上任务，至少覆盖3个不同任务
+3. 【禁止】使用封闭式问法，如：
    ❌ "顺利吗？" "完成了吗？" "有没有遇到问题？" "是不是很累？"
-3. 【必须】使用开放式问法，引导用户多说，如：
+4. 【必须】使用开放式问法，引导用户多说，如：
    ✅ "哪个环节最顺利？" "花了多少时间？" "遇到了什么挑战？" "感觉如何？"
-4. 用"什么"、"哪个"、"怎么"、"多少"等疑问词开头
+5. 用"什么"、"哪个"、"怎么"、"多少"等疑问词开头
 
-**5个方向（每个都要提到具体任务名）**：
-方向1【任务进展】：提到具体任务名，问进展细节（哪个环节、做到哪一步、有什么收获）
-方向2【时间体验】：提到具体任务名，问时间感受（花了多久、哪部分最耗时、节奏如何）
-方向3【挑战困难】：提到具体任务名，问在这个任务中遇到了什么挑战或卡点
-方向4【有效方法】：提到具体任务名，问做这个任务时什么方法/工具最有帮助
-方向5【状态感知】：提到具体任务名，问做这个任务时的精力和情绪感受
+**5个方向（每个方向尽量问不同的任务）**：
+方向1【任务进展】：选一个任务，问进展细节（哪个环节、做到哪一步、有什么收获）
+方向2【时间体验】：选另一个任务，问时间感受（花了多久、哪部分最耗时、节奏如何）
+方向3【挑战困难】：选一个任务，问遇到了什么挑战或卡点
+方向4【有效方法】：选另一个任务，问什么方法/工具最有帮助
+方向5【状态感知】：选一个任务，问做这个任务时的精力和情绪感受
 
 **语气要求**：
 - 像朋友聊天一样自然、温暖、好奇
@@ -234,12 +237,12 @@ ${reflectionContext}
 **输出格式**：
 必须输出恰好5行，每行一个问题。不要有任何序号、标签或额外说明。
 
-**示例**（假设用户有任务"写周报"和"学Python"）：
+**示例**（假设用户有任务"写周报"、"学Python"和"健身"）：
 「写周报」做到哪一步了？哪个部分写起来最顺手？
 「学Python」花了多长时间？哪个知识点最难理解？
-做「写周报」时遇到的最大挑战是什么？
-「学Python」时什么方法或资料对你帮助最大？
-做完「写周报」后精力和心情怎么样？`
+做「健身」时遇到的最大挑战是什么？
+「写周报」时什么方法或工具对你帮助最大？
+做完「学Python」后精力和心情怎么样？`
 }
 
 /**
@@ -248,9 +251,11 @@ ${reflectionContext}
 async function callAI(prompt: string): Promise<string[]> {
   const apiKey = getApiKey()
   if (!apiKey) {
+    console.error('❌ API Key 未配置')
     throw new Error('API Key未配置')
   }
 
+  console.log('📡 发送 AI 请求到:', DEEPSEEK_CONFIG.endpoint)
   const response = await fetch(DEEPSEEK_CONFIG.endpoint, {
     method: 'POST',
     headers: {
@@ -268,11 +273,13 @@ async function callAI(prompt: string): Promise<string[]> {
   })
 
   if (!response.ok) {
+    console.error('❌ AI 请求失败:', response.status, response.statusText)
     throw new Error(`AI请求失败: ${response.status}`)
   }
 
   const data = await response.json()
   const content = data.choices?.[0]?.message?.content || ''
+  console.log('📥 AI 响应内容长度:', content.length, '字符')
 
   // 解析输出：按行分割，过滤空行
   const questions = content
@@ -309,15 +316,31 @@ export async function generatePersonalizedQuestions(params: {
       hasTaskReflection: !!todayTaskReflection
     })
 
+    // 🔍 输出详细的任务列表（便于排查数据隔离问题）
+    console.log('📋 任务列表详情:', tasks.map(t => ({
+      title: t.title,
+      userId: t.userId,  // 检查任务的 userId 是否正确
+      noteDate: t.noteDate
+    })))
+
     // 构建上下文
     const taskContext = buildTaskContext(tasks)
     const dailyReflectionContext = buildTodayDailyReflectionContext(todayDailyReflection)
     const taskReflectionContext = buildTaskReflectionContext(todayTaskReflection)
 
+    // 🔍 输出上下文信息（便于调试）
+    console.log('📋 构建任务上下文:', { 
+      taskCount: tasks.length,
+      taskContextLength: taskContext.length,
+      hasTaskReflection: !!taskReflectionContext,
+      taskReflectionLength: taskReflectionContext.length
+    })
+
     // 构建Prompt
     const prompt = buildPrompt(taskContext, dailyReflectionContext, taskReflectionContext)
 
     // 带超时的AI调用
+    console.log('🤖 开始调用 AI 生成个性化问题...')
     const questions = await Promise.race([
       callAI(prompt),
       new Promise<string[]>((_, reject) => 
@@ -325,6 +348,7 @@ export async function generatePersonalizedQuestions(params: {
       )
     ])
 
+    console.log('✅ 个性化问题生成成功:', questions)
     logger.debug('个性化问题生成成功', { questions })
     return questions
 
@@ -333,6 +357,10 @@ export async function generatePersonalizedQuestions(params: {
     logger.warn('个性化问题生成失败，使用通用问题', { 
       error: error instanceof Error ? error.message : '未知错误' 
     })
+    // 🔍 在控制台输出详细错误信息（便于调试）
+    console.error('⚠️ 个性化问题生成失败，已降级到通用问题:', error)
+    console.log('📋 任务上下文:', taskContext)
+    console.log('🔑 API Key 状态:', getApiKey() ? '已配置' : '未配置')
     return [...DAILY_REFLECTION_QUESTIONS]
   }
 }

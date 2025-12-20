@@ -373,7 +373,7 @@ export async function getCompletedReflectionSession(
   noteDate: string
 ): Promise<ReflectionSession | null> {
   try {
-    console.log('🔍 查找已完成的反思会话:', { userId, noteDate })
+    console.log('🔍 查找已完成的反思会话:', { userId, noteDate, userIdType: typeof userId })
     const supabase = createClient()
 
     // 1. 获取该日期最新的 plan_snapshot（只查询未被软删除的）
