@@ -7478,7 +7478,8 @@ ${matrixStats || '（无待办）'}
                 <span>开启今日回顾</span>
               </button>
               
-              {/* 历史回顾按钮 */}
+              {/* 历史回顾按钮 - 已隐藏 */}
+              {false && (
               <button
                 onClick={async () => {
                   // 如果侧边栏未打开，先打开
@@ -7500,6 +7501,7 @@ ${matrixStats || '（无待办）'}
                 </svg>
                 <span>历史回顾</span>
               </button>
+              )}
               
               {/* 🧪 测试按钮（仅开发环境） */}
               {process.env.NODE_ENV === 'development' && (

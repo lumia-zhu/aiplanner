@@ -249,13 +249,13 @@ ${taskList}
 
 📋 今天有 ${parentTasks.length} 个任务！
 
-📝 **明确任务**
+**📝 明确任务**
 [1句话，≤50字，只针对父类任务]
 
-⏱️✂️ **拆分步骤与估算时间**
+**⏱️✂️ 拆分步骤与估算时间**
 [1句话，≤50字，只针对父类任务，优先提拆分建议]
 
-🎯 **安排优先级**
+**🎯 安排优先级**
 [1句话，≤40字，只针对父类任务]
 
 【注意事项 - ADHD友好】
@@ -300,7 +300,7 @@ function generateFallbackOverview(
   lines.push('')
   
   // 明确任务建议 - 更智能的判断（只针对父类任务）
-  lines.push('📝 **明确任务**')
+  lines.push('**📝 明确任务**')
   
   // 找出可能需要澄清的任务（简单规则）
   const vaguePatterns = [
@@ -335,7 +335,7 @@ function generateFallbackOverview(
   lines.push('')
   
   // 拆分步骤与估算时间建议（只针对父类任务）
-  lines.push('⏱️✂️ **拆分步骤与估算时间**')
+  lines.push('**⏱️✂️ 拆分步骤与估算时间**')
   
   // 找出可能需要拆分的复杂任务
   const complexTasks = topLevelTasks.filter(t => {
@@ -361,7 +361,7 @@ function generateFallbackOverview(
   lines.push('')
   
   // 优先级建议（只针对父类任务）
-  lines.push('🎯 **安排优先级**')
+  lines.push('**🎯 安排优先级**')
   if (topLevelTasks.length > 1) {
     lines.push(`可以想想：先做哪个任务最“好启动”，又能带动后续？`)
   } else {
