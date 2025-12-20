@@ -281,11 +281,14 @@ export async function batchUpdateReflectionAnswers(
   try {
     logger.debug('批量更新反思回答:', { reflectionId, answers })
     
+    // 确保 answers 是有效数组
+    const safeAnswers = answers || [null, null, null]
+    
     // 构建更新对象
     const updates: any = {
-      answer_1: answers[0],
-      answer_2: answers[1],
-      answer_3: answers[2],
+      answer_1: safeAnswers[0],
+      answer_2: safeAnswers[1],
+      answer_3: safeAnswers[2],
       current_question_index: 3 // 标记为已完成所有问题
     }
     

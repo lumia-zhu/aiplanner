@@ -2806,7 +2806,7 @@ export default function NotesDashboardPage() {
       }
       
       // 2. 更新本地答案状态（立即更新，无需等待数据库）
-      let updatedAnswers: (string | null)[]
+      let updatedAnswers: (string | null)[] = dailyReflectionAnswers || [null, null, null]
       setDailyReflectionAnswers(prev => {
         const newAnswers = [...prev]
         newAnswers[questionNumber - 1] = answer
@@ -2964,7 +2964,7 @@ export default function NotesDashboardPage() {
       }
       
       // 2. 更新本地状态（跳过=不保存答案）
-      let updatedAnswers: (string | null)[]
+      let updatedAnswers: (string | null)[] = dailyReflectionAnswers || [null, null, null]
       setDailyReflectionAnswers(prev => {
         updatedAnswers = [...prev]
         // 跳过的问题保持 null
