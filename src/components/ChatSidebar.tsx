@@ -1554,7 +1554,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                                   </div>
                                 )}
                               </div>
-                            ) : content.text.includes('让我看看你今天的任务') || content.text.includes('让我重新看看你的任务') ? (
+                            ) : content.text.includes('让我看看你这天的任务') || content.text.includes('让我重新看看你的任务') ? (
                               /* 🆕 加载状态动画 - 圆点替代省略号 */
                               <div className="flex items-center gap-2 py-1">
                                 <span className="text-sm text-gray-600">

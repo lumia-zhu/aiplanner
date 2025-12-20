@@ -103,6 +103,7 @@ export default function NotesDashboardPage() {
   
   // 笔记相关状态
   const [currentNote, setCurrentNote] = useState<JSONContent | null>(null)
+  const [isLoadingNote, setIsLoadingNote] = useState(false)  // 🆕 笔记加载状态
   const [isSaving, setIsSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
@@ -519,8 +520,8 @@ export default function NotesDashboardPage() {
   // 加载指定日期的笔记
   const loadNote = useCallback(async (userId: string, date: Date) => {
     try {
-      // 🔧 先清空 currentNote，让 NoteEditor 等待新数据
-      // 这样当新日期的编辑器创建时，不会用旧数据初始化
+      // 🔧 显示加载状态，避免切换日期时短暂显示旧内容
+      setIsLoadingNote(true)
       setCurrentNote(null)
       
       const note = await getNoteByDate(userId, date)
@@ -539,6 +540,8 @@ export default function NotesDashboardPage() {
     } catch (error) {
       console.error('加载笔记失败:', error)
       alert('加载笔记失败')
+    } finally {
+      setIsLoadingNote(false)
     }
   }, [calculateTaskStats])
 
@@ -1616,7 +1619,10 @@ export default function NotesDashboardPage() {
         if (findAndInsertSubtasks(newContent)) {
           // 🔧 直接通过编辑器实例更新内容（绕过 isInitializedRef 限制）
           if (editorRef.current) {
-            editorRef.current.commands.setContent(newContent)
+            // ⚠️ 输入法(IME)拼字期间不要 setContent，否则可能造成重复/乱码
+            if (!editorRef.current.view?.composing) {
+              editorRef.current.commands.setContent(newContent)
+            }
             console.log('✅ 通过编辑器实例插入子任务')
           }
           
@@ -5198,7 +5204,7 @@ export default function NotesDashboardPage() {
       // 🆕 立即显示加载消息（带动画效果）
       const loadingMessage: ChatMessage = {
         role: 'assistant' as const,
-        content: [{ type: 'text' as const, text: '让我看看你今天的任务...' }]
+        content: [{ type: 'text' as const, text: '让我看看你这天的任务...' }]
       }
       setChatMessages(prev => {
         // 先清除所有加载消息，再添加新的
@@ -6739,7 +6745,10 @@ ${matrixStats || '（无待办）'}
         const newContent = JSON.parse(JSON.stringify(updatedContent))
         // 🔧 直接通过编辑器实例更新内容（绕过 isInitializedRef 限制）
         if (editorRef.current) {
-          editorRef.current.commands.setContent(newContent)
+          // ⚠️ 输入法(IME)拼字期间不要 setContent，否则可能造成重复/乱码
+          if (!editorRef.current.view?.composing) {
+            editorRef.current.commands.setContent(newContent)
+          }
         }
         setCurrentNote(newContent)
         logger.debug('✅ 编辑器内容已刷新')
@@ -7141,7 +7150,10 @@ ${matrixStats || '（无待办）'}
             console.log('📝 更新本地编辑器状态（因为是当前日期）')
             // 🔧 直接通过编辑器实例更新内容（绕过 isInitializedRef 限制）
             if (editorRef.current) {
-              editorRef.current.commands.setContent(newContent)
+              // ⚠️ 输入法(IME)拼字期间不要 setContent，否则可能造成重复/乱码
+              if (!editorRef.current.view?.composing) {
+                editorRef.current.commands.setContent(newContent)
+              }
             }
             setCurrentNote(newContent)
             // 更新任务统计
@@ -7753,15 +7765,29 @@ ${matrixStats || '（无待办）'}
                       animation: 'fadeIn 0.3s ease-in-out'
                     }}
                   >
-                <NoteEditor
-                  key={formatNoteDate(selectedDate)}  // 🔧 切换日期时重新创建编辑器实例
-                  initialContent={currentNote ?? undefined}
-                  onUpdate={handleNoteUpdate}
-                  onSave={handleNoteSave}
-                  onDecompose={handleDecomposeFromNoteEditor}
-                  placeholder="开始记录... (按 ? 查看快捷键)"
-                  editorRef={editorRef}
-                />
+                {/* 🆕 加载状态：切换日期时显示加载占位符 */}
+                {isLoadingNote ? (
+                  <div className="flex-1 flex items-center justify-center bg-white">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="flex gap-1">
+                        <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                        <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                        <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                      </div>
+                      <span className="text-sm text-gray-500">加载笔记中...</span>
+                    </div>
+                  </div>
+                ) : (
+                  <NoteEditor
+                    key={formatNoteDate(selectedDate)}  // 🔧 切换日期时重新创建编辑器实例
+                    initialContent={currentNote ?? undefined}
+                    onUpdate={handleNoteUpdate}
+                    onSave={handleNoteSave}
+                    onDecompose={handleDecomposeFromNoteEditor}
+                    placeholder="开始记录... (按 ? 查看快捷键)"
+                    editorRef={editorRef}
+                  />
+                )}
                     
                     {/* 便签容器（绝对定位在编辑器上方） */}
                     {stickyNotes.map(note => (

@@ -76,7 +76,10 @@ export default function StickyNoteEditor({
   // 同步内容（当外部内容变化时）
   useEffect(() => {
     if (editor && content !== editor.getHTML()) {
-      editor.commands.setContent(content)
+      // ⚠️ 输入法(IME)拼字期间不要 setContent，否则可能造成重复/乱码
+      if (!editor.view?.composing) {
+        editor.commands.setContent(content)
+      }
     }
   }, [editor, content])
 

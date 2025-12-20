@@ -326,6 +326,8 @@ export default function NoteEditor({
 
   // 用于节流 DOM 同步：避免 editor update 时频繁全量遍历造成卡顿
   const datetimeSyncScheduledRef = useRef(false)
+  // ⭐ 输入法(IME)组合输入保护：composition 期间不要触发自动保存/外部 setContent，否则容易出现重复/乱码
+  const isComposingRef = useRef(false)
   
   const editor = useEditor({
     immediatelyRender: false,
@@ -372,6 +374,20 @@ export default function NoteEditor({
       attributes: {
         class: 'prose prose-sm max-w-none focus:outline-none min-h-[400px] px-4 py-3'
       },
+      handleDOMEvents: {
+        compositionstart: (): boolean => {
+          isComposingRef.current = true
+          // 取消可能已经排队的自动保存，避免拼字过程中触发保存/同步引发内容重置
+          if (typeof (debouncedSave as any)?.cancel === 'function') {
+            ;(debouncedSave as any).cancel()
+          }
+          return false
+        },
+        compositionend: (): boolean => {
+          isComposingRef.current = false
+          return false
+        },
+      },
       handleKeyDown: (view, event): boolean => {
         // 处理 Tab 键缩进
         if (event.key === 'Tab') {
@@ -391,7 +407,8 @@ export default function NoteEditor({
       onUpdate?.(content)
       
       // 自动保存（防抖）
-      if (autoSave && onSave) {
+      // ⚠️ 输入法拼字(composition)期间跳过自动保存，否则容易触发外部同步(setContent)导致输入重复/乱码
+      if (autoSave && onSave && !isComposingRef.current) {
         debouncedSave(content)
       }
     },
@@ -400,7 +417,6 @@ export default function NoteEditor({
   // 防抖保存函数
   const debouncedSave = useCallback(
     debounce((content: JSONContent) => {
-      console.log('📝 NoteEditor: 触发自动保存', content)
       onSave?.(content)
     }, autoSaveDelay),
     [onSave, autoSaveDelay]
@@ -1528,6 +1544,10 @@ export default function NoteEditor({
     if (!editor) return
 
     const updateDateTimeDisplays = () => {
+      // ⚠️ 输入法(IME)组合输入期间不要操作 DOM，否则会触发 ProseMirror 的 DOM observer 导致内容重复
+      if (editor.view.composing || isComposingRef.current) {
+        return
+      }
       const editorElement = editor.view.dom
       const taskItems = editorElement.querySelectorAll('li[data-drag-handle]')
 
@@ -1647,7 +1667,7 @@ export default function NoteEditor({
     return () => {
       editor.off('update', handler)
     }
-  }, [editor, datetimeSyncScheduledRef])
+  }, [editor, datetimeSyncScheduledRef, isComposingRef])
 
   // 处理点击标签删除
   useEffect(() => {
@@ -1880,13 +1900,17 @@ export default function NoteEditor({
 /**
  * 简单的防抖函数
  */
+type DebouncedFn<T extends (...args: any[]) => any> = ((...args: Parameters<T>) => void) & {
+  cancel: () => void
+}
+
 function debounce<T extends (...args: any[]) => any>(
   func: T,
   wait: number
-): (...args: Parameters<T>) => void {
+): DebouncedFn<T> {
   let timeout: NodeJS.Timeout | null = null
   
-  return function executedFunction(...args: Parameters<T>) {
+  const debounced = function executedFunction(...args: Parameters<T>) {
     const later = () => {
       timeout = null
       func(...args)
@@ -1896,7 +1920,16 @@ function debounce<T extends (...args: any[]) => any>(
       clearTimeout(timeout)
     }
     timeout = setTimeout(later, wait)
+  } as DebouncedFn<T>
+
+  debounced.cancel = () => {
+    if (timeout) {
+      clearTimeout(timeout)
+      timeout = null
+    }
   }
+
+  return debounced
 }
 
 
