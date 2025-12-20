@@ -579,6 +579,27 @@ export default function NotesDashboardPage() {
     }
   }, [])
 
+  // ✅ 辅助函数：保存关键消息到数据库
+  const saveKeyMessageToDb = useCallback(async (
+    message: ChatMessage,
+    messageType: 'overview' | 'reflection' | 'summary' | 'daily-reflection'
+  ) => {
+    if (!user) return
+    
+    try {
+      const chatDate = formatNoteDate(currentContextDate)
+      // 只保存文本内容，过滤掉 interactive 部分
+      const textContent = message.content.filter((c: any) => c.type === 'text')
+      if (textContent.length > 0) {
+        await saveChatMessage(user.id, chatDate, message.role, textContent, chatDate)
+        logger.debug(`✅ ${messageType} 消息已保存到数据库`)
+      }
+    } catch (error) {
+      logger.error(`保存 ${messageType} 消息失败:`, error)
+      // 保存失败不影响用户使用
+    }
+  }, [user, currentContextDate])
+
   // 加载全局便签（不受日期限制）
   const loadStickyNotes = useCallback(async (userId: string) => {
     setIsLoadingStickyNotes(true)
@@ -2401,6 +2422,9 @@ export default function NotesDashboardPage() {
           return [...filtered, overviewMessage]
         })
         
+        // ✅ 保存任务概览到数据库
+        await saveKeyMessageToDb(overviewMessage, 'overview')
+        
         console.log('✅ 概述消息已显示，等待用户选择')
       } else {
         // 🆕 GlobalScan 失败时的降级处理
@@ -2748,6 +2772,13 @@ export default function NotesDashboardPage() {
         ]
       }
       setChatMessages(prev => [...prev, completeMessage])
+      
+      // ✅ 保存每日回顾总结到数据库（单独保存文本版本）
+      const summaryTextMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [{ type: 'text' as const, text: `📝 每日回顾总结：\n${summary}` }]
+      }
+      await saveKeyMessageToDb(summaryTextMessage, 'daily-reflection')
       
       // 7. 重置状态
       setIsDailyReflectionMode(false)
@@ -4307,6 +4338,16 @@ export default function NotesDashboardPage() {
                 }
               ]
             : [{ type: 'text' as const, text: '好的，已经保存好您提供的信息，后续提供建议时会考虑～' }]
+        }
+        
+        // ✅ 保存任务规划问答到数据库
+        if (allAnswers.length > 0) {
+          const qaTextContent = allAnswers.map(qa => `Q: ${qa.question}\nA: ${qa.answer}`).join('\n\n')
+          const qaMessage: ChatMessage = {
+            role: 'assistant' as const,
+            content: [{ type: 'text' as const, text: `📋 任务规划问答记录（${context?.taskTitle || '任务'}）：\n\n${qaTextContent}` }]
+          }
+          saveKeyMessageToDb(qaMessage, 'reflection')
         }
         
         // 🆕 根据轮次类型显示不同的后续选项
