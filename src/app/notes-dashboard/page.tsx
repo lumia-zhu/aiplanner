@@ -7577,48 +7577,52 @@ ${matrixStats || '（无待办）'}
                     onClick={async () => {
                       if (!user || !selectedDate) return
                       
-                      const confirm = window.confirm('确定要清空任务规划会话吗？这将删除今天的所有回顾记录。')
+                      const confirm = window.confirm('确定要清空任务规划会话吗？这将清空今天的所有规划记录。')
                       if (!confirm) return
                       
                       try {
                         const noteDate = format(selectedDate, 'yyyy-MM-dd')
                         const { createClient } = await import('@/lib/supabase-client')
                         const supabase = createClient()
+                        const now = new Date().toISOString()
                         
-                        // 1. 查找该日期的所有快照
+                        // 1. 查找该日期的所有快照（只查未删除的）
                         const { data: snapshots } = await supabase
                           .from('plan_snapshots')
                           .select('id')
                           .eq('user_id', user.id)
                           .eq('note_date', noteDate)
+                          .is('deleted_at', null)
                         
                         if (snapshots && snapshots.length > 0) {
                           const snapshotIds = snapshots.map((s: any) => s.id)
                           
-                          // 2. 删除所有相关的反思会话
-                          const { error: deleteSessionError } = await supabase
+                          // 2. ✅ 软删除所有相关的反思会话
+                          const { error: softDeleteSessionError } = await supabase
                             .from('reflection_sessions')
-                            .delete()
+                            .update({ deleted_at: now })
                             .eq('user_id', user.id)
                             .in('plan_snapshot_id', snapshotIds)
+                            .is('deleted_at', null)
                           
-                          if (deleteSessionError) {
-                            console.error('❌ 删除反思会话失败:', deleteSessionError)
+                          if (softDeleteSessionError) {
+                            console.error('❌ 软删除反思会话失败:', softDeleteSessionError)
                           } else {
-                            console.log('✅ 已删除今天的回顾会话')
+                            console.log('✅ 已软删除今天的回顾会话（数据保留在数据库）')
                           }
                           
-                          // 3. 删除快照（可选，如果想彻底清除）
-                          const { error: deleteSnapshotError } = await supabase
+                          // 3. ✅ 软删除快照
+                          const { error: softDeleteSnapshotError } = await supabase
                             .from('plan_snapshots')
-                            .delete()
+                            .update({ deleted_at: now })
                             .eq('user_id', user.id)
                             .eq('note_date', noteDate)
+                            .is('deleted_at', null)
                           
-                          if (deleteSnapshotError) {
-                            console.error('❌ 删除计划快照失败:', deleteSnapshotError)
+                          if (softDeleteSnapshotError) {
+                            console.error('❌ 软删除计划快照失败:', softDeleteSnapshotError)
                           } else {
-                            console.log('✅ 已删除今天的计划快照')
+                            console.log('✅ 已软删除今天的计划快照（数据保留在数据库）')
                           }
                         }
                         
@@ -7633,7 +7637,7 @@ ${matrixStats || '（无待办）'}
                         setDecomposableTasks([])
                         setDecompositionQueue([])
                         
-                        // 5. 清空聊天消息
+                        // 5. 清空聊天消息（也会软删除）
                         setChatMessages([])
                         
                         alert('✅ 已清空任务规划，你可以重新开始了')

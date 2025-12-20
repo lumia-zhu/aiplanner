@@ -80,11 +80,13 @@ export async function getChatMessages(
     console.log('🔍 开始查询 chat_messages 表...')
     
     // 查询该用户该日期的所有消息，按创建时间排序
+    // ✅ 软删除：只查询未被删除的消息
     const { data, error } = await supabase
       .from('chat_messages')
       .select('*')
       .eq('user_id', userId)
       .eq('chat_date', chatDate)
+      .is('deleted_at', null)
       .order('created_at', { ascending: true })
     
     console.log('📊 查询结果:', { 
@@ -138,14 +140,15 @@ export async function clearChatMessages(
     
     const supabase = createClient()
     
-    // 先查询要删除的消息数量
+    // 先查询要软删除的消息数量（只统计未删除的）
     const { data: existingMessages, error: queryError } = await supabase
       .from('chat_messages')
       .select('id')
       .eq('user_id', userId)
       .eq('chat_date', chatDate)
+      .is('deleted_at', null)
     
-    console.log('📊 查询到的消息数量:', existingMessages?.length || 0)
+    console.log('📊 查询到的未删除消息数量:', existingMessages?.length || 0)
     
     if (queryError) {
       console.error('❌ 查询消息失败:', queryError)
@@ -157,22 +160,23 @@ export async function clearChatMessages(
       return { success: true, count: 0 }
     }
     
-    console.log('🗑️ 开始删除操作...')
-    console.log('🔍 删除条件:', {
+    console.log('🗑️ 开始软删除操作...')
+    console.log('🔍 软删除条件:', {
       user_id: userId,
       chat_date: chatDate,
       messagesToDelete: existingMessages.map(m => m.id)
     })
     
-    // 方案1: 按条件删除
+    // ✅ 软删除：标记 deleted_at 而不是真正删除
     const { data, error, count: deletedCount } = await supabase
       .from('chat_messages')
-      .delete({ count: 'exact' })
+      .update({ deleted_at: new Date().toISOString() })
       .eq('user_id', userId)
       .eq('chat_date', chatDate)
+      .is('deleted_at', null)
       .select()
     
-    console.log('🔍 删除操作结果:', {
+    console.log('🔍 软删除操作结果:', {
       hasData: !!data,
       dataLength: data?.length || 0,
       deletedCount: deletedCount,
@@ -180,7 +184,7 @@ export async function clearChatMessages(
     })
     
     if (error) {
-      console.error('❌ 清空消息失败 - 详细错误:', {
+      console.error('❌ 软删除消息失败 - 详细错误:', {
         message: error.message,
         details: error.details,
         hint: error.hint,
@@ -191,7 +195,7 @@ export async function clearChatMessages(
     }
     
     const finalCount = data?.length || deletedCount || 0
-    console.log(`✅ 已清空 ${finalCount} 条消息，实际删除的ID:`, data?.map(d => d.id))
+    console.log(`✅ 已软删除 ${finalCount} 条消息（数据保留在数据库），ID:`, data?.map(d => d.id))
     return { success: true, count: finalCount }
     
   } catch (error) {
@@ -268,10 +272,12 @@ export async function getAllChatMessages(
     const supabase = createClient()
     
     // 查询该用户的所有消息，按创建时间排序
+    // ✅ 软删除：只查询未被删除的消息
     let query = supabase
       .from('chat_messages')
       .select('*')
       .eq('user_id', userId)
+      .is('deleted_at', null)
       .order('created_at', { ascending: true })
     
     // 如果提供了 before 参数，用于分页加载
@@ -323,30 +329,32 @@ export async function clearAllChatMessages(userId: string) {
     
     const supabase = createClient()
     
-    // 先查询要删除的消息数量
+    // 先查询要软删除的消息数量（只统计未删除的）
     const { data: existingMessages } = await supabase
       .from('chat_messages')
       .select('id')
       .eq('user_id', userId)
+      .is('deleted_at', null)
     
     if (!existingMessages || existingMessages.length === 0) {
       logger.debug('没有需要删除的消息')
       return { success: true, count: 0 }
     }
     
-    // 删除所有消息
+    // ✅ 软删除：标记 deleted_at 而不是真正删除
     const { error, count } = await supabase
       .from('chat_messages')
-      .delete({ count: 'exact' })
+      .update({ deleted_at: new Date().toISOString() })
       .eq('user_id', userId)
+      .is('deleted_at', null)
     
     if (error) {
-      logger.error('清空全局消息失败:', error.message)
+      logger.error('软删除全局消息失败:', error.message)
       return { success: false, error: error.message, count: 0 }
     }
     
     const deletedCount = count || existingMessages.length
-    logger.success(`已清空 ${deletedCount} 条全局消息`)
+    logger.success(`已软删除 ${deletedCount} 条全局消息（数据保留在数据库）`)
     return { success: true, count: deletedCount }
     
   } catch (error) {

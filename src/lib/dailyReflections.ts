@@ -67,11 +67,13 @@ export async function getTodayReflection(
     
     logger.debug('查询反思记录:', { userId, date: targetDate })
     
+    // ✅ 软删除：只查询未被删除的记录
     const { data, error } = await supabase
       .from('daily_reflections')
       .select('*')
       .eq('user_id', userId)
       .eq('date', targetDate)
+      .is('deleted_at', null)
       .maybeSingle()
     
     if (error) {
@@ -377,11 +379,13 @@ export async function getReflectionHistory(
   try {
     logger.debug('查询反思历史:', { userId, limit, offset })
     
+    // ✅ 软删除：只查询未被删除的记录
     const { data, error } = await supabase
       .from('daily_reflections')
       .select('*')
       .eq('user_id', userId)
       .eq('status', 'completed')  // 只查询已完成的反思
+      .is('deleted_at', null)
       .order('date', { ascending: false })  // 按日期倒序
       .range(offset, offset + limit - 1)
     
@@ -408,11 +412,13 @@ export async function getReflectionHistoryCount(userId: string): Promise<number>
   try {
     logger.debug('查询反思历史总数:', { userId })
     
+    // ✅ 软删除：只统计未被删除的记录
     const { count, error } = await supabase
       .from('daily_reflections')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId)
       .eq('status', 'completed')
+      .is('deleted_at', null)
     
     if (error) {
       logger.error('查询反思历史总数失败:', error)
@@ -435,19 +441,21 @@ export async function getReflectionHistoryCount(userId: string): Promise<number>
  */
 export async function deleteReflection(reflectionId: string): Promise<boolean> {
   try {
-    logger.debug('删除反思记录:', { reflectionId })
+    logger.debug('软删除反思记录:', { reflectionId })
     
+    // ✅ 软删除：标记 deleted_at 而不是真正删除
     const { error } = await supabase
       .from('daily_reflections')
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq('id', reflectionId)
+      .is('deleted_at', null)
     
     if (error) {
-      logger.error('删除反思记录失败:', error)
+      logger.error('软删除反思记录失败:', error)
       throw error
     }
     
-    logger.debug('反思记录删除成功')
+    logger.debug('反思记录软删除成功（数据保留在数据库）')
     return true
   } catch (error) {
     logger.error('deleteReflection 错误:', error)

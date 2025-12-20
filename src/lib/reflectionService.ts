@@ -141,11 +141,13 @@ export async function getLatestPlanSnapshot(
   try {
     const supabase = createClient()
 
+    // ✅ 软删除：只查询未被删除的快照
     const { data, error } = await supabase
       .from('plan_snapshots')
       .select('*')
       .eq('user_id', userId)
       .eq('note_date', noteDate)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(1)
       .single()
@@ -253,12 +255,13 @@ export async function getInProgressReflectionSession(
 
     console.log('🔍 查找未完成的反思会话:', { userId, noteDate })
 
-    // 先找到该日期的快照
+    // 先找到该日期的快照（只查询未被软删除的）
     const { data: snapshots, error: snapshotError } = await supabase
       .from('plan_snapshots')
       .select('id')
       .eq('user_id', userId)
       .eq('note_date', noteDate)
+      .is('deleted_at', null)
 
     if (snapshotError || !snapshots || snapshots.length === 0) {
       return null
@@ -266,13 +269,14 @@ export async function getInProgressReflectionSession(
 
     const snapshotIds = snapshots.map(s => s.id)
 
-    // 查找这些快照对应的未完成会话
+    // 查找这些快照对应的未完成会话（只查询未被软删除的）
     const { data, error } = await supabase
       .from('reflection_sessions')
       .select('*')
       .eq('user_id', userId)
       .eq('status', 'in_progress')
       .in('plan_snapshot_id', snapshotIds)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(1)
       .single()
@@ -372,12 +376,13 @@ export async function getCompletedReflectionSession(
     console.log('🔍 查找已完成的反思会话:', { userId, noteDate })
     const supabase = createClient()
 
-    // 1. 获取该日期最新的 plan_snapshot
+    // 1. 获取该日期最新的 plan_snapshot（只查询未被软删除的）
     const { data: snapshots, error: snapshotError } = await supabase
       .from('plan_snapshots')
       .select('id')
       .eq('user_id', userId)
       .eq('note_date', noteDate)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(1)
 
@@ -387,13 +392,14 @@ export async function getCompletedReflectionSession(
 
     const snapshotId = snapshots[0].id
 
-    // 2. 查找与该 snapshot 关联的 completed 会话
+    // 2. 查找与该 snapshot 关联的 completed 会话（只查询未被软删除的）
     const { data, error } = await supabase
       .from('reflection_sessions')
       .select('*')
       .eq('user_id', userId)
       .eq('plan_snapshot_id', snapshotId)
       .eq('status', 'completed')
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(1)
       .single()
@@ -422,11 +428,13 @@ export async function getReflectionHistory(
   try {
     const supabase = createClient()
 
+    // ✅ 软删除：只查询未被删除的会话
     const { data, error } = await supabase
       .from('reflection_sessions')
       .select('*')
       .eq('user_id', userId)
       .eq('status', 'completed')
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(limit)
 
