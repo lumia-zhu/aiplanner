@@ -2605,16 +2605,19 @@ export default function NotesDashboardPage() {
       // 4. 生成个性化问题
       console.log('🎯 开始生成个性化反思问题...')
       console.log('🔑 当前用户ID:', user.id, '用户名:', user.username)
-      const todayTasks = await getDailyTasksByNoteDate(user.id, today)
-      console.log(`📋 今日任务数: ${todayTasks.length}`)
-      console.log('📋 任务标题:', todayTasks.map(t => t.title))
+      const allTasks = await getDailyTasksByNoteDate(user.id, today)
+      
+      // 🎯 只保留父任务（depth = 0 或 parentTaskId 为 null）
+      const todayTasks = allTasks.filter(task => !task.parentTaskId && (task.depth === 0 || task.depth === undefined))
+      console.log(`📋 今日任务数: 全部 ${allTasks.length}, 父任务 ${todayTasks.length}`)
+      console.log('📋 父任务标题:', todayTasks.map(t => t.title))
       
       // 获取今天的任务规划会话（澄清、拆解、时间规划、优先级）
       const todayTaskReflection = await getCompletedReflectionSession(user.id, today)
       console.log(`📝 今日任务规划: ${todayTaskReflection ? '有' : '无'}`)
       
       const personalizedQuestions = await generatePersonalizedQuestions({
-        tasks: todayTasks,
+        tasks: todayTasks,  // 只传入父任务
         todayDailyReflection: null,  // 新创建，没有已有每日回顾
         todayTaskReflection: todayTaskReflection  // 今天的任务规划会话
       })
@@ -4015,15 +4018,18 @@ export default function NotesDashboardPage() {
         
         // 生成个性化问题
         console.log('🎯 开始生成个性化反思问题...')
-        const todayTasks = await getDailyTasksByNoteDate(user.id, today)
-        console.log(`📋 今日任务数: ${todayTasks.length}`)
+        const allTasks = await getDailyTasksByNoteDate(user.id, today)
+        
+        // 🎯 只保留父任务（depth = 0 或 parentTaskId 为 null）
+        const todayTasks = allTasks.filter(task => !task.parentTaskId && (task.depth === 0 || task.depth === undefined))
+        console.log(`📋 今日任务数: 全部 ${allTasks.length}, 父任务 ${todayTasks.length}`)
         
         // 获取今天的任务规划会话
         const todayTaskReflection = await getCompletedReflectionSession(user.id, today)
         console.log(`📝 今日任务规划: ${todayTaskReflection ? '有' : '无'}`)
         
         const personalizedQuestions = await generatePersonalizedQuestions({
-          tasks: todayTasks,
+          tasks: todayTasks,  // 只传入父任务
           todayDailyReflection: null,
           todayTaskReflection: todayTaskReflection
         })
