@@ -4059,6 +4059,67 @@ export default function NotesDashboardPage() {
       return
     }
     
+    if (buttonId === 'daily-reflection-clear') {
+      // 清空今日回顾
+      if (!user) return
+      
+      const confirmClear = window.confirm('确定要清空今天的回顾记录和相关消息吗？')
+      if (!confirmClear) return
+      
+      try {
+        // 1. 先重置状态
+        setIsDailyReflectionMode(false)
+        setCurrentReflectionId(null)
+        setDailyReflectionQuestions(null)
+        setDailyReflectionAnswers([null, null, null])
+        setCurrentDailyQuestionIndex(0)
+        
+        // 2. 清空相关消息
+        setChatMessages(prev => 
+          prev.filter(msg => 
+            !msg.content?.some((c: MessageContent) => 
+              c.type === 'interactive' && 
+              (c.interactive?.type === 'daily-reflection-question' ||
+               c.interactive?.type === 'daily-reflection-complete' ||
+               c.interactive?.type === 'daily-reflection-already-done' ||
+               c.interactive?.type === 'daily-reflection-resume')
+            ) &&
+            !msg.content?.some((c: MessageContent) => 
+              c.type === 'text' && 
+              (c.text?.includes('让我们一起回顾今天的任务吧') ||
+               c.text?.includes('正在生成你的回顾总结'))
+            )
+          )
+        )
+        
+        // 3. 删除数据库记录
+        try {
+          const today = new Date().toISOString().split('T')[0]
+          const { getTodayReflection, deleteReflection } = await import('@/lib/dailyReflections')
+          const reflection = await getTodayReflection(user.id, today)
+          
+          if (reflection) {
+            await deleteReflection(reflection.id)
+            console.log('✅ 已清空今日数据库回顾记录')
+          }
+        } catch (dbError: any) {
+          console.warn('⚠️ 数据库清空失败（但状态已重置）:', dbError.message)
+        }
+        
+        // 4. 显示成功消息
+        const successMessage: ChatMessage = {
+          role: 'assistant' as const,
+          content: [{ type: 'text' as const, text: '✅ 今日回顾已清空，你可以重新开始回顾了～' }]
+        }
+        setChatMessages(prev => [...prev, successMessage])
+        
+      } catch (error: any) {
+        console.error('❌ 清空回顾失败:', error)
+        alert(`❌ 清空失败: ${error.message}`)
+      }
+      return
+    }
+    
     if (buttonId === 'daily-reflection-load-more') {
       // 加载更多历史
       await loadMoreReflectionHistory()

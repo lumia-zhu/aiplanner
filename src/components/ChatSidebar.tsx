@@ -307,19 +307,21 @@ const DailyReflectionCompleteCard: React.FC<DailyReflectionCompleteCardProps> = 
 interface DailyReflectionAlreadyDoneCardProps {
   summary: string
   onViewHistory?: () => void
+  onClear?: () => void  // 🆕 清空今日回顾
   onClose: () => void
 }
 
 const DailyReflectionAlreadyDoneCard: React.FC<DailyReflectionAlreadyDoneCardProps> = ({
   summary,
   onViewHistory,
+  onClear,
   onClose
 }) => {
   return (
     <div className="mt-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
       <div className="text-sm font-medium text-blue-800 mb-2 flex items-center gap-2">
         <span className="text-2xl">✅</span>
-        <span>今天已完成反思</span>
+        <span>今天已完成回顾</span>
       </div>
       
       <div className="text-xs text-gray-600 mb-3">
@@ -337,21 +339,32 @@ const DailyReflectionAlreadyDoneCard: React.FC<DailyReflectionAlreadyDoneCardPro
       )}
       
       {/* 按钮 */}
-      <div className="flex gap-2">
-        {onViewHistory && (
+      <div className="flex flex-col gap-2">
+        <div className="flex gap-2">
+          {onViewHistory && (
+            <button
+              onClick={onViewHistory}
+              className="flex-1 px-4 py-2 text-sm font-medium text-blue-700 hover:text-blue-800 hover:bg-blue-100 border border-blue-300 rounded-lg transition-colors"
+            >
+              查看历史回顾
+            </button>
+          )}
           <button
-            onClick={onViewHistory}
-            className="flex-1 px-4 py-2 text-sm font-medium text-blue-700 hover:text-blue-800 hover:bg-blue-100 border border-blue-300 rounded-lg transition-colors"
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors"
           >
-            查看历史回顾
+            关闭
+          </button>
+        </div>
+        {/* 🆕 清空今日回顾按钮 */}
+        {onClear && (
+          <button
+            onClick={onClear}
+            className="w-full px-4 py-2 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 border border-red-300 rounded-lg transition-colors"
+          >
+            清空今日回顾
           </button>
         )}
-        <button
-          onClick={onClose}
-          className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 border border-gray-300 rounded-lg transition-colors"
-        >
-          关闭
-        </button>
       </div>
     </div>
   )
@@ -1731,6 +1744,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                             <DailyReflectionAlreadyDoneCard
                               summary={content.interactive.data.summary}
                               onViewHistory={() => onButtonClick?.('daily-reflection-view-history', {})}
+                              onClear={() => onButtonClick?.('daily-reflection-clear', {})}
                               onClose={() => onButtonClick?.('daily-reflection-close', {})}
                             />
                           )}
