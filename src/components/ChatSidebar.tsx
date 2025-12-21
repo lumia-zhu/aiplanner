@@ -25,6 +25,7 @@ import type { TaskForDisplay } from './TaskListCard'
 import { ReflectionQuickActions } from './ReflectionQuickActions'
 import AddContextInfoModal from './AddContextInfoModal'
 import type { QuestionAnswerPair } from '@/types/task-context'
+import { AIThinkingIndicator, type ThinkingType } from './AIThinkingIndicator'
 
 // 任务识别相关类型
 interface RecognizedTask {
@@ -1906,19 +1907,17 @@ const ChatSidebar = memo<ChatSidebarProps>(({
           
           {/* 流式输出和发送中指示器（⭐ Agent模式下不显示） */}
           {isSending && !streamingMessage && !isAgentRunning && (
-            <div className="flex items-start gap-3">
-              <img src="/ai-avatar.svg" alt="AI" className="w-8 h-8 rounded-full flex-shrink-0" />
-              <div className="bg-white rounded-lg px-3 py-2 shadow-sm max-w-[80%]">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                  <span className="text-xs text-gray-500 ml-2">
-                    {isTaskRecognitionMode ? '🔍 正在识别任务信息...' : 'AI正在思考...'}
-                  </span>
-                </div>
-              </div>
-            </div>
+            <AIThinkingIndicator 
+              type={
+                isTaskRecognitionMode ? 'task-recognition' :
+                loadingReflectionType === 'priority' ? 'priority' :
+                loadingReflectionType === 'decomposition' ? 'decomposition' :
+                loadingReflectionType === 'time' ? 'time' :
+                loadingReflectionType === 'clarity' ? 'clarity' :
+                'default'
+              }
+              currentPhase={2}  // 临时固定为阶段2，后续步骤会添加动态切换
+            />
           )}
           
           {streamingMessage && !isTaskRecognitionMode && (
