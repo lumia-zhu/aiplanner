@@ -338,8 +338,17 @@ export class DoubaoService {
         })
       }
 
-      // 添加历史对话
-      messages.push(...conversationHistory)
+      // 添加历史对话（过滤掉 interactive 类型，只保留 text 和 image_url）
+      const filteredHistory = conversationHistory
+        .map(msg => ({
+          role: msg.role,
+          content: msg.content.filter((c: any) => 
+            c.type === 'text' || c.type === 'image_url'
+          )
+        }))
+        .filter(msg => msg.content.length > 0)  // 过滤掉内容为空的消息
+      
+      messages.push(...filteredHistory)
       
       // 添加当前消息
       messages.push({
