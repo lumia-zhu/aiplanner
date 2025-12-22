@@ -89,6 +89,7 @@ import { generateReflectionSummary as generateDailyReflectionSummary } from '@/l
 import { generatePersonalizedQuestions, selectThreeQuestions } from '@/lib/personalizedReflectionAI'
 import type { DailyReflection } from '@/types/daily-reflection'
 import { getDailyTasksByNoteDate } from '@/lib/dailyTasks'
+import { getContextInfoByTaskIds } from '@/lib/taskContextService'
 
 export default function NotesDashboardPage() {
   logger.debug('NotesDashboardPage 组件开始渲染')
@@ -168,6 +169,7 @@ export default function NotesDashboardPage() {
   const [chatMessages, setChatMessages] = useState<any[]>([])
   const [isSending, setIsSending] = useState(false)
   const [streamingMessage, setStreamingMessage] = useState('')
+  const [aiThinkingPhase, setAiThinkingPhase] = useState(1) // AI思考进度阶段 (1-3)
   
   // ⭐ 反思操作loading状态（防止误触）
   const [isReflectionLoading, setIsReflectionLoading] = useState(false)
@@ -625,18 +627,60 @@ export default function NotesDashboardPage() {
       const rawDailyTasks = await getDailyTasksByDate(userId, dateStr)
       console.log(`📝 找到 ${rawDailyTasks.length} 个笔记任务（原始）`)
       
-      // 🔧 去重：按标题去重，保留第一个（位置最前的）
-      const seenTitles = new Set<string>()
-      const dailyTasks = rawDailyTasks.filter(task => {
+      // 🔧 智能去重：按「标题 + 父任务ID」去重，同时维护ID映射关系
+      console.log('🚀🚀🚀 原始任务列表:', rawDailyTasks.map(t => ({
+        id: t.id,
+        title: t.title,
+        date: t.date,
+        noteDate: t.noteDate,
+        parentTaskId: t.parentTaskId,
+        depth: t.depth
+      })))
+      
+      // 第一步：去重父任务（parentTaskId 为 null 的任务），建立 ID 映射
+      const parentIdMapping = new Map<string, string>() // 旧ID -> 保留的ID
+      const seenParentKeys = new Map<string, string>()   // uniqueKey -> 保留的ID
+      
+      const parentTasks = rawDailyTasks.filter(task => !task.parentTaskId)
+      for (const task of parentTasks) {
         const cleanTitle = sanitizeTaskTitle(task.title).toLowerCase().trim()
-        if (seenTitles.has(cleanTitle)) {
-          console.log(`⚠️ 发现重复任务，跳过: ${task.title}`)
+        
+        if (seenParentKeys.has(cleanTitle)) {
+          // 重复的父任务，记录映射关系
+          const keptId = seenParentKeys.get(cleanTitle)!
+          parentIdMapping.set(task.id, keptId)
+          console.log(`🚀🚀🚀 ⚠️ 父任务重复，映射: ${task.id} -> ${keptId} (${task.title})`)
+        } else {
+          // 第一次出现，保留
+          seenParentKeys.set(cleanTitle, task.id)
+          parentIdMapping.set(task.id, task.id) // 自己映射自己
+        }
+      }
+      
+      // 第二步：处理所有任务，更新子任务的 parentTaskId
+      const seenKeys = new Set<string>()
+      const dailyTasks = rawDailyTasks.filter(task => {
+        // 如果是子任务，更新其 parentTaskId 指向保留的父任务
+        if (task.parentTaskId && parentIdMapping.has(task.parentTaskId)) {
+          const newParentId = parentIdMapping.get(task.parentTaskId)!
+          if (newParentId !== task.parentTaskId) {
+            console.log(`🚀🚀🚀 🔗 更新子任务父ID: ${task.title} (${task.parentTaskId} -> ${newParentId})`)
+            task.parentTaskId = newParentId
+          }
+        }
+        
+        // 生成唯一键：标题 + 父任务ID
+        const cleanTitle = sanitizeTaskTitle(task.title).toLowerCase().trim()
+        const uniqueKey = `${cleanTitle}|${task.parentTaskId || 'root'}`
+        
+        if (seenKeys.has(uniqueKey)) {
+          console.log(`🚀🚀🚀 ⚠️ 发现重复任务，跳过: ${task.title} (key: ${uniqueKey})`)
           return false
         }
-        seenTitles.add(cleanTitle)
+        seenKeys.add(uniqueKey)
         return true
       })
-      console.log(`📝 去重后剩余 ${dailyTasks.length} 个笔记任务`)
+      console.log(`🚀🚀🚀 📝 去重后剩余 ${dailyTasks.length} 个笔记任务`)
       
       // 2. 获取任务的矩阵信息
       const matrixData = await getTaskMatrixByDate(userId, dateStr)
@@ -696,6 +740,26 @@ export default function NotesDashboardPage() {
             grouped[quadrant] = []
           }
           grouped[quadrant].push(displayTask)
+        }
+      }
+      
+      // 🆕 批量加载任务的上下文信息（用于AI对话）
+      const allTaskIds = Object.values(grouped).flat().map((t: any) => t.id)
+      if (allTaskIds.length > 0) {
+        try {
+          const contextInfoMap = await getContextInfoByTaskIds(allTaskIds)
+          // 将上下文信息附加到对应的任务上
+          for (const quadrant of Object.keys(grouped) as QuadrantType[]) {
+            for (const task of grouped[quadrant]) {
+              const contextInfo = contextInfoMap.get(task.id)
+              if (contextInfo && contextInfo.length > 0) {
+                (task as any).context_info = contextInfo
+              }
+            }
+          }
+          console.log(`💡 加载了 ${contextInfoMap.size} 个任务的上下文信息`)
+        } catch (error) {
+          console.warn('⚠️ 加载任务上下文信息失败，继续执行:', error)
         }
       }
       
@@ -6230,9 +6294,14 @@ export default function NotesDashboardPage() {
     return text
   }, [])
 
-  // 🆕 构建笔记上下文文本 (已瘦身优化)
-  const buildNoteContextText = useCallback(() => {
-    if (viewMode !== 'editor') return null
+  // 🆕 构建笔记上下文文本 (异步版本，实时获取上下文信息)
+  const buildNoteContextText = useCallback(async () => {
+    console.log('🚀🚀🚀 buildNoteContextText 被调用了！viewMode:', viewMode)
+    
+    if (viewMode !== 'editor') {
+      console.log('⚠️ 不是编辑器模式，跳过构建笔记上下文')
+      return null
+    }
     
     const dateStr = formatNoteDate(currentContextDate)
     
@@ -6242,10 +6311,22 @@ export default function NotesDashboardPage() {
       noteText = noteText.substring(0, 600) + '\n\n...（中间内容已折叠以加速AI响应）...\n\n' + noteText.substring(noteText.length - 300)
     }
     
-    // ✂️ 任务列表瘦身优化
+    // ✂️ 任务列表优化（包含上下文信息）
     const allTasks = Object.values(tasksByQuadrant).flat()
     const completedCount = allTasks.filter(t => t.completed).length
     const pendingTasks = allTasks.filter(t => !t.completed)
+    
+    // 🆕 实时获取任务的上下文信息（确保最新）
+    let taskContextMap = new Map<string, any[]>()
+    if (pendingTasks.length > 0) {
+      try {
+        const taskIds = pendingTasks.map((t: any) => t.id)
+        taskContextMap = await getContextInfoByTaskIds(taskIds)
+        console.log(`💡 实时获取了 ${taskContextMap.size} 个任务的上下文信息`)
+      } catch (error) {
+        console.warn('⚠️ 获取任务上下文信息失败:', error)
+      }
+    }
     
     let taskListText = ''
     if (completedCount > 0) {
@@ -6253,7 +6334,61 @@ export default function NotesDashboardPage() {
     }
     
     if (pendingTasks.length > 0) {
-       taskListText += pendingTasks.map(t => `- [TODO] ${t.title}`).join('\n')
+       // 🔍 调试：打印所有待办任务的详细信息
+       console.log('🚀🚀🚀 📋 待办任务详情:', pendingTasks.map((t: any) => ({
+         id: t.id,
+         title: t.title,
+         parentTaskId: t.parentTaskId,
+         depth: t.depth,
+         completed: t.completed
+       })))
+       
+       // 🆕 按父子关系组织任务（只根据 parentTaskId 判断）
+       const parentTasks = pendingTasks.filter((t: any) => !t.parentTaskId)
+       const childTasksMap = new Map<string, any[]>()
+       
+       // 将子任务按父任务ID分组
+       pendingTasks.forEach((t: any) => {
+         if (t.parentTaskId) {
+           const children = childTasksMap.get(t.parentTaskId) || []
+           children.push(t)
+           childTasksMap.set(t.parentTaskId, children)
+         }
+       })
+       
+       // 🔍 调试：打印父任务和子任务分组结果
+       console.log('🚀🚀🚀 👨 父任务:', parentTasks.map((t: any) => t.title))
+       console.log('🚀🚀🚀 👶 子任务分组:', Array.from(childTasksMap.entries()).map(([parentId, children]) => ({
+         parentId,
+         children: children.map((c: any) => c.title)
+       })))
+       
+       // 格式化单个任务（带上下文信息）
+       const formatTask = (t: any, indent: string = '') => {
+         let taskLine = `${indent}- [TODO] ${t.title}`
+         const contextInfo = taskContextMap.get(t.id)
+         if (contextInfo && contextInfo.length > 0) {
+           const contextTexts = contextInfo.map((c: any) => c.content).join('；')
+           const truncatedContext = contextTexts.length > 100 
+             ? contextTexts.substring(0, 100) + '...' 
+             : contextTexts
+           taskLine += `\n${indent}  💡 上下文：${truncatedContext}`
+         }
+         return taskLine
+       }
+       
+       // 生成任务列表文本（父任务 + 子任务缩进）
+       taskListText += parentTasks.map((parent: any) => {
+         let result = formatTask(parent)
+         
+         // 添加子任务（缩进显示）
+         const children = childTasksMap.get(parent.id)
+         if (children && children.length > 0) {
+           result += '\n' + children.map((child: any) => formatTask(child, '  ')).join('\n')
+         }
+         
+         return result
+       }).join('\n')
     } else if (completedCount === 0) {
        taskListText = '（无任务）'
     }
@@ -6383,6 +6518,13 @@ ${matrixStats || '（无待办）'}
     
     setIsSending(true)
     setStreamingMessage('')
+    setAiThinkingPhase(1) // 从第1阶段开始：理解问题
+    
+    // 自动过渡到阶段2（思考回答）
+    let phase2Timer: NodeJS.Timeout | null = null
+    phase2Timer = setTimeout(() => {
+      setAiThinkingPhase(2)
+    }, 400) // 阶段1显示400ms
     
     try {
       const { casualChat } = await import('@/lib/casualChatService')
@@ -6417,24 +6559,35 @@ ${matrixStats || '（无待办）'}
         // 过滤掉内容为空的消息（例如纯 loading 状态的消息）
         .filter(msg => msg.content.trim().length > 0)
 
-      // 🆕 动态获取上下文
+      // 🆕 动态获取上下文（异步获取最新的任务上下文信息）
+      console.log('🚀🚀🚀 准备构建上下文...')
       const matrixContext = buildMatrixContextText()
-      const noteContext = buildNoteContextText()
+      const noteContext = await buildNoteContextText()
       const systemContext = matrixContext || noteContext
       
-      console.log('🔍 发送对话 (带上下文):', {
+      console.log('🚀🚀🚀 🔍 发送对话 (带上下文):', {
         mode: viewMode,
         contextType: matrixContext ? 'matrix' : (noteContext ? 'note' : 'none'),
-        historyLength: conversationHistory.length
+        historyLength: conversationHistory.length,
+        systemContextLength: systemContext?.length || 0
       })
+      console.log('🚀🚀🚀 📝 系统上下文内容:', systemContext)
       
       // 流式接收 AI 回复
       let fullResponse = ''
+      let isFirstChunk = true
       for await (const chunk of casualChat(
         chatMessage.trim(), 
         conversationHistory,
         systemContext ? { systemContext } : {}
       )) {
+        // 收到第一个chunk时，切换到阶段3（生成回复）
+        if (isFirstChunk) {
+          setAiThinkingPhase(3)
+          // 短暂停留在阶段3，让用户看到这个阶段
+          await new Promise(resolve => setTimeout(resolve, 200))
+          isFirstChunk = false
+        }
         fullResponse += chunk
         setStreamingMessage(prev => prev + chunk)
       }
@@ -6448,6 +6601,8 @@ ${matrixStats || '（无待办）'}
         }]
       }
       
+      // ⭐ 先结束发送状态，避免进度条在消息显示后仍然闪现
+      setIsSending(false)
       setStreamingMessage('')
       setChatMessages([...newMessages, aiMessage])
       
@@ -6469,9 +6624,11 @@ ${matrixStats || '（无待办）'}
       }
       setChatMessages([...chatMessages, errorMessage])
     } finally {
+      if (phase2Timer) clearTimeout(phase2Timer) // 清理定时器
       setChatMessage('')
       setIsSending(false)
       setStreamingMessage('')
+      setAiThinkingPhase(1) // 重置阶段
     }
   }, [chatMessage, chatMessages, user, currentContextDate])
 
@@ -6555,6 +6712,13 @@ ${matrixStats || '（无待办）'}
 
     setIsSending(true)
     setStreamingMessage('')
+    setAiThinkingPhase(1) // 从第1阶段开始
+    
+    // 自动过渡到阶段2
+    let phase2Timer: NodeJS.Timeout | null = null
+    phase2Timer = setTimeout(() => {
+      setAiThinkingPhase(2)
+    }, 400)
     
     try {
       // ⭐ Agent 模式：使用 ReactAgent 处理
@@ -6607,11 +6771,17 @@ ${matrixStats || '（无待办）'}
       setChatMessages(newMessages)
 
       // 发送到豆包 API
+      let isFirstChunk = true
       const response = await doubaoService.sendMessage(
         finalPrompt,
         imageBase64,
         chatMessages,
         (chunk: string) => {
+          // 收到第一个chunk时切换到阶段3
+          if (isFirstChunk) {
+            setAiThinkingPhase(3)
+            isFirstChunk = false
+          }
           setStreamingMessage(prev => prev + chunk)
         }
       )
@@ -6663,10 +6833,12 @@ ${matrixStats || '（无待办）'}
       }
       setChatMessages([...chatMessages, errorMessage])
     } finally {
+      if (phase2Timer) clearTimeout(phase2Timer)
       setChatMessage('')
       setSelectedImage(null)
       setIsSending(false)
       setStreamingMessage('')
+      setAiThinkingPhase(1) // 重置阶段
     }
   }, [chatMessage, selectedImage, chatMessages, user, selectedDate, agentInstance, isAgentRunning, decomposingTaskTitle, handleTaskDecomposition, viewMode, handleCasualChat, isReflectionMode, currentReflectionRound])
 
@@ -8073,6 +8245,7 @@ ${matrixStats || '（无待办）'}
               setChatMessages={setChatMessages}
               isSending={isSending}
               streamingMessage={streamingMessage}
+              aiThinkingPhase={aiThinkingPhase}
               isDragOver={isDragOver}
               isImageProcessing={isImageProcessing}
               isTaskRecognitionMode={isTaskRecognitionMode}

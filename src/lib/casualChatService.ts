@@ -14,7 +14,7 @@ export interface CasualChatOptions {
 
 const DEFAULT_OPTIONS: Required<Omit<CasualChatOptions, 'systemContext'>> = {
   temperature: 0.7,
-  maxTokens: 500,
+  maxTokens: 1500, // 增加到1500，确保详细回复不会被截断
   systemPrompt: '你是一个友好的AI助手，用简洁、自然的语言回复用户。保持对话轻松愉快。'
 }
 

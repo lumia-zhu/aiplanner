@@ -16,7 +16,7 @@ export function ReflectionQuickActions({
   loadingType = null
 }: ReflectionQuickActionsProps) {
   
-  console.log('🔘 ReflectionQuickActions 渲染:', { isLoading, loadingType, currentReflectionType })
+  // console.log('🔘 ReflectionQuickActions 渲染:', { isLoading, loadingType, currentReflectionType })
   
   const buttons = [
     { 

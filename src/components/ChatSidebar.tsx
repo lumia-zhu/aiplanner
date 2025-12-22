@@ -1051,6 +1051,7 @@ interface ChatSidebarProps {
   setChatMessages: (messages: ChatMessage[]) => void
   isSending: boolean
   streamingMessage: string
+  aiThinkingPhase?: number // AI思考进度阶段 (1-3)
   isDragOver: boolean
   isImageProcessing: boolean
   
@@ -1195,6 +1196,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   setChatMessages,
   isSending,
   streamingMessage,
+  aiThinkingPhase = 2, // 默认阶段2
   isDragOver,
   isImageProcessing,
   isTaskRecognitionMode,
@@ -1916,7 +1918,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                 loadingReflectionType === 'clarity' ? 'clarity' :
                 'default'
               }
-              currentPhase={2}  // 临时固定为阶段2，后续步骤会添加动态切换
+              currentPhase={aiThinkingPhase}  // ✅ 使用动态阶段
             />
           )}
           
