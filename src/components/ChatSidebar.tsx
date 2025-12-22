@@ -3,6 +3,7 @@
 import React, { memo, useRef, useState, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import rehypeRaw from 'rehype-raw'
 import { doubaoService, type ChatMessage } from '@/lib/doubaoService'
 import type { Task, WorkflowMode, PrioritySortFeeling, SingleTaskAction, SubtaskSuggestion } from '@/types'
 import { getAgentConfig } from '@/lib/agent/AgentConfig'
@@ -1528,7 +1529,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                           {/* 渲染文本内容 */}
                           {content.type === 'text' && content.text && (
                             <div className="text-sm prose-chat">
-                              <ReactMarkdown remarkPlugins={[remarkGfm]}>{content.text}</ReactMarkdown>
+                              <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{content.text}</ReactMarkdown>
                             </div>
                           )}
                           
@@ -1585,7 +1586,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                               </div>
                             ) : (
                               <div className="text-sm prose-chat">
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{content.text}</ReactMarkdown>
+                                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{content.text}</ReactMarkdown>
                               </div>
                             )}
                           </div>
@@ -1928,7 +1929,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
               <img src="/ai-avatar.svg" alt="AI" className="w-8 h-8 rounded-full flex-shrink-0" />
               <div className="bg-white rounded-lg px-3 py-2 shadow-sm max-w-[80%]">
                 <div className="text-sm prose-chat">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingMessage}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{streamingMessage}</ReactMarkdown>
                   <span className="inline-block w-2 h-4 bg-blue-500 ml-1 animate-pulse"></span>
                 </div>
               </div>

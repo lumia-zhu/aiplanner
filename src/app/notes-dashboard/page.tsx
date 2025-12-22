@@ -90,6 +90,7 @@ import { generatePersonalizedQuestions, selectThreeQuestions } from '@/lib/perso
 import type { DailyReflection } from '@/types/daily-reflection'
 import { getDailyTasksByNoteDate } from '@/lib/dailyTasks'
 import { getContextInfoByTaskIds } from '@/lib/taskContextService'
+import { casualChat } from '@/lib/casualChatService'
 
 export default function NotesDashboardPage() {
   logger.debug('NotesDashboardPage 组件开始渲染')
@@ -6545,8 +6546,6 @@ ${matrixStats || '（无待办）'}
     }, 400) // 阶段1显示400ms
     
     try {
-      const { casualChat } = await import('@/lib/casualChatService')
-      
       // 添加用户消息到聊天历史
       const userMessage: ChatMessage = {
         role: 'user',
