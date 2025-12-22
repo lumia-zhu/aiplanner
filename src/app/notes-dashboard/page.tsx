@@ -6343,25 +6343,14 @@ export default function NotesDashboardPage() {
          completed: t.completed
        })))
        
-       // 🆕 按父子关系组织任务（只根据 parentTaskId 判断）
-       const parentTasks = pendingTasks.filter((t: any) => !t.parentTaskId)
-       const childTasksMap = new Map<string, any[]>()
-       
-       // 将子任务按父任务ID分组
-       pendingTasks.forEach((t: any) => {
-         if (t.parentTaskId) {
-           const children = childTasksMap.get(t.parentTaskId) || []
-           children.push(t)
-           childTasksMap.set(t.parentTaskId, children)
-         }
-       })
-       
-       // 🔍 调试：打印父任务和子任务分组结果
-       console.log('🚀🚀🚀 👨 父任务:', parentTasks.map((t: any) => t.title))
-       console.log('🚀🚀🚀 👶 子任务分组:', Array.from(childTasksMap.entries()).map(([parentId, children]) => ({
-         parentId,
-         children: children.map((c: any) => c.title)
-       })))
+       // 🆕 按象限分组显示任务
+       const quadrantNames: Record<string, string> = {
+         'urgent-important': '📍 紧急重要',
+         'not-urgent-important': '📍 重要不紧急',
+         'urgent-not-important': '📍 紧急不重要',
+         'not-urgent-not-important': '📍 不紧急不重要',
+         'unclassified': '📍 待分类'
+       }
        
        // 格式化单个任务（带上下文信息）
        const formatTask = (t: any, indent: string = '') => {
@@ -6377,18 +6366,47 @@ export default function NotesDashboardPage() {
          return taskLine
        }
        
-       // 生成任务列表文本（父任务 + 子任务缩进）
-       taskListText += parentTasks.map((parent: any) => {
-         let result = formatTask(parent)
+       // 按象限生成任务列表
+       const quadrantTexts: string[] = []
+       const quadrants: QuadrantType[] = ['urgent-important', 'not-urgent-important', 'urgent-not-important', 'not-urgent-not-important', 'unclassified']
+       
+       for (const quadrant of quadrants) {
+         const tasksInQuadrant = pendingTasks.filter((t: any) => {
+           // 需要获取任务所在象限，从 tasksByQuadrant 获取
+           return tasksByQuadrant[quadrant]?.some((task: any) => task.id === t.id)
+         })
          
-         // 添加子任务（缩进显示）
-         const children = childTasksMap.get(parent.id)
-         if (children && children.length > 0) {
-           result += '\n' + children.map((child: any) => formatTask(child, '  ')).join('\n')
-         }
+         if (tasksInQuadrant.length === 0) continue
          
-         return result
-       }).join('\n')
+         // 分离父任务和子任务
+         const parentTasks = tasksInQuadrant.filter((t: any) => !t.parentTaskId)
+         const childTasksMap = new Map<string, any[]>()
+         
+         tasksInQuadrant.forEach((t: any) => {
+           if (t.parentTaskId) {
+             const children = childTasksMap.get(t.parentTaskId) || []
+             children.push(t)
+             childTasksMap.set(t.parentTaskId, children)
+           }
+         })
+         
+         // 生成该象限的任务文本
+         const quadrantTaskList = parentTasks.map((parent: any) => {
+           let result = formatTask(parent)
+           
+           // 添加子任务（缩进显示）
+           const children = childTasksMap.get(parent.id)
+           if (children && children.length > 0) {
+             result += '\n' + children.map((child: any) => formatTask(child, '  ')).join('\n')
+           }
+           
+           return result
+         }).join('\n')
+         
+         quadrantTexts.push(`${quadrantNames[quadrant]}：\n${quadrantTaskList}`)
+       }
+       
+       taskListText += quadrantTexts.join('\n\n')
     } else if (completedCount === 0) {
        taskListText = '（无任务）'
     }

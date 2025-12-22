@@ -309,6 +309,11 @@ export async function generatePersonalizedQuestions(params: {
 }): Promise<string[]> {
   const { tasks, todayDailyReflection = null, todayTaskReflection = null } = params
 
+  // ⭐ 将上下文构建提前到 try 块外，避免 catch 块访问不到
+  let taskContext = ''
+  let dailyReflectionContext = ''
+  let taskReflectionContext = ''
+
   try {
     logger.debug('开始生成个性化反思问题', {
       taskCount: tasks.length,
@@ -324,9 +329,9 @@ export async function generatePersonalizedQuestions(params: {
     })))
 
     // 构建上下文
-    const taskContext = buildTaskContext(tasks)
-    const dailyReflectionContext = buildTodayDailyReflectionContext(todayDailyReflection)
-    const taskReflectionContext = buildTaskReflectionContext(todayTaskReflection)
+    taskContext = buildTaskContext(tasks)
+    dailyReflectionContext = buildTodayDailyReflectionContext(todayDailyReflection)
+    taskReflectionContext = buildTaskReflectionContext(todayTaskReflection)
 
     // 🔍 输出上下文信息（便于调试）
     console.log('📋 构建任务上下文:', { 
