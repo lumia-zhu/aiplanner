@@ -119,8 +119,8 @@ const FALLBACK_QUESTIONS: Record<ReflectionRoundType, ReflectionQuestion[]> = {
     },
     {
       id: 'time-fallback-3',
-      text: '如果中途遇到卡壳或意外情况，有预留缓冲时间吗？',
-      hint: '考虑风险缓冲'
+      text: '如果这个任务被打断或遇到意外情况，你打算怎么办？会影响其他任务吗？',
+      hint: '考虑应对措施和影响'
     }
   ],
   priority: [
@@ -942,9 +942,9 @@ ${task.deadline ? `截止时间：${task.deadline}` : '无截止时间'}
    - 任务开始前，是否需要等待他人回复或准备材料？
    - 任务中是否有前置步骤没有算进时间？
 
-**3. 风险与冗余（Risk & Buffer）**
-   - 如果任务中间出现意外（被打断、遇到问题），计划是否有弹性？
-   - 是否预留了缓冲时间？
+**3. 风险与应对（Risk & Response）**
+   - 如果任务中间出现意外（被打断、遇到问题），你打算怎么办？
+   - 会影响其他任务的安排吗？
 
 **4. 整体时间分配（Time Allocation）**
    - 所有任务加起来，时间是否够用？

@@ -2700,7 +2700,7 @@ export default function NotesDashboardPage() {
       // 3. 显示加载状态
       const loadingMessage: ChatMessage = {
         role: 'assistant' as const,
-        content: [{ type: 'text' as const, text: '⏳ 正在为你生成个性化问题，请稍候...' }]
+        content: [{ type: 'text' as const, text: '⏳ 正在根据任务信息生成回顾问题，请稍候...' }]
       }
       setChatMessages(prev => [...prev, loadingMessage])
       
@@ -2846,7 +2846,7 @@ export default function NotesDashboardPage() {
         // 其他错误，移除加载消息，显示错误
         setChatMessages(prev => {
           const lastMsg = prev[prev.length - 1]
-          const isLoading = lastMsg?.content?.[0]?.text?.includes('正在为你生成个性化问题')
+          const isLoading = lastMsg?.content?.[0]?.text?.includes('正在根据任务信息生成回顾问题')
           const messages = isLoading ? prev.slice(0, -1) : prev
           return [...messages, {
             role: 'assistant' as const,
@@ -4096,7 +4096,7 @@ export default function NotesDashboardPage() {
       // 显示加载提示
       const loadingMessage: ChatMessage = {
         role: 'assistant' as const,
-        content: [{ type: 'text' as const, text: '⏳ 正在为你生成个性化问题，请稍候...' }]
+        content: [{ type: 'text' as const, text: '⏳ 正在根据任务信息生成回顾问题，请稍候...' }]
       }
       setChatMessages(prev => [...prev, loadingMessage])
       
