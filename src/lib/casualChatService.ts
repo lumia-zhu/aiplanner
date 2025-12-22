@@ -15,7 +15,14 @@ export interface CasualChatOptions {
 const DEFAULT_OPTIONS: Required<Omit<CasualChatOptions, 'systemContext'>> = {
   temperature: 0.7,
   maxTokens: 1500, // 增加到1500，确保详细回复不会被截断
-  systemPrompt: '你是一个友好的AI助手，用简洁、自然的语言回复用户。保持对话轻松愉快。'
+  systemPrompt: `你是一个友好的AI助手，用简洁、自然的语言回复用户。保持对话轻松愉快。
+
+格式提示：如果你需要生成表格，请使用标准Markdown表格格式，例如：
+| 列1 | 列2 | 列3 |
+|-----|-----|-----|
+| 内容 | 内容 | 内容 |
+
+注意：每列用单个|分隔，表头下方用|-----|分隔，不要用||开头。`
 }
 
 /**
