@@ -6304,7 +6304,14 @@ export default function NotesDashboardPage() {
       return null
     }
     
-    const dateStr = formatNoteDate(currentContextDate)
+    if (!user) {
+      console.log('⚠️ 用户未登录，跳过构建笔记上下文')
+      return null
+    }
+    
+    // ⭐ 使用 selectedDate（用户在日期选择器中选择的日期）
+    const dateStr = formatNoteDate(selectedDate)
+    console.log('🚀🚀🚀 📅 用户选中的日期:', dateStr)
     
     // ✂️ 笔记内容截断优化
     let noteText = currentNote ? getNoteText(currentNote).trim() : '（空笔记）'
@@ -6312,10 +6319,20 @@ export default function NotesDashboardPage() {
       noteText = noteText.substring(0, 600) + '\n\n...（中间内容已折叠以加速AI响应）...\n\n' + noteText.substring(noteText.length - 300)
     }
     
-    // ✂️ 任务列表优化（包含上下文信息）
+    // ⭐ 直接使用 tasksByQuadrant（已按 selectedDate 加载）
     const allTasks = Object.values(tasksByQuadrant).flat()
-    const completedCount = allTasks.filter(t => t.completed).length
-    const pendingTasks = allTasks.filter(t => !t.completed)
+    console.log('🚀🚀🚀 📋 tasksByQuadrant 中的任务总数:', allTasks.length)
+    console.log('🚀🚀🚀 📋 任务详情:', allTasks.map((t: any) => ({
+      id: t.id,
+      title: t.title,
+      parentTaskId: t.parentTaskId,
+      depth: t.depth,
+      completed: t.completed
+    })))
+    
+    const completedCount = allTasks.filter((t: any) => t.completed).length
+    const pendingTasks = allTasks.filter((t: any) => !t.completed)
+    console.log('🚀🚀🚀 📋 待办任务数量:', pendingTasks.length)
     
     // 🆕 实时获取任务的上下文信息（确保最新）
     let taskContextMap = new Map<string, any[]>()
@@ -6428,7 +6445,7 @@ ${noteText || '（无内容）'}
 【待办清单】：
 ${taskListText}
 `.trim()
-  }, [viewMode, currentContextDate, currentNote, tasksByQuadrant, getNoteText, userProfile, user])
+  }, [viewMode, selectedDate, currentNote, tasksByQuadrant, getNoteText, userProfile, user])
 
   // 🆕 构建矩阵上下文文本 (已瘦身优化)
   const buildMatrixContextText = useCallback(() => {
