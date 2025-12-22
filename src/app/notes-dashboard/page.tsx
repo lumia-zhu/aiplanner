@@ -115,6 +115,9 @@ export default function NotesDashboardPage() {
   const [notesCache, setNotesCache] = useState<Map<string, Note>>(new Map())
   const [lastLoadedRange, setLastLoadedRange] = useState<{ start: string, end: string } | null>(null)
   
+  // 🆕 跟踪页面是否正在卸载（用于避免卸载时弹出保存失败提示）
+  const isUnloadingRef = useRef(false)
+  
   // 日历视图日期（追踪日历当前显示的月份，用于用户浏览不同月份时加载笔记）
   const [calendarViewDate, setCalendarViewDate] = useState<Date>(selectedDate)
   
@@ -466,6 +469,17 @@ export default function NotesDashboardPage() {
       return () => clearTimeout(timer)
     }
   }, [saveStatus])
+  
+  // 🆕 监听页面卸载事件，设置标志以避免弹出保存失败提示
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      isUnloadingRef.current = true
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [])
   
   // ⭐ 初始化 Agent（只在组件挂载时运行一次）
   useEffect(() => {
@@ -1319,7 +1333,10 @@ export default function NotesDashboardPage() {
     } catch (error) {
       console.error('保存笔记失败:', error)
       setSaveStatus('error')
-      alert('保存笔记失败')
+      // 🆕 只在非页面卸载时弹出提示（页面刷新/关闭时保存失败是正常现象）
+      if (!isUnloadingRef.current) {
+        alert('保存笔记失败')
+      }
     } finally {
       setIsSaving(false)
     }

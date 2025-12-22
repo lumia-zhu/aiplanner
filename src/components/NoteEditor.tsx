@@ -439,21 +439,29 @@ export default function NoteEditor({
     [onSave, autoSaveDelay]
   )
 
-  // ⭐ 页面卸载前强制保存
+  // ⭐ 页面卸载前强制保存（仅用于防止用户意外关闭标签页丢失数据）
+  // 注意：异步保存在页面卸载时可能失败，所以只记录日志，不弹窗
   useEffect(() => {
     const handleBeforeUnload = () => {
       if (editor && onSave) {
         const content = editor.getJSON()
-        console.log('🔄 页面卸载前保存')
-        onSave(content)
+        console.log('🔄 页面卸载前尝试保存（可能不会成功）')
+        // 使用 try-catch 包裹，避免在页面卸载时因异步失败而弹窗
+        try {
+          onSave(content)
+        } catch (e) {
+          console.log('⚠️ 页面卸载时保存失败（正常现象）')
+        }
       }
     }
 
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload)
-      // 组件卸载时也保存
-      handleBeforeUnload()
+      // ❌ 移除组件卸载时的保存调用
+      // 因为：1) 防抖保存已经保存了最新内容
+      //       2) 页面关闭时异步操作会失败并弹出错误提示
+      // handleBeforeUnload() // 不再调用
     }
   }, [editor, onSave])
 
