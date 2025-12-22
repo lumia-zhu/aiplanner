@@ -263,17 +263,32 @@ export async function syncTasksFromNote(
     const existingTasks = await getDailyTasksByNoteDate(userId, noteDate)
     console.log(`📊 数据库中有 ${existingTasks.length} 个任务`)
 
-    // 3. 构建任务映射（按位置）
-    const existingTaskMap = new Map<number, DailyTask>()
+    // 3. 🔧 构建任务映射（按 标题+父任务标题 匹配，而非位置）
+    // 这样即使任务位置变化，也能正确匹配到已有任务
+    const existingTaskMap = new Map<string, DailyTask>()
+    const existingTaskById = new Map<string, DailyTask>()
+    
     for (const task of existingTasks) {
-      existingTaskMap.set(task.notePosition, task)
+      existingTaskById.set(task.id, task)
+    }
+    
+    for (const task of existingTasks) {
+      // 生成唯一键：标题 + 父任务标题（如果有）
+      const parentTitle = task.parentTaskId 
+        ? existingTaskById.get(task.parentTaskId)?.title?.toLowerCase().trim() || 'unknown'
+        : 'root'
+      const key = `${task.title.toLowerCase().trim()}|${parentTitle}`
+      existingTaskMap.set(key, task)
+      console.log(`📌 已有任务映射: "${task.title}" -> key: ${key}`)
     }
 
     // 4. 同步任务（分两轮：先父任务，再子任务）
-    const processedPositions = new Set<number>()
+    const processedTaskKeys = new Set<string>()
     
     // 🆕 position → taskId 映射（用于建立父子关系）
     const positionToTaskId = new Map<number, string>()
+    // 🆕 position → title 映射（用于生成子任务的匹配键）
+    const positionToTitle = new Map<number, string>()
     
     // 先建立已存在任务的 position → id 映射
     for (const task of existingTasks) {
@@ -282,8 +297,13 @@ export async function syncTasksFromNote(
 
     // 🆕 第一轮：处理父任务（depth = 0）和更新已有任务
     for (const parsedTask of parsedTasks.filter(t => (t.depth ?? 0) === 0)) {
-      processedPositions.add(parsedTask.position)
-      const existingTask = existingTaskMap.get(parsedTask.position)
+      // 🔧 使用 标题+root 作为匹配键（父任务没有父级）
+      const matchKey = `${parsedTask.title.toLowerCase().trim()}|root`
+      processedTaskKeys.add(matchKey)
+      const existingTask = existingTaskMap.get(matchKey)
+      
+      // 记录 position → title 映射
+      positionToTitle.set(parsedTask.position, parsedTask.title.toLowerCase().trim())
       
       // 父任务没有 parentTaskId
       const parentTaskId: string | null = null
@@ -348,8 +368,18 @@ export async function syncTasksFromNote(
 
     // 🆕 第二轮：处理子任务（depth > 0）
     for (const parsedTask of parsedTasks.filter(t => (t.depth ?? 0) > 0)) {
-      processedPositions.add(parsedTask.position)
-      const existingTask = existingTaskMap.get(parsedTask.position)
+      // 查找父任务标题（用于生成匹配键）
+      const parentTitle = parsedTask.parentPosition !== undefined 
+        ? positionToTitle.get(parsedTask.parentPosition) || 'unknown'
+        : 'root'
+      
+      // 🔧 使用 标题+父任务标题 作为匹配键
+      const matchKey = `${parsedTask.title.toLowerCase().trim()}|${parentTitle}`
+      processedTaskKeys.add(matchKey)
+      const existingTask = existingTaskMap.get(matchKey)
+      
+      // 记录 position → title 映射
+      positionToTitle.set(parsedTask.position, parsedTask.title.toLowerCase().trim())
       
       // 查找父任务ID
       let parentTaskId: string | null = null
@@ -416,12 +446,18 @@ export async function syncTasksFromNote(
     }
 
     // 5. 删除数据库中多余的任务（笔记中已移除）
+    // 🔧 使用任务键（标题+父标题）来判断，而不是位置
     for (const existingTask of existingTasks) {
-      if (!processedPositions.has(existingTask.notePosition)) {
+      const parentTitle = existingTask.parentTaskId 
+        ? existingTaskById.get(existingTask.parentTaskId)?.title?.toLowerCase().trim() || 'unknown'
+        : 'root'
+      const taskKey = `${existingTask.title.toLowerCase().trim()}|${parentTitle}`
+      
+      if (!processedTaskKeys.has(taskKey)) {
         try {
           await deleteDailyTask(existingTask.id)
           result.deleted++
-          console.log(`🗑️ 删除任务: ${existingTask.title}`)
+          console.log(`🗑️ 删除任务: ${existingTask.title} (key: ${taskKey})`)
         } catch (error) {
           result.errors.push(`删除任务失败: ${existingTask.title}`)
           console.error('❌ 删除任务失败:', error)

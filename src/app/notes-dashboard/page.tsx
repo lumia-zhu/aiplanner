@@ -1903,8 +1903,28 @@ export default function NotesDashboardPage() {
 
   // 处理日期选择
   const handleDateSelect = useCallback((date: Date) => {
-    setSelectedDate(date)
-    setCurrentContextDate(date)  // ✅ 更新对话上下文日期（不清空对话）
+    const oldDateStr = formatNoteDate(selectedDate)
+    const newDateStr = formatNoteDate(date)
+    
+    // 只有日期真的变化时才处理
+    if (oldDateStr !== newDateStr) {
+      setSelectedDate(date)
+      setCurrentContextDate(date)  // ✅ 更新对话上下文日期（不清空对话）
+      
+      // 🆕 在侧边栏添加日期切换提示消息
+      const dateDisplayStr = `${date.getMonth() + 1}月${date.getDate()}日`
+      const contextSwitchMessage: ChatMessage = {
+        role: 'assistant',
+        content: [{
+          type: 'text',
+          text: `📅 已切换到 **${dateDisplayStr}** 的笔记。后续对话将基于该日期的任务和笔记内容。`
+        }]
+      }
+      setChatMessages(prev => [...prev, contextSwitchMessage])
+    } else {
+      setSelectedDate(date)
+      setCurrentContextDate(date)
+    }
     
     // ⭐ 同时更新日历视图日期，确保日历显示选中日期所在的月份
     const selectedMonth = date.getMonth()
@@ -1916,7 +1936,7 @@ export default function NotesDashboardPage() {
       logger.debug('切换日历月份:', `${viewYear}-${viewMonth + 1}` , '→', `${selectedYear}-${selectedMonth + 1}`)
       setCalendarViewDate(date)
     }
-  }, [calendarViewDate])
+  }, [calendarViewDate, selectedDate])
 
   // 辅助函数：从任务标题中提取标签、优先级和时间
   const parseTaskMetadata = useCallback((taskTitle: string) => {
@@ -6319,9 +6339,28 @@ export default function NotesDashboardPage() {
       noteText = noteText.substring(0, 600) + '\n\n...（中间内容已折叠以加速AI响应）...\n\n' + noteText.substring(noteText.length - 300)
     }
     
-    // ⭐ 直接使用 tasksByQuadrant（已按 selectedDate 加载）
-    const allTasks = Object.values(tasksByQuadrant).flat()
-    console.log('🚀🚀🚀 📋 tasksByQuadrant 中的任务总数:', allTasks.length)
+    // 🆕 实时从数据库查询任务（确保获取最新的 selectedDate 的任务）
+    console.log('🚀🚀🚀 🔍 实时从数据库查询任务...')
+    let allTasks: DailyTask[] = []
+    try {
+      const rawTasks = await getDailyTasksByDate(user.id, dateStr)
+      console.log(`🚀🚀🚀 ✅ 数据库查询到 ${rawTasks.length} 个任务`)
+      
+      // 去重（和 loadTaskMatrix 保持一致）
+      const seenKeys = new Set<string>()
+      allTasks = rawTasks.filter(task => {
+        const key = task.title + '|' + (task.parentTaskId || 'root')
+        if (seenKeys.has(key)) return false
+        seenKeys.add(key)
+        return true
+      })
+      console.log(`🚀🚀🚀 📊 去重后 ${allTasks.length} 个任务`)
+    } catch (error) {
+      console.error('❌ 查询任务失败，使用缓存数据:', error)
+      // 降级：使用 tasksByQuadrant 状态
+      allTasks = Object.values(tasksByQuadrant).flat() as DailyTask[]
+    }
+    
     console.log('🚀🚀🚀 📋 任务详情:', allTasks.map((t: any) => ({
       id: t.id,
       title: t.title,
@@ -6361,15 +6400,6 @@ export default function NotesDashboardPage() {
          completed: t.completed
        })))
        
-       // 🆕 按象限分组显示任务
-       const quadrantNames: Record<string, string> = {
-         'urgent-important': '📍 紧急重要',
-         'not-urgent-important': '📍 重要不紧急',
-         'urgent-not-important': '📍 紧急不重要',
-         'not-urgent-not-important': '📍 不紧急不重要',
-         'unclassified': '📍 待分类'
-       }
-       
        // 格式化单个任务（带上下文信息）
        const formatTask = (t: any, indent: string = '') => {
          let taskLine = `${indent}- [TODO] ${t.title}`
@@ -6384,47 +6414,32 @@ export default function NotesDashboardPage() {
          return taskLine
        }
        
-       // 按象限生成任务列表
-       const quadrantTexts: string[] = []
-       const quadrants: QuadrantType[] = ['urgent-important', 'not-urgent-important', 'urgent-not-important', 'not-urgent-not-important', 'unclassified']
+       // 🆕 简化：按父子关系直接列出任务（不依赖 tasksByQuadrant 状态）
+       const parentTasks = pendingTasks.filter((t: any) => !t.parentTaskId)
+       const childTasksMap = new Map<string, any[]>()
        
-       for (const quadrant of quadrants) {
-         const tasksInQuadrant = pendingTasks.filter((t: any) => {
-           // 需要获取任务所在象限，从 tasksByQuadrant 获取
-           return tasksByQuadrant[quadrant]?.some((task: any) => task.id === t.id)
-         })
-         
-         if (tasksInQuadrant.length === 0) continue
-         
-         // 分离父任务和子任务
-         const parentTasks = tasksInQuadrant.filter((t: any) => !t.parentTaskId)
-         const childTasksMap = new Map<string, any[]>()
-         
-         tasksInQuadrant.forEach((t: any) => {
-           if (t.parentTaskId) {
-             const children = childTasksMap.get(t.parentTaskId) || []
-             children.push(t)
-             childTasksMap.set(t.parentTaskId, children)
-           }
-         })
-         
-         // 生成该象限的任务文本
-         const quadrantTaskList = parentTasks.map((parent: any) => {
-           let result = formatTask(parent)
-           
-           // 添加子任务（缩进显示）
-           const children = childTasksMap.get(parent.id)
-           if (children && children.length > 0) {
-             result += '\n' + children.map((child: any) => formatTask(child, '  ')).join('\n')
-           }
-           
-           return result
-         }).join('\n')
-         
-         quadrantTexts.push(`${quadrantNames[quadrant]}：\n${quadrantTaskList}`)
-       }
+       pendingTasks.forEach((t: any) => {
+         if (t.parentTaskId) {
+           const children = childTasksMap.get(t.parentTaskId) || []
+           children.push(t)
+           childTasksMap.set(t.parentTaskId, children)
+         }
+       })
        
-       taskListText += quadrantTexts.join('\n\n')
+       // 生成任务列表文本
+       const taskLines = parentTasks.map((parent: any) => {
+         let result = formatTask(parent)
+         
+         // 添加子任务（缩进显示）
+         const children = childTasksMap.get(parent.id)
+         if (children && children.length > 0) {
+           result += '\n' + children.map((child: any) => formatTask(child, '  ')).join('\n')
+         }
+         
+         return result
+       }).join('\n')
+       
+       taskListText += taskLines
     } else if (completedCount === 0) {
        taskListText = '（无任务）'
     }
@@ -6664,7 +6679,7 @@ ${matrixStats || '（无待办）'}
       setStreamingMessage('')
       setAiThinkingPhase(1) // 重置阶段
     }
-  }, [chatMessage, chatMessages, user, currentContextDate])
+  }, [chatMessage, chatMessages, user, currentContextDate, selectedDate, buildNoteContextText, buildMatrixContextText])
 
   // 处理发送消息
   const handleSendMessage = useCallback(async () => {
@@ -6743,6 +6758,16 @@ ${matrixStats || '（无待办）'}
       : false
     
     console.log('🎯 当前模式:', isAgentMode ? 'Agent' : 'Normal')
+
+    // ✅ 关键修复：Normal 普通模式下的「纯文本消息」也必须注入当天上下文
+    // 之前的实现会走 doubaoService.sendMessage，只带 system + user 两条消息，完全没有任务/笔记上下文，
+    // 导致 AI 无法正确复述当天父子任务（出现少子任务/串旧上下文等现象）。
+    // 统一改为走 handleCasualChat（内部会根据 selectedDate 构建笔记/矩阵上下文并注入 systemContext）。
+    if (!selectedImage && !isAgentMode) {
+      console.log('🧠 Normal 纯文本消息：改用带上下文的普通对话 (handleCasualChat)')
+      await handleCasualChat()
+      return
+    }
 
     setIsSending(true)
     setStreamingMessage('')
