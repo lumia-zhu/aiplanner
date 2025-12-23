@@ -173,7 +173,7 @@ const DailyReflectionQuestionCard: React.FC<DailyReflectionQuestionCardProps> = 
   // 如果卡片已禁用，显示已完成状态
   if (!isActive) {
     return (
-      <div className="mt-3 p-4 bg-gray-100 rounded-lg border border-gray-200 opacity-70 min-h-[280px]">
+      <div className="mt-3 p-4 bg-gray-100 rounded-lg border border-gray-200 opacity-70 min-h-[280px] w-full min-w-[320px] max-w-[400px]">
         <div className="flex items-center justify-between mb-3">
           <div className="text-xs text-gray-500 font-medium">
             ✅ 每日回顾 · 问题 {questionNumber}/{totalQuestions}
@@ -198,7 +198,7 @@ const DailyReflectionQuestionCard: React.FC<DailyReflectionQuestionCardProps> = 
   }
   
   return (
-    <div className="mt-3 p-4 bg-blue-50 rounded-lg border border-blue-200 min-h-[280px]">
+    <div className="mt-3 p-4 bg-blue-50 rounded-lg border border-blue-200 min-h-[280px] w-full min-w-[320px] max-w-[400px]">
       {/* 进度指示器 */}
       <div className="flex items-center justify-between mb-3">
         <div className="text-xs text-blue-600 font-medium">
@@ -271,7 +271,7 @@ const DailyReflectionCompleteCard: React.FC<DailyReflectionCompleteCardProps> = 
   onClose
 }) => {
   return (
-    <div className="mt-3 p-4 bg-green-50 rounded-lg border border-green-200">
+    <div className="mt-3 p-4 bg-green-50 rounded-lg border border-green-200 w-full min-w-[320px] max-w-[400px]">
       <div className="text-sm font-medium text-green-800 mb-2 flex items-center gap-2">
         <span className="text-2xl">🎉</span>
         <span>今日回顾已完成</span>
@@ -321,7 +321,7 @@ const DailyReflectionAlreadyDoneCard: React.FC<DailyReflectionAlreadyDoneCardPro
   onClose
 }) => {
   return (
-    <div className="mt-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+    <div className="mt-3 p-4 bg-blue-50 rounded-lg border border-blue-200 w-full min-w-[320px] max-w-[400px]">
       <div className="text-sm font-medium text-blue-800 mb-2 flex items-center gap-2">
         <span className="text-2xl">✅</span>
         <span>今天已完成回顾</span>
@@ -388,7 +388,7 @@ const DailyReflectionResumeCard: React.FC<DailyReflectionResumeCardProps> = ({
   onRestart
 }) => {
   return (
-    <div className="mt-3 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+    <div className="mt-3 p-4 bg-yellow-50 rounded-lg border border-yellow-200 w-full min-w-[320px] max-w-[400px]">
       <div className="text-sm font-medium text-yellow-800 mb-2 flex items-center gap-2">
         <span className="text-2xl">⏸️</span>
         <span>发现未完成的反思</span>
@@ -459,7 +459,7 @@ const DailyReflectionHistoryCard: React.FC<DailyReflectionHistoryCardProps> = ({
   }
   
   return (
-    <div className="mt-3 p-4 bg-purple-50 rounded-lg border border-purple-200">
+    <div className="mt-3 p-4 bg-purple-50 rounded-lg border border-purple-200 w-full min-w-[320px] max-w-[400px]">
       {/* 标题 */}
       <div className="flex items-center justify-between mb-4">
         <div className="text-sm font-medium text-purple-800 flex items-center gap-2">
