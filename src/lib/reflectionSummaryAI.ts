@@ -213,7 +213,7 @@ export async function testGenerateReflectionSummary() {
   const summary2 = await generateReflectionSummary(
     [
       '今天你的任务进展如何？有哪些完成得不错的？',
-      '今天有没有遇到意外的情况或惊喜？',
+      '今天有没有发生什么意料之外的事情？',
       '此刻你的精力和情绪状态如何？感觉怎么样？'
     ],
     [

@@ -215,7 +215,7 @@ ${taskList}
   示例：「完善开发原型」可以更具体～如明确要完善哪些功能
   示例：「学习」「准备材料」可以更具体～如明确学什么、准备什么
 - 如果有子任务的任务和简单任务：可以点明"「XXX」有子任务，其他可考虑更具体～"
-- 如果大部分清晰：就说"任务信息都挺完整的～"
+- 如果大部分清晰：**不输出内容**（留空，直接进入下一部分）
 - **绝对不要**批评用户
 - 总字数≤50字
 
@@ -325,14 +325,14 @@ function generateFallbackOverview(
   if (vagueTasks.length > 0) {
     const vagueNames = vagueTasks.slice(0, 2).map(t => `「${t.title}」`).join('')
     lines.push(`${vagueNames}可以更具体～如明确具体内容`)
+    lines.push('')
   } else if (tasksWithChildren.length > 0 && topLevelTasks.length > tasksWithChildren.length) {
     // 有些任务有子任务，其他任务可能需要更具体
     const taskWithChildNames = tasksWithChildren.slice(0, 2).map(t => `「${t.title}」`).join('')
     lines.push(`${taskWithChildNames}有子任务，其他可考虑更具体～`)
-  } else {
-    lines.push(`任务信息都挺完整的～`)
+    lines.push('')
   }
-  lines.push('')
+  // 如果任务都挺清晰，不输出任何内容，直接进入下一部分
   
   // 拆分步骤与估算时间建议（只针对父类任务）
   lines.push('**⏱️✂️ 拆分步骤与估算时间**')

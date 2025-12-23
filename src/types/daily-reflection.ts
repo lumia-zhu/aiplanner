@@ -99,7 +99,7 @@ export interface ReflectionContext {
 export const DAILY_REFLECTION_QUESTIONS = [
   "今天你的任务进展如何？有哪些完成得不错的？",
   "任务是否按你预期的方式进行？有什么偏差吗？",
-  "今天有没有遇到意外的情况或惊喜？",
+  "今天有没有发生什么意料之外的事情？",
   "今天什么对你最有帮助？（工具、方法、人或想法）",
   "此刻你的精力和情绪状态如何？感觉怎么样？"
 ] as const
@@ -108,6 +108,7 @@ export const DAILY_REFLECTION_QUESTIONS = [
  * 问题池类型
  */
 export type DailyReflectionQuestion = typeof DAILY_REFLECTION_QUESTIONS[number]
+
 
 
 

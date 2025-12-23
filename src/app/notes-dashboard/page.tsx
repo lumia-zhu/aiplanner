@@ -2332,7 +2332,18 @@ export default function NotesDashboardPage() {
 
   // ⭐ 启动反思流程（侧栏展开时调用）
   const startReflectionSession = useCallback(async () => {
-    if (!user || !selectedDate) return
+    // 🆕 辅助函数：移除加载消息
+    const removeLoadingMessage = () => {
+      setChatMessages(prev => prev.filter(m => {
+        const text = m.content?.[0]?.text || ''
+        return !text.includes('让我看看') && !text.includes('欢迎回来')
+      }))
+    }
+    
+    if (!user || !selectedDate) {
+      removeLoadingMessage()
+      return
+    }
     
     const noteDate = format(selectedDate, 'yyyy-MM-dd')
     console.log('🧠 检查反思会话:', { userId: user.id, noteDate })
@@ -2485,6 +2496,7 @@ export default function NotesDashboardPage() {
       
       if (!snapshot) {
         console.error('❌ 创建计划快照失败')
+        removeLoadingMessage()
         return null
       }
       
@@ -2498,6 +2510,7 @@ export default function NotesDashboardPage() {
       
       if (!session) {
         console.error('❌ 创建反思会话失败')
+        removeLoadingMessage()
         return null
       }
       
@@ -2621,6 +2634,13 @@ export default function NotesDashboardPage() {
       
     } catch (error) {
       console.error('❌ 启动反思会话失败:', error)
+      removeLoadingMessage()
+      // 显示错误消息
+      const errorMessage: ChatMessage = {
+        role: 'assistant' as const,
+        content: [{ type: 'text' as const, text: '❌ 加载任务概览时出现问题，请稍后重试。' }]
+      }
+      setChatMessages(prev => [...prev, errorMessage])
       return null
     }
   }, [user, selectedDate, currentNote, saveKeyMessageToDb])

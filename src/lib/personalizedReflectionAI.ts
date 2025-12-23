@@ -24,8 +24,15 @@ const DEEPSEEK_CONFIG = {
 
 /**
  * AI生成超时时间（毫秒）
+ * 🔧 优化：设置为15秒，平衡用户等待体验和生成成功率
  */
-const AI_TIMEOUT = 8000
+const AI_TIMEOUT = 15000
+
+/**
+ * AI重试次数
+ * 🔧 失败后会重试，提高成功率
+ */
+const MAX_RETRIES = 2
 
 /**
  * 5个问题方向（与原问题池对应）
@@ -314,60 +321,84 @@ export async function generatePersonalizedQuestions(params: {
   let dailyReflectionContext = ''
   let taskReflectionContext = ''
 
-  try {
-    logger.debug('开始生成个性化反思问题', {
-      taskCount: tasks.length,
-      hasDailyReflection: !!todayDailyReflection,
-      hasTaskReflection: !!todayTaskReflection
-    })
+  // 🔧 重试逻辑
+  let lastError: Error | null = null
+  
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      if (attempt === 1) {
+        logger.debug('开始生成个性化反思问题', {
+          taskCount: tasks.length,
+          hasDailyReflection: !!todayDailyReflection,
+          hasTaskReflection: !!todayTaskReflection
+        })
 
-    // 🔍 输出详细的任务列表（便于排查数据隔离问题）
-    console.log('📋 任务列表详情:', tasks.map(t => ({
-      title: t.title,
-      userId: t.userId,  // 检查任务的 userId 是否正确
-      noteDate: t.noteDate
-    })))
+        // 🔍 输出详细的任务列表（便于排查数据隔离问题）
+        console.log('📋 任务列表详情:', tasks.map(t => ({
+          title: t.title,
+          userId: t.userId,  // 检查任务的 userId 是否正确
+          noteDate: t.noteDate
+        })))
 
-    // 构建上下文
-    taskContext = buildTaskContext(tasks)
-    dailyReflectionContext = buildTodayDailyReflectionContext(todayDailyReflection)
-    taskReflectionContext = buildTaskReflectionContext(todayTaskReflection)
+        // 构建上下文
+        taskContext = buildTaskContext(tasks)
+        dailyReflectionContext = buildTodayDailyReflectionContext(todayDailyReflection)
+        taskReflectionContext = buildTaskReflectionContext(todayTaskReflection)
 
-    // 🔍 输出上下文信息（便于调试）
-    console.log('📋 构建任务上下文:', { 
-      taskCount: tasks.length,
-      taskContextLength: taskContext.length,
-      hasTaskReflection: !!taskReflectionContext,
-      taskReflectionLength: taskReflectionContext.length
-    })
+        // 🔍 输出上下文信息（便于调试）
+        console.log('📋 构建任务上下文:', { 
+          taskCount: tasks.length,
+          taskContextLength: taskContext.length,
+          hasTaskReflection: !!taskReflectionContext,
+          taskReflectionLength: taskReflectionContext.length
+        })
+      } else {
+        console.log(`🔄 第 ${attempt} 次重试生成个性化问题...`)
+      }
 
-    // 构建Prompt
-    const prompt = buildPrompt(taskContext, dailyReflectionContext, taskReflectionContext)
+      // 构建Prompt
+      const prompt = buildPrompt(taskContext, dailyReflectionContext, taskReflectionContext)
 
-    // 带超时的AI调用
-    console.log('🤖 开始调用 AI 生成个性化问题...')
-    const questions = await Promise.race([
-      callAI(prompt),
-      new Promise<string[]>((_, reject) => 
-        setTimeout(() => reject(new Error('AI超时')), AI_TIMEOUT)
-      )
-    ])
+      // 带超时的AI调用
+      console.log(`🤖 开始调用 AI 生成个性化问题... (尝试 ${attempt}/${MAX_RETRIES})`)
+      const questions = await Promise.race([
+        callAI(prompt),
+        new Promise<string[]>((_, reject) => 
+          setTimeout(() => reject(new Error('AI超时')), AI_TIMEOUT)
+        )
+      ])
 
-    console.log('✅ 个性化问题生成成功:', questions)
-    logger.debug('个性化问题生成成功', { questions })
-    return questions
+      console.log('✅ 个性化问题生成成功:', questions)
+      logger.debug('个性化问题生成成功', { questions, attempt })
+      return questions
 
-  } catch (error) {
-    // 静默降级：返回通用问题池
-    logger.warn('个性化问题生成失败，使用通用问题', { 
-      error: error instanceof Error ? error.message : '未知错误' 
-    })
-    // 🔍 在控制台输出详细错误信息（便于调试）
-    console.error('⚠️ 个性化问题生成失败，已降级到通用问题:', error)
-    console.log('📋 任务上下文:', taskContext)
-    console.log('🔑 API Key 状态:', getApiKey() ? '已配置' : '未配置')
-    return [...DAILY_REFLECTION_QUESTIONS]
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error('未知错误')
+      console.warn(`⚠️ 第 ${attempt} 次尝试失败:`, lastError.message)
+      
+      // 如果还有重试次数，继续重试
+      if (attempt < MAX_RETRIES) {
+        // 等待一小段时间后重试（避免立即重试）
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        continue
+      }
+      
+      // 🔧 所有重试都失败后，才降级到通用问题
+      logger.warn('个性化问题生成失败（已重试所有次数），使用通用问题', { 
+        error: lastError.message,
+        attempts: MAX_RETRIES
+      })
+      // 🔍 在控制台输出详细错误信息（便于调试）
+      console.error(`❌ 个性化问题生成失败（已重试 ${MAX_RETRIES} 次），已降级到通用问题`)
+      console.error('最后一次错误:', lastError)
+      console.log('📋 任务上下文:', taskContext)
+      console.log('🔑 API Key 状态:', getApiKey() ? '已配置' : '未配置')
+      return [...DAILY_REFLECTION_QUESTIONS]
+    }
   }
+
+  // 理论上不会走到这里，但为了类型安全
+  return [...DAILY_REFLECTION_QUESTIONS]
 }
 
 /**
