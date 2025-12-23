@@ -1587,6 +1587,10 @@ export default function NoteEditor({
     if (!editor) return
 
     const updateDateTimeDisplays = () => {
+      // ⚠️ 检查编辑器视图是否已准备好
+      if (!editor.view) {
+        return
+      }
       // ⚠️ 输入法(IME)组合输入期间不要操作 DOM，否则会触发 ProseMirror 的 DOM observer 导致内容重复
       if (editor.view.composing || isComposingRef.current) {
         return

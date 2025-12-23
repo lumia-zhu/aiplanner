@@ -3496,6 +3496,16 @@ export default function NotesDashboardPage() {
               
               if (rawText) {
 
+                // 🔍 调试：检查节点是否包含上下文信息和子任务
+
+                const hasContextInfo = node.content?.some((c: any) => c.type === 'contextInfo')
+
+                const hasSubTasks = node.content?.some((c: any) => c.type === 'taskList')
+
+                console.log(`📋 提取任务: "${rawText}", 有上下文: ${hasContextInfo}, 有子任务: ${hasSubTasks}`)
+
+                
+
                 tasks.push({
 
                   title: rawText,  // ✅ 保留原始文本，包含 #标签 和 @标记
@@ -12473,6 +12483,10 @@ ${matrixStats || '（无待办）'}
         // ✅ 使用完整的任务节点（保留上下文信息和子任务）
 
         console.log('📦 使用完整任务节点添加（包含上下文和子任务）')
+
+        console.log('📦 rawNode 内容:', JSON.stringify(taskWithNode.rawNode, null, 2))
+
+        console.log('📦 rawNode 子节点类型:', taskWithNode.rawNode.content?.map((c: any) => c.type))
 
         await appendTaskNodeToNote(user.id, today, taskWithNode.rawNode)
 
