@@ -269,6 +269,106 @@ export async function appendTaskToNote(
 }
 
 /**
+ * 追加完整的任务节点到笔记（保留上下文信息和子任务）
+ * 
+ * @param userId - 用户ID
+ * @param date - 目标日期
+ * @param taskNode - 完整的 taskItem 节点（Tiptap JSON 格式）
+ */
+export async function appendTaskNodeToNote(
+  userId: string,
+  date: Date,
+  taskNode: JSONContent
+): Promise<Note> {
+  try {
+    const supabase = createClient()
+    const dateStr = formatNoteDate(date)
+    
+    console.log('📝 追加完整任务节点到笔记:', { dateStr, nodeType: taskNode.type })
+    
+    // 1. 获取当前日期的笔记（如果存在）
+    const existingNote = await getNoteByDate(userId, date)
+    
+    // 2. 确保是 taskItem 节点
+    if (taskNode.type !== 'taskItem') {
+      throw new Error('只能追加 taskItem 节点')
+    }
+    
+    // 3. 克隆节点并重置 checked 状态为 false（新添加的任务应该是未完成状态）
+    const clonedNode: JSONContent = JSON.parse(JSON.stringify(taskNode))
+    if (clonedNode.attrs) {
+      clonedNode.attrs.checked = false
+    }
+    
+    let updatedContent: JSONContent
+    
+    if (existingNote && existingNote.content) {
+      // 4a. 如果笔记已存在，查找或创建 taskList
+      const content = existingNote.content
+      
+      if (!content.content || !Array.isArray(content.content)) {
+        updatedContent = {
+          type: 'doc',
+          content: [
+            {
+              type: 'taskList',
+              content: [clonedNode]
+            }
+          ]
+        }
+      } else {
+        let taskListFound = false
+        const newContent = content.content.map((node: any) => {
+          if (node.type === 'taskList') {
+            taskListFound = true
+            return {
+              ...node,
+              content: [...(node.content || []), clonedNode]
+            }
+          }
+          return node
+        })
+        
+        if (!taskListFound) {
+          newContent.push({
+            type: 'taskList',
+            content: [clonedNode]
+          })
+        }
+        
+        updatedContent = {
+          ...content,
+          content: newContent
+        }
+      }
+    } else {
+      // 4b. 如果笔记不存在，创建新的笔记结构
+      updatedContent = {
+        type: 'doc',
+        content: [
+          {
+            type: 'taskList',
+            content: [clonedNode]
+          }
+        ]
+      }
+    }
+    
+    console.log('📄 更新后的笔记结构（含完整任务节点）')
+    
+    // 5. 使用 saveNote 保存
+    const savedNote = await saveNote(userId, date, updatedContent)
+    
+    console.log('✅ 完整任务节点已追加到笔记:', savedNote.id)
+    return savedNote
+    
+  } catch (error) {
+    console.error('❌ 追加完整任务节点失败:', error)
+    throw error
+  }
+}
+
+/**
  * 获取指定日期的笔记
  */
 export async function getNoteByDate(userId: string, date: Date): Promise<Note | null> {
