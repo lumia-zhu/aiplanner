@@ -371,6 +371,99 @@ function generateFallbackOverview(
   return lines.join('\n')
 }
 
+// ==================== 任务哈希与个性化问候 ====================
+
+/**
+ * 生成任务列表的哈希值
+ * 用于判断任务是否有变化
+ */
+export function generateTaskHash(tasks: TaskSnapshot[]): string {
+  // 只取关键信息生成哈希：任务ID、标题、完成状态
+  const taskSignatures = tasks
+    .filter(t => !t.isCompleted) // 只关注未完成任务
+    .map(t => `${t.id}|${t.title}|${t.isCompleted}`)
+    .sort() // 排序保证顺序一致
+    .join(';;')
+  
+  // 简单的哈希：使用字符串长度和前几个字符
+  // 不需要加密级别的哈希，只需要检测变化
+  return `${taskSignatures.length}-${taskSignatures.slice(0, 100)}`
+}
+
+/**
+ * 生成 AI 个性化问候（任务没变化时使用）
+ * 
+ * 返回一个简短的、与任务相关的问候语
+ */
+export async function generatePersonalizedGreeting(
+  tasks: TaskSnapshot[]
+): Promise<string> {
+  const uncompletedTasks = tasks.filter(t => !t.isCompleted)
+  const parentTasks = uncompletedTasks.filter(t => (t.depth ?? 0) === 0)
+  
+  // 如果没有任务
+  if (parentTasks.length === 0) {
+    return '👋 欢迎回来！今天还没有任务，要不要添加一些？'
+  }
+  
+  // 取前 3 个任务名作为上下文
+  const taskNames = parentTasks.slice(0, 3).map(t => t.title).join('、')
+  
+  const prompt = `你是一个轻松友好的任务管理助手。用户刚刚再次打开了任务面板，他们今天的主要任务有：${taskNames}
+
+请生成一句**轻松、不催促、像朋友聊天**的问候语。
+
+要求：
+1. 必须提到具体的任务名（至少一个）
+2. 语气随意轻松，**不要给人施加压力或催促的感觉**
+3. 避免"进展""完成""都...了吧"这类检查式语气
+4. 可以用"怎么样""有意思吗""还在弄吗"这类轻松的问法
+5. 可以用一个相关的 emoji 开头
+6. **总字数不超过 20 个字**
+7. 用"～"或"吗"或"呀"结尾（轻松自然）
+
+示例（轻松友好，不催促）：
+- 💭 「${parentTasks[0]?.title}」还在弄吗～
+- 😊 「${parentTasks[0]?.title}」怎么样呀～
+- ✨ 今天「${parentTasks[0]?.title}」顺利不～
+- 🎯 回来啦～「${parentTasks[0]?.title}」有意思吗
+
+直接输出问候语，不要其他内容：`
+
+  try {
+    const response = await doubaoService.sendMessage(prompt)
+    
+    if (response.success && response.message) {
+      const greeting = response.message.trim()
+      // 如果 AI 返回内容太长，使用降级方案
+      if (greeting.length > 40) {
+        return generateFallbackGreeting(parentTasks)
+      }
+      return greeting
+    }
+    
+    return generateFallbackGreeting(parentTasks)
+  } catch (error) {
+    console.error('生成个性化问候失败:', error)
+    return generateFallbackGreeting(parentTasks)
+  }
+}
+
+/**
+ * 降级方案：预设模板问候（轻松友好，不催促）
+ */
+function generateFallbackGreeting(tasks: TaskSnapshot[]): string {
+  const taskName = tasks[0]?.title || '任务'
+  const templates = [
+    `💭 「${taskName}」还在弄吗～`,
+    `😊 「${taskName}」怎么样呀～`,
+    `✨ 今天「${taskName}」顺利不～`,
+    `🎯 回来啦～「${taskName}」有意思吗`,
+    `👋 「${taskName}」继续搞呀～`
+  ]
+  return templates[Math.floor(Math.random() * templates.length)]
+}
+
 // ==================== 元认知维度定义 ====================
 
 /**

@@ -81,6 +81,10 @@ import {
 
   generatePriorityQuestions,
 
+  generateTaskHash,
+
+  generatePersonalizedGreeting,
+
   type ReflectionRoundType 
 
 } from '@/lib/reflectionFlow'
@@ -360,6 +364,10 @@ export default function NotesDashboardPage() {
 
   const [questionAnswers, setQuestionAnswers] = useState<Array<{question: string, answer: string}>>([])  // 问题和回答的记录
 
+  
+  // ⭐ 任务哈希：用于判断任务是否变化（避免重复概览）
+  const lastOverviewHashRef = useRef<string>('')  // 上次概览时的任务哈希
+  const lastOverviewDateRef = useRef<string>('')  // 上次概览的日期
   
   // ⭐ 任务选择界面：折叠状态管理
   const [collapsedTasks, setCollapsedTasks] = useState<Set<string>>(new Set())  // 存储被折叠的主任务ID
@@ -8585,35 +8593,104 @@ export default function NotesDashboardPage() {
     
     
 
-    // ⭐ 侧栏展开时，立即显示加载消息，然后启动反思流程
+    // ⭐ 侧栏展开时，判断任务是否变化
     if (newState) {
-
-      // 🆕 立即显示加载消息（带动画效果）
-      const loadingMessage: ChatMessage = {
-        role: 'assistant' as const,
-        content: [{ type: 'text' as const, text: '让我看看你这天的任务...' }]
-      }
-      setChatMessages(prev => {
-        // 先清除所有加载消息，再添加新的
-        const filtered = prev.filter(m => {
-          const text = m.content?.[0]?.text || ''
-          return !text.includes('让我看看') && !text.includes('欢迎回来')
-        })
-        return [...filtered, loadingMessage]
+      const currentDateKey = formatNoteDate(selectedDate)
+      const currentTasks = reflectionTasks || []
+      const currentHash = generateTaskHash(currentTasks)
+      
+      // 判断是否需要完整概览：日期变化 或 任务变化 或 首次打开
+      const needsFullOverview = 
+        lastOverviewDateRef.current !== currentDateKey ||
+        lastOverviewHashRef.current !== currentHash ||
+        lastOverviewHashRef.current === ''
+      
+      console.log('🔍 任务变化检测:', {
+        dateChanged: lastOverviewDateRef.current !== currentDateKey,
+        hashChanged: lastOverviewHashRef.current !== currentHash,
+        needsFullOverview
       })
       
-      // 异步启动反思流程（会替换加载消息）
-      const session = await startReflectionSession()
-
-      if (session) {
-
-        console.log('✅ 反思会话已启动:', session.id)
-
+      if (needsFullOverview) {
+        // 🆕 任务有变化 → 显示完整概览
+        const loadingMessage: ChatMessage = {
+          role: 'assistant' as const,
+          content: [{ type: 'text' as const, text: '让我看看你这天的任务...' }]
+        }
+        setChatMessages(prev => {
+          const filtered = prev.filter(m => {
+            const text = m.content?.[0]?.text || ''
+            return !text.includes('让我看看') && !text.includes('欢迎回来') && !text.includes('进展') && !text.includes('顺利')
+          })
+          return [...filtered, loadingMessage]
+        })
+        
+        // 异步启动反思流程
+        const session = await startReflectionSession()
+        
+        if (session) {
+          console.log('✅ 反思会话已启动:', session.id)
+          // 更新哈希记录
+          lastOverviewDateRef.current = currentDateKey
+          lastOverviewHashRef.current = currentHash
+        }
+      } else {
+        // 🆕 任务没变化 → 显示个性化问候
+        console.log('💬 任务无变化，显示个性化问候')
+        
+        // 先显示加载状态
+        const loadingMessage: ChatMessage = {
+          role: 'assistant' as const,
+          content: [{ type: 'text' as const, text: '...' }]
+        }
+        setChatMessages(prev => {
+          const filtered = prev.filter(m => {
+            const text = m.content?.[0]?.text || ''
+            return !text.includes('让我看看') && !text.includes('欢迎回来') && !text.includes('进展') && !text.includes('顺利')
+          })
+          return [...filtered, loadingMessage]
+        })
+        
+        // 生成个性化问候
+        try {
+          const greeting = await generatePersonalizedGreeting(currentTasks)
+          const greetingMessage: ChatMessage = {
+            role: 'assistant' as const,
+            content: [{ 
+              type: 'text' as const, 
+              text: `${greeting}\n\n👇 请使用下方的快捷按钮开始规划` 
+            }]
+          }
+          setChatMessages(prev => {
+            // 替换加载消息
+            const filtered = prev.filter(m => {
+              const text = m.content?.[0]?.text || ''
+              return text !== '...'
+            })
+            return [...filtered, greetingMessage]
+          })
+        } catch (error) {
+          console.error('生成问候失败:', error)
+          // 降级：使用简单问候
+          const fallbackMessage: ChatMessage = {
+            role: 'assistant' as const,
+            content: [{ 
+              type: 'text' as const, 
+              text: `👋 今天任务怎么样呀～\n\n👇 请使用下方的快捷按钮开始规划` 
+            }]
+          }
+          setChatMessages(prev => {
+            const filtered = prev.filter(m => {
+              const text = m.content?.[0]?.text || ''
+              return text !== '...'
+            })
+            return [...filtered, fallbackMessage]
+          })
+        }
       }
-
     }
 
-  }, [isChatSidebarOpen, startReflectionSession])
+  }, [isChatSidebarOpen, startReflectionSession, selectedDate, reflectionTasks])
 
 
 
