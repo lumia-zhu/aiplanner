@@ -22,6 +22,10 @@ export interface TaskForDisplay {
   hasEstimation?: boolean
   priority?: 'high' | 'medium' | 'low'
   noteDate?: string
+  // 🆕 父子任务层级关系
+  depth?: number              // 任务层级：0=父任务，1=子任务，2=孙任务
+  parentId?: string           // 父任务ID
+  children?: TaskForDisplay[] // 子任务列表
 }
 
 interface TaskListCardProps {
@@ -34,11 +38,13 @@ interface TaskListCardProps {
 
 export default function TaskListCard({ tasks, totalCount, onTaskToggle, onMoveToToday, isRefreshing }: TaskListCardProps) {
   const [isExpanded, setIsExpanded] = useState(false)
+  // 🆕 跟踪每个父任务的子任务展开状态
+  const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set())
   
   // 是否需要分页（超过 5 个任务）
   const shouldPaginate = totalCount > 5
   
-  // 显示的任务列表
+  // 显示的任务列表（只显示顶层任务）
   const displayedTasks = shouldPaginate && !isExpanded ? tasks.slice(0, 5) : tasks
   
   // 隐藏的任务数量
@@ -55,6 +61,19 @@ export default function TaskListCard({ tasks, totalCount, onTaskToggle, onMoveTo
       onMoveToToday(task.id, task.noteId, task.noteDate)
     }
   }, [onMoveToToday])
+  
+  // 🆕 切换子任务展开/折叠
+  const toggleChildren = useCallback((taskId: string) => {
+    setExpandedParents(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(taskId)) {
+        newSet.delete(taskId)
+      } else {
+        newSet.add(taskId)
+      }
+      return newSet
+    })
+  }, [])
 
   return (
     <div className="w-full bg-white rounded-xl border border-gray-200 overflow-hidden shadow-md">
@@ -84,12 +103,16 @@ export default function TaskListCard({ tasks, totalCount, onTaskToggle, onMoveTo
       <div className="divide-y divide-gray-100">
         {displayedTasks.length > 0 ? (
           displayedTasks.map((task, index) => (
-            <TaskItem
+            <TaskItemWithChildren
               key={task.id}
               task={task}
               index={index}
               onToggle={() => handleToggle(task)}
               onMoveToToday={() => handleMoveToToday(task)}
+              onToggleChildren={() => toggleChildren(task.id)}
+              isChildrenExpanded={expandedParents.has(task.id)}
+              onChildToggle={handleToggle}
+              onChildMoveToToday={handleMoveToToday}
             />
           ))
         ) : (
@@ -129,16 +152,88 @@ export default function TaskListCard({ tasks, totalCount, onTaskToggle, onMoveTo
 }
 
 /**
+ * 🆕 带子任务的任务项组件
+ */
+interface TaskItemWithChildrenProps {
+  task: TaskForDisplay
+  index: number
+  onToggle: () => void
+  onMoveToToday: () => void
+  onToggleChildren: () => void
+  isChildrenExpanded: boolean
+  onChildToggle: (task: TaskForDisplay) => void
+  onChildMoveToToday: (task: TaskForDisplay) => void
+}
+
+function TaskItemWithChildren({ 
+  task, 
+  index, 
+  onToggle, 
+  onMoveToToday,
+  onToggleChildren,
+  isChildrenExpanded,
+  onChildToggle,
+  onChildMoveToToday
+}: TaskItemWithChildrenProps) {
+  const hasChildren = task.children && task.children.length > 0
+  
+  return (
+    <div>
+      {/* 父任务 */}
+      <TaskItem 
+        task={task} 
+        index={index} 
+        onToggle={onToggle} 
+        onMoveToToday={onMoveToToday}
+        hasChildren={hasChildren}
+        onToggleChildren={onToggleChildren}
+        isChildrenExpanded={isChildrenExpanded}
+      />
+      
+      {/* 子任务列表（可折叠） */}
+      {hasChildren && isChildrenExpanded && (
+        <div className="bg-gray-50 border-l-4 border-blue-200">
+          {task.children!.map((child, childIndex) => (
+            <TaskItem
+              key={child.id}
+              task={child}
+              index={childIndex}
+              onToggle={() => onChildToggle(child)}
+              onMoveToToday={() => onChildMoveToToday(child)}
+              isSubtask={true}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
  * 单个任务项组件
  */
 interface TaskItemProps {
   task: TaskForDisplay
   index: number
   onToggle: () => void
-  onMoveToToday: () => void // 🆕 移动到今天的回调
+  onMoveToToday: () => void
+  // 🆕 父子任务相关
+  hasChildren?: boolean
+  onToggleChildren?: () => void
+  isChildrenExpanded?: boolean
+  isSubtask?: boolean // 是否是子任务
 }
 
-function TaskItem({ task, index, onToggle, onMoveToToday }: TaskItemProps) {
+function TaskItem({ 
+  task, 
+  index, 
+  onToggle, 
+  onMoveToToday,
+  hasChildren,
+  onToggleChildren,
+  isChildrenExpanded,
+  isSubtask
+}: TaskItemProps) {
   const [isHovered, setIsHovered] = useState(false)
 
   // 格式化截止日期
@@ -171,16 +266,35 @@ function TaskItem({ task, index, onToggle, onMoveToToday }: TaskItemProps) {
       className={`
         transition-all duration-150 hover:bg-gray-50
         ${task.isCompleted ? 'opacity-50' : ''}
+        ${isSubtask ? 'bg-gray-50/50' : ''}
       `}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <div className="px-4 py-3 flex items-start gap-3">
+      <div className={`px-4 py-3 flex items-start gap-3 ${isSubtask ? 'pl-8' : ''}`}>
         {/* 序号 + 勾选框 */}
         <div className="flex items-center gap-2 flex-shrink-0">
-          <span className="text-xs font-medium text-gray-400 w-5 text-right">
-            {index + 1}
-          </span>
+          {/* 🆕 子任务展开/折叠按钮（仅父任务显示） */}
+          {hasChildren && onToggleChildren ? (
+            <button
+              onClick={onToggleChildren}
+              className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-blue-600 transition-colors"
+              title={isChildrenExpanded ? '收起子任务' : '展开子任务'}
+            >
+              <svg 
+                className={`w-4 h-4 transition-transform duration-200 ${isChildrenExpanded ? 'rotate-90' : ''}`} 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          ) : (
+            <span className="text-xs font-medium text-gray-400 w-5 text-right">
+              {isSubtask ? '•' : index + 1}
+            </span>
+          )}
           <button
             onClick={onToggle}
             className={`
@@ -206,10 +320,16 @@ function TaskItem({ task, index, onToggle, onMoveToToday }: TaskItemProps) {
         <div className="flex-1 min-w-0">
           {/* 任务标题 */}
           <div className={`
-            text-sm font-medium leading-tight mb-1.5
+            text-sm font-medium leading-tight mb-1.5 flex items-center gap-2
             ${task.isCompleted ? 'line-through text-gray-400' : 'text-gray-900'}
           `}>
-            {task.title}
+            <span>{task.title}</span>
+            {/* 🆕 子任务数量标签 */}
+            {hasChildren && task.children && task.children.length > 0 && (
+              <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-600 rounded-full font-normal">
+                {task.children.length}个子任务
+              </span>
+            )}
           </div>
 
           {/* 任务元信息 - 紧凑排列 */}

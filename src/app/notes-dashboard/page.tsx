@@ -9120,62 +9120,39 @@ export default function NotesDashboardPage() {
     }
 
     // ⭐ 防重复：如果上一条已经是相同的 user 文本，就不要再追加一次
+    // 同时立即添加 loading 指示器（不等待数据库保存）
+    const loadingMessage: ChatMessage = {
+      role: 'assistant',
+      content: [{
+        type: 'interactive',
+        interactive: {
+          type: 'agent-loading',
+          data: { iteration: 1, message: 'Agent 正在思考...' },
+          isActive: true
+        }
+      }]
+    }
+    
     setChatMessages(prev => {
       const last = prev[prev.length - 1]
       const lastText = last?.role === 'user'
         ? (last.content.find((c: any) => c.type === 'text') as any)?.text?.trim?.() || ''
         : ''
-      if (last?.role === 'user' && lastText === messageToSend) return prev
-      return [...prev, userMessage]
+      // 如果上一条已经是相同的 user 文本，只添加 loading
+      if (last?.role === 'user' && lastText === messageToSend) {
+        return [...prev, loadingMessage]
+      }
+      // 否则添加用户消息 + loading
+      return [...prev, userMessage, loadingMessage]
     })
 
     
     
-    // 💾 保存用户消息到数据库
-
-    try {
-
-      const chatDate = formatNoteDate(currentContextDate)  // ✅ 使用 currentContextDate
-
-      await saveChatMessage(user.id, chatDate, 'user', userMessage.content, chatDate)  // ✅ 传入格式化后的 contextDate
-
-      logger.success('用户消息已保存到数据库')
-
-    } catch (error) {
-
-      logger.error('保存用户消息失败:', error)
-
-      // 保存失败不影响继续使用
-
-    }
-
-    
-    
-    // 2. 添加加载指示器
-
-    const loadingMessage: ChatMessage = {
-
-      role: 'assistant',
-
-      content: [{
-
-        type: 'interactive',
-
-        interactive: {
-
-          type: 'agent-loading',
-
-          data: { iteration: 1, message: 'Agent 正在思考...' },
-
-          isActive: true
-
-        }
-
-      }]
-
-    }
-
-    setChatMessages(prev => [...prev, loadingMessage])
+    // 💾 异步保存用户消息到数据库（不阻塞 UI）
+    const chatDate = formatNoteDate(currentContextDate)
+    saveChatMessage(user.id, chatDate, 'user', userMessage.content, chatDate)
+      .then(() => logger.success('用户消息已保存到数据库'))
+      .catch((error) => logger.error('保存用户消息失败:', error))
 
     
     

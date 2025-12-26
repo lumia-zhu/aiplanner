@@ -120,11 +120,17 @@ export class GetTasksTool implements AgentTool {
         needsClarification: !t.description || (t.description && t.description.length < 10),
         isCompleted: t.isCompleted || false,
         noteDate: t.noteDate,
-        noteId: t.noteId
+        noteId: t.noteId,
+        // 🆕 保留层级信息
+        depth: t.depth || 0,
+        parentId: t.parentId || null
       }))
 
-      // 🎯 应用智能优先级排序
-      const sortedTasks = sortTasksByPriority(simplifiedTasks)
+      // 🆕 构建父子任务树结构
+      const taskTree = this.buildTaskTree(simplifiedTasks)
+
+      // 🎯 应用智能优先级排序（只对顶层任务排序）
+      const sortedTasks = sortTasksByPriority(taskTree)
 
       console.log(`✅ 查询完成: ${sortedTasks.length} 个任务（已排序）`)
 
@@ -156,13 +162,68 @@ export class GetTasksTool implements AgentTool {
   }
 
   /**
+   * 🆕 构建父子任务树结构
+   * 将扁平的任务列表转换为树形结构，子任务嵌套在父任务的 children 字段中
+   */
+  private buildTaskTree(tasks: any[]): any[] {
+    // 按 depth=0 筛选出顶层任务
+    const topLevelTasks = tasks.filter(t => (t.depth || 0) === 0)
+    
+    // 按 depth>0 筛选出子任务
+    const childTasks = tasks.filter(t => (t.depth || 0) > 0)
+    
+    // 为每个顶层任务查找子任务
+    for (const parent of topLevelTasks) {
+      // 根据 parentId 匹配，或者根据在 tasks 数组中的位置匹配
+      // 由于笔记中任务是按顺序排列的，子任务会紧跟在父任务后面
+      const children = childTasks.filter(child => {
+        // 如果有明确的 parentId，使用它
+        if (child.parentId && child.parentId === parent.id) {
+          return true
+        }
+        // 如果没有 parentId，使用位置推断（同一个 noteId 且 depth > 0）
+        return child.noteId === parent.noteId && 
+               this.isChildOfParent(tasks, parent, child)
+      })
+      
+      if (children.length > 0) {
+        parent.children = children
+        parent.childCount = children.length
+      }
+    }
+    
+    return topLevelTasks
+  }
+  
+  /**
+   * 判断 child 是否是 parent 的子任务（基于位置）
+   */
+  private isChildOfParent(allTasks: any[], parent: any, child: any): boolean {
+    const parentIndex = allTasks.findIndex(t => t.id === parent.id)
+    const childIndex = allTasks.findIndex(t => t.id === child.id)
+    
+    // 子任务应该在父任务之后
+    if (childIndex <= parentIndex) return false
+    
+    // 检查从父任务到子任务之间是否有其他顶层任务
+    for (let i = parentIndex + 1; i < childIndex; i++) {
+      if ((allTasks[i].depth || 0) === 0) {
+        return false // 中间有其他顶层任务，说明 child 不属于 parent
+      }
+    }
+    
+    return true
+  }
+
+  /**
    * 从单个笔记中提取任务
    */
   private extractTasksFromNote(note: any): any[] {
     const tasks: any[] = []
     let taskIndex = 0
+    let currentParentId: string | null = null
 
-    const traverse = (node: any) => {
+    const traverse = (node: any, depth: number = 0, parentId: string | null = null) => {
       if (node.type === 'taskItem') {
         // 提取任务标题
         const title = this.extractTextFromNode(node)
@@ -170,8 +231,10 @@ export class GetTasksTool implements AgentTool {
         // 解析优先级和截止日期（从标题中）
         const metadata = this.parseTaskMetadata(title)
         
+        const taskId = `${note.id}-task-${taskIndex}`
+        
         const task = {
-          id: `${note.id}-task-${taskIndex}`,
+          id: taskId,
           noteId: note.id,
           noteDate: note.note_date,
           title: metadata.cleanTitle,
@@ -179,15 +242,41 @@ export class GetTasksTool implements AgentTool {
           priority: metadata.priority || 'low',
           deadline: metadata.deadline,
           estimatedMinutes: metadata.estimatedMinutes,
-          description: metadata.description
+          description: metadata.description,
+          // 🆕 层级信息
+          depth: depth,
+          parentId: parentId
         }
         
         tasks.push(task)
         taskIndex++
+        
+        // 🆕 检查是否有嵌套的 taskList（子任务）
+        if (node.content && Array.isArray(node.content)) {
+          for (const child of node.content) {
+            if (child.type === 'taskList') {
+              // 递归处理子任务列表，层级+1，父任务ID为当前任务
+              traverse(child, depth + 1, taskId)
+            }
+          }
+        }
+        
+        return // 已处理完当前 taskItem 及其子任务
       }
 
+      // 处理 taskList 节点
+      if (node.type === 'taskList') {
+        if (node.content && Array.isArray(node.content)) {
+          for (const child of node.content) {
+            traverse(child, depth, parentId)
+          }
+        }
+        return
+      }
+
+      // 处理其他节点
       if (node.content && Array.isArray(node.content)) {
-        node.content.forEach(traverse)
+        node.content.forEach((child: any) => traverse(child, 0, null))
       }
     }
 
