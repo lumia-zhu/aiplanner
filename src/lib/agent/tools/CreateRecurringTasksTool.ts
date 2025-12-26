@@ -60,26 +60,37 @@ export class CreateRecurringTasksTool implements AgentTool {
   async execute(params: CreateRecurringTasksParams): Promise<ToolResult> {
     try {
       // 1. 标准化任务标题为数组
-      const taskTitlesArray = Array.isArray(params.taskTitles) 
+      const rawTaskTitles = Array.isArray(params.taskTitles) 
         ? params.taskTitles 
         : [params.taskTitles]
+      
+      // 2. 过滤掉空的任务标题（而不是直接报错）
+      const taskTitlesArray = rawTaskTitles
+        .filter(t => t && t.trim().length > 0)
+        .map(t => t.trim())
+      
+      const skippedCount = rawTaskTitles.length - taskTitlesArray.length
+      if (skippedCount > 0) {
+        console.log(`⚠️ 跳过了 ${skippedCount} 个空任务标题`)
+      }
       
       console.log('📅 CreateRecurringTasksTool 执行:', {
         userId: params.userId.substring(0, 8) + '...',
         taskTitles: taskTitlesArray,
         taskCount: taskTitlesArray.length,
+        skippedEmptyTitles: skippedCount,
         dateRange: params.dateRange
       })
 
-      // 2. 验证参数
-      if (taskTitlesArray.length === 0 || taskTitlesArray.some(t => !t || t.trim().length === 0)) {
+      // 3. 验证：只有在过滤后完全没有有效任务时才报错
+      if (taskTitlesArray.length === 0) {
         return {
           type: 'error',
-          message: '任务标题不能为空'
+          message: '没有找到有效的任务标题（所有任务标题都是空的）'
         }
       }
 
-      // 2. 计算日期范围
+      // 4. 计算日期范围
       let startDate: Date
       let endDate: Date
       const today = new Date()
@@ -135,12 +146,12 @@ export class CreateRecurringTasksTool implements AgentTool {
           }
       }
 
-      // 3. 生成日期列表
+      // 5. 生成日期列表
       const dates = eachDayOfInterval({ start: startDate, end: endDate })
       console.log(`📅 将在 ${dates.length} 天内创建 ${taskTitlesArray.length} 个任务`)
       console.log(`📊 总共需要创建: ${dates.length * taskTitlesArray.length} 个任务项`)
 
-      // 4. 批量创建任务（双重循环：日期 × 任务）
+      // 6. 批量创建任务（双重循环：日期 × 任务）
       const { appendTaskToNote, formatNoteDate } = await import('@/lib/notes')
       
       const results = []
@@ -170,13 +181,13 @@ export class CreateRecurringTasksTool implements AgentTool {
         }
       }
 
-      // 5. 统计结果
+      // 7. 统计结果
       const successCount = results.filter(r => r.success).length
       const failCount = results.length - successCount
 
       console.log(`✅ 批量创建完成: ${successCount} 成功, ${failCount} 失败`)
 
-      // 6. 构建返回消息
+      // 8. 构建返回消息
       const taskListStr = taskTitlesArray.length === 1 
         ? taskTitlesArray[0]
         : taskTitlesArray.map((t, i) => `${i + 1}. ${t}`).join('、')
@@ -192,6 +203,11 @@ export class CreateRecurringTasksTool implements AgentTool {
       
       if (failCount > 0) {
         message += `\n⚠️ 失败：${failCount} 个任务项`
+      }
+      
+      // 如果有跳过的空任务，也告知用户
+      if (skippedCount > 0) {
+        message += `\n💡 跳过了 ${skippedCount} 个空任务`
       }
 
       return {

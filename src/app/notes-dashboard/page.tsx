@@ -736,6 +736,33 @@ export default function NotesDashboardPage() {
 
   }, [])  // 空依赖数组：只在组件挂载时运行一次
 
+  // ⭐ 预加载任务上下文（用户登录后立即加载，优化第一次对话速度）
+  useEffect(() => {
+    if (user && agentInstance) {
+      // 在后台预加载任务上下文，不阻塞 UI
+      const preloadTaskContext = async () => {
+        try {
+          console.log('🚀 预加载任务上下文...')
+          const startTime = Date.now()
+          
+          // 通过 AgentMemory 预加载（会被缓存）
+          const { AgentMemory } = await import('@/lib/agent/AgentMemory')
+          const memory = new AgentMemory()
+          await memory.ensureTaskContext(user.id)
+          
+          const duration = Date.now() - startTime
+          console.log(`✅ 任务上下文预加载完成 (${duration}ms)`)
+        } catch (error) {
+          console.error('⚠️ 任务上下文预加载失败（不影响后续使用）:', error)
+        }
+      }
+      
+      // 延迟 500ms 执行，避免与页面初始加载竞争资源
+      const timer = setTimeout(preloadTaskContext, 500)
+      return () => clearTimeout(timer)
+    }
+  }, [user, agentInstance])
+
 
 
   // 加载用户资料
@@ -9041,9 +9068,15 @@ export default function NotesDashboardPage() {
 
     }
 
+    // ⭐ 立即保存并清空输入框，防止重复提交
+    const messageToSend = chatMessage.trim()
+    if (!messageToSend) {
+      console.warn('⚠️ 消息为空，跳过处理')
+      return
+    }
+    setChatMessage('')  // 立即清空，防止重复添加
     
-    
-    console.log('🤖 Agent 模式：开始处理消息')
+    console.log('🤖 Agent 模式：开始处理消息:', messageToSend)
 
     setIsAgentRunning(true)
 
@@ -9079,7 +9112,7 @@ export default function NotesDashboardPage() {
 
       role: 'user',
 
-      content: [{ type: 'text', text: chatMessage }]
+      content: [{ type: 'text', text: messageToSend }]
 
     }
 
@@ -9171,7 +9204,7 @@ export default function NotesDashboardPage() {
       
       // 4. 调用 Agent
 
-      const result = await agentInstance.run(chatMessage, agentContext)
+      const result = await agentInstance.run(messageToSend, agentContext)
 
       console.log('📊 Agent 返回结果:', result)
 
@@ -10772,9 +10805,7 @@ ${matrixStats || '（无待办）'}
 
         await handleAgentMessage()
 
-        // Agent 模式清理
-
-        setChatMessage('')
+        // Agent 模式清理（注意：chatMessage 已在 handleAgentMessage 中清空）
 
         setSelectedImage(null)
 

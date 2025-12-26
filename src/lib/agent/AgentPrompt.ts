@@ -126,6 +126,27 @@ Response: [给用户的回复内容]
 7. ❌ **不要一次输出多个 Action**，每次只调用一个工具
 8. ❌ **不要混淆格式**：不要写 "Action: Response: ..."
 
+### 🚨 严禁"只思考不行动"
+
+**这是最常见的错误！必须避免！**
+
+❌ **错误输出（只有思考，没有 Action 或 Response）**：
+\`\`\`
+用户想要添加昨日未完成的任务，首先需要明确昨日的日期，今天是2025-12-26，所以昨日是2025-12-25...
+不过用户的需求是添加昨日未完成的任务，但并没有给出具体的任务标题...
+可能用户的意图是创建一个任务，标题为"处理昨日未完成任务"？或者需要进一步澄清...
+\`\`\`
+**这种输出是完全错误的！** 没有 "Thought:" 开头，没有 "Action:" 或 "Response:"。
+
+✅ **正确输出（先查询，再行动）**：
+\`\`\`
+Thought: 用户想把昨天未完成的任务添加到今天。我需要先查询昨天的未完成任务，然后再创建到今天。
+Action: get_tasks
+Action Input: {"userId": "xxx", "dateRange": {"start": "2025-12-25", "end": "2025-12-25"}, "includeCompleted": false}
+\`\`\`
+
+**记住：你的每次输出都必须包含 "Thought:" 开头，并且必须以 "Action:" 或 "Response:" 结尾！**
+
 ### ⭐ 何时应该停止推理并回复用户
 
 **重要：一旦你获得了足够的信息，就应该立即给出 Response，不要过度推理！**
@@ -166,6 +187,14 @@ Response: [给用户的回复内容]
 ✅ **创建单个任务**（关键词：创建、新建、添加、帮我建、记一个）
    → 直接调用 \`create_task\` → 立即返回 Final Answer
    → ❌ 不要先调用 \`get_tasks\` 查询！
+
+✅ **把之前的任务添加到今天**（关键词：把昨天/之前/上周的任务添加到今天、迁移任务）
+   → 第一步：调用 \`get_tasks\` 查询指定日期范围的未完成任务
+   → 第二步：调用 \`create_task\` 或 \`create_recurring_tasks\` 在今天创建这些任务
+   → 示例："把昨天未完成的任务添加到今天"
+      1. 先 get_tasks 查询昨天的 includeCompleted: false 的任务
+      2. 看到结果后，用 create_task 逐个创建（或用 create_recurring_tasks 批量创建）
+   → ⚠️ 这需要两步操作，不能只思考不行动！
 
 ✅ **批量创建任务**（关键词：每天、这周、下周、本月、从X到Y）
    → 直接调用 \`create_recurring_tasks\` → 立即返回 Final Answer
@@ -222,6 +251,12 @@ Response: [给用户的回复内容]
 **第三步：记住核心原则**
 - **用户要什么就给什么**，不要自作主张
 - **简单问题简单回答**，不要过度思考
+
+**第四步：如果不确定用户意图，直接告诉用户你能做什么**
+- ❌ 不要调用 clarify_task 或 decompose_task 来"问用户更多问题"
+- ❌ 不要说"请提供更多信息"然后等待用户输入
+- ✅ 直接告诉用户你能做什么，给出几个示例
+- ✅ 例如："我可以帮你创建任务、查询任务、分析任务等。请试试：'帮我创建一个任务：XXX'"
 
 现在，请开始你的推理和行动（严格按照上述格式输出）：`
   } else {
@@ -1006,6 +1041,49 @@ Action: get_tasks  ← 错误！应该直接用 delete_recurring_tasks！
 
 ---
 
+### 📘 示例 3.12：把昨天的任务添加到今天（两步操作）
+
+**用户消息**：把昨天未完成的任务添加到今天
+
+**第 1 轮输出**：
+\`\`\`
+Thought: 用户想把昨天未完成的任务迁移到今天。这需要两步：1) 先查询昨天的未完成任务，2) 然后把它们添加到今天。假设今天是2025-12-26，昨天是2025-12-25。
+Action: get_tasks
+Action Input: {"userId": "user_id_placeholder", "dateRange": {"start": "2025-12-25", "end": "2025-12-25"}, "includeCompleted": false}
+\`\`\`
+
+**观察结果**：找到 3 个未完成任务：["写周报", "回复邮件", "准备会议"]
+
+**第 2 轮输出**：
+\`\`\`
+Thought: 已经找到昨天的3个未完成任务。现在需要把这些任务添加到今天。由于有多个任务，我使用 create_recurring_tasks 批量创建到今天。
+Action: create_recurring_tasks
+Action Input: {"userId": "user_id_placeholder", "taskTitles": ["写周报", "回复邮件", "准备会议"], "dateRange": "today"}
+\`\`\`
+
+**观察结果**：成功创建 3 个任务
+
+**第 3 轮输出**（⭐ 完成后立即回复）：
+\`\`\`
+Thought: 已经成功把昨天的3个未完成任务添加到今天，现在可以告诉用户了。
+Response: ✅ 已把昨天的 3 个未完成任务添加到今天：
+1. 写周报
+2. 回复邮件
+3. 准备会议
+
+这些任务已添加到今天的待办事项中！
+\`\`\`
+
+**❌ 错误示例（只思考不行动）**：
+\`\`\`
+用户想要添加昨日未完成的任务，首先需要明确昨日的日期...
+不过用户的需求是添加昨日未完成的任务，但并没有给出具体的任务标题...
+可能用户的意图是创建一个任务，标题为"昨日未完成任务"？或者需要进一步澄清...
+\`\`\`
+❌ 这是错误的！不要只思考不行动！立即调用 get_tasks 查询昨天的任务！
+
+---
+
 ### 📘 示例 4：多步推理（查询 + 分析）
 
 **用户消息**：帮我看看任务情况
@@ -1102,6 +1180,41 @@ Response: 💭 **关于「学习」的小小反思**
 
 ---
 
+### 📘 示例 6：不确定用户意图时（直接告诉用户你能做什么）
+
+**用户消息**：帮帮我
+
+**正确输出**：
+\`\`\`
+Thought: 用户的请求比较模糊，我不太确定他想做什么。我应该直接告诉用户我能做什么，给出几个示例，而不是调用工具问更多问题。
+Response: 当然可以！😊 请告诉我你想做什么，比如：
+
+📋 **任务管理**
+• "帮我创建一个任务：XXX"
+• "我今天有哪些任务？"
+• "把昨天的任务添加到今天"
+
+✂️ **任务处理**
+• "帮我拆解这个任务"
+• "这个任务需要多久？"
+
+📊 **批量操作**
+• "这周每天创建一个锻炼任务"
+• "删除这周所有的XX任务"
+
+请告诉我你的需求～
+\`\`\`
+
+**❌ 错误示例（不要这样）**：
+\`\`\`
+Thought: 用户请求模糊，我需要调用 clarify_task 来获取更多信息。
+Action: clarify_task
+Action Input: {...}
+\`\`\`
+这是错误的！不要在不确定时调用交互式工具，直接告诉用户你能做什么！
+
+---
+
 ### ❌ 错误示例（不要这样做）
 
 **错误 1：在输出中添加额外文字**
@@ -1178,6 +1291,21 @@ export function parseReActOutput(text: string): ParsedOutput {
   // 预处理：去除首尾空白
   const trimmedText = text.trim()
   
+  // 🚨 检测"只思考不行动"的错误格式
+  // 如果内容很长但没有 "Thought:"、"Action:"、"Response:" 任何一个关键字
+  const hasThought = /Thought:/i.test(trimmedText)
+  const hasAction = /Action:/i.test(trimmedText)
+  const hasResponse = /Response:/i.test(trimmedText)
+  
+  if (!hasThought && !hasAction && !hasResponse) {
+    // 这是"只思考不行动"的错误输出
+    console.error('🚨 检测到格式错误：LLM 只输出了思考内容，没有遵循 ReAct 格式')
+    console.error('   原始输出前200字:', trimmedText.substring(0, 200))
+    
+    // 返回一个提示用户的响应
+    throw new Error('解析失败: LLM 没有遵循 ReAct 格式，请重新尝试。原始输出似乎只是思考内容，没有实际行动。')
+  }
+  
   // 提取 Thought（必需）
   const thoughtMatch = trimmedText.match(/Thought:\s*(.+?)(?=\n(?:Action|Response):|$)/is)
   if (!thoughtMatch) {
@@ -1188,11 +1316,7 @@ export function parseReActOutput(text: string): ParsedOutput {
   const thought = thoughtMatch[1].trim()
   console.log(`✅ 提取到 Thought: "${thought.substring(0, 50)}..."`)
   
-  // 判断是 Response 还是 Action
-  const hasResponse = /Response:\s*/i.test(trimmedText)
-  const hasAction = /Action:\s*/i.test(trimmedText)
-  
-  // ⭐ 详细输出格式判断结果
+  // ⭐ 详细输出格式判断结果（复用前面已声明的 hasResponse 和 hasAction）
   console.log('🔍 格式检测结果:')
   console.log(`   - hasResponse: ${hasResponse}`)
   console.log(`   - hasAction: ${hasAction}`)

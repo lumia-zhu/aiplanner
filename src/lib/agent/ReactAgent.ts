@@ -154,11 +154,30 @@ export class ReactAgent {
           console.log('📊 解析结果:', parsed.type)
           console.log('📊 解析详情:', JSON.stringify(parsed, null, 2))  // ⭐ 添加详细解析结果
         } catch (parseError: any) {
-          console.error('❌ 解析失败，使用兜底响应:', parseError.message)
-          // 🛡️ 兜底：将 LLM 输出作为普通文本返回
+          console.error('❌ 解析失败:', parseError.message)
+          
+          // 🛡️ 检测是否是"只思考不行动"的错误
+          const isThinkingOnly = parseError.message.includes('只是思考内容') || 
+                                 parseError.message.includes('没有遵循 ReAct 格式')
+          
+          if (isThinkingOnly) {
+            console.error('🚨 检测到 AI 只思考不行动，尝试重新推理...')
+            
+            // 如果是第一次迭代就出错，继续下一轮让 AI 重试
+            if (iteration < this.maxIterations - 1) {
+              // 添加一条提示消息到记忆，让 AI 知道它需要遵循格式
+              this.memory.addMessage({ 
+                role: 'assistant', 
+                content: '（系统：请遵循 ReAct 格式输出，必须以 "Thought:" 开头，并以 "Action:" 或 "Response:" 结尾）' 
+              })
+              continue
+            }
+          }
+          
+          // 🛡️ 兜底：给用户友好的提示，并展示 Agent 能力
           return {
             type: 'text',
-            content: llmResponse || '抱歉，我在处理您的请求时遇到了一些问题。请尝试重新表述您的问题。',
+            content: this.buildCapabilityHint('抱歉，我在处理这个请求时遇到了一些问题。'),
             metadata: {
               iteration,
               thoughts: this.memory.getThoughts(),
@@ -311,7 +330,7 @@ export class ReactAgent {
         console.error(`❌ 第 ${iteration} 轮迭代出错:`, error)
         return {
           type: 'error',
-          content: `Agent 执行出错: ${error instanceof Error ? error.message : String(error)}`,
+          content: this.buildCapabilityHint('抱歉，执行过程中遇到了问题。'),
           error: error instanceof Error ? error.message : String(error),
           iteration
         }
@@ -322,7 +341,7 @@ export class ReactAgent {
     console.log('⚠️ 达到最大迭代次数')
     return {
       type: 'error',
-      content: '思考时间过长，请简化您的请求或稍后再试',
+      content: this.buildCapabilityHint('抱歉，这个请求有点复杂，我没能完成处理。'),
       error: '达到最大迭代次数',
       iteration: this.maxIterations,
       metadata: {
@@ -331,6 +350,39 @@ export class ReactAgent {
         steps: this.memory.getSteps()
       }
     }
+  }
+
+  /**
+   * 构建能力提示消息
+   * 当 Agent 无法处理请求时，告诉用户它能做什么
+   */
+  private buildCapabilityHint(errorPrefix: string): string {
+    return `${errorPrefix}
+
+💡 **我可以帮你做这些事情**：
+
+📋 **任务管理**
+• "帮我创建一个任务：XXX"
+• "把昨天的任务添加到今天"
+• "删除今天的第一个任务"
+• "完成这个任务"
+
+🔍 **查询与分析**
+• "我今天有哪些任务？"
+• "查看这周的未完成任务"
+• "帮我分析任务情况"
+
+✂️ **任务拆解与澄清**
+• "帮我拆解这个任务"
+• "这个任务需要多久？"
+• "帮我想清楚这个任务"
+
+📊 **批量操作**
+• "这周每天创建一个锻炼任务"
+• "删除这周所有的XX任务"
+• "把所有任务标记为完成"
+
+请试试用上面的方式描述你的需求～`
   }
 
   /**

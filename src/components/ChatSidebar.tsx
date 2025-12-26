@@ -1443,29 +1443,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
           </div>
         </div>
         
-        {/* 第二行：Agent 模式切换开关 */}
-        <div className="px-4 pb-3 flex items-center justify-between">
-          <span className={`text-xs font-medium ${
-            displayAgentMode ? 'text-blue-600' : 'text-gray-500'
-          }`}>
-            {displayAgentMode ? '🤖 Agent 模式' : '💬 普通模式'}
-          </span>
-          
-          <button
-            onClick={() => setIsAgentMode(!isAgentMode)}
-            disabled={viewMode === 'matrix'}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              displayAgentMode ? 'bg-blue-600' : 'bg-gray-300'
-            } ${viewMode === 'matrix' ? 'opacity-50 cursor-not-allowed' : ''}`}
-            title={viewMode === 'matrix' ? '矩阵模式下不可用 Agent' : (displayAgentMode ? '切换到普通模式' : '切换到 Agent 模式')}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                displayAgentMode ? 'translate-x-6' : 'translate-x-1'
-              }`}
-            />
-          </button>
-        </div>
+        {/* Agent 模式开关已移到底部输入栏左侧 */}
       </div>
       
       {/* 聊天消息区域 */}
@@ -2166,38 +2144,24 @@ const ChatSidebar = memo<ChatSidebarProps>(({
         )}
 
         <div className="flex items-stretch gap-2">
-          {/* 图片上传按钮 */}
-          <div className="relative">
-            <input
-              type="file"
-              accept="image/*"
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-              onChange={(e) => {
-                const file = e.target.files?.[0]
-                if (file) {
-                  handleImageSelect(file)
-                }
-              }}
-              disabled={shouldDisableInput}
-            />
-            <div className={`w-10 h-10 flex items-center justify-center rounded-lg transition-colors border ${
-              shouldDisableInput
-                ? 'bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed'
-                : isImageProcessing 
-                  ? 'border-blue-500 text-blue-500 bg-white cursor-pointer' 
-                  : 'border-gray-300 text-gray-500 hover:text-blue-500 hover:bg-blue-50 bg-white cursor-pointer'
+          {/* Agent 模式切换按钮 */}
+          <button
+            onClick={() => setIsAgentMode(!isAgentMode)}
+            disabled={viewMode === 'matrix'}
+            className={`w-10 h-10 flex items-center justify-center rounded-lg transition-all border ${
+              viewMode === 'matrix'
+                ? 'bg-gray-100 border-gray-200 cursor-not-allowed opacity-50'
+                : displayAgentMode
+                  ? 'bg-blue-50 border-blue-400 hover:bg-blue-100'
+                  : 'border-gray-300 hover:border-blue-300 hover:bg-blue-50 bg-white'
             }`}
-            title={shouldDisableInput ? "请先选择上方操作" : "上传图片"}
-            >
-              {isImageProcessing ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-              ) : (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              )}
-            </div>
-          </div>
+            title={viewMode === 'matrix' ? '矩阵模式下不可用 Agent' : (displayAgentMode ? '点击关闭 Agent 模式' : '点击开启 Agent 模式')}
+          >
+            {/* 机器人图标 */}
+            <svg className={`w-6 h-6 ${displayAgentMode ? 'text-blue-600' : 'text-gray-500'}`} viewBox="0 0 1024 1024" fill="currentColor">
+              <path d="M554.666667 251.733333V341.333333h341.333333v426.666667H170.666667V341.333333h341.333333V251.733333c-25.6-8.533333-42.666667-34.133333-42.666667-59.733333 0-34.133333 29.866667-64 64-64s64 29.866667 64 64c0 29.866667-17.066667 51.2-42.666666 59.733333zM512 384H213.333333v341.333333h640V384h-341.333333z m-384 85.333333v213.333334H85.333333v-213.333334h42.666667z m853.333333 0v213.333334h-42.666666v-213.333334h42.666666zM384 597.333333c-25.6 0-42.666667-17.066667-42.666667-42.666666s17.066667-42.666667 42.666667-42.666667 42.666667 17.066667 42.666667 42.666667-17.066667 42.666667-42.666667 42.666666z m298.666667 0c-25.6 0-42.666667-17.066667-42.666667-42.666666s17.066667-42.666667 42.666667-42.666667 42.666667 17.066667 42.666666 42.666667-17.066667 42.666667-42.666666 42.666666z" />
+            </svg>
+          </button>
 
           {/* 输入框 */}
           <textarea
@@ -2263,8 +2227,8 @@ const ChatSidebar = memo<ChatSidebarProps>(({
             }}
           />
 
-          {/* 语音按钮 */}
-          <div className={`w-10 h-10 flex items-center justify-center rounded-lg transition-colors border ${
+          {/* 语音按钮 - 暂时隐藏 */}
+          {/* <div className={`w-10 h-10 flex items-center justify-center rounded-lg transition-colors border ${
             shouldDisableInput
               ? 'bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed'
               : 'text-gray-500 hover:text-blue-500 hover:bg-blue-50 border-gray-300 bg-white cursor-pointer'
@@ -2275,7 +2239,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
             </svg>
-          </div>
+          </div> */}
 
           {/* 发送按钮 */}
           <div
