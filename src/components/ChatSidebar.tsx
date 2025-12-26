@@ -990,7 +990,7 @@ const QuestionAnswerCard: React.FC<{
   const theme = getColorTheme()
   
   return (
-    <div className={`mt-3 p-4 ${theme.bg} rounded-lg border ${theme.border}`}>
+    <div className={`mt-3 p-4 ${theme.bg} rounded-lg border ${theme.border} min-w-[320px] max-w-[400px]`}>
       <div className="text-sm font-medium text-gray-700 mb-3">
         {getPromptText()}
       </div>
