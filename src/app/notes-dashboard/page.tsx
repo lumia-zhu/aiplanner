@@ -543,6 +543,9 @@ export default function NotesDashboardPage() {
   // ⭐ Loading超时保护ref
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   
+  // ⭐ 防止消息重复发送的ref（解决异步状态更新导致的多次触发问题）
+  const isSendingMessageRef = useRef<boolean>(false)
+  
   
   // ⭐ 任务拆解相关状态
 
@@ -9116,7 +9119,15 @@ export default function NotesDashboardPage() {
 
     }
 
-    setChatMessages(prev => [...prev, userMessage])
+    // ⭐ 防重复：如果上一条已经是相同的 user 文本，就不要再追加一次
+    setChatMessages(prev => {
+      const last = prev[prev.length - 1]
+      const lastText = last?.role === 'user'
+        ? (last.content.find((c: any) => c.type === 'text') as any)?.text?.trim?.() || ''
+        : ''
+      if (last?.role === 'user' && lastText === messageToSend) return prev
+      return [...prev, userMessage]
+    })
 
     
     
@@ -9167,6 +9178,29 @@ export default function NotesDashboardPage() {
     setChatMessages(prev => [...prev, loadingMessage])
 
     
+    
+    // ⭐ 超时保护：30秒后自动移除 loading 并提示
+    const timeoutId = setTimeout(() => {
+      console.warn('⚠️ Agent 执行超时（30秒）')
+      
+      // 移除 loading
+      setChatMessages(prev => prev.filter(msg => {
+        const interactive = msg.content.find((c: any) => c.type === 'interactive')?.interactive
+        return interactive?.type !== 'agent-loading'
+      }))
+      
+      // 添加超时提示
+      const timeoutMessage: ChatMessage = {
+        role: 'assistant',
+        content: [{
+          type: 'text',
+          text: '⏱️ 处理超时了，请稍后再试，或者简化一下你的问题～'
+        }]
+      }
+      setChatMessages(prev => [...prev, timeoutMessage])
+      
+      setIsAgentRunning(false)
+    }, 30000)  // 30秒超时
     
     try {
 
@@ -9222,9 +9256,25 @@ export default function NotesDashboardPage() {
 
       
       
-      // 5. 处理 Agent 返回结果
-
-      await handleAgentResult(result)
+      // ⭐ 清除超时定时器
+      clearTimeout(timeoutId)
+      
+      // 5. 处理 Agent 返回结果（加上异常捕获，防止卡住 loading）
+      try {
+        await handleAgentResult(result)
+      } catch (resultError: any) {
+        console.error('❌ 处理 Agent 结果时出错:', resultError)
+        
+        // 添加兜底错误消息
+        const fallbackError: ChatMessage = {
+          role: 'assistant',
+          content: [{
+            type: 'text',
+            text: `抱歉，处理结果时出现了问题：${resultError.message || '未知错误'}`
+          }]
+        }
+        setChatMessages(prev => [...prev, fallbackError])
+      }
       
       
 
@@ -9233,6 +9283,9 @@ export default function NotesDashboardPage() {
       console.error('❌ Agent 执行失败:', error)
 
       
+      
+      // ⭐ 清除超时定时器
+      clearTimeout(timeoutId)
       
       // 移除加载指示器
 
@@ -10637,15 +10690,31 @@ ${matrixStats || '（无待办）'}
 
   const handleSendMessage = useCallback(async () => {
 
-    if (!chatMessage.trim() && !selectedImage) return
+    // ⭐ 防止重复发送：使用 ref 立即检查并锁定（必须尽早上锁，避免并发双触发）
+    if (isSendingMessageRef.current) {
+      console.log('⚠️ 消息正在发送中，忽略重复请求')
+      return
+    }
+    
+    // ⭐ 先上锁，避免 Enter + 点击等并发触发在“锁之前”的时间窗里重复进入
+    isSendingMessageRef.current = true
+
+    // 无内容：解锁并返回
+    if (!chatMessage.trim() && !selectedImage) {
+      isSendingMessageRef.current = false
+      return
+    }
 
     if (!doubaoService.hasApiKey()) {
 
+      isSendingMessageRef.current = false
       alert('请先在 .env.local 文件中配置 NEXT_PUBLIC_DOUBAO_API_KEY')
 
       return
 
     }
+    
+    //（已在上方提前上锁）
 
 
 
@@ -10679,6 +10748,7 @@ ${matrixStats || '（无待办）'}
 
         console.log('⚠️ 问答阶段不应该使用底部输入框')
 
+        isSendingMessageRef.current = false  // 解锁
         return
 
       }
@@ -10707,6 +10777,7 @@ ${matrixStats || '（无待办）'}
 
         
         
+        isSendingMessageRef.current = false  // 解锁
         return
 
       }
@@ -10723,6 +10794,7 @@ ${matrixStats || '（无待办）'}
 
       await handleCasualChat()
 
+      isSendingMessageRef.current = false  // 解锁
       return
 
     }
@@ -10753,6 +10825,7 @@ ${matrixStats || '（无待办）'}
 
           await handleCasualChat()
 
+          isSendingMessageRef.current = false  // 解锁
           return
 
         }
@@ -10813,6 +10886,7 @@ ${matrixStats || '（无待办）'}
 
         setStreamingMessage('')
 
+        isSendingMessageRef.current = false  // 解锁
         return  // Agent 模式处理完成，直接返回
 
       }
@@ -11014,6 +11088,9 @@ ${matrixStats || '（无待办）'}
       setIsSending(false)
 
       setStreamingMessage('')
+      
+      // ⭐ 解锁，允许下次发送
+      isSendingMessageRef.current = false
 
     }
 

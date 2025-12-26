@@ -2170,6 +2170,11 @@ const ChatSidebar = memo<ChatSidebarProps>(({
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
+                // ⭐ 防止重复触发：检查是否正在发送或 Agent 正在运行
+                if (isSending || isAgentRunning) {
+                  console.log('⚠️ 已有发送任务进行中，忽略 Enter 键')
+                  return
+                }
                 // 根据模式处理发送
                 if (workflowMode === 'task-context-input' && onContextSubmit) {
                   // 提交任务拆解上下文
