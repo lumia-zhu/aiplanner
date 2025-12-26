@@ -288,13 +288,26 @@ export class GetTasksTool implements AgentTool {
   }
 
   /**
-   * 从节点中提取纯文本
+   * 从节点中提取纯文本（只提取任务标题，不包含子任务和上下文）
    */
   private extractTextFromNode(node: any): string {
     if (node.type === 'text') {
       return node.text || ''
     }
 
+    // 🛑 跳过这些节点类型，不进入其内容
+    const skipTypes = [
+      'taskList',     // 子任务列表（不提取子任务的标题）
+      'contextInfo',  // 上下文信息
+      'bulletList',   // 无序列表
+      'orderedList',  // 有序列表
+    ]
+    
+    if (skipTypes.includes(node.type)) {
+      return '' // 不提取这些节点的内容
+    }
+
+    // 递归处理子节点（taskItem、paragraph 等）
     if (node.content && Array.isArray(node.content)) {
       return node.content.map((child: any) => this.extractTextFromNode(child)).join('')
     }

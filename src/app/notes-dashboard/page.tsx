@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation'
 import { getUserFromStorage, clearUserFromStorage, AuthUser } from '@/lib/auth'
 
 import { getNoteByDate, saveNote, getNotesByDateRange, deleteNote, Note, formatNoteDate } from '@/lib/notes'
+import { createClient } from '@/lib/supabase-client'
 
 import { logger } from '@/utils/logger'
 
@@ -1683,6 +1684,19 @@ export default function NotesDashboardPage() {
     setUser(userData)
 
     loadUserProfile(userData.id)
+
+    // 🔥 Supabase 连接预热：发一个轻量查询建立连接
+    // 这样后续的数据库查询就不需要等待连接建立
+    const warmupConnection = async () => {
+      try {
+        const supabase = createClient()
+        await supabase.from('notes').select('id').limit(1)
+        console.log('🔥 Supabase 连接预热完成')
+      } catch (error) {
+        console.warn('⚠️ Supabase 连接预热失败:', error)
+      }
+    }
+    warmupConnection()
 
     setIsLoading(false)
 

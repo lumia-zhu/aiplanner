@@ -53,24 +53,24 @@ export default function AgentReasoningCard({ data, defaultExpanded = false }: Ag
   }
 
   return (
-    <div className="my-2 rounded-lg border border-purple-200 bg-gradient-to-r from-purple-50 to-indigo-50 overflow-hidden shadow-sm">
+    <div className="my-2 rounded-lg border border-blue-200 bg-gradient-to-r from-blue-50 to-cyan-50 overflow-hidden shadow-sm">
       {/* 折叠头部 - 点击展开/收起 */}
       <div 
         onClick={() => setIsExpanded(!isExpanded)}
-        className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-purple-100/50 transition-colors"
+        className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-blue-100/50 transition-colors"
       >
         <div className="flex items-center gap-2">
           {/* 图标 */}
           <span className="text-lg">🧠</span>
           
           {/* 标题 */}
-          <span className="text-sm font-medium text-purple-700">
+          <span className="text-sm font-medium text-blue-700">
             推理过程
           </span>
           
           {/* 摘要标签 */}
           <div className="flex items-center gap-1.5">
-            <span className="text-xs px-1.5 py-0.5 bg-purple-100 text-purple-600 rounded">
+            <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-600 rounded">
               {thoughtCount}次思考
             </span>
             <span className={`text-xs px-1.5 py-0.5 rounded ${
@@ -84,14 +84,14 @@ export default function AgentReasoningCard({ data, defaultExpanded = false }: Ag
         </div>
         
         {/* 展开/收起图标 */}
-        <span className={`text-purple-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
+        <span className={`text-blue-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
           ▼
         </span>
       </div>
       
       {/* 展开内容 */}
       {isExpanded && (
-        <div className="border-t border-purple-200 bg-white/50">
+        <div className="border-t border-blue-200 bg-white/50">
           {/* 思考步骤 */}
           {data.thoughts.map((thought, index) => (
             <ThoughtItem key={`thought-${index}`} data={thought} index={index} formatTime={formatTime} />
@@ -126,13 +126,13 @@ function ThoughtItem({
   formatTime: (t: string) => string 
 }) {
   return (
-    <div className="px-3 py-2 border-b border-purple-100 last:border-b-0">
+    <div className="px-3 py-2 border-b border-blue-100 last:border-b-0">
       <div className="flex items-start gap-2">
-        <span className="text-purple-500 text-sm">💭</span>
+        <span className="text-blue-500 text-sm">💭</span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-medium text-purple-600">思考 #{data.iteration || index + 1}</span>
-            <span className="text-xs text-purple-400">{formatTime(data.timestamp)}</span>
+            <span className="text-xs font-medium text-blue-600">思考 #{data.iteration || index + 1}</span>
+            <span className="text-xs text-blue-400">{formatTime(data.timestamp)}</span>
           </div>
           <p className="text-sm text-gray-700 whitespace-pre-wrap break-words leading-relaxed">
             {data.thought}
@@ -161,7 +161,7 @@ function ActionObservationItem({
   const [showResult, setShowResult] = useState(false)
   
   return (
-    <div className="px-3 py-2 border-b border-purple-100 last:border-b-0 bg-blue-50/30">
+    <div className="px-3 py-2 border-b border-blue-100 last:border-b-0 bg-blue-50/30">
       <div className="flex items-start gap-2">
         <span className="text-lg">{getToolIcon(action.toolName)}</span>
         <div className="flex-1 min-w-0">
