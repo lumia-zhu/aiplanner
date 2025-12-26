@@ -131,6 +131,7 @@ export default function UnclassifiedZone({
                       isCompleted: task.completed,
                     }}
                     onComplete={onTaskComplete}
+                    showCheckbox={false}  // ⭐ 矩阵模式不显示 checkbox
                     depth={depth}
                     hasChildren={hasChildren}
                     isCollapsed={isCollapsed}
