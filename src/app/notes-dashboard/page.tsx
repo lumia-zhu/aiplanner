@@ -9482,131 +9482,60 @@ export default function NotesDashboardPage() {
   const addAgentTextResponse = async (result: any) => {
 
     const messages: ChatMessage[] = []
+    const now = new Date().toISOString()
 
     
     
-    // 1. 添加所有的 Thought 卡片
-
-    if (result.metadata?.thoughts && Array.isArray(result.metadata.thoughts)) {
-
-      for (let i = 0; i < result.metadata.thoughts.length; i++) {
-
-        messages.push({
-
-          role: 'assistant',
-
-          content: [{
-
-            type: 'interactive',
-
-            interactive: {
-
-              type: 'agent-thought',
-
-              data: {
-
-                thought: result.metadata.thoughts[i],
-
-                iteration: i + 1,
-
-                timestamp: new Date().toISOString()
-
-              },
-
-              isActive: false
-
+    // ⭐ 新版：将所有 Thought + Action + Observation 合并成一个"推理过程"卡片
+    const hasThoughts = result.metadata?.thoughts && Array.isArray(result.metadata.thoughts) && result.metadata.thoughts.length > 0
+    const hasSteps = result.metadata?.steps && Array.isArray(result.metadata.steps) && result.metadata.steps.length > 0
+    
+    if (hasThoughts || hasSteps) {
+      // 构建 thoughts 数组
+      const thoughts = hasThoughts 
+        ? result.metadata.thoughts.map((thought: string, i: number) => ({
+            thought,
+            iteration: i + 1,
+            timestamp: now
+          }))
+        : []
+      
+      // 构建 actions 数组（每个 action 配对对应的 observation）
+      const actions = hasSteps
+        ? result.metadata.steps.map((step: any) => ({
+            action: {
+              toolName: step.tool || step.action,
+              toolDescription: step.toolDescription || step.tool || step.action,
+              parameters: step.parameters || step.input,
+              timestamp: now
+            },
+            observation: {
+              toolName: step.tool || step.action,
+              success: step.success !== false && step.observation?.type !== 'error',
+              result: step.observation,
+              error: step.error || (step.observation?.type === 'error' ? step.observation.message : undefined),
+              timestamp: now
             }
-
-          }]
-
-        })
-
-      }
-
-    }
-
-    
-    
-    // 2. 添加所有的 Action 和 Observation 卡片
-
-    if (result.metadata?.steps && Array.isArray(result.metadata.steps)) {
-
-      for (const step of result.metadata.steps) {
-
-        // Action 卡片
-
-        messages.push({
-
-          role: 'assistant',
-
-          content: [{
-
-            type: 'interactive',
-
-            interactive: {
-
-              type: 'agent-action',
-
-              data: {
-
-                toolName: step.tool,
-
-                toolDescription: step.toolDescription || step.tool,
-
-                parameters: step.parameters,
-
-                timestamp: new Date().toISOString()
-
-              },
-
-              isActive: false
-
-            }
-
-          }]
-
-        })
-
-        
-        
-        // Observation 卡片
-
-        messages.push({
-
-          role: 'assistant',
-
-          content: [{
-
-            type: 'interactive',
-
-            interactive: {
-
-              type: 'agent-observation',
-
-              data: {
-
-                toolName: step.tool,
-
-                success: step.success !== false,
-
-                result: step.observation,
-
-                error: step.error,
-
-                timestamp: new Date().toISOString()
-
-              },
-
-              isActive: false
-
-            }
-
-          }]
-
-        })
-
-      }
-
+          }))
+        : []
+      
+      // 添加合并后的推理过程卡片
+      messages.push({
+        role: 'assistant',
+        content: [{
+          type: 'interactive',
+          interactive: {
+            type: 'agent-reasoning',
+            data: {
+              thoughts,
+              actions,
+              startTime: now,
+              endTime: now
+            },
+            isActive: false
+          }
+        }]
+      })
     }
 
     

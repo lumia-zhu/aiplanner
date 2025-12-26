@@ -135,6 +135,20 @@ export interface AgentObservationData {
 }
 
 /**
+ * Agent 推理过程数据（合并 Thought + Action + Observation）
+ * 用于在一个可折叠卡片中展示完整的推理过程
+ */
+export interface AgentReasoningData {
+  thoughts: AgentThoughtData[]        // 所有思考步骤
+  actions: Array<{                    // 所有行动及其观察结果
+    action: AgentActionData           // 行动数据
+    observation: AgentObservationData // 对应的观察结果
+  }>
+  startTime: string                   // 开始时间
+  endTime: string                     // 结束时间
+}
+
+/**
  * Agent 需要用户输入消息数据
  */
 export interface AgentNeedInputData {

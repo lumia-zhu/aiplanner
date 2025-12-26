@@ -22,6 +22,7 @@ import AgentActionCard from './AgentActionCard'
 import AgentObservationCard from './AgentObservationCard'
 import AgentNeedInputCard from './AgentNeedInputCard'
 import AgentLoadingIndicator from './AgentLoadingIndicator'
+import AgentReasoningCard from './AgentReasoningCard'
 import TaskListCard from './TaskListCard'
 import type { TaskForDisplay } from './TaskListCard'
 import { ReflectionQuickActions } from './ReflectionQuickActions'
@@ -1824,17 +1825,22 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                           )}
                           
                           {/* ⭐ Agent 消息类型渲染 */}
-                          {/* Agent Thought 卡片 */}
+                          {/* Agent 推理过程卡片（合并版，可折叠） */}
+                          {content.interactive.type === 'agent-reasoning' && (
+                            <AgentReasoningCard data={content.interactive.data} />
+                          )}
+                          
+                          {/* Agent Thought 卡片（兼容旧版，单独显示） */}
                           {content.interactive.type === 'agent-thought' && (
                             <AgentThoughtCard data={content.interactive.data} />
                           )}
                           
-                          {/* Agent Action 卡片 */}
+                          {/* Agent Action 卡片（兼容旧版，单独显示） */}
                           {content.interactive.type === 'agent-action' && (
                             <AgentActionCard data={content.interactive.data} />
                           )}
                           
-                          {/* Agent Observation 卡片 */}
+                          {/* Agent Observation 卡片（兼容旧版，单独显示） */}
                           {content.interactive.type === 'agent-observation' && (
                             <AgentObservationCard data={content.interactive.data} />
                           )}

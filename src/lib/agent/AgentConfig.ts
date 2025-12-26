@@ -19,7 +19,7 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = {
   // LLM 配置
   llm: {
     model: 'doubao-seed-1-6-vision-250815',
-    temperature: 0.7,
+    temperature: 0.3,  // ⭐ 降低 temperature 提升响应速度和决策稳定性（从 0.7 改为 0.3）
     maxTokens: 1500  // ⭐ 设置为 1500，支持返回约 20-30 个任务，平衡输出质量和成本
   },
   
