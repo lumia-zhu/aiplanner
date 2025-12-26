@@ -1305,16 +1305,8 @@ const ChatSidebar = memo<ChatSidebarProps>(({
     source: string
   } | null>(null)
   
-  // ⭐ Agent 模式状态管理
-  const [isAgentMode, setIsAgentMode] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('ai_assistant_mode')
-      if (saved) {
-        return saved === 'agent'
-      }
-    }
-    return getAgentConfig().enabled
-  })
+  // ⭐ Agent 模式状态管理（默认关闭）
+  const [isAgentMode, setIsAgentMode] = useState(false)
 
   // 持久化 Agent 模式状态
   useEffect(() => {

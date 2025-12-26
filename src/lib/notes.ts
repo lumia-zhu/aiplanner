@@ -461,8 +461,8 @@ export async function getNotesByDateRange(
     .order('note_date', { ascending: false })
 
   if (error) {
-    console.error('获取笔记列表失败:', error)
-    throw error
+    console.error('获取笔记列表失败:', error.message || error.code || JSON.stringify(error))
+    throw new Error(error.message || '获取笔记列表失败')
   }
 
   return data || []

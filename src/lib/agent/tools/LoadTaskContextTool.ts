@@ -123,7 +123,7 @@ export class LoadTaskContextTool implements AgentTool {
       return allTasks
 
     } catch (error: any) {
-      console.error('❌ 从笔记加载任务失败:', error)
+      console.error('❌ 从笔记加载任务失败:', error?.message || error)
       return []
     }
   }

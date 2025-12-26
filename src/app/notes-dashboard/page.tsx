@@ -2226,7 +2226,7 @@ export default function NotesDashboardPage() {
 
       setSaveStatus('error')
 
-      alert('保存笔记失败')
+      // 不弹出 alert，避免刷新页面时打扰用户
 
     } finally {
 
