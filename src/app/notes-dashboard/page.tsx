@@ -10629,6 +10629,8 @@ ${matrixStats || '（无待办）'}
 
       
       
+      // ⭐ 重要：先关闭 isSending，再清空 streamingMessage，避免短暂显示 thinking indicator
+      setIsSending(false)
       setStreamingMessage('')
 
       setChatMessages([...newMessages, aiMessage])
@@ -10673,8 +10675,8 @@ ${matrixStats || '（无待办）'}
 
       setChatMessage('')
 
+      // ⭐ 重要：先关闭 isSending，再清空 streamingMessage
       setIsSending(false)
-
       setStreamingMessage('')
 
     }
@@ -11006,9 +11008,9 @@ ${matrixStats || '（无待办）'}
 
         
         
-        setStreamingMessage('')
-
+        // ⭐ 重要：先关闭 isSending，再清空 streamingMessage，避免短暂显示 thinking indicator
         setIsSending(false)
+        setStreamingMessage('')
 
         setChatMessages([...newMessages, aiMessage])
 
@@ -11082,8 +11084,8 @@ ${matrixStats || '（无待办）'}
 
       setSelectedImage(null)
 
+      // ⭐ 重要：先关闭 isSending，再清空 streamingMessage，避免短暂显示 thinking indicator
       setIsSending(false)
-
       setStreamingMessage('')
       
       // ⭐ 解锁，允许下次发送

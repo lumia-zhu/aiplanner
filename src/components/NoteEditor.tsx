@@ -11,6 +11,7 @@ import type { JSONContent } from '@tiptap/core'
 import { Extension, InputRule, Node } from '@tiptap/core'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import type { Transaction } from '@tiptap/pm/state'
+import { Plugin as ProseMirrorPlugin } from '@tiptap/pm/state'
 import { mergeAttributes } from '@tiptap/core'
 import { TaskTag } from '@/components/extensions/TaskTag'
 import TagDropdown from '@/components/TagDropdown'
@@ -227,13 +228,42 @@ const DraggableTaskItem = TaskItem.extend({
   },
 })
 
+// ⭐ 用于跟踪 composition 状态（解决中文输入法问题）
+let isComposing = false
+
 const TaskListMarkdown = Extension.create({
   name: 'taskListMarkdown',
+  
+  // ⭐ 添加 composition 事件监听（解决中文输入法问题）
+  addProseMirrorPlugins() {
+    return [
+      new ProseMirrorPlugin({
+        props: {
+          handleDOMEvents: {
+            compositionstart: () => {
+              isComposing = true
+              return false
+            },
+            compositionend: () => {
+              // ⭐ 延迟重置，确保 inputRule 不会在 composition 结束时误触发
+              setTimeout(() => {
+                isComposing = false
+              }, 100)
+              return false
+            },
+          },
+        },
+      }),
+    ]
+  },
+  
   addInputRules() {
     return [
       new InputRule({
         find: /^(\s*)\[\]\s$/,
         handler: ({ range, commands }) => {
+          // ⭐ 如果正在进行中文输入，不触发规则
+          if (isComposing) return null
           commands.deleteRange({ from: range.from, to: range.to })
           commands.toggleTaskList()
         }
@@ -241,6 +271,7 @@ const TaskListMarkdown = Extension.create({
       new InputRule({
         find: /^(\s*)([-+*])\s$/,
         handler: ({ range, commands }) => {
+          if (isComposing) return null
           commands.deleteRange({ from: range.from, to: range.to })
           commands.toggleBulletList()
         }
@@ -248,6 +279,7 @@ const TaskListMarkdown = Extension.create({
       new InputRule({
         find: /^(\s*)(\d+)\.\s$/,
         handler: ({ range, commands }) => {
+          if (isComposing) return null
           commands.deleteRange({ from: range.from, to: range.to })
           commands.toggleOrderedList()
         }
@@ -255,6 +287,7 @@ const TaskListMarkdown = Extension.create({
       new InputRule({
         find: /^(\s*)#\s$/,
         handler: ({ range, commands }) => {
+          if (isComposing) return null
           commands.deleteRange({ from: range.from, to: range.to })
           commands.toggleHeading({ level: 1 })
         }
@@ -262,6 +295,7 @@ const TaskListMarkdown = Extension.create({
       new InputRule({
         find: /^(\s*)##\s$/,
         handler: ({ range, commands }) => {
+          if (isComposing) return null
           commands.deleteRange({ from: range.from, to: range.to })
           commands.toggleHeading({ level: 2 })
         }
@@ -269,6 +303,7 @@ const TaskListMarkdown = Extension.create({
       new InputRule({
         find: /^(\s*)###\s$/,
         handler: ({ range, commands }) => {
+          if (isComposing) return null
           commands.deleteRange({ from: range.from, to: range.to })
           commands.toggleHeading({ level: 3 })
         }
