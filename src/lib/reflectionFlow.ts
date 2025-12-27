@@ -126,18 +126,18 @@ const FALLBACK_QUESTIONS: Record<ReflectionRoundType, ReflectionQuestion[]> = {
   priority: [
     {
       id: 'priority-fallback-1',
-      text: '这几个任务里，哪个有真正的外部deadline（比如别人在等）？',
-      hint: '识别外部依赖和紧迫性'
+      text: '这些任务里，哪些是"别人在等"的（有外部 deadline），哪些是"自己想做"的？前者通常更紧急。',
+      hint: '区分紧急性来源 → 判断是否放入"紧急"象限'
     },
     {
       id: 'priority-fallback-2',
-      text: '如果今天只能完成一个任务，不做哪个任务明天会最麻烦？',
-      hint: '通过后果思考优先级'
+      text: '想象一下：如果这些任务这周都不做，哪个会让你一个月后最后悔？那个可能是"重要但不紧急"的任务。',
+      hint: '识别长期价值 → 判断是否放入"重要"象限'
     },
     {
       id: 'priority-fallback-3',
-      text: '哪个任务现在做起来阻力最小（不需要等人、不需要准备、立即能开始）？',
-      hint: '考虑执行成本'
+      text: '有没有哪个任务，做完后会让其他任务变得更容易？这种"解锁型"任务可能值得优先做。',
+      hint: '识别任务依赖关系 → 优化执行顺序'
     }
   ]
 }
@@ -813,46 +813,75 @@ ${previousContext}
   } else if (round === 'priority') {
     // 过滤出顶层任务
     const topLevelTasks = identifyTopLevelTasks(uncompletedTasks)
-    const topLevelTaskList = topLevelTasks
-      .map(t => `「${t.title}」`)
-      .join('、')
     const taskNames = topLevelTasks.map(t => t.title)
     
-    return `你是一个专业的元认知教练。在优先级层面，你的目标是帮助用户**梳理出哪个任务该先做**。
+    // 构建任务详情信息，让 AI 理解每个任务的特点
+    const taskDetailsForAI = topLevelTasks.map(t => {
+      const details: string[] = [`「${t.title}」`]
+      if (t.deadline) details.push(`截止日期: ${t.deadline}`)
+      if (t.estimatedDuration) details.push(`预估时长: ${t.estimatedDuration}分钟`)
+      if (t.priority) details.push(`当前优先级: ${t.priority}`)
+      return details.join(' | ')
+    }).join('\n')
+    
+    // 分析任务特征，用于生成更精准的问题
+    const hasDeadlineTasks = topLevelTasks.filter(t => t.deadline)
+    const longTasks = topLevelTasks.filter(t => t.estimatedDuration && t.estimatedDuration > 60)
+    const shortTasks = topLevelTasks.filter(t => t.estimatedDuration && t.estimatedDuration <= 30)
+    
+    return `你是一个专业的元认知教练，帮助用户使用**艾森豪威尔四象限矩阵**思考任务优先级。
 
-【用户的主要任务】（只关注这些，不要问子任务）
-${topLevelTaskList}
+【四象限矩阵说明】
+- 🔴 紧急+重要：立即做（如即将到期的重要任务）
+- 🟡 重要+不紧急：安排时间做（如长期目标、能力提升）
+- 🟠 紧急+不重要：尽量委托或快速处理（如临时琐事）
+- ⚪ 不紧急+不重要：考虑是否真的需要做
 
-【当前情况】
-- ${scanResult.noPriorityCount} 个任务没有设置优先级
-- 主要任务数: ${topLevelTasks.length}
-${scanResult.deadlineConflicts.length > 0 ? `- 需要关注的 deadline: ${scanResult.deadlineConflicts.join(', ')}` : ''}
+【用户的任务详情】
+${taskDetailsForAI}
+
+【任务分析】
+- 共 ${topLevelTasks.length} 个主要任务
+${hasDeadlineTasks.length > 0 ? `- 有截止日期的: ${hasDeadlineTasks.map(t => `「${t.title}」`).join('、')}` : '- 目前没有任务设置截止日期'}
+${longTasks.length > 0 ? `- 耗时较长(>1小时): ${longTasks.map(t => `「${t.title}」`).join('、')}` : ''}
+${shortTasks.length > 0 ? `- 可快速完成(≤30分钟): ${shortTasks.map(t => `「${t.title}」`).join('、')}` : ''}
+${scanResult.deadlineConflicts.length > 0 ? `- ⚠️ 需要关注的 deadline: ${scanResult.deadlineConflicts.join(', ')}` : ''}
 ${previousContext}
-【问题生成策略 - 核心调整】
 
-**❌ 禁止（Don't）：**
-1. **不要泛泛而问**：不要问"哪个重要"、"先做哪个"这种抽象问题。
-2. **不要问子任务**：只关注主要任务（${taskNames.join('、')}），不要问拆解出来的子步骤。
+【你的目标】
+生成 **3 个个性化问题**，帮助用户判断每个任务应该放在四象限的哪个位置。
 
-**✅ 必须坚持（Do）—— 具体到任务名称：**
-1. **后果对比（Consequence Comparison）**：
-   - "如果「${taskNames[0] || '任务A'}」和「${taskNames[1] || '任务B'}」今天只能做一个，不做哪个明天会更麻烦？"
-   - "「${taskNames[0] || '任务'}」如果今天不做，会有什么实际后果？"
+**问题类型（根据任务特点选择最合适的）：**
 
-2. **紧迫度校准（Urgency Check）**：
-   - "「${taskNames[0] || '任务'}」是真的今天必须做，还是只是你觉得'应该'做？"
-   - "这几个任务里，哪个有真正的外部 deadline（比如别人在等）？"
+1. **「重要性」判断问题**（帮用户区分"重要"vs"紧急"）
+   - "「${taskNames[0] || '任务'}」做完后，对你接下来一周/一个月的工作有什么帮助？" 
+   - "「${taskNames[0] || '任务'}」是为了解决眼前的问题，还是为了长远的目标？"
+   - "如果「${taskNames[0] || '任务'}」这周都不做，一个月后会有什么影响？"
 
-3. **阻力识别（Resistance Analysis）**：
-   - "「${taskNames[0] || '任务'}」和「${taskNames[1] || '任务'}」相比，你更想逃避哪一个？（通常它更重要但更难）"
+2. **「紧迫性」判断问题**（帮用户识别真假紧急）
+   - "「${taskNames[0] || '任务'}」的"紧急感"是来自外部（别人在等、有 deadline），还是来自你内心的焦虑？"
+   - "「${taskNames[0] || '任务'}」如果推迟到明天/后天，会有什么具体的后果？"
+   - "${hasDeadlineTasks.length > 0 ? `「${hasDeadlineTasks[0].title}」有截止日期，但截止前一定要全部完成吗，还是可以分阶段交付？` : `这些任务里，哪个是真的有"别人在等"的外部压力？`}"
 
-4. **依赖关系（Dependency）**：
-   - "做完「${taskNames[0] || '任务'}」会不会让「${taskNames[1] || '任务'}」变得更容易？"
+3. **「权衡对比」问题**（帮用户在多个任务间做选择）
+   - "「${taskNames[0] || '任务A'}」和「${taskNames[1] || '任务B'}」，如果今天只能做一个，你觉得哪个做完后心里会更踏实？"
+   - "这些任务里，哪个是你一直想做但总是被其他事情挤掉的？（这可能是重要但不紧急的任务）"
+   - "${longTasks.length > 0 && shortTasks.length > 0 ? `「${shortTasks[0].title}」只需要 ${shortTasks[0].estimatedDuration} 分钟，先做完它会不会让你更有精力处理「${longTasks[0].title}」？` : '如果先做个小任务热身，你会选哪个？'}"
+
+4. **「隐藏依赖」识别问题**
+   - "做完「${taskNames[0] || '任务A'}」，会不会让「${taskNames[1] || '任务B'}」变得更容易或更清晰？"
+   - "这些任务里，哪个需要等别人的输入或反馈？（可能需要先启动）"
+
+**⚠️ 注意事项：**
+- 必须使用具体的任务名称，不要用"任务A"这种泛称
+- 根据任务的实际特点（是否有 deadline、时长、子任务数）来定制问题
+- 问题要能帮助用户判断：这个任务是紧急/不紧急？是重要/不重要？
+- 不要问空洞的"哪个更重要"，要通过具体场景帮用户思考
 
 【输出格式】
-返回 JSON 数组（严格 3 个问题，必须包含具体任务名称）：
+返回 JSON 数组（严格 3 个问题）：
 [
-  { "text": "问题内容（必须提到具体任务名称）", "hint": "元认知意图（如：后果对比、紧迫度校准）" }
+  { "text": "个性化问题（提到具体任务名称和特点）", "hint": "这个问题帮助判断什么（如：判断紧迫性、判断重要性、权衡对比）" }
 ]
 
 只返回 JSON，不要其他内容。`

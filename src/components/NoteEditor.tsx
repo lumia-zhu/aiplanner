@@ -230,6 +230,7 @@ const DraggableTaskItem = TaskItem.extend({
 
 // ⭐ 用于跟踪 composition 状态（解决中文输入法问题）
 let isComposing = false
+let compositionEndTime = 0  // 记录 composition 结束的时间
 
 const TaskListMarkdown = Extension.create({
   name: 'taskListMarkdown',
@@ -242,13 +243,18 @@ const TaskListMarkdown = Extension.create({
           handleDOMEvents: {
             compositionstart: () => {
               isComposing = true
+              console.log('🔤 compositionstart: isComposing =', isComposing)
               return false
             },
             compositionend: () => {
-              // ⭐ 延迟重置，确保 inputRule 不会在 composition 结束时误触发
+              compositionEndTime = Date.now()
+              console.log('🔤 compositionend: 延迟重置 isComposing')
+              // ⭐ 延迟 300ms 重置，确保 inputRule 不会在 composition 结束时误触发
+              // Mac 拼音输入法的空格确认可能会触发 InputRule
               setTimeout(() => {
                 isComposing = false
-              }, 100)
+                console.log('🔤 setTimeout: isComposing = false')
+              }, 300)
               return false
             },
           },
@@ -262,8 +268,13 @@ const TaskListMarkdown = Extension.create({
       new InputRule({
         find: /^(\s*)\[\]\s$/,
         handler: ({ range, commands }) => {
-          // ⭐ 如果正在进行中文输入，不触发规则
-          if (isComposing) return null
+          // ⭐ 如果正在进行中文输入，或者刚刚结束输入（500ms内），不触发规则
+          const timeSinceCompositionEnd = Date.now() - compositionEndTime
+          if (isComposing || timeSinceCompositionEnd < 500) {
+            console.log('🚫 InputRule 被阻止: isComposing=', isComposing, ', timeSinceEnd=', timeSinceCompositionEnd)
+            return null
+          }
+          console.log('✅ InputRule 触发: 创建 TaskList')
           commands.deleteRange({ from: range.from, to: range.to })
           commands.toggleTaskList()
         }
