@@ -79,6 +79,15 @@ export default function TaskCard({
     }
   }
   
+  // 🆕 根据层级深度计算缩进样式
+  const depthIndentClass = depth === 0 ? '' : depth === 1 ? 'ml-4' : 'ml-8'
+  // 🆕 根据层级深度调整边框颜色
+  const depthBorderClass = depth === 0 
+    ? 'border-gray-200' 
+    : depth === 1 
+      ? 'border-blue-200/60' 
+      : 'border-indigo-200/50'
+  
   return (
     <div
       ref={setNodeRef}
@@ -86,12 +95,13 @@ export default function TaskCard({
       {...attributes}
       {...listeners}
       className={`
-        bg-white rounded-lg px-3 py-2.5 shadow-sm border border-gray-200
+        bg-white rounded-lg px-3 py-2.5 shadow-sm border
         hover:shadow-md transition-all duration-200
+        ${depthBorderClass}
+        ${depthIndentClass}
         ${isDraggable ? 'cursor-move' : 'cursor-default'}
         ${isDragging ? 'opacity-50 scale-95 shadow-lg z-50' : ''}
         ${task.isCompleted ? 'opacity-60 bg-gray-50' : ''}
-        ${depth > 0 ? 'ml-4' : ''}
       `}
     >
       <div className="flex items-start gap-2.5">

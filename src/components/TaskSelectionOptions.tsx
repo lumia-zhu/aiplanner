@@ -36,19 +36,29 @@ export default function TaskSelectionOptions({ tasks, onSelect, disabled = false
         // 显示所有任务（包括已完成的）
         allTasks.map((task) => {
           const isCompleted = task.completed
+          // 🆕 获取任务层级（0=父任务，1=子任务，2=孙任务，3=曾孙任务）
+          const depth = task.level ?? 0
+          // 🆕 根据层级计算左侧缩进（每级 16px）
+          const indentStyle = depth > 0 ? { marginLeft: `${depth * 16}px` } : {}
+          
           return (
             <button
               key={task.id}
               type="button"
               onClick={() => !disabled && onSelect(task)}
               disabled={disabled}
+              style={indentStyle}
               className={`
                 w-full text-left p-3 rounded-lg border-2 transition-all
                 ${disabled 
                   ? 'bg-gray-100 border-gray-200 cursor-not-allowed opacity-50' 
                   : isCompleted
                     ? 'bg-gray-50 border-gray-300 opacity-60'  // ⭐ 已完成：灰色背景，降低透明度
-                    : 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 hover:border-blue-400 hover:shadow-md'
+                    : depth === 0
+                      ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 hover:border-blue-400 hover:shadow-md'
+                      : depth === 1
+                        ? 'bg-gradient-to-r from-blue-50/70 to-indigo-50/70 border-blue-100 hover:border-blue-300 hover:shadow-md'
+                        : 'bg-gradient-to-r from-blue-50/50 to-indigo-50/50 border-blue-100/80 hover:border-blue-200 hover:shadow-sm'
                 }
               `}
             >
@@ -69,10 +79,24 @@ export default function TaskSelectionOptions({ tasks, onSelect, disabled = false
                     <h3 className={`text-sm font-semibold line-clamp-2 ${
                       isCompleted 
                         ? 'line-through text-gray-500'  // ⭐ 已完成：删除线 + 灰色
-                        : 'text-blue-900'
+                        : depth === 0 
+                          ? 'text-blue-900'
+                          : 'text-blue-800'
                     }`}>
                       {task.title}
                     </h3>
+                    {/* 🆕 层级标识 */}
+                    {depth > 0 && (
+                      <span className={`flex-shrink-0 text-xs px-1.5 py-0.5 rounded ${
+                        depth === 1 
+                          ? 'text-blue-600 bg-blue-100' 
+                          : depth === 2
+                            ? 'text-indigo-600 bg-indigo-100'
+                            : 'text-purple-600 bg-purple-100'
+                      }`}>
+                        {depth === 1 ? '子任务' : depth === 2 ? '孙任务' : '曾孙'}
+                      </span>
+                    )}
                     {isCompleted && (
                       <span className="flex-shrink-0 text-xs text-gray-500 bg-gray-200 px-2 py-0.5 rounded">
                         已完成

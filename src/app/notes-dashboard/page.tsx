@@ -2786,101 +2786,73 @@ export default function NotesDashboardPage() {
 
         
         
-        const findAndInsertSubtasks = (node: any, parentPath: number[] = []): boolean => {
-
+        // 🆕 最大支持4级任务（depth 0-3）
+        const MAX_TASK_DEPTH = 3
+        
+        // 🆕 用于标记是否因超出层级限制而失败
+        let depthLimitExceeded = false
+        
+        const findAndInsertSubtasks = (node: any, currentDepth: number = 0): boolean => {
           if (!node || !node.content) return false
-
-          
           
           for (let i = 0; i < node.content.length; i++) {
-
             const child = node.content[i]
-
             
-            
-            // 检查是否是目标任务
-
+            // 检查是否是 taskList
             if (child.type === 'taskList') {
-
               for (let j = 0; j < (child.content || []).length; j++) {
-
                 const taskItem = child.content[j]
-
                 if (taskItem.type === 'taskItem') {
-
-                  // 提取任务标题
-
-                  const taskText = extractTaskText(taskItem)
-
+                  // 🆕 只提取任务标题（不包括嵌套的子任务文本）
+                  const taskTitle = extractTaskTitle(taskItem)
                   
-                  
-                  if (taskText.includes(decomposingTaskTitle)) {
-
-                    console.log('✅ 找到父任务:', taskText)
-
+                  if (taskTitle.includes(decomposingTaskTitle)) {
+                    console.log('✅ 找到父任务:', taskTitle, '当前深度:', currentDepth)
                     
+                    // 🆕 检查层级限制（新子任务会在 currentDepth + 1 层）
+                    if (currentDepth >= MAX_TASK_DEPTH) {
+                      console.warn('⚠️ 已达到最大层级限制（4级），无法继续拆分')
+                      depthLimitExceeded = true
+                      return false
+                    }
                     
                     // 创建子任务列表
-
                     const subtaskItems = subtasks.map(st => ({
-
                       type: 'taskItem',
-
                       attrs: { checked: false },
-
                       content: [
-
                         {
-
                           type: 'paragraph',
-
                           content: [{ type: 'text', text: st.title }]
-
                         }
-
                       ]
-
                     }))
-
-                    
                     
                     // 创建嵌套的 taskList
-
                     const nestedTaskList = {
-
                       type: 'taskList',
-
                       content: subtaskItems
-
                     }
-
-                    
                     
                     // 在父任务下添加子任务列表
-
                     if (!taskItem.content) {
-
                       taskItem.content = []
-
                     }
-
                     
-
                     // 🔧 找到最佳插入位置：在上下文信息之后插入
                     // 结构顺序：paragraph → contextInfo → subtasks
                     let insertIndex = taskItem.content.length // 默认添加到末尾
                     
                     // 找到最后一个 contextInfo 的位置
-                    const lastContextIndex = taskItem.content.map((c: any, i: number) => 
-                      c.type === 'contextInfo' ? i : -1
-                    ).filter((i: number) => i !== -1).pop()
+                    const lastContextIndex = taskItem.content.map((c: any, idx: number) => 
+                      c.type === 'contextInfo' ? idx : -1
+                    ).filter((idx: number) => idx !== -1).pop()
                     
                     if (lastContextIndex !== undefined && lastContextIndex !== -1) {
                       // 在最后一个 contextInfo 之后插入
                       insertIndex = lastContextIndex + 1
                       console.log('📍 在上下文信息后插入子任务，位置:', insertIndex)
                     } else {
-
                       // 没有上下文信息，找 paragraph 的位置
                       const paragraphIndex = taskItem.content.findIndex((c: any) => c.type === 'paragraph')
                       if (paragraphIndex !== -1) {
@@ -2892,73 +2864,52 @@ export default function NotesDashboardPage() {
                     // 插入子任务列表
                     taskItem.content.splice(insertIndex, 0, nestedTaskList)
                     
-                    
-                    console.log('✅ 子任务已插入到笔记中')
-
+                    console.log('✅ 子任务已插入到笔记中，新任务深度:', currentDepth + 1)
                     return true
-
                   }
-
+                  
+                  // 🆕 如果当前 taskItem 不匹配，递归搜索其内部的嵌套 taskList
+                  // 注意：进入 taskItem 内部意味着深度 +1
+                  if (findAndInsertSubtasks(taskItem, currentDepth + 1)) {
+                    return true
+                  }
                 }
-
               }
-
             }
-
             
-            
-            // 递归查找
-
-            if (findAndInsertSubtasks(child, [...parentPath, i])) {
-
+            // 递归查找其他类型的节点（不增加深度，因为不是进入 taskItem）
+            if (findAndInsertSubtasks(child, currentDepth)) {
               return true
-
             }
-
           }
-
-          
           
           return false
-
         }
-
         
-        
-        // 辅助函数：提取任务文本
-
-        const extractTaskText = (taskItem: any): string => {
-
+        // 🆕 辅助函数：只提取任务的标题文本（不包括嵌套的子任务）
+        const extractTaskTitle = (taskItem: any): string => {
+          if (!taskItem.content) return ''
+          
+          // 只查找第一层的 paragraph（任务标题）
+          const paragraph = taskItem.content.find((c: any) => c.type === 'paragraph')
+          if (!paragraph || !paragraph.content) return ''
+          
+          // 提取 paragraph 中的文本
           let text = ''
-
-          const traverse = (node: any) => {
-
+          for (const node of paragraph.content) {
             if (node.type === 'text') {
-
               text += node.text || ''
-
             }
-
-            if (node.content && Array.isArray(node.content)) {
-
-              node.content.forEach(traverse)
-
-            }
-
           }
-
-          traverse(taskItem)
-
           return text
-
         }
 
         
         
         // 执行插入
+        const insertSuccess = findAndInsertSubtasks(newContent)
 
-        if (findAndInsertSubtasks(newContent)) {
-
+        if (insertSuccess) {
           // 🔧 直接通过编辑器实例更新内容（绕过 isInitializedRef 限制）
           if (editorRef.current) {
             // ⚠️ 输入法(IME)拼字期间不要 setContent，否则可能造成重复/乱码
@@ -2970,54 +2921,64 @@ export default function NotesDashboardPage() {
           
           // 同时更新状态（保持同步）
           setCurrentNote(newContent)
-
-          
           
           // 触发保存
-
           handleNoteSave(newContent)
-
-          
           
           console.log('✅ 子任务已自动添加到笔记中')
-
+          
+          // 显示成功消息
+          setChatMessages(prev => [
+            ...prev,
+            {
+              role: 'assistant',
+              content: [{
+                type: 'text',
+                text: `✅ 已成功将 ${subtasks.length} 个子任务添加到笔记中！\n\n子任务已自动缩进在「${decomposingTaskTitle}」下方。`
+              }]
+            }
+          ])
+        } else if (depthLimitExceeded) {
+          // 🆕 层级超限提示
+          console.warn('⚠️ 任务层级已达上限（4级）')
+          setChatMessages(prev => [
+            ...prev,
+            {
+              role: 'assistant',
+              content: [{
+                type: 'text',
+                text: `⚠️ 无法继续拆分「${decomposingTaskTitle}」\n\n该任务已达到最大层级限制（4级）。建议：\n\n• 将部分子任务独立为顶级任务\n• 或者合并一些过细的子任务`
+              }]
+            }
+          ])
         } else {
-
           console.warn('⚠️ 未找到父任务，无法插入子任务')
-
+          setChatMessages(prev => [
+            ...prev,
+            {
+              role: 'assistant',
+              content: [{
+                type: 'text',
+                text: `⚠️ 未找到任务「${decomposingTaskTitle}」，无法插入子任务。请确认任务名称是否正确。`
+              }]
+            }
+          ])
         }
 
       } catch (error) {
-
         console.error('❌ 插入子任务失败:', error)
-
+        setChatMessages(prev => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: [{
+              type: 'text',
+              text: `❌ 插入子任务时发生错误，请稍后重试。`
+            }]
+          }
+        ])
       }
-
     }
-
-    
-    
-    // 3. 显示成功消息
-
-    setChatMessages(prev => [
-
-      ...prev,
-
-      {
-
-        role: 'assistant',
-
-        content: [{
-
-          type: 'text',
-
-          text: `✅ 已成功将 ${subtasks.length} 个子任务添加到笔记中！\n\n子任务已自动缩进在「${decomposingTaskTitle}」下方。`
-
-        }]
-
-      }
-
-    ])
 
     
     
@@ -12465,17 +12426,24 @@ ${matrixStats || '（无待办）'}
           return prev
         }
         
-        // 3. 判断是否是父任务（depth=0），如果是则找出所有子任务
-        const isParentTask = (draggedTask.depth ?? 0) === 0
-        const childTasks = isParentTask 
-          ? allTasks.filter(t => t.parentTaskId === taskId)
-          : []
+        // 3. 🆕 递归收集所有后代任务（子任务、孙任务、曾孙任务等）
+        const collectDescendants = (parentId: string): any[] => {
+          const children = allTasks.filter(t => t.parentTaskId === parentId)
+          let descendants: any[] = [...children]
+          // 递归收集每个子任务的后代
+          children.forEach(child => {
+            descendants = descendants.concat(collectDescendants(child.id))
+          })
+          return descendants
+        }
         
-        // 4. 收集需要移动的任务（父任务+子任务，或仅子任务本身）
-        const tasksToMove = [draggedTask, ...childTasks]
+        const descendantTasks = collectDescendants(taskId)
+        
+        // 4. 收集需要移动的任务（当前任务+所有后代任务）
+        const tasksToMove = [draggedTask, ...descendantTasks]
         taskIdsToMove = tasksToMove.map(t => t.id)
         
-        console.log(`📦 移动任务: ${draggedTask.title}${childTasks.length > 0 ? ` (包含 ${childTasks.length} 个子任务)` : ''}`)
+        console.log(`📦 移动任务: ${draggedTask.title}${descendantTasks.length > 0 ? ` (包含 ${descendantTasks.length} 个子任务)` : ''}`)
         
         // 5. 构建新状态
         const newState: TasksByQuadrant = {

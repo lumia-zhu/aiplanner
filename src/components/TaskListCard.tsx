@@ -113,6 +113,9 @@ export default function TaskListCard({ tasks, totalCount, onTaskToggle, onMoveTo
               isChildrenExpanded={expandedParents.has(task.id)}
               onChildToggle={handleToggle}
               onChildMoveToToday={handleMoveToToday}
+              depth={0}
+              expandedParents={expandedParents}
+              onToggleAnyChildren={toggleChildren}
             />
           ))
         ) : (
@@ -152,7 +155,7 @@ export default function TaskListCard({ tasks, totalCount, onTaskToggle, onMoveTo
 }
 
 /**
- * 🆕 带子任务的任务项组件
+ * 🆕 带子任务的任务项组件（递归支持多层级）
  */
 interface TaskItemWithChildrenProps {
   task: TaskForDisplay
@@ -163,6 +166,9 @@ interface TaskItemWithChildrenProps {
   isChildrenExpanded: boolean
   onChildToggle: (task: TaskForDisplay) => void
   onChildMoveToToday: (task: TaskForDisplay) => void
+  depth?: number  // 🆕 当前层级深度
+  expandedParents?: Set<string>  // 🆕 所有展开的父任务ID
+  onToggleAnyChildren?: (taskId: string) => void  // 🆕 切换任意任务的子任务展开状态
 }
 
 function TaskItemWithChildren({ 
@@ -173,13 +179,23 @@ function TaskItemWithChildren({
   onToggleChildren,
   isChildrenExpanded,
   onChildToggle,
-  onChildMoveToToday
+  onChildMoveToToday,
+  depth = 0,
+  expandedParents = new Set(),
+  onToggleAnyChildren
 }: TaskItemWithChildrenProps) {
   const hasChildren = task.children && task.children.length > 0
   
+  // 🆕 根据层级选择边框颜色
+  const borderColorClass = depth === 0 
+    ? 'border-blue-200' 
+    : depth === 1 
+      ? 'border-blue-100' 
+      : 'border-gray-200'
+  
   return (
     <div>
-      {/* 父任务 */}
+      {/* 当前任务 */}
       <TaskItem 
         task={task} 
         index={index} 
@@ -188,21 +204,33 @@ function TaskItemWithChildren({
         hasChildren={hasChildren}
         onToggleChildren={onToggleChildren}
         isChildrenExpanded={isChildrenExpanded}
+        depth={depth}
       />
       
-      {/* 子任务列表（可折叠） */}
+      {/* 子任务列表（可折叠，递归渲染） */}
       {hasChildren && isChildrenExpanded && (
-        <div className="bg-gray-50 border-l-4 border-blue-200">
-          {task.children!.map((child, childIndex) => (
-            <TaskItem
-              key={child.id}
-              task={child}
-              index={childIndex}
-              onToggle={() => onChildToggle(child)}
-              onMoveToToday={() => onChildMoveToToday(child)}
-              isSubtask={true}
-            />
-          ))}
+        <div className={`bg-gray-50 border-l-4 ${borderColorClass}`}>
+          {task.children!.map((child, childIndex) => {
+            const childHasChildren = child.children && child.children.length > 0
+            const isChildExpanded = expandedParents?.has(child.id) ?? false
+            
+            return (
+              <TaskItemWithChildren
+                key={child.id}
+                task={child}
+                index={childIndex}
+                onToggle={() => onChildToggle(child)}
+                onMoveToToday={() => onChildMoveToToday(child)}
+                onToggleChildren={() => onToggleAnyChildren?.(child.id)}
+                isChildrenExpanded={isChildExpanded}
+                onChildToggle={onChildToggle}
+                onChildMoveToToday={onChildMoveToToday}
+                depth={depth + 1}
+                expandedParents={expandedParents}
+                onToggleAnyChildren={onToggleAnyChildren}
+              />
+            )
+          })}
         </div>
       )}
     </div>
@@ -221,7 +249,7 @@ interface TaskItemProps {
   hasChildren?: boolean
   onToggleChildren?: () => void
   isChildrenExpanded?: boolean
-  isSubtask?: boolean // 是否是子任务
+  depth?: number // 🆕 任务层级深度（替代 isSubtask）
 }
 
 function TaskItem({ 
@@ -232,8 +260,9 @@ function TaskItem({
   hasChildren,
   onToggleChildren,
   isChildrenExpanded,
-  isSubtask
+  depth = 0
 }: TaskItemProps) {
+  const isSubtask = depth > 0
   const [isHovered, setIsHovered] = useState(false)
 
   // 格式化截止日期
@@ -261,6 +290,9 @@ function TaskItem({
   // 判断是否是今天的任务
   const isTaskToday = task.noteDate ? isToday(new Date(task.noteDate)) : false
 
+  // 🆕 根据层级深度计算左侧 padding（每级增加 16px）
+  const paddingLeftClass = depth === 0 ? '' : depth === 1 ? 'pl-8' : depth === 2 ? 'pl-12' : 'pl-16'
+  
   return (
     <div
       className={`
@@ -271,7 +303,7 @@ function TaskItem({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <div className={`px-4 py-3 flex items-start gap-3 ${isSubtask ? 'pl-8' : ''}`}>
+      <div className={`px-4 py-3 flex items-start gap-3 ${paddingLeftClass}`}>
         {/* 序号 + 勾选框 */}
         <div className="flex items-center gap-2 flex-shrink-0">
           {/* 🆕 子任务展开/折叠按钮（仅父任务显示） */}

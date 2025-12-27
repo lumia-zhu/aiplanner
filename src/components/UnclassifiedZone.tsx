@@ -45,37 +45,49 @@ export default function UnclassifiedZone({
     id: 'unclassified',
   })
   
-  // 🆕 处理层级显示逻辑
-  // 1. 找出所有父任务（depth=0 或无 parentTaskId）
-  const parentTasks = tasks.filter(t => (t.depth ?? 0) === 0)
+  // 🆕 处理层级显示逻辑（支持最多3级：父任务、子任务、孙任务）
+  const MAX_DISPLAY_DEPTH = 2 // 最多显示到 depth=2（孙任务）
   
-  // 2. 为每个父任务找到其子任务
+  // 1. 构建父子关系映射
   const childTasksMap = new Map<string, HierarchicalTask[]>()
   tasks.forEach(task => {
-    if ((task.depth ?? 0) > 0 && task.parentTaskId) {
+    const depth = task.depth ?? 0
+    // 只处理 depth <= MAX_DISPLAY_DEPTH 的任务
+    if (depth > 0 && depth <= MAX_DISPLAY_DEPTH && task.parentTaskId) {
       const children = childTasksMap.get(task.parentTaskId) || []
       children.push(task)
       childTasksMap.set(task.parentTaskId, children)
     }
   })
   
-  // 3. 生成扁平化的显示任务列表（考虑折叠状态）
-  const displayTasks: HierarchicalTask[] = []
-  parentTasks.forEach(parent => {
-    displayTasks.push(parent)
-    // 如果该父任务未折叠，则添加其子任务
-    if (!collapsedTasks.has(parent.id)) {
-      const children = childTasksMap.get(parent.id) || []
-      displayTasks.push(...children)
-    }
-  })
+  // 2. 找出所有顶层任务（depth=0）
+  const topLevelTasks = tasks.filter(t => (t.depth ?? 0) === 0)
   
-  // 4. 找出没有父任务的孤立子任务（父任务可能在其他象限）
-  const orphanTasks = tasks.filter(t => 
-    (t.depth ?? 0) > 0 && 
-    t.parentTaskId && 
-    !parentTasks.some(p => p.id === t.parentTaskId)
-  )
+  // 3. 递归生成扁平化的显示任务列表（考虑折叠状态）
+  const displayTasks: HierarchicalTask[] = []
+  
+  const addTaskWithChildren = (task: HierarchicalTask) => {
+    const depth = task.depth ?? 0
+    displayTasks.push(task)
+    
+    // 如果该任务未折叠且在显示深度范围内，添加其子任务
+    if (!collapsedTasks.has(task.id) && depth < MAX_DISPLAY_DEPTH) {
+      const children = childTasksMap.get(task.id) || []
+      // 递归添加子任务（按顺序）
+      children.forEach(child => addTaskWithChildren(child))
+    }
+  }
+  
+  topLevelTasks.forEach(parent => addTaskWithChildren(parent))
+  
+  // 4. 找出没有父任务的孤立任务（父任务可能在其他区域）
+  const orphanTasks = tasks.filter(t => {
+    const depth = t.depth ?? 0
+    return depth > 0 && 
+           depth <= MAX_DISPLAY_DEPTH &&
+           t.parentTaskId && 
+           !tasks.some(p => p.id === t.parentTaskId)
+  })
   displayTasks.push(...orphanTasks)
   
   // 任务ID列表（用于 SortableContext）

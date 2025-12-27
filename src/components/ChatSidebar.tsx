@@ -576,6 +576,7 @@ interface ReflectionTaskSelectionCardProps {
     title: string
     isCompleted: boolean
     parent_task_id?: string | null
+    depth?: number  // 🆕 任务层级深度（0=主任务，1=子任务，2=孙任务，3=曾孙任务）
   }>
   roundType: 'clarity' | 'decomposition' | 'time' | 'priority'
   isActive: boolean
@@ -603,11 +604,9 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
   // 过滤掉已完成的任务
   const uncompletedTasks = tasks.filter(t => !t.isCompleted)
   
-  // 🆕 构建层级结构：区分主任务和子任务
-  const parentTasks = uncompletedTasks.filter(t => !t.parent_task_id)
+  // 🆕 构建层级结构：支持多层级（最多4级）
+  // 1. 按 parent_task_id 构建子任务映射
   const childTasksMap = new Map<string, typeof uncompletedTasks>()
-  
-  // 将子任务按父任务分组
   uncompletedTasks.forEach(task => {
     if (task.parent_task_id) {
       if (!childTasksMap.has(task.parent_task_id)) {
@@ -617,27 +616,34 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
     }
   })
   
-  // 🆕 构建显示列表（包含所有任务，用于动画）
+  // 2. 找出顶层任务（depth=0 或无 parent_task_id）
+  const topLevelTasks = uncompletedTasks.filter(t => (t.depth ?? 0) === 0 && !t.parent_task_id)
+  
+  // 🆕 构建显示列表（递归支持多层级）
   const visibleTasks: Array<typeof uncompletedTasks[0] & { 
-    isChild?: boolean; 
-    isLastChild?: boolean;
-    parentId?: string;
+    displayDepth: number;  // 显示层级
+    parentId?: string;     // 直接父任务ID
+    ancestorIds: string[]; // 所有祖先任务ID（用于判断是否隐藏）
   }> = []
   
-  parentTasks.forEach(parent => {
-    // 添加主任务
-    visibleTasks.push({ ...parent, isChild: false })
-    
-    // 添加所有子任务（不管是否折叠，用CSS控制显示）
-    const children = childTasksMap.get(parent.id) || []
-    children.forEach((child, index) => {
-      visibleTasks.push({ 
-        ...child, 
-        isChild: true, 
-        isLastChild: index === children.length - 1,
-        parentId: parent.id  // 记录父任务ID，用于判断是否应该隐藏
-      })
+  // 递归添加任务及其子任务
+  const addTaskWithDescendants = (task: typeof uncompletedTasks[0], displayDepth: number, ancestorIds: string[]) => {
+    visibleTasks.push({ 
+      ...task, 
+      displayDepth,
+      parentId: ancestorIds[ancestorIds.length - 1],
+      ancestorIds: [...ancestorIds]
     })
+    
+    // 递归添加子任务
+    const children = childTasksMap.get(task.id) || []
+    children.forEach(child => {
+      addTaskWithDescendants(child, displayDepth + 1, [...ancestorIds, task.id])
+    })
+  }
+  
+  topLevelTasks.forEach(parent => {
+    addTaskWithDescendants(parent, 0, [])
   })
   
   const selectTask = (taskId: string) => {
@@ -732,25 +738,28 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
           </div>
         ) : visibleTasks.map((task, index) => {
           const isSelected = isMultiSelect ? selectedIds.has(task.id) : selectedId === task.id
-          const isChild = task.isChild || false
-          const isLastChild = task.isLastChild || false
-          const hasChildren = !isChild && (childTasksMap.get(task.id)?.length || 0) > 0
+          const displayDepth = task.displayDepth ?? 0
+          const isChild = displayDepth > 0
+          const hasChildren = (childTasksMap.get(task.id)?.length || 0) > 0
           const isCollapsed = collapsedTasks.has(task.id)
           
-          // 🆕 判断子任务是否应该隐藏（父任务被折叠）
-          const isChildHidden = isChild && task.parentId && collapsedTasks.has(task.parentId)
+          // 🆕 判断任务是否应该隐藏（任何祖先任务被折叠）
+          const isHidden = task.ancestorIds?.some(ancestorId => collapsedTasks.has(ancestorId)) || false
+          
+          // 🆕 根据层级计算缩进（每级增加 24px）
+          const paddingLeft = displayDepth * 24
           
           return (
             <div
               key={`task-selection-${task.id}-${index}`}
+              style={{ paddingLeft: `${paddingLeft + 8}px` }}
               className={`flex items-center gap-2 p-2 rounded-md w-full overflow-hidden
                 ${isSelected 
                   ? `bg-${info.color}-100 border border-${info.color}-300` 
                   : 'bg-white border border-gray-200 hover:border-gray-300'
                 }
                 ${!isActive ? 'opacity-50 cursor-not-allowed' : ''}
-                ${isChild ? 'pl-8' : ''}
-                ${isChildHidden 
+                ${isHidden 
                   ? 'max-h-0 opacity-0 py-0 my-0 border-0' 
                   : 'max-h-20 opacity-100 transition-all duration-150 ease-in-out'
                 }
@@ -778,8 +787,8 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
                 <span className="block truncate">{task.title}</span>
               </label>
               
-              {/* 🆕 主任务折叠图标（右侧） */}
-              {!isChild && hasChildren && onToggleCollapse && (
+              {/* 🆕 有子任务的任务显示折叠图标（右侧） */}
+              {hasChildren && onToggleCollapse && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
@@ -801,8 +810,8 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
         })}
       </div>
       
-      {/* 提示文案 - 仅在有任务时显示 */}
-      {uncompletedTasks.some(t => !t.parent_task_id && childTasksMap.get(t.id)?.length) && (
+      {/* 提示文案 - 仅在有带子任务的任务时显示 */}
+      {Array.from(childTasksMap.values()).some(children => children.length > 0) && (
         <div className="text-xs text-gray-500 mb-2 flex items-center gap-1">
           <span>💡</span>
           <span>任务右侧的 ▶ 可展开查看子任务</span>
@@ -1154,7 +1163,13 @@ interface ChatSidebarProps {
   onTaskSelectionConfirm?: (taskIds: string[]) => void  // 任务选择确认
   onTaskSelectionBack?: () => void  // 任务选择返回
   completedRounds?: ('clarity' | 'decomposition' | 'time' | 'priority')[]  // 已完成的轮次
-  availableTasksForSelection?: Array<{ id: string; title: string; isCompleted: boolean }>  // 可选择的任务列表
+  availableTasksForSelection?: Array<{ 
+    id: string
+    title: string
+    isCompleted: boolean
+    depth?: number              // 🆕 任务层级深度
+    parent_task_id?: string | null  // 🆕 父任务ID
+  }>  // 可选择的任务列表
   pendingRound?: 'clarity' | 'decomposition' | 'time' | 'priority' | null  // 待选择任务的轮次
   
   // ⭐ 问答流程状态

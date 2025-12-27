@@ -162,53 +162,67 @@ export class GetTasksTool implements AgentTool {
   }
 
   /**
-   * 🆕 构建父子任务树结构
+   * 🆕 构建父子任务树结构（递归支持多层级，最多4级）
    * 将扁平的任务列表转换为树形结构，子任务嵌套在父任务的 children 字段中
    */
   private buildTaskTree(tasks: any[]): any[] {
     // 按 depth=0 筛选出顶层任务
     const topLevelTasks = tasks.filter(t => (t.depth || 0) === 0)
     
-    // 按 depth>0 筛选出子任务
-    const childTasks = tasks.filter(t => (t.depth || 0) > 0)
-    
-    // 为每个顶层任务查找子任务
-    for (const parent of topLevelTasks) {
-      // 根据 parentId 匹配，或者根据在 tasks 数组中的位置匹配
-      // 由于笔记中任务是按顺序排列的，子任务会紧跟在父任务后面
-      const children = childTasks.filter(child => {
+    // 递归为每个任务查找其子任务
+    const attachChildren = (parent: any, allTasks: any[]) => {
+      const parentDepth = parent.depth || 0
+      const targetDepth = parentDepth + 1
+      
+      // 只查找深度 <= 3 的子任务（最多4级）
+      if (targetDepth > 3) return
+      
+      // 查找该父任务的直接子任务
+      const children = allTasks.filter(child => {
+        const childDepth = child.depth || 0
+        // 子任务的深度必须是父任务深度 + 1
+        if (childDepth !== targetDepth) return false
+        
         // 如果有明确的 parentId，使用它
         if (child.parentId && child.parentId === parent.id) {
           return true
         }
-        // 如果没有 parentId，使用位置推断（同一个 noteId 且 depth > 0）
+        // 如果没有 parentId，使用位置推断
         return child.noteId === parent.noteId && 
-               this.isChildOfParent(tasks, parent, child)
+               this.isChildOfParent(allTasks, parent, child, targetDepth)
       })
       
       if (children.length > 0) {
+        // 递归处理每个子任务的子任务
+        children.forEach(child => attachChildren(child, allTasks))
         parent.children = children
         parent.childCount = children.length
       }
     }
     
+    // 为每个顶层任务递归构建子树
+    topLevelTasks.forEach(parent => attachChildren(parent, tasks))
+    
     return topLevelTasks
   }
   
   /**
-   * 判断 child 是否是 parent 的子任务（基于位置）
+   * 判断 child 是否是 parent 的直接子任务（基于位置和深度）
    */
-  private isChildOfParent(allTasks: any[], parent: any, child: any): boolean {
+  private isChildOfParent(allTasks: any[], parent: any, child: any, expectedChildDepth: number): boolean {
     const parentIndex = allTasks.findIndex(t => t.id === parent.id)
     const childIndex = allTasks.findIndex(t => t.id === child.id)
+    const parentDepth = parent.depth || 0
     
     // 子任务应该在父任务之后
     if (childIndex <= parentIndex) return false
     
-    // 检查从父任务到子任务之间是否有其他顶层任务
+    // 检查从父任务到子任务之间是否有中断
     for (let i = parentIndex + 1; i < childIndex; i++) {
-      if ((allTasks[i].depth || 0) === 0) {
-        return false // 中间有其他顶层任务，说明 child 不属于 parent
+      const middleTaskDepth = allTasks[i].depth || 0
+      // 如果中间任务的深度 <= 父任务深度，说明已经跳出父任务范围
+      if (middleTaskDepth <= parentDepth) {
+        return false
       }
     }
     

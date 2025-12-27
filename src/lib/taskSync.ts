@@ -54,8 +54,17 @@ export function parseTasksFromNote(noteContent: string | any): ParsedTask[] {
     // 递归遍历 JSON 结构，查找 taskItem 节点
     // depth: 当前任务的层级（0 = 顶层，1 = 子任务，2 = 孙任务...）
     // parentPosition: 父任务在列表中的位置（用于建立父子关系）
+    // 🆕 最大支持4级任务（depth 0-3）
+    const MAX_TASK_DEPTH = 3
+    
     function traverseContent(node: any, position: { count: number }, depth: number = 0, parentPosition?: number) {
       if (!node) return
+      
+      // 🆕 超过最大深度的任务不再解析（但仍会显示在编辑器中）
+      if (depth > MAX_TASK_DEPTH) {
+        console.warn(`⚠️ 任务层级超过限制（${depth} > ${MAX_TASK_DEPTH}），跳过解析`)
+        return
+      }
 
       // 找到 taskItem 节点
       if (node.type === 'taskItem') {
@@ -286,14 +295,11 @@ export async function syncTasksFromNote(
     const processedTaskKeys = new Set<string>()
     
     // 🆕 position → taskId 映射（用于建立父子关系）
+    // ⚠️ 注意：这里的 position 是当前解析的位置（parsedTask.position），不是数据库中的 notePosition
+    // 因为用户编辑笔记后任务位置可能变化，必须使用当前解析的位置来建立父子关系
     const positionToTaskId = new Map<number, string>()
     // 🆕 position → title 映射（用于生成子任务的匹配键）
     const positionToTitle = new Map<number, string>()
-    
-    // 先建立已存在任务的 position → id 映射
-    for (const task of existingTasks) {
-      positionToTaskId.set(task.notePosition, task.id)
-    }
 
     // 🆕 第一轮：处理父任务（depth = 0）和更新已有任务
     for (const parsedTask of parsedTasks.filter(t => (t.depth ?? 0) === 0)) {
@@ -386,8 +392,9 @@ export async function syncTasksFromNote(
       if (parsedTask.parentPosition !== undefined) {
         parentTaskId = positionToTaskId.get(parsedTask.parentPosition) || null
         if (!parentTaskId) {
-          console.warn(`⚠️ 子任务 "${parsedTask.title}" 的父任务(position=${parsedTask.parentPosition})不存在，跳过`)
-          continue
+          // 🔧 不再跳过，继续处理（parentTaskId 保持为 null）
+          // 这样可以确保任务被创建，并且它的后代任务也能被处理
+          console.warn(`⚠️ 子任务 "${parsedTask.title}" 的父任务(position=${parsedTask.parentPosition})未找到，将作为孤立任务处理`)
         }
       }
 
