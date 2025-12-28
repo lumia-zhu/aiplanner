@@ -360,6 +360,15 @@ function buildContextSection(
 ): string {
   let section = `## 当前上下文\n\n`
 
+  // 🆕 明确的今天日期信息（帮助 LLM 正确理解时间上下文）
+  const now = new Date()
+  const weekDays = ['日', '一', '二', '三', '四', '五', '六']
+  const todayString = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 星期${weekDays[now.getDay()]}`
+  const todayISO = format(now, 'yyyy-MM-dd')
+  
+  section += `**📅 今天的日期**：${todayString}（${todayISO}）\n`
+  section += `> 如果用户说"下周三"、"明天"等相对日期，请先调用 \`calculate_date\` 工具计算具体日期，然后再创建任务。\n\n`
+
   // 用户ID（重要！工具调用时需要使用）
   section += `**⚠️ 重要：当前用户 ID**：\`${userId}\`\n`
   section += `> 在调用任何工具时，请使用这个真实的用户 ID，不要使用示例中的占位符！\n\n`
@@ -377,9 +386,10 @@ function buildContextSection(
     section += buildMatrixContextSection(matrixContext)
   } else {
     // 日期范围（仅在非矩阵模式下显示）
-    section += `**当前日期范围**：${dateScope.preset === 'today' ? '今天' : dateScope.preset === 'week' ? '本周' : dateScope.preset === 'month' ? '本月' : '自定义'}\n`
-    section += `- 开始：${dateScope.start}\n`
-    section += `- 结束：${dateScope.end}\n\n`
+    const presetLabel = dateScope.preset === 'today' ? '今天' : dateScope.preset === 'week' ? '本周' : dateScope.preset === 'month' ? '本月' : '自定义'
+    section += `**当前日期范围**：${presetLabel}\n`
+    section += `- 开始：${format(dateScope.start, 'yyyy-MM-dd')}\n`
+    section += `- 结束：${format(dateScope.end, 'yyyy-MM-dd')}\n\n`
   }
 
   // 任务概览
@@ -836,6 +846,60 @@ Action: Response: ✅ 已创建  ← 错误！这是混淆格式！
 Thought: 可以回复用户了
 Response: ✅ 已创建任务  ← 正确！直接 Response，不是 Action
 \`\`\`
+
+---
+
+### 📘 示例 3.1：创建任务（包含相对日期 - 重要！使用 calculate_date 工具）
+
+**当前日期**：2024年12月28日 星期日（2024-12-28）
+
+**用户消息**：下周三10点半要去锻炼
+
+**第 1 轮输出**（⭐ 先计算日期）：
+\`\`\`
+Thought: 用户要在"下周三"创建任务。我需要先调用 calculate_date 工具计算"下周三"的具体日期。
+Action: calculate_date
+Action Input: {"dateExpression": "下周三"}
+\`\`\`
+
+**观察结果**：计算成功，"下周三" = 2024-12-31（星期三）
+
+**第 2 轮输出**（⭐ 使用计算结果创建任务）：
+\`\`\`
+Thought: 下周三是2024-12-31，现在创建任务。任务标题应该是"10点半去锻炼"，不要包含"下周三"这个时间词。
+Action: create_task
+Action Input: {"userId": "user_id_placeholder", "taskTitle": "10点半去锻炼", "targetDate": "2024-12-31"}
+\`\`\`
+
+**观察结果**：任务创建成功
+
+**第 3 轮输出**：
+\`\`\`
+Thought: 任务已成功创建，现在告诉用户。
+Response: ✅ 已为您创建任务：10点半去锻炼
+📅 日期：2024年12月31日（下周三）
+
+任务已添加！
+\`\`\`
+
+**⭐ 相对日期处理流程（重要！）：**
+1. **第一步**：识别用户输入中的相对日期表达式（"下周三"、"明天"、"3天后"等）
+2. **第二步**：调用 \`calculate_date\` 工具计算具体日期
+3. **第三步**：使用计算结果的 YYYY-MM-DD 日期创建任务
+4. **任务标题**：只包含任务内容，不包含时间词
+
+**⭐ 支持的日期表达式：**
+- 明天、后天、大后天
+- 下周一、下周二、...、下周日
+- 下下周一、下下周二、...
+- 3天后、7天后、14天后
+- 本周一、本周五、...
+- 下个月5号、1月15日、2025年1月15日
+
+**⚠️ 常见错误：**
+- ❌ 错误：不调用 calculate_date，直接猜测日期
+- ❌ 错误：taskTitle = "下周三去锻炼"（时间词不应在标题中）
+- ✅ 正确：先 calculate_date，再 create_task，标题只含任务内容
 
 ---
 

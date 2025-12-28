@@ -29,6 +29,9 @@ import { CompleteRecurringTasksTool } from './CompleteRecurringTasksTool' // ✅
 import { ReflectOnTasksTool } from './ReflectOnTasksTool' // ✅ 元认知反思工具
 import { GlobalScanTool } from './GlobalScanTool' // ✅ 全局任务扫描工具
 
+// 日期计算工具
+import { DateCalculatorTool } from './DateCalculatorTool' // ✅ 日期计算工具
+
 /**
  * 工具实例缓存
  * 避免重复创建工具实例，提升性能
@@ -66,6 +69,8 @@ export function getAllTools(): AgentTool[] {
     // 元认知反思工具
     new ReflectOnTasksTool(), // ✅ 元认知反思工具
     new GlobalScanTool(), // ✅ 全局任务扫描工具
+    // 日期计算工具
+    new DateCalculatorTool(), // ✅ 日期计算工具
   ]
 
   const toolNames = toolsCache.map(t => t.name).join(', ')

@@ -35,11 +35,11 @@ export class CreateTaskTool implements AgentTool {
       },
       taskTitle: { 
         type: 'string', 
-        description: '任务标题（必需）。可以包含标签，格式：#标签名，如"完成报告 #工作"' 
+        description: '任务标题（必需）。只包含任务内容本身，不要包含时间词（如"下周一"、"明天"）。时间信息通过 targetDate 参数指定。可以包含标签，格式：#标签名' 
       },
       targetDate: { 
         type: 'string', 
-        description: '任务所属日期（可选），格式：YYYY-MM-DD。默认为今天。例如：2025-11-09' 
+        description: '任务所属日期（必须是计算后的具体日期），格式：YYYY-MM-DD。如用户说"下周一"，需根据今天日期计算出具体几月几号再传入。默认为今天。' 
       }
     },
     required: ['userId', 'taskTitle']
