@@ -406,10 +406,10 @@ export async function clearCustomTaskTags(
   }
 }
 
-
 /**
- * 妫€鏌ョ敤鎴锋槸鍚︽槸绠＄悊鍛? * @param userId 鐢ㄦ埛ID
- * @returns 鏄惁鏄鐞嗗憳
+ * 检查用户是否是管理员
+ * @param userId 用户ID
+ * @returns 是否是管理员
  */
 export async function isUserAdmin(userId: string): Promise<boolean> {
   try {
@@ -422,13 +422,14 @@ export async function isUserAdmin(userId: string): Promise<boolean> {
       .single()
     
     if (error) {
-      console.error('妫€鏌ョ鐞嗗憳鏉冮檺澶辫触:', error)
+      console.error('检查管理员权限失败:', error)
       return false
     }
     
     return data?.role === 'admin'
   } catch (error) {
-    console.error('妫€鏌ョ鐞嗗憳鏉冮檺寮傚父:', error)
+    console.error('检查管理员权限异常:', error)
     return false
   }
 }
+

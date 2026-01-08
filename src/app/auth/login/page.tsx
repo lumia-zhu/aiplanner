@@ -15,6 +15,8 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
+    console.log('🔐 登录按钮点击，当前状态:', { username, password: password ? '***' : '空' })
+    
     if (!username.trim() || !password.trim()) {
       setError('请输入用户名和密码')
       return
@@ -23,7 +25,9 @@ export default function LoginPage() {
     setIsLoading(true)
     setError('')
 
+    console.log('📡 开始登录请求...')
     const result = await loginUser(username.trim(), password)
+    console.log('📡 登录结果:', result.error || '成功')
     
     if (result.error) {
       setError(result.error)

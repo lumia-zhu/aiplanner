@@ -397,11 +397,13 @@ export async function getNoteByDate(userId: string, date: Date): Promise<Note | 
 /**
  * 保存或更新笔记
  * 如果该日期已有笔记则更新，否则创建新笔记
+ * 同时自动记录版本到 note_versions 表
  */
 export async function saveNote(
   userId: string,
   date: Date,
-  content: JSONContent
+  content: JSONContent,
+  versionSource: 'auto_save' | 'manual_save' | 'initial' = 'auto_save'
 ): Promise<Note> {
   const supabase = createClient()
   const dateStr = formatNoteDate(date)
@@ -437,7 +439,46 @@ export async function saveNote(
   }
 
   console.log('✅ 笔记保存成功:', data)
+  
+  // 📝 异步记录版本历史（不阻塞主流程）
+  saveNoteVersion(supabase, data.id, userId, dateStr, content, metadata, versionSource)
+    .catch(err => console.error('⚠️ 保存版本历史失败（不影响主流程）:', err))
+  
   return data
+}
+
+/**
+ * 保存笔记版本到 note_versions 表
+ * 内部函数，不导出
+ */
+async function saveNoteVersion(
+  supabase: ReturnType<typeof createClient>,
+  noteId: string,
+  userId: string,
+  noteDate: string,
+  content: JSONContent,
+  metadata: NoteMetadata,
+  versionSource: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('note_versions')
+    .insert({
+      note_id: noteId,
+      user_id: userId,
+      note_date: noteDate,
+      content: content,
+      plain_text: metadata.plain_text,
+      version_source: versionSource,
+      content_length: metadata.plain_text.length,
+      task_count: metadata.pending_tasks_count + metadata.completed_tasks_count
+    })
+  
+  if (error) {
+    console.error('❌ 保存版本历史失败:', error)
+    throw error
+  }
+  
+  console.log('📚 版本历史已记录')
 }
 
 /**

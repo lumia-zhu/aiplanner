@@ -41,6 +41,21 @@ export default function AdminChatPage() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(50)
   
+  // 筛选状态
+  const [filterUserId, setFilterUserId] = useState('')
+  const [filterRole, setFilterRole] = useState<'all' | 'user' | 'assistant'>('all')
+  const [filterMessageType, setFilterMessageType] = useState('')
+  const [filterStartDate, setFilterStartDate] = useState('')
+  const [filterEndDate, setFilterEndDate] = useState('')
+  
+  // 用户列表（用于下拉选择）
+  const [users, setUsers] = useState<Array<{ user_id: string; username: string }>>([])
+  const [userSearchTerm, setUserSearchTerm] = useState('')
+  const [showUserDropdown, setShowUserDropdown] = useState(false)
+  
+  // 消息类型列表
+  const [messageTypes, setMessageTypes] = useState<string[]>([])
+  
   // 详情弹窗
   const [selectedMessage, setSelectedMessage] = useState<ChatMessage | null>(null)
 
@@ -87,17 +102,45 @@ export default function AdminChatPage() {
     try {
       const supabase = createClient()
       
-      // 查询总数
-      const { count } = await supabase
-        .from('chat_messages')
-        .select('*', { count: 'exact', head: true })
+      // 构建查询（带筛选）
+      let countQuery = supabase.from('chat_messages').select('*', { count: 'exact', head: true })
+      let dataQuery = supabase.from('chat_messages').select('*')
       
+      // 应用筛选条件
+      if (filterUserId.trim()) {
+        countQuery = countQuery.eq('user_id', filterUserId.trim())
+        dataQuery = dataQuery.eq('user_id', filterUserId.trim())
+      }
+      
+      if (filterRole !== 'all') {
+        countQuery = countQuery.eq('role', filterRole)
+        dataQuery = dataQuery.eq('role', filterRole)
+      }
+      
+      if (filterMessageType.trim()) {
+        countQuery = countQuery.eq('message_type', filterMessageType.trim())
+        dataQuery = dataQuery.eq('message_type', filterMessageType.trim())
+      }
+      
+      if (filterStartDate) {
+        countQuery = countQuery.gte('created_at', filterStartDate)
+        dataQuery = dataQuery.gte('created_at', filterStartDate)
+      }
+      
+      if (filterEndDate) {
+        // 结束日期包含当天全天
+        const endDateTime = new Date(filterEndDate)
+        endDateTime.setHours(23, 59, 59, 999)
+        countQuery = countQuery.lte('created_at', endDateTime.toISOString())
+        dataQuery = dataQuery.lte('created_at', endDateTime.toISOString())
+      }
+      
+      // 查询总数
+      const { count } = await countQuery
       setTotalCount(count || 0)
       
       // 查询数据（分页）
-      const { data, error } = await supabase
-        .from('chat_messages')
-        .select('*')
+      const { data, error } = await dataQuery
         .order('created_at', { ascending: false })
         .range((page - 1) * pageSize, page * pageSize - 1)
       
@@ -112,14 +155,162 @@ export default function AdminChatPage() {
     } finally {
       setLoading(false)
     }
-  }, [isAdmin, page, pageSize])
+  }, [isAdmin, page, pageSize, filterUserId, filterRole, filterMessageType, filterStartDate, filterEndDate])
+
+  // 加载用户列表
+  const loadUsers = useCallback(async () => {
+    if (!isAdmin) return
+    
+    try {
+      const supabase = createClient()
+      
+      // 从 user_profiles 获取用户信息
+      const { data: profiles } = await supabase
+        .from('user_profiles')
+        .select('user_id')
+      
+      if (!profiles) return
+      
+      // 获取对应的用户名
+      const { data: usersData } = await supabase
+        .from('users')
+        .select('id, username')
+        .in('id', profiles.map(p => p.user_id))
+      
+      if (usersData) {
+        setUsers(usersData.map(u => ({ user_id: u.id, username: u.username })))
+      }
+    } catch (error) {
+      console.error('加载用户列表失败:', error)
+    }
+  }, [isAdmin])
+
+  // 加载消息类型列表
+  const loadMessageTypes = useCallback(async () => {
+    if (!isAdmin) return
+    
+    try {
+      const supabase = createClient()
+      
+      // 获取所有不同的 message_type
+      const { data } = await supabase
+        .from('chat_messages')
+        .select('message_type')
+      
+      if (data) {
+        const types = [...new Set(data.map(d => d.message_type).filter(Boolean))]
+        setMessageTypes(types.sort())
+      }
+    } catch (error) {
+      console.error('加载消息类型列表失败:', error)
+    }
+  }, [isAdmin])
 
   // 权限通过后加载数据
   useEffect(() => {
     if (isAdmin) {
       loadMessages()
+      loadUsers()
+      loadMessageTypes()
     }
-  }, [isAdmin, loadMessages])
+  }, [isAdmin, loadMessages, loadUsers, loadMessageTypes])
+
+  // 点击外部关闭下拉框
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest('.user-search-container')) {
+        setShowUserDropdown(false)
+      }
+    }
+    
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // 导出 CSV
+  const [exporting, setExporting] = useState(false)
+  
+  const exportToCSV = async () => {
+    setExporting(true)
+    try {
+      const supabase = createClient()
+      
+      // 构建查询（带筛选，最多 5000 条）
+      let query = supabase.from('chat_messages').select('*')
+      
+      if (filterUserId.trim()) {
+        query = query.eq('user_id', filterUserId.trim())
+      }
+      if (filterRole !== 'all') {
+        query = query.eq('role', filterRole)
+      }
+      if (filterMessageType.trim()) {
+        query = query.eq('message_type', filterMessageType.trim())
+      }
+      if (filterStartDate) {
+        query = query.gte('created_at', filterStartDate)
+      }
+      if (filterEndDate) {
+        const endDateTime = new Date(filterEndDate)
+        endDateTime.setHours(23, 59, 59, 999)
+        query = query.lte('created_at', endDateTime.toISOString())
+      }
+      
+      const { data, error } = await query
+        .order('created_at', { ascending: false })
+        .limit(5000)
+      
+      if (error) {
+        console.error('导出失败:', error)
+        alert('导出失败：' + error.message)
+        return
+      }
+      
+      if (!data || data.length === 0) {
+        alert('没有数据可导出')
+        return
+      }
+      
+      // 构建 CSV 内容
+      const headers = ['ID', '用户ID', '角色', '消息类型', '上下文日期', '创建时间', '内容', '元数据']
+      const rows = data.map(msg => [
+        msg.id,
+        msg.user_id,
+        msg.role,
+        msg.message_type || 'text',
+        msg.context_date || '',
+        msg.created_at,
+        JSON.stringify(msg.content).replace(/"/g, '""'),  // 转义双引号
+        JSON.stringify(msg.metadata || {}).replace(/"/g, '""')
+      ])
+      
+      // 添加 BOM 以支持中文
+      const BOM = '\uFEFF'
+      const csvContent = BOM + [
+        headers.join(','),
+        ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+      ].join('\n')
+      
+      // 下载文件
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `chat_messages_${new Date().toISOString().slice(0, 10)}.csv`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      
+      alert(`成功导出 ${data.length} 条记录`)
+    } catch (error) {
+      console.error('导出异常:', error)
+      alert('导出失败')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   // 格式化时间
   const formatTime = (dateString: string) => {
@@ -135,16 +326,39 @@ export default function AdminChatPage() {
   }
 
   // 截取内容预览
-  const getContentPreview = (content: any) => {
+  // 提取完整文本内容（用于 tooltip）
+  const getFullContent = (content: any): string => {
     try {
       if (typeof content === 'string') {
-        return content.slice(0, 120) + (content.length > 120 ? '...' : '')
+        return content
       }
-      const text = JSON.stringify(content)
-      return text.slice(0, 120) + (text.length > 120 ? '...' : '')
+      
+      if (Array.isArray(content)) {
+        const texts = content
+          .filter(item => item.type === 'text' && item.text)
+          .map(item => item.text)
+          .join(' ')
+        
+        if (texts) return texts
+        
+        const hasTaskList = content.some(item => item.type === 'task-list')
+        if (hasTaskList) return '[任务列表]'
+      }
+      
+      if (typeof content === 'object' && content.text) {
+        return content.text
+      }
+      
+      return '[非文本内容]'
     } catch {
       return '[无法解析]'
     }
+  }
+
+  // 获取内容预览（截断版本）
+  const getContentPreview = (content: any) => {
+    const full = getFullContent(content)
+    return full.length > 120 ? full.slice(0, 120) + '...' : full
   }
 
   // 总页数
@@ -214,26 +428,201 @@ export default function AdminChatPage() {
 
       {/* 主内容区 */}
       <div className="max-w-7xl mx-auto px-4 py-6">
-        {/* 统计信息 */}
+        {/* 筛选表单 */}
+        <div className="bg-white rounded-lg shadow p-4 mb-4">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-sm font-medium text-gray-700">🔍 筛选条件</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+            {/* 用户名 */}
+            <div className="relative user-search-container">
+              <label className="block text-xs text-gray-500 mb-1">用户名</label>
+              <input
+                type="text"
+                placeholder="搜索用户名"
+                value={userSearchTerm}
+                onChange={(e) => {
+                  setUserSearchTerm(e.target.value)
+                  setShowUserDropdown(true)
+                }}
+                onFocus={() => setShowUserDropdown(true)}
+                className="w-full px-3 py-2 border rounded text-sm text-gray-900"
+              />
+              
+              {/* 下拉列表 */}
+              {showUserDropdown && (
+                <div className="absolute z-10 w-full mt-1 bg-white border rounded shadow-lg max-h-48 overflow-y-auto">
+                  <div
+                    className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm text-gray-900"
+                    onClick={() => {
+                      setFilterUserId('')
+                      setUserSearchTerm('')
+                      setShowUserDropdown(false)
+                      setPage(1)
+                    }}
+                  >
+                    全部用户
+                  </div>
+                  {users
+                    .filter(u => 
+                      u.username.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+                      u.user_id.includes(userSearchTerm)
+                    )
+                    .map(user => (
+                      <div
+                        key={user.user_id}
+                        className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm text-gray-900"
+                        onClick={() => {
+                          setFilterUserId(user.user_id)
+                          setUserSearchTerm(user.username)
+                          setShowUserDropdown(false)
+                          setPage(1)
+                        }}
+                      >
+                        {user.username} <span className="text-gray-400 text-xs">({user.user_id.slice(0, 8)}...)</span>
+                      </div>
+                    ))}
+                  {users.filter(u => 
+                    u.username.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+                    u.user_id.includes(userSearchTerm)
+                  ).length === 0 && (
+                    <div className="px-3 py-2 text-sm text-gray-400">
+                      未找到匹配的用户
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            
+            {/* 角色 */}
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">角色</label>
+              <select
+                value={filterRole}
+                onChange={(e) => {
+                  setFilterRole(e.target.value as any)
+                  setPage(1)
+                }}
+                className="w-full px-3 py-2 border rounded text-sm text-gray-900"
+              >
+                <option value="all">全部</option>
+                <option value="user">用户</option>
+                <option value="assistant">AI</option>
+              </select>
+            </div>
+            
+            {/* 消息类型 */}
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">消息类型</label>
+              <select
+                value={filterMessageType}
+                onChange={(e) => {
+                  setFilterMessageType(e.target.value)
+                  setPage(1)
+                }}
+                className="w-full px-3 py-2 border rounded text-sm text-gray-900"
+              >
+                <option value="">全部类型</option>
+                {messageTypes.map(type => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+            </div>
+            
+            {/* 开始日期 */}
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">开始日期</label>
+              <input
+                type="date"
+                value={filterStartDate}
+                onChange={(e) => {
+                  setFilterStartDate(e.target.value)
+                  setPage(1)
+                }}
+                className="w-full px-3 py-2 border rounded text-sm text-gray-900"
+              />
+            </div>
+            
+            {/* 结束日期 */}
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">结束日期</label>
+              <input
+                type="date"
+                value={filterEndDate}
+                onChange={(e) => {
+                  setFilterEndDate(e.target.value)
+                  setPage(1)
+                }}
+                className="w-full px-3 py-2 border rounded text-sm text-gray-900"
+              />
+            </div>
+          </div>
+          
+          {/* 清除筛选按钮 */}
+          {(filterUserId || filterRole !== 'all' || filterMessageType || filterStartDate || filterEndDate) && (
+            <div className="mt-3 flex justify-end">
+              <button
+                onClick={() => {
+                  setFilterUserId('')
+                  setUserSearchTerm('')
+                  setFilterRole('all')
+                  setFilterMessageType('')
+                  setFilterStartDate('')
+                  setFilterEndDate('')
+                  setPage(1)
+                }}
+                className="px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+              >
+                清除筛选
+              </button>
+            </div>
+          )}
+        </div>
+        
+        {/* 统计信息 + 操作按钮 */}
         <div className="bg-white rounded-lg shadow p-4 mb-6">
           <div className="flex items-center justify-between">
             <div className="text-gray-600">
               共 <span className="font-bold text-blue-600">{totalCount}</span> 条聊天记录
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-gray-500 text-sm">每页显示：</span>
-              <select
-                value={pageSize}
-                onChange={(e) => {
-                  setPageSize(Number(e.target.value))
-                  setPage(1)
-                }}
-                className="border rounded px-2 py-1 text-sm"
+            <div className="flex items-center gap-4">
+              {/* 导出 CSV */}
+              <button
+                onClick={exportToCSV}
+                disabled={exporting || totalCount === 0}
+                className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-lg text-sm font-medium hover:from-emerald-600 hover:to-teal-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm transition-all duration-200"
               >
-                <option value={20}>20</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
+                {exporting ? (
+                  <>
+                    <span className="animate-spin">⏳</span>
+                    导出中...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    导出 CSV
+                  </>
+                )}
+              </button>
+              
+              {/* 每页显示 */}
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500 text-sm">每页显示：</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value))
+                    setPage(1)
+                  }}
+                  className="border rounded px-2 py-1 text-sm text-gray-900"
+                >
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
             </div>
           </div>
         </div>
@@ -254,7 +643,7 @@ export default function AdminChatPage() {
               <thead className="bg-gray-50 border-b">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">时间</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">用户ID</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">用户名</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">角色</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">类型</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">上下文日期</th>
@@ -268,8 +657,8 @@ export default function AdminChatPage() {
                     <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
                       {formatTime(msg.created_at)}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-600 font-mono">
-                      {msg.user_id?.slice(0, 8)}...
+                    <td className="px-4 py-3 text-sm text-gray-600" title={msg.user_id}>
+                      {users.find(u => u.user_id === msg.user_id)?.username || msg.user_id?.slice(0, 8) + '...'}
                     </td>
                     <td className="px-4 py-3 text-sm">
                       <span className={`px-2 py-1 rounded text-xs ${
@@ -286,7 +675,10 @@ export default function AdminChatPage() {
                     <td className="px-4 py-3 text-sm text-gray-600">
                       {msg.context_date || '-'}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-600 max-w-xs truncate">
+                    <td 
+                      className="px-4 py-3 text-sm text-gray-600 max-w-xs truncate" 
+                      title={getFullContent(msg.content)}
+                    >
                       {getContentPreview(msg.content)}
                     </td>
                     <td className="px-4 py-3 text-sm">
@@ -335,7 +727,7 @@ export default function AdminChatPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[80vh] overflow-hidden">
             <div className="p-4 border-b flex items-center justify-between">
-              <h2 className="text-lg font-bold">消息详情</h2>
+              <h2 className="text-lg font-bold text-gray-900">消息详情</h2>
               <button
                 onClick={() => setSelectedMessage(null)}
                 className="text-gray-500 hover:text-gray-700"
@@ -347,29 +739,29 @@ export default function AdminChatPage() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-500 mb-1">ID</label>
-                  <div className="font-mono text-sm bg-gray-50 p-2 rounded">{selectedMessage.id}</div>
+                  <div className="font-mono text-sm bg-gray-50 p-2 rounded text-gray-900">{selectedMessage.id}</div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-500 mb-1">用户ID</label>
-                  <div className="font-mono text-sm bg-gray-50 p-2 rounded">{selectedMessage.user_id}</div>
+                  <div className="font-mono text-sm bg-gray-50 p-2 rounded text-gray-900">{selectedMessage.user_id}</div>
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-500 mb-1">角色</label>
-                    <div className="text-sm bg-gray-50 p-2 rounded">{selectedMessage.role}</div>
+                    <div className="text-sm bg-gray-50 p-2 rounded text-gray-900">{selectedMessage.role}</div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-500 mb-1">类型</label>
-                    <div className="text-sm bg-gray-50 p-2 rounded">{selectedMessage.message_type || 'text'}</div>
+                    <div className="text-sm bg-gray-50 p-2 rounded text-gray-900">{selectedMessage.message_type || 'text'}</div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-500 mb-1">上下文日期</label>
-                    <div className="text-sm bg-gray-50 p-2 rounded">{selectedMessage.context_date || '-'}</div>
+                    <div className="text-sm bg-gray-50 p-2 rounded text-gray-900">{selectedMessage.context_date || '-'}</div>
                   </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-500 mb-1">创建时间</label>
-                  <div className="text-sm bg-gray-50 p-2 rounded">{formatTime(selectedMessage.created_at)}</div>
+                  <div className="text-sm bg-gray-50 p-2 rounded text-gray-900">{formatTime(selectedMessage.created_at)}</div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-500 mb-1">Content (JSON)</label>
