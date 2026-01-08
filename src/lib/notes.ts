@@ -275,6 +275,196 @@ export async function appendTaskToNote(
  * @param date - 目标日期
  * @param taskNode - 完整的 taskItem 节点（Tiptap JSON 格式）
  */
+/**
+ * 任务树节点接口（Agent 返回的格式）
+ */
+export interface TaskTreeNode {
+  id?: string
+  title: string
+  isCompleted?: boolean
+  children?: TaskTreeNode[]
+}
+
+/**
+ * 将任务树转换为 Tiptap taskItem 节点
+ * 递归处理子任务，生成正确的嵌套结构
+ * 
+ * @param task - 任务树节点（带 children 的树形结构）
+ * @returns Tiptap JSONContent 格式的 taskItem 节点
+ */
+export function taskTreeToTiptapNode(task: TaskTreeNode): JSONContent {
+  // 创建任务标题的段落内容
+  const paragraphContent: JSONContent[] = []
+  
+  // 解析标题中的标签
+  const tagRegex = /#\s*([^\s#@]+)/g
+  const tags: Array<{ label: string; position: number }> = []
+  let match
+  while ((match = tagRegex.exec(task.title)) !== null) {
+    tags.push({
+      label: match[1],
+      position: match.index
+    })
+  }
+  
+  if (tags.length === 0) {
+    paragraphContent.push({
+      type: 'text',
+      text: task.title
+    })
+  } else {
+    let lastIndex = 0
+    tags.forEach(tag => {
+      if (tag.position > lastIndex) {
+        const beforeText = task.title.substring(lastIndex, tag.position).trim()
+        if (beforeText) {
+          paragraphContent.push({
+            type: 'text',
+            text: beforeText + ' '
+          })
+        }
+      }
+      paragraphContent.push({
+        type: 'text',
+        text: tag.label,
+        marks: [{
+          type: 'taskTag',
+          attrs: {
+            label: tag.label,
+            color: '#7FA1C3',
+            emoji: '🏷️'
+          }
+        }]
+      })
+      paragraphContent.push({
+        type: 'text',
+        text: ' '
+      })
+      lastIndex = tag.position + tag.label.length + 1
+    })
+    if (lastIndex < task.title.length) {
+      const afterText = task.title.substring(lastIndex).trim()
+      if (afterText) {
+        paragraphContent.push({
+          type: 'text',
+          text: afterText
+        })
+      }
+    }
+  }
+  
+  // 构建 taskItem 节点的内容
+  const taskItemContent: JSONContent[] = [
+    {
+      type: 'paragraph',
+      content: paragraphContent
+    }
+  ]
+  
+  // 🆕 如果有子任务，递归创建嵌套的 taskList
+  if (task.children && task.children.length > 0) {
+    const childTaskItems = task.children.map(child => taskTreeToTiptapNode(child))
+    taskItemContent.push({
+      type: 'taskList',
+      content: childTaskItems
+    })
+  }
+  
+  return {
+    type: 'taskItem',
+    attrs: { checked: task.isCompleted || false },
+    content: taskItemContent
+  }
+}
+
+/**
+ * 批量追加任务树到笔记（保留层级结构）
+ * 
+ * @param userId - 用户ID
+ * @param date - 目标日期
+ * @param tasks - 任务树数组（带 children 的树形结构）
+ */
+export async function appendTaskTreeToNote(
+  userId: string,
+  date: Date,
+  tasks: TaskTreeNode[]
+): Promise<Note> {
+  try {
+    const dateStr = formatNoteDate(date)
+    console.log('📝 批量追加任务树到笔记:', { dateStr, taskCount: tasks.length })
+    
+    // 1. 获取当前日期的笔记
+    const existingNote = await getNoteByDate(userId, date)
+    
+    // 2. 将任务树转换为 Tiptap 节点数组
+    const taskNodes = tasks.map(task => taskTreeToTiptapNode(task))
+    
+    let updatedContent: JSONContent
+    
+    if (existingNote && existingNote.content) {
+      const content = existingNote.content
+      
+      if (!content.content || !Array.isArray(content.content)) {
+        updatedContent = {
+          type: 'doc',
+          content: [{
+            type: 'taskList',
+            content: taskNodes
+          }]
+        }
+      } else {
+        let taskListFound = false
+        const newContent = content.content.map((node: any) => {
+          if (node.type === 'taskList') {
+            taskListFound = true
+            return {
+              ...node,
+              content: [...(node.content || []), ...taskNodes]
+            }
+          }
+          return node
+        })
+        
+        if (!taskListFound) {
+          newContent.push({
+            type: 'taskList',
+            content: taskNodes
+          })
+        }
+        
+        updatedContent = {
+          ...content,
+          content: newContent
+        }
+      }
+    } else {
+      updatedContent = {
+        type: 'doc',
+        content: [{
+          type: 'taskList',
+          content: taskNodes
+        }]
+      }
+    }
+    
+    // 3. 保存笔记
+    const savedNote = await saveNote(userId, date, updatedContent)
+    console.log('✅ 任务树已追加到笔记:', savedNote.id)
+    return savedNote
+    
+  } catch (error) {
+    console.error('❌ 追加任务树失败:', error)
+    throw error
+  }
+}
+
+/**
+ * 追加完整的任务节点到笔记（保留上下文信息和子任务）
+ * 
+ * @param userId - 用户ID
+ * @param date - 目标日期
+ * @param taskNode - 完整的 taskItem 节点（Tiptap JSON 格式）
+ */
 export async function appendTaskNodeToNote(
   userId: string,
   date: Date,

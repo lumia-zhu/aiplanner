@@ -223,10 +223,15 @@ Action Input: {"userId": "xxx", "dateRange": {"start": "2025-12-25", "end": "202
 
 ✅ **把之前的任务添加到今天**（关键词：把昨天/之前/上周的任务添加到今天、迁移任务）
    → 第一步：调用 \`get_tasks\` 查询指定日期范围的未完成任务
-   → 第二步：调用 \`create_task\` 或 \`create_recurring_tasks\` 在今天创建这些任务
+   → 第二步：调用 \`create_recurring_tasks\` 批量创建
+   → ⭐⭐⭐ **重要：保留层级结构！** ⭐⭐⭐
+      • 如果 get_tasks 返回的任务有 \`children\` 字段（父任务带子任务）
+      • 必须使用 \`tasks\` 参数，不要用 \`taskTitles\`！
+      • 直接把 get_tasks 返回的 tasks 数组传给 create_recurring_tasks
    → 示例："把昨天未完成的任务添加到今天"
-      1. 先 get_tasks 查询昨天的 includeCompleted: false 的任务
-      2. 看到结果后，用 create_task 逐个创建（或用 create_recurring_tasks 批量创建）
+      1. get_tasks 返回：{"tasks": [{"title": "锻炼", "children": [{"title": "跑步"}]}]}
+      2. create_recurring_tasks：{"tasks": [{"title": "锻炼", "children": [{"title": "跑步"}]}], "dateRange": "today"}
+      3. ❌ 错误：{"taskTitles": ["锻炼", "跑步"]} ← 丢失层级！
    → ⚠️ 这需要两步操作，不能只思考不行动！
 
 ✅ **批量创建任务**（关键词：每天、这周、下周、本月、从X到Y）
@@ -554,6 +559,27 @@ function buildToolsSection(tools: AgentTool[]): string {
   section += `  - 不要用 \`update_recurring_tasks\`，那是通用更新工具\n`
   section += `  - 不要在批量完成前调用 \`get_tasks\` 查询\n`
   section += `  - "完成所有任务"时不要传 searchKeyword="所有任务" ← 这会搜索标题包含"所有任务"的任务！\n\n`
+  section += `---\n\n`
+  
+  section += `### ⭐ 迁移任务时保留层级结构（重要！）\n\n`
+  section += `**当用户说"把昨天/之前的任务添加到今天"时：**\n\n`
+  section += `1. 先调用 \`get_tasks\` 查询任务\n`
+  section += `2. 观察返回的 tasks 数组，**注意 children 字段**\n`
+  section += `3. 如果任务有 children（子任务），**必须使用 tasks 参数**\n\n`
+  section += `**✅ 正确做法（保留层级）：**\n`
+  section += `\`\`\`\n`
+  section += `// get_tasks 返回：\n`
+  section += `{"tasks": [{"title": "锻炼", "children": [{"title": "椭圆机"}, {"title": "爬坡"}]}]}\n`
+  section += `\n`
+  section += `// create_recurring_tasks 调用（使用 tasks 参数）：\n`
+  section += `{"userId": "xxx", "tasks": [{"title": "锻炼", "children": [{"title": "椭圆机"}, {"title": "爬坡"}]}], "dateRange": "today"}\n`
+  section += `\`\`\`\n\n`
+  section += `**❌ 错误做法（丢失层级）：**\n`
+  section += `\`\`\`\n`
+  section += `// 错误：把所有任务打平成 taskTitles\n`
+  section += `{"userId": "xxx", "taskTitles": ["锻炼", "椭圆机", "爬坡"], "dateRange": "today"}\n`
+  section += `// 结果：三个任务都变成平级，子任务关系丢失！\n`
+  section += `\`\`\`\n\n`
   section += `---\n\n`
   
   section += `### ➕ 创建、更新、删除任务（CRUD 操作）\n\n`
@@ -1138,7 +1164,7 @@ Action: get_tasks  ← 错误！应该直接用 delete_recurring_tasks！
 
 ---
 
-### 📘 示例 3.12：把昨天的任务添加到今天（两步操作）
+### 📘 示例 3.12：把昨天的任务添加到今天（两步操作 - 保留层级结构！）
 
 **用户消息**：把昨天未完成的任务添加到今天
 
@@ -1149,27 +1175,52 @@ Action: get_tasks
 Action Input: {"userId": "user_id_placeholder", "dateRange": {"start": "2025-12-25", "end": "2025-12-25"}, "includeCompleted": false}
 \`\`\`
 
-**观察结果**：找到 3 个未完成任务：["写周报", "回复邮件", "准备会议"]
-
-**第 2 轮输出**：
+**观察结果**：找到 1 个父任务带 2 个子任务
+\`\`\`json
+{
+  "tasks": [
+    {
+      "title": "锻炼",
+      "children": [
+        { "title": "椭圆机" },
+        { "title": "爬坡" }
+      ]
+    }
+  ]
+}
 \`\`\`
-Thought: 已经找到昨天的3个未完成任务。现在需要把这些任务添加到今天。由于有多个任务，我使用 create_recurring_tasks 批量创建到今天。
+
+**第 2 轮输出**（⭐ 注意使用 tasks 参数保留层级结构！）：
+\`\`\`
+Thought: 已经找到昨天的任务，包含1个父任务"锻炼"和2个子任务。为了保留父子任务的层级关系，我应该使用 create_recurring_tasks 的 tasks 参数（而不是 taskTitles）。
 Action: create_recurring_tasks
-Action Input: {"userId": "user_id_placeholder", "taskTitles": ["写周报", "回复邮件", "准备会议"], "dateRange": "today"}
+Action Input: {"userId": "user_id_placeholder", "tasks": [{"title": "锻炼", "children": [{"title": "椭圆机"}, {"title": "爬坡"}]}], "dateRange": "today"}
 \`\`\`
 
-**观察结果**：成功创建 3 个任务
+**观察结果**：成功创建任务（保留了层级结构）
 
 **第 3 轮输出**（⭐ 完成后立即回复）：
 \`\`\`
-Thought: 已经成功把昨天的3个未完成任务添加到今天，现在可以告诉用户了。
-Response: ✅ 已把昨天的 3 个未完成任务添加到今天：
-1. 写周报
-2. 回复邮件
-3. 准备会议
+Thought: 已经成功把昨天的任务添加到今天，并保留了父子任务的层级关系，现在可以告诉用户了。
+Response: ✅ 已把昨天的未完成任务添加到今天：
+• 锻炼
+  • 椭圆机
+  • 爬坡
 
-这些任务已添加到今天的待办事项中！
+任务已添加，父子关系已保留！
 \`\`\`
+
+**⭐ 重要：保留任务层级的方法**
+- **简单任务（无层级）**：使用 \`taskTitles: ["任务1", "任务2"]\`
+- **有父子关系的任务**：使用 \`tasks: [{ title: "父任务", children: [{ title: "子任务" }] }]\`
+- ❌ 错误：把有子任务的任务打平成 \`taskTitles: ["锻炼", "椭圆机", "爬坡"]\` ← 这会丢失层级！
+
+**❌ 错误示例（丢失层级结构）**：
+\`\`\`
+Action: create_recurring_tasks
+Action Input: {"userId": "xxx", "taskTitles": ["锻炼", "椭圆机", "爬坡"], "dateRange": "today"}
+\`\`\`
+❌ 这是错误的！所有任务都变成平级了，丢失了父子关系！
 
 **❌ 错误示例（只思考不行动）**：
 \`\`\`

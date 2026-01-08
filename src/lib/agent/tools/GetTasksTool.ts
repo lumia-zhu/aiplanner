@@ -132,13 +132,18 @@ export class GetTasksTool implements AgentTool {
       // 🎯 应用智能优先级排序（只对顶层任务排序）
       const sortedTasks = sortTasksByPriority(taskTree)
 
-      console.log(`✅ 查询完成: ${sortedTasks.length} 个任务（已排序）`)
+      // 🆕 检测是否有层级结构（任何任务有 children）
+      const hasHierarchy = sortedTasks.some(t => t.children && t.children.length > 0)
+      
+      console.log(`✅ 查询完成: ${sortedTasks.length} 个任务（已排序），层级结构: ${hasHierarchy}`)
 
       return {
         type: 'success',
         data: {
           count: sortedTasks.length,
           tasks: sortedTasks,
+          // 🆕 明确标识是否有层级结构
+          hasHierarchy: hasHierarchy,
           filters: {
             dateRange: params.dateRange || {
               start: format(startDate, 'yyyy-MM-dd'),
@@ -147,9 +152,12 @@ export class GetTasksTool implements AgentTool {
             priority: params.priority,
             includeCompleted: params.includeCompleted || false
           },
-          // 🆕 标识是否需要分页展示（超过5个任务）
           shouldPaginate: sortedTasks.length > 5
-        }
+        },
+        // 🆕 如果有层级结构，添加明确的提示消息
+        message: hasHierarchy 
+          ? `⚠️ 注意：这些任务包含父子层级关系（有 children 字段）。如果要迁移/复制这些任务到其他日期，请使用 create_recurring_tasks 的 tasks 参数（而不是 taskTitles），这样可以保留层级结构。示例：{"tasks": ${JSON.stringify(sortedTasks.map(t => ({ title: t.title, children: t.children?.map((c: any) => ({ title: c.title, children: c.children?.map((gc: any) => ({ title: gc.title })) })) })))}, "dateRange": "today"}`
+          : undefined
       }
 
     } catch (error: any) {
