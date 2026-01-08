@@ -39,7 +39,7 @@ export default function AdminNotesPage() {
   const [pageSize, setPageSize] = useState(50)
   
   // 筛选状态
-  const [filterUserId, setFilterUserId] = useState('')
+  const [filterUserIds, setFilterUserIds] = useState<string[]>([])
   const [filterNoteDate, setFilterNoteDate] = useState('')
   const [filterVersionSource, setFilterVersionSource] = useState<'all' | 'auto_save' | 'manual_save' | 'initial'>('all')
   const [filterStartDate, setFilterStartDate] = useState('')
@@ -135,8 +135,8 @@ export default function AdminNotesPage() {
       // 先获取总数
       let countQuery = supabase.from('note_versions').select('*', { count: 'exact', head: true })
       
-      if (filterUserId.trim()) {
-        countQuery = countQuery.eq('user_id', filterUserId.trim())
+      if (filterUserIds.length > 0) {
+        countQuery = countQuery.in('user_id', filterUserIds)
       }
       if (filterNoteDate) {
         countQuery = countQuery.eq('note_date', filterNoteDate)
@@ -159,8 +159,8 @@ export default function AdminNotesPage() {
       // 获取数据
       let query = supabase.from('note_versions').select('*')
       
-      if (filterUserId.trim()) {
-        query = query.eq('user_id', filterUserId.trim())
+      if (filterUserIds.length > 0) {
+        query = query.in('user_id', filterUserIds)
       }
       if (filterNoteDate) {
         query = query.eq('note_date', filterNoteDate)
@@ -192,7 +192,7 @@ export default function AdminNotesPage() {
     } finally {
       setLoading(false)
     }
-  }, [isAdmin, page, pageSize, filterUserId, filterNoteDate, filterVersionSource, filterStartDate, filterEndDate])
+  }, [isAdmin, page, pageSize, filterUserIds, filterNoteDate, filterVersionSource, filterStartDate, filterEndDate])
   
   // 权限通过后加载数据
   useEffect(() => {
@@ -223,8 +223,8 @@ export default function AdminNotesPage() {
       
       let query = supabase.from('note_versions').select('*')
       
-      if (filterUserId.trim()) {
-        query = query.eq('user_id', filterUserId.trim())
+      if (filterUserIds.length > 0) {
+        query = query.in('user_id', filterUserIds)
       }
       if (filterNoteDate) {
         query = query.eq('note_date', filterNoteDate)
@@ -414,10 +414,10 @@ export default function AdminNotesPage() {
           <div className="grid grid-cols-5 gap-4">
             {/* 用户名 */}
             <div className="relative user-search-container">
-              <label className="block text-xs text-gray-500 mb-1">用户名</label>
+              <label className="block text-xs text-gray-500 mb-1">用户名 ({filterUserIds.length} 已选)</label>
               <input
                 type="text"
-                placeholder="搜索用户名"
+                placeholder="搜索并添加用户"
                 value={userSearchTerm}
                 onChange={(e) => {
                   setUserSearchTerm(e.target.value)
@@ -430,15 +430,15 @@ export default function AdminNotesPage() {
               {showUserDropdown && (
                 <div className="absolute z-10 w-full mt-1 bg-white border rounded shadow-lg max-h-48 overflow-y-auto">
                   <div
-                    className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm text-gray-900"
+                    className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm text-gray-900 border-b"
                     onClick={() => {
-                      setFilterUserId('')
+                      setFilterUserIds([])
                       setUserSearchTerm('')
                       setShowUserDropdown(false)
                       setPage(1)
                     }}
                   >
-                    全部用户
+                    清除所有选择
                   </div>
                   {users
                     .filter(u => 
@@ -448,15 +448,23 @@ export default function AdminNotesPage() {
                     .map(user => (
                       <div
                         key={user.user_id}
-                        className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm text-gray-900"
+                        className={`px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm flex items-center justify-between ${
+                          filterUserIds.includes(user.user_id) ? 'bg-blue-50 text-blue-700' : 'text-gray-900'
+                        }`}
                         onClick={() => {
-                          setFilterUserId(user.user_id)
-                          setUserSearchTerm(user.username)
-                          setShowUserDropdown(false)
+                          if (filterUserIds.includes(user.user_id)) {
+                            setFilterUserIds(prev => prev.filter(id => id !== user.user_id))
+                          } else {
+                            setFilterUserIds(prev => [...prev, user.user_id])
+                          }
+                          setUserSearchTerm('')
                           setPage(1)
                         }}
                       >
-                        {user.username} <span className="text-gray-400 text-xs">({user.user_id.slice(0, 8)}...)</span>
+                        <span>
+                          {user.username} <span className="text-gray-400 text-xs">({user.user_id.slice(0, 8)}...)</span>
+                        </span>
+                        {filterUserIds.includes(user.user_id) && <span className="text-blue-600">✓</span>}
                       </div>
                     ))}
                 </div>
@@ -524,11 +532,11 @@ export default function AdminNotesPage() {
           </div>
           
           {/* 清除筛选 */}
-          {(filterUserId || filterNoteDate || filterVersionSource !== 'all' || filterStartDate || filterEndDate) && (
+          {(filterUserIds.length > 0 || filterNoteDate || filterVersionSource !== 'all' || filterStartDate || filterEndDate) && (
             <div className="mt-3 flex justify-end">
               <button
                 onClick={() => {
-                  setFilterUserId('')
+                  setFilterUserIds([])
                   setUserSearchTerm('')
                   setFilterNoteDate('')
                   setFilterVersionSource('all')
