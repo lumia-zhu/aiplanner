@@ -631,7 +631,6 @@ export default function AdminNotesPage() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">创建时间</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">用户</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">笔记日期</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">版本来源</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">内容长度</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">任务数</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">纯文本预览</th>
@@ -640,7 +639,6 @@ export default function AdminNotesPage() {
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {versions.map(version => {
-                  const sourceLabel = getSourceLabel(version.version_source)
                   const user = users.find(u => u.user_id === version.user_id)
                   
                   return (
@@ -658,11 +656,6 @@ export default function AdminNotesPage() {
                         {user?.username || version.user_id.slice(0, 8) + '...'}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-900">{version.note_date}</td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-1 rounded text-xs ${sourceLabel.color}`}>
-                          {sourceLabel.text}
-                        </span>
-                      </td>
                       <td className="px-4 py-3 text-sm text-gray-900">{version.content_length || 0}</td>
                       <td className="px-4 py-3 text-sm text-gray-900">{version.task_count}</td>
                       <td className="px-4 py-3 text-sm text-gray-500 max-w-xs truncate">
