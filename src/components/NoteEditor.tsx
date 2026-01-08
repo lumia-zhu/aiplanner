@@ -595,12 +595,23 @@ export default function NoteEditor({
       }
     }
 
+    // ⭐ 监听全局点击事件，点击其他地方时隐藏菜单
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      // 如果点击的不是 bubble menu 本身，则隐藏菜单
+      if (target && !target.closest('.bubble-menu-container')) {
+        setShowBubbleMenu(false)
+      }
+    }
+
     editor.on('selectionUpdate', updateBubbleMenu)
     editor.on('update', updateBubbleMenu)
+    document.addEventListener('mousedown', handleClickOutside)
 
     return () => {
       editor.off('selectionUpdate', updateBubbleMenu)
       editor.off('update', updateBubbleMenu)
+      document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [editor, editable])
 
@@ -1818,7 +1829,7 @@ export default function NoteEditor({
       {/* 浮动工具栏 - 选中文本时显示 */}
       {showBubbleMenu && (
         <div
-          className="fixed z-50 bg-white border border-gray-200 text-gray-700 rounded-lg px-1.5 py-1.5 flex items-center gap-1 animate-bubble-menu"
+          className="bubble-menu-container fixed z-50 bg-white border border-gray-200 text-gray-700 rounded-lg px-1.5 py-1.5 flex items-center gap-1 animate-bubble-menu"
           style={{
             top: `${bubbleMenuPosition.top}px`,
             left: `${bubbleMenuPosition.left}px`,
