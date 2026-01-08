@@ -406,3 +406,29 @@ export async function clearCustomTaskTags(
   }
 }
 
+
+/**
+ * 妫€鏌ョ敤鎴锋槸鍚︽槸绠＄悊鍛? * @param userId 鐢ㄦ埛ID
+ * @returns 鏄惁鏄鐞嗗憳
+ */
+export async function isUserAdmin(userId: string): Promise<boolean> {
+  try {
+    const supabase = createClient()
+    
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('role')
+      .eq('user_id', userId)
+      .single()
+    
+    if (error) {
+      console.error('妫€鏌ョ鐞嗗憳鏉冮檺澶辫触:', error)
+      return false
+    }
+    
+    return data?.role === 'admin'
+  } catch (error) {
+    console.error('妫€鏌ョ鐞嗗憳鏉冮檺寮傚父:', error)
+    return false
+  }
+}

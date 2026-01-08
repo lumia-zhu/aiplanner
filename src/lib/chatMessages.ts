@@ -4,6 +4,7 @@
  * 
  * 更新日志：
  * - 2025-11-13: 添加全局对话支持（context_date 字段）
+ * - 2026-01-08: 添加完整对话记录支持（message_type, session_id, metadata 字段）
  */
 
 import { createClient } from '@/lib/supabase-client'
@@ -11,31 +12,82 @@ import type { ChatMessage, MessageContent } from '@/types'
 import { logger } from '@/utils/logger'
 
 /**
+ * 消息类型枚举
+ */
+export type ChatMessageType = 
+  | 'text'                    // 普通文本消息
+  | 'agent_thought'           // Agent 思考过程
+  | 'agent_action'            // Agent 工具调用
+  | 'agent_observation'       // Agent 观察结果
+  | 'agent_need_input'        // Agent 需要用户输入
+  | 'reflection_question'     // 反思问题
+  | 'reflection_answer'       // 反思回答
+  | 'reflection_summary'      // 反思总结
+  | 'task_selection'          // 任务选择
+  | 'task_decomposition'      // 任务拆解
+  | 'daily_reflection'        // 每日反思
+  | 'task_list'               // 任务列表
+  | 'error'                   // 错误消息
+
+/**
+ * 扩展保存选项
+ */
+export interface SaveMessageOptions {
+  contextDate?: string           // 上下文日期
+  messageType?: ChatMessageType  // 消息类型
+  sessionId?: string             // 会话 ID
+  metadata?: Record<string, any> // 额外元数据
+}
+
+/**
  * 保存单条对话消息到数据库
  * @param userId - 用户ID
  * @param chatDate - 对话日期（格式：YYYY-MM-DD，可以是 'global' 表示全局对话）
  * @param role - 消息角色：'user' 或 'assistant'
  * @param content - 消息内容（ChatMessage 的 content 数组）
- * @param contextDate - 可选：消息发送时用户所在的日期上下文（格式：YYYY-MM-DD）
- * @returns 成功返回 { success: true }，失败返回 { success: false, error: string }
+ * @param options - 可选参数：字符串（contextDate，向后兼容）或 SaveMessageOptions 对象
+ * @returns 成功返回 { success: true, messageId?: string }，失败返回 { success: false, error: string }
  */
 export async function saveChatMessage(
   userId: string,
   chatDate: string,
   role: 'user' | 'assistant',
   content: ChatMessage['content'],
-  contextDate?: string  // ✅ 新增：上下文日期（可选，保持向后兼容）
+  options?: string | SaveMessageOptions  // 兼容旧版本：字符串当作 contextDate
 ) {
   try {
-    const insertData = {
+    // 解析选项（兼容旧版本）
+    const opts: SaveMessageOptions = typeof options === 'string' 
+      ? { contextDate: options }
+      : options || {}
+    
+    // 构建插入数据
+    const insertData: Record<string, any> = {
       user_id: userId,
       chat_date: chatDate,
       role: role,
       content: content,
-      context_date: contextDate || chatDate  // ✅ 使用 contextDate，如果没有则使用 chatDate
+      context_date: opts.contextDate || chatDate
     }
     
-    logger.debug('保存对话消息:', { userId, chatDate, role, contextDate: contextDate || chatDate })
+    // 添加新字段（如果提供）
+    if (opts.messageType) {
+      insertData.message_type = opts.messageType
+    }
+    if (opts.sessionId) {
+      insertData.session_id = opts.sessionId
+    }
+    if (opts.metadata && Object.keys(opts.metadata).length > 0) {
+      insertData.metadata = opts.metadata
+    }
+    
+    logger.debug('保存对话消息:', { 
+      userId, 
+      chatDate, 
+      role, 
+      messageType: opts.messageType || 'text',
+      hasMetadata: !!opts.metadata
+    })
     
     const supabase = createClient()
     
@@ -43,15 +95,16 @@ export async function saveChatMessage(
     const { data, error } = await supabase
       .from('chat_messages')
       .insert(insertData)
-      .select()
+      .select('id')
+      .single()
     
     if (error) {
       logger.error('保存消息失败:', error.message)
       return { success: false, error: error.message || JSON.stringify(error) }
     }
     
-    logger.debug('消息保存成功')
-    return { success: true }
+    logger.debug('消息保存成功:', { messageId: data?.id })
+    return { success: true, messageId: data?.id }
     
   } catch (error) {
     console.error('❌ 保存消息异常:', error)
@@ -60,6 +113,49 @@ export async function saveChatMessage(
       error: error instanceof Error ? error.message : '未知错误' 
     }
   }
+}
+
+/**
+ * 从消息内容推断消息类型
+ * @param content - 消息内容数组
+ * @returns 推断的消息类型
+ */
+export function inferMessageType(content: ChatMessage['content']): ChatMessageType {
+  if (!content || content.length === 0) return 'text'
+  
+  for (const item of content) {
+    if (item.type === 'interactive' && item.interactive) {
+      const interactiveType = item.interactive.type
+      switch (interactiveType) {
+        case 'agent-thought':
+          return 'agent_thought'
+        case 'agent-action':
+          return 'agent_action'
+        case 'agent-observation':
+          return 'agent_observation'
+        case 'agent-need-input':
+          return 'agent_need_input'
+        case 'question-answer':
+          return 'reflection_question'
+        case 'reflection-qa-summary':
+          return 'reflection_summary'
+        case 'reflection-task-selection':
+          return 'task_selection'
+        case 'task-decomposition':
+          return 'task_decomposition'
+        case 'daily-reflection-question':
+        case 'daily-reflection-complete':
+          return 'daily_reflection'
+        default:
+          return 'text'
+      }
+    }
+    if (item.type === 'task-list') {
+      return 'task_list'
+    }
+  }
+  
+  return 'text'
 }
 
 /**

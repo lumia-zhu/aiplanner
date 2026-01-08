@@ -117,7 +117,7 @@ import { getUserProfile, upsertUserProfile } from '@/lib/userProfile'
 
 import { doubaoService } from '@/lib/doubaoService'
 
-import { saveChatMessage, getChatMessages, getAllChatMessages, clearChatMessages, clearAllChatMessages } from '@/lib/chatMessages'
+import { saveChatMessage, getChatMessages, getAllChatMessages, clearChatMessages, clearAllChatMessages, inferMessageType } from '@/lib/chatMessages'
 
 import { getStickyNotes, createStickyNote, updateStickyNote, deleteStickyNote, getMaxZIndex, hideStickyNote, restoreStickyNote, getHiddenStickyNotes } from '@/lib/stickyNotes'
 
@@ -918,16 +918,18 @@ export default function NotesDashboardPage() {
       if (result.success && result.messages) {
 
         // 将数据库格式转换为组件需要的格式
+        // ✅ 2026-01-08 更新：加载所有消息类型（text、task-list、reflection 等）
+        // 只排除 agent-reasoning（推理过程在保存时已经排除了）
 
         const formattedMessages = result.messages
 
           .filter(msg => {
 
-            // ✅ 过滤掉 interactive 类型的消息（思考、Action、Observation卡片）
-
-            // 只保留纯文本消息
-
-            return msg.content.some((c: any) => c.type === 'text')
+            // 排除 agent-reasoning 类型的消息（如果有漏网的）
+            const hasAgentReasoning = msg.content.some((c: any) => 
+              c.type === 'interactive' && c.interactive?.type === 'agent-reasoning'
+            )
+            return !hasAgentReasoning
 
           })
 
@@ -937,15 +939,17 @@ export default function NotesDashboardPage() {
 
             content: msg.content,
 
-            timestamp: msg.createdAt || msg.created_at || new Date().toISOString(),  // ✅ 使用实际时间戳
+            timestamp: msg.createdAt || msg.created_at || new Date().toISOString(),
 
-            contextDate: msg.contextDate  // ✅ 保留上下文日期信息
+            contextDate: msg.contextDate,
+            
+            messageType: msg.messageType  // ✅ 保留消息类型
 
           }))
 
         setChatMessages(formattedMessages)
 
-        logger.success(`加载了 ${formattedMessages.length} 条全局消息（已过滤中间推理过程）`)
+        logger.success(`✅ 加载了 ${formattedMessages.length} 条全局消息`)
 
       } else {
 
@@ -4675,6 +4679,20 @@ export default function NotesDashboardPage() {
       // 移除加载消息，添加欢迎消息
       setChatMessages(prev => prev.slice(0, -1).concat(welcomeMessage))
       
+      // 💾 保存每日回顾开始消息到聊天记录
+      if (user) {
+        const chatDate = formatNoteDate(currentContextDate)
+        saveChatMessage(user.id, chatDate, 'assistant', welcomeMessage.content, {
+          contextDate: chatDate,
+          messageType: 'daily_reflection',
+          metadata: { 
+            action: 'start',
+            reflectionId: newReflection.id,
+            questionNumber: 1 
+          }
+        }).catch(err => console.error('保存每日回顾开始消息失败:', err))
+      }
+      
     } catch (error: any) {
       console.error('❌ 开启每日回顾失败:', error)
       
@@ -4906,6 +4924,28 @@ export default function NotesDashboardPage() {
       })
       setCurrentDailyQuestionIndex(questionNumber)
       
+      // 💾 保存用户回答到聊天记录
+      if (user) {
+        const chatDate = formatNoteDate(currentContextDate)
+        const currentQuestion = questions?.[questionNumber - 1] || question || ''
+        
+        // 保存用户回答（包含问题上下文）
+        const userAnswerContent = [{ 
+          type: 'text' as const, 
+          text: `Q${questionNumber}: ${currentQuestion}\n\nA: ${answer}` 
+        }]
+        saveChatMessage(user.id, chatDate, 'user', userAnswerContent, {
+          contextDate: chatDate,
+          messageType: 'daily_reflection',
+          metadata: { 
+            action: 'answer',
+            reflectionId: targetReflectionId,
+            questionNumber,
+            question: currentQuestion
+          }
+        }).catch(err => console.error('保存每日回顾回答失败:', err))
+      }
+      
       // 3. 判断是否还有下一个问题
       console.log('🔢 检查是否有下一个问题:', { questionNumber, totalQuestions: 3 })
       
@@ -5062,6 +5102,27 @@ export default function NotesDashboardPage() {
         return updatedAnswers
       })
       setCurrentDailyQuestionIndex(questionNumber)
+      
+      // 💾 保存跳过记录到聊天记录
+      if (user) {
+        const chatDate = formatNoteDate(currentContextDate)
+        const currentQuestion = questions?.[questionNumber - 1] || question || ''
+        
+        const skipContent = [{ 
+          type: 'text' as const, 
+          text: `Q${questionNumber}: ${currentQuestion}\n\n⏭️ 已跳过` 
+        }]
+        saveChatMessage(user.id, chatDate, 'user', skipContent, {
+          contextDate: chatDate,
+          messageType: 'daily_reflection',
+          metadata: { 
+            action: 'skip',
+            reflectionId: targetReflectionId,
+            questionNumber,
+            question: currentQuestion
+          }
+        }).catch(err => console.error('保存每日回顾跳过记录失败:', err))
+      }
       
       // 3. 判断是否还有下一个问题
       console.log('🔢 检查是否有下一个问题:', { questionNumber, totalQuestions: 3 })
@@ -7704,6 +7765,16 @@ export default function NotesDashboardPage() {
 
         setChatMessages(prev => [...prev, questionMessage])
         
+        // 💾 保存反思问题到数据库
+        if (user) {
+          const chatDate = formatNoteDate(currentContextDate)
+          saveChatMessage(user.id, chatDate, 'assistant', questionMessage.content, {
+            contextDate: chatDate,
+            messageType: 'reflection_question',
+            metadata: { round, questionCount: result.questions.length }
+          }).catch(err => console.error('保存反思问题失败:', err))
+        }
+        
         
 
         // ⭐ Clarity 轮已不再自动进入拆解阶段
@@ -7819,6 +7890,7 @@ export default function NotesDashboardPage() {
     if (summaryResult) {
 
       const summaryText = formatSummaryAsMessage(summaryResult)
+      const summaryContent = [{ type: 'text' as const, text: summaryText }]
 
       setChatMessages(prev => {
 
@@ -7828,7 +7900,7 @@ export default function NotesDashboardPage() {
 
           role: 'assistant' as const,
 
-          content: [{ type: 'text' as const, text: summaryText }]
+          content: summaryContent
 
         }
 
@@ -7836,9 +7908,20 @@ export default function NotesDashboardPage() {
 
       })
 
+      // 💾 保存反思总结到数据库
+      if (user) {
+        const chatDate = formatNoteDate(currentContextDate)
+        saveChatMessage(user.id, chatDate, 'assistant', summaryContent, {
+          contextDate: chatDate,
+          messageType: 'reflection_summary',
+          metadata: { 
+            completedRounds, 
+            miniSummary: summaryResult.miniSummary 
+          }
+        }).catch(err => console.error('保存反思总结失败:', err))
+      }
       
-      
-      // 保存到数据库
+      // 保存到会话记录
 
       await updateReflectionSession(reflectionSessionId, {
 
@@ -7853,6 +7936,7 @@ export default function NotesDashboardPage() {
     } else {
 
       // 降级处理
+      const fallbackContent = [{ type: 'text' as const, text: '反思完成！你可以回到任务列表根据需要调整，也可以直接开始执行。加油！💪' }]
 
       setChatMessages(prev => {
 
@@ -7862,7 +7946,7 @@ export default function NotesDashboardPage() {
 
           role: 'assistant' as const,
 
-          content: [{ type: 'text' as const, text: '反思完成！你可以回到任务列表根据需要调整，也可以直接开始执行。加油！💪' }]
+          content: fallbackContent
 
         }
 
@@ -7870,7 +7954,14 @@ export default function NotesDashboardPage() {
 
       })
 
-      
+      // 💾 保存降级总结到数据库
+      if (user) {
+        const chatDate = formatNoteDate(currentContextDate)
+        saveChatMessage(user.id, chatDate, 'assistant', fallbackContent, {
+          contextDate: chatDate,
+          messageType: 'reflection_summary'
+        }).catch(err => console.error('保存降级总结失败:', err))
+      }
       
       await updateReflectionSession(reflectionSessionId, {
 
@@ -8052,7 +8143,17 @@ export default function NotesDashboardPage() {
 
     setChatMessages(prev => [...prev, completeMessage])
 
-  }, [currentReflectionRound, reflectionSessionId, isDecompositionPhase])
+    // 💾 保存轮次完成消息到数据库
+    if (user) {
+      const chatDate = formatNoteDate(currentContextDate)
+      saveChatMessage(user.id, chatDate, 'assistant', completeMessage.content, {
+        contextDate: chatDate,
+        messageType: 'text',
+        metadata: { completedRound: currentReflectionRound }
+      }).catch(err => console.error('保存轮次完成消息失败:', err))
+    }
+
+  }, [currentReflectionRound, reflectionSessionId, isDecompositionPhase, user, currentContextDate])
 
   
   
@@ -9681,37 +9782,29 @@ export default function NotesDashboardPage() {
 
     
     
-    // 💾 只保存最终文本回复到数据库（不保存中间推理过程）
-
+    // 💾 保存最终结果到数据库（不保存推理过程）
     // ⚠️ 思考、Action、Observation 卡片只在当前会话中显示，不持久化
 
     if (user) {
 
       try {
 
-        const chatDate = formatNoteDate(currentContextDate)  // ✅ 使用 currentContextDate
+        const chatDate = formatNoteDate(currentContextDate)
 
-        
-        
-        // 只保存最终的文本回复消息（不保存 interactive 类型的中间过程）
-
-        const finalTextMessages = messages.filter(msg => 
-
-          msg.content.some((c: any) => c.type === 'text')
-
+        // 只保存最终结果（文本回复和任务列表），不保存推理过程
+        const finalMessages = messages.filter(msg => 
+          msg.content.some((c: any) => c.type === 'text' || c.type === 'task-list')
         )
 
-        
-        
-        for (const message of finalTextMessages) {
-
-          await saveChatMessage(user.id, chatDate, 'assistant', message.content, chatDate)  // ✅ 传入格式化后的 contextDate
-
+        for (const message of finalMessages) {
+          const messageType = inferMessageType(message.content)
+          await saveChatMessage(user.id, chatDate, 'assistant', message.content, {
+            contextDate: chatDate,
+            messageType
+          })
         }
 
-        
-        
-        logger.success(`${finalTextMessages.length} 条最终回复已保存到数据库（跳过 ${messages.length - finalTextMessages.length} 条中间推理过程）`)
+        logger.success(`✅ 已保存 ${finalMessages.length} 条最终结果到数据库（跳过 ${messages.length - finalMessages.length} 条推理过程）`)
 
       } catch (error) {
 
@@ -10735,7 +10828,21 @@ ${matrixStats || '（无待办）'}
 
         setChatMessages(prev => [...prev, responseMessage])
 
-        
+        // 💾 保存用户回答和 AI 回应到数据库
+        if (user) {
+          const chatDate = formatNoteDate(currentContextDate)
+          // 保存用户回答
+          saveChatMessage(user.id, chatDate, 'user', userMessage.content, {
+            contextDate: chatDate,
+            messageType: 'reflection_answer',
+            metadata: { round: currentReflectionRound }
+          }).catch(err => console.error('保存用户回答失败:', err))
+          // 保存 AI 回应
+          saveChatMessage(user.id, chatDate, 'assistant', responseMessage.content, {
+            contextDate: chatDate,
+            messageType: 'text'
+          }).catch(err => console.error('保存 AI 回应失败:', err))
+        }
         
         isSendingMessageRef.current = false  // 解锁
         return
