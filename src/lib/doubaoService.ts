@@ -94,6 +94,7 @@ export type InteractiveMessageType =
   | 'agent-need-input'       // Agent 需要用户输入
   | 'agent-error'            // Agent 执行错误
   | 'agent-loading'          // Agent 加载中
+  | 'agent-reasoning'        // Agent 推理过程（合并的思考+行动卡片）
 
 // 交互式消息数据接口
 export interface InteractiveMessage {

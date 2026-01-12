@@ -645,6 +645,7 @@ export interface ChatMessage {
   timestamp?: string  // ✅ 前端使用的时间戳字段
   contextDate?: Date | string  // ✅ 对话上下文日期（用户当前所在日期）
   createdAt?: string  // ✅ 别名字段（与 created_at 对应）
+  messageType?: string  // ✅ 消息类型（用于区分不同类型的消息）
 }
 
 // ============================================

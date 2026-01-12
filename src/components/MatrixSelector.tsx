@@ -160,33 +160,3 @@ export default function MatrixSelector({
   )
 }
 
-
-          {Object.values(MATRIX_DIMENSION_CONFIGS).map((config) => (
-            <button
-              key={config.id}
-              onClick={() => handleDimensionSelect(config.id)}
-              className="w-full px-4 py-3 text-left hover:bg-blue-50 transition-colors flex items-start gap-3"
-            >
-              {/* 图标 */}
-              <span className="text-2xl flex-shrink-0 mt-0.5">{config.icon}</span>
-              
-              {/* 文字信息 */}
-              <div className="flex-1 min-w-0">
-                {/* 标题 */}
-                <div className="font-medium text-gray-900 mb-1">
-                  {config.name}
-                </div>
-                
-                {/* 描述 */}
-                <p className="text-xs text-gray-500 leading-relaxed">
-                  {config.description}
-                </p>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
