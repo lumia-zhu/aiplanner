@@ -11,7 +11,7 @@ import type { JSONContent } from '@tiptap/core'
 import { Extension, InputRule, Node } from '@tiptap/core'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import type { Transaction } from '@tiptap/pm/state'
-import { Plugin as ProseMirrorPlugin } from '@tiptap/pm/state'
+import { Plugin as ProseMirrorPlugin, PluginKey } from '@tiptap/pm/state'
 import { mergeAttributes } from '@tiptap/core'
 import { TaskTag } from '@/components/extensions/TaskTag'
 import TagDropdown from '@/components/TagDropdown'
@@ -140,6 +140,7 @@ const ContextInfo = Node.create({
 })
 
 // 自定义 TaskItem 支持拖拽和键盘快捷键
+// 🎯 新增：父子任务联动逻辑
 const DraggableTaskItem = TaskItem.extend({
   draggable: true,
   
@@ -149,6 +150,128 @@ const DraggableTaskItem = TaskItem.extend({
       'Shift-Tab': () => this.editor.commands.liftListItem('taskItem'),
       Tab: () => this.editor.commands.sinkListItem('taskItem'),
     }
+  },
+  
+  // 🔧 添加 ProseMirror 插件实现父子任务联动
+  addProseMirrorPlugins() {
+    return [
+      new ProseMirrorPlugin({
+        key: new PluginKey('taskItemCascade'),
+        appendTransaction: (transactions, oldState, newState) => {
+          // 只处理包含文档变化的 transaction
+          const docChanged = transactions.some(tr => tr.docChanged)
+          if (!docChanged) return null
+          
+          // 收集所有 checked 状态变化的任务
+          const changedTasks: { pos: number; oldChecked: boolean; newChecked: boolean }[] = []
+          
+          // 遍历旧文档和新文档，找出 checked 状态变化的 taskItem
+          oldState.doc.descendants((oldNode, oldPos) => {
+            if (oldNode.type.name === 'taskItem') {
+              const newNode = newState.doc.nodeAt(oldPos)
+              if (newNode && newNode.type.name === 'taskItem') {
+                const oldChecked = oldNode.attrs.checked || false
+                const newChecked = newNode.attrs.checked || false
+                if (oldChecked !== newChecked) {
+                  changedTasks.push({ pos: oldPos, oldChecked, newChecked })
+                }
+              }
+            }
+          })
+          
+          if (changedTasks.length === 0) return null
+          
+          // 创建一个新的 transaction 来处理联动更新
+          let tr = newState.tr
+          let hasChanges = false
+          
+          changedTasks.forEach(({ pos, newChecked }) => {
+            const node = newState.doc.nodeAt(pos)
+            if (!node) return
+            
+            // 🔧 情况1：父任务被勾选/取消勾选 → 联动更新所有子任务
+            // 查找该任务下的嵌套 taskList
+            const nodeContent = node.content
+            nodeContent.forEach((child, offset) => {
+              if (child.type.name === 'taskList') {
+                // 遍历子任务列表
+                child.content.forEach((subChild, subOffset) => {
+                  if (subChild.type.name === 'taskItem') {
+                    const subTaskPos = pos + 1 + offset + 1 + subOffset
+                    const currentChecked = subChild.attrs.checked || false
+                    if (currentChecked !== newChecked) {
+                      // 🔧 递归更新子任务及其嵌套的子任务
+                      const updateSubtasksRecursively = (taskNode: any, taskPos: number, checked: boolean) => {
+                        // 更新当前任务
+                        tr = tr.setNodeMarkup(taskPos, undefined, { ...taskNode.attrs, checked })
+                        hasChanges = true
+                        
+                        // 递归更新嵌套的子任务
+                        taskNode.content.forEach((innerChild: any, innerOffset: number) => {
+                          if (innerChild.type.name === 'taskList') {
+                            innerChild.content.forEach((innerSubChild: any, innerSubOffset: number) => {
+                              if (innerSubChild.type.name === 'taskItem') {
+                                const innerSubTaskPos = taskPos + 1 + innerOffset + 1 + innerSubOffset
+                                updateSubtasksRecursively(innerSubChild, innerSubTaskPos, checked)
+                              }
+                            })
+                          }
+                        })
+                      }
+                      updateSubtasksRecursively(subChild, subTaskPos, newChecked)
+                    }
+                  }
+                })
+              }
+            })
+          })
+          
+          // 🔧 情况2：检查是否需要自动勾选/取消勾选父任务
+          // 遍历所有 taskItem，检查其子任务状态
+          newState.doc.descendants((node, nodePos) => {
+            if (node.type.name === 'taskItem') {
+              // 查找该任务的子任务
+              const childTasks: { pos: number; checked: boolean }[] = []
+              node.content.forEach((child, offset) => {
+                if (child.type.name === 'taskList') {
+                  child.content.forEach((subChild, subOffset) => {
+                    if (subChild.type.name === 'taskItem') {
+                      const subTaskPos = nodePos + 1 + offset + 1 + subOffset
+                      // 从当前 tr 状态获取最新的 checked 值
+                      const latestNode = tr.doc.nodeAt(subTaskPos)
+                      const checked = latestNode?.attrs.checked || false
+                      childTasks.push({ pos: subTaskPos, checked })
+                    }
+                  })
+                }
+              })
+              
+              // 如果有子任务，检查是否所有子任务都完成
+              if (childTasks.length > 0) {
+                const allCompleted = childTasks.every(t => t.checked)
+                const currentNode = tr.doc.nodeAt(nodePos)
+                const currentChecked = currentNode?.attrs.checked || false
+                
+                // 如果所有子任务都完成，但父任务未勾选，则自动勾选父任务
+                if (allCompleted && !currentChecked) {
+                  tr = tr.setNodeMarkup(nodePos, undefined, { ...currentNode?.attrs, checked: true })
+                  hasChanges = true
+                  console.log('🔗 所有子任务完成，自动勾选父任务')
+                }
+                // 如果不是所有子任务都完成，但父任务已勾选，则取消勾选父任务
+                else if (!allCompleted && currentChecked) {
+                  tr = tr.setNodeMarkup(nodePos, undefined, { ...currentNode?.attrs, checked: false })
+                  hasChanges = true
+                  console.log('🔗 子任务未全部完成，取消勾选父任务')
+                }
+              }
+            }
+          })
+          
+          return hasChanges ? tr : null
+        }
+      })
+    ]
   },
   
   addAttributes() {

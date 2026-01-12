@@ -804,53 +804,95 @@ export default function NotesDashboardPage() {
 
 
 
-  // 计算笔记中的任务统计
+  // 计算笔记中的任务统计（支持父子任务层级权重）
+  // 🎯 新逻辑：
+  // - 只统计顶层任务作为"分母"
+  // - 子任务的完成度按比例贡献给父任务
+  // - 例如：3个顶层任务，其中1个有2个子任务
+  //   - 完成1个子任务 = 1/3 × 1/2 = 1/6 进度
 
   const calculateTaskStats = useCallback((content: JSONContent | null) => {
 
     if (!content) {
-
       setTaskStats({ total: 0, completed: 0 })
-
       return
-
     }
 
-
-
-    let total = 0
-
-    let completed = 0
-
-
-
-    const traverse = (node: any) => {
-
-      if (node.type === 'taskItem') {
-
-        total++
-
-        if (node.attrs?.checked) {
-
-          completed++
-
+    // 🔧 辅助函数：计算单个任务节点的完成度（0-1之间）
+    // 如果任务有子任务，完成度 = 已完成子任务数 / 总子任务数
+    // 如果任务没有子任务，完成度 = 勾选则1，否则0
+    const calculateTaskCompletion = (taskItem: any): number => {
+      const isChecked = taskItem.attrs?.checked || false
+      
+      // 查找该任务下的子任务列表（嵌套的 taskList）
+      const nestedTaskList = taskItem.content?.find((child: any) => child.type === 'taskList')
+      
+      if (nestedTaskList && nestedTaskList.content && nestedTaskList.content.length > 0) {
+        // 有子任务：计算子任务的完成比例
+        const childTasks = nestedTaskList.content.filter((child: any) => child.type === 'taskItem')
+        if (childTasks.length === 0) {
+          // 没有有效的子任务，按自身勾选状态计算
+          return isChecked ? 1 : 0
         }
-
+        
+        // 递归计算每个子任务的完成度
+        let totalChildCompletion = 0
+        childTasks.forEach((childTask: any) => {
+          totalChildCompletion += calculateTaskCompletion(childTask)
+        })
+        
+        // 该父任务的完成度 = 子任务完成度之和 / 子任务数量
+        return totalChildCompletion / childTasks.length
+      } else {
+        // 没有子任务：直接按勾选状态
+        return isChecked ? 1 : 0
       }
-
-      if (node.content && Array.isArray(node.content)) {
-
-        node.content.forEach(traverse)
-
-      }
-
     }
 
+    // 🔧 收集所有顶层任务（直接在 doc 或顶层 taskList 下的 taskItem）
+    const topLevelTasks: any[] = []
+    
+    const collectTopLevelTasks = (node: any, depth: number = 0) => {
+      if (node.type === 'taskList' && depth === 0) {
+        // 顶层 taskList，其直接子元素是顶层任务
+        node.content?.forEach((child: any) => {
+          if (child.type === 'taskItem') {
+            topLevelTasks.push(child)
+          }
+        })
+      } else if (node.type === 'taskList' && depth > 0) {
+        // 嵌套的 taskList，跳过（不收集为顶层任务）
+        return
+      }
+      
+      // 递归遍历（但不进入嵌套的 taskItem 内部，避免重复收集）
+      if (node.content && Array.isArray(node.content)) {
+        node.content.forEach((child: any) => {
+          if (child.type === 'taskItem') {
+            // 如果当前在 doc 层级遇到 taskItem，不应该发生，跳过
+            return
+          }
+          collectTopLevelTasks(child, node.type === 'taskList' ? depth + 1 : depth)
+        })
+      }
+    }
 
+    collectTopLevelTasks(content, 0)
 
-    traverse(content)
+    // 计算总进度
+    const total = topLevelTasks.length
+    let completedWeight = 0
 
-    setTaskStats({ total, completed })
+    topLevelTasks.forEach((task) => {
+      completedWeight += calculateTaskCompletion(task)
+    })
+
+    // 为了显示友好，将 completedWeight 转换为整数（向下取整）
+    // 但保持 total 不变，这样进度条可以平滑显示
+    setTaskStats({ 
+      total, 
+      completed: completedWeight  // 现在 completed 是 0-total 之间的小数
+    })
 
   }, [])
 
@@ -13196,9 +13238,11 @@ ${matrixStats || '（无待办）'}
                     <span className="text-sm font-medium text-gray-700">任务进度</span>
 
                     <span className="text-sm text-gray-600">
-
-                      {taskStats.completed}/{taskStats.total}
-
+                      {/* 🔧 显示层级权重进度：已完成权重/总任务数 */}
+                      {taskStats.total > 0 
+                        ? `${Math.round((taskStats.completed / taskStats.total) * 100)}%` 
+                        : '0%'}
+                      <span className="text-gray-400 ml-1">({taskStats.total}项)</span>
                     </span>
 
                   </div>
@@ -13239,7 +13283,8 @@ ${matrixStats || '（无待办）'}
 
                       </span>
 
-                      {taskStats.total > 0 && taskStats.completed === taskStats.total && (
+                      {/* 🔧 使用近似比较，因为 completed 现在是小数 */}
+                      {taskStats.total > 0 && Math.abs(taskStats.completed - taskStats.total) < 0.001 && (
 
                         <span className="text-xs text-green-600 font-medium flex items-center gap-1">
 
