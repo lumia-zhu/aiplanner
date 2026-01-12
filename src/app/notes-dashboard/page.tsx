@@ -4045,8 +4045,18 @@ export default function NotesDashboardPage() {
   // ⭐ 启动反思流程（侧栏展开时调用）
 
   const startReflectionSession = useCallback(async () => {
+    // 🔧 辅助函数：移除加载消息
+    const removeLoadingMessage = () => {
+      setChatMessages(prev => prev.filter(m => {
+        const text = m.content?.[0]?.text || ''
+        return !text.includes('让我看看') && text !== '...'
+      }))
+    }
 
-    if (!user || !selectedDate) return
+    if (!user || !selectedDate) {
+      removeLoadingMessage()
+      return null
+    }
 
     
     
@@ -4247,7 +4257,7 @@ export default function NotesDashboardPage() {
 
         
         
-        // 显示之前的总结
+        // 🔧 移除加载消息并显示之前的总结
 
         const summaryMessage = {
 
@@ -4263,11 +4273,16 @@ export default function NotesDashboardPage() {
         }
 
         setChatMessages(prev => {
+          // 🔧 移除加载消息
+          const filtered = prev.filter(m => {
+            const text = m.content?.[0]?.text || ''
+            return !text.includes('让我看看') && text !== '...'
+          })
 
-          const hasSummary = prev.some(m => m.content?.[0]?.text?.includes('欢迎回来！你今天已经完成过任务规划了'))
-          if (hasSummary) return prev
+          const hasSummary = filtered.some(m => m.content?.[0]?.text?.includes('欢迎回来！你今天已经完成过任务规划了'))
+          if (hasSummary) return filtered
 
-          return [...prev, summaryMessage]
+          return [...filtered, summaryMessage]
 
         })
 
@@ -4289,8 +4304,7 @@ export default function NotesDashboardPage() {
 
         console.log('📭 没有任务，不启动反思')
 
-        // 显示提示消息
-
+        // 🔧 移除加载消息并显示提示消息
         const emptyMessage = {
 
           role: 'assistant' as const,
@@ -4299,7 +4313,14 @@ export default function NotesDashboardPage() {
 
         }
 
-        setChatMessages(prev => [...prev, emptyMessage])
+        setChatMessages(prev => {
+          // 移除加载消息
+          const filtered = prev.filter(m => {
+            const text = m.content?.[0]?.text || ''
+            return !text.includes('让我看看') && text !== '...'
+          })
+          return [...filtered, emptyMessage]
+        })
 
         return null
 
@@ -4330,6 +4351,18 @@ export default function NotesDashboardPage() {
       if (!snapshot) {
 
         console.error('❌ 创建计划快照失败')
+        
+        // 🔧 移除加载消息并显示错误
+        setChatMessages(prev => {
+          const filtered = prev.filter(m => {
+            const text = m.content?.[0]?.text || ''
+            return !text.includes('让我看看') && text !== '...'
+          })
+          return [...filtered, {
+            role: 'assistant' as const,
+            content: [{ type: 'text' as const, text: '⚠️ 启动任务规划时遇到问题，请稍后再试' }]
+          }]
+        })
 
         return null
 
@@ -4356,6 +4389,18 @@ export default function NotesDashboardPage() {
       if (!session) {
 
         console.error('❌ 创建反思会话失败')
+        
+        // 🔧 移除加载消息并显示错误
+        setChatMessages(prev => {
+          const filtered = prev.filter(m => {
+            const text = m.content?.[0]?.text || ''
+            return !text.includes('让我看看') && text !== '...'
+          })
+          return [...filtered, {
+            role: 'assistant' as const,
+            content: [{ type: 'text' as const, text: '⚠️ 启动任务规划时遇到问题，请稍后再试' }]
+          }]
+        })
 
         return null
 
@@ -4535,6 +4580,18 @@ export default function NotesDashboardPage() {
     } catch (error) {
 
       console.error('❌ 启动反思会话失败:', error)
+      
+      // 🔧 移除加载消息并显示错误
+      setChatMessages(prev => {
+        const filtered = prev.filter(m => {
+          const text = m.content?.[0]?.text || ''
+          return !text.includes('让我看看') && text !== '...'
+        })
+        return [...filtered, {
+          role: 'assistant' as const,
+          content: [{ type: 'text' as const, text: '⚠️ 启动任务规划时遇到问题，请稍后再试' }]
+        }]
+      })
 
       return null
 

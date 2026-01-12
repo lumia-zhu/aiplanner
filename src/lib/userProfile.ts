@@ -432,4 +432,3 @@ export async function isUserAdmin(userId: string): Promise<boolean> {
     return false
   }
 }
-
