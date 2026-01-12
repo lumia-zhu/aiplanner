@@ -4167,21 +4167,16 @@ export default function NotesDashboardPage() {
           }
 
           setChatMessages(prev => {
-
-            // 移除所有加载消息，添加概述消息
+            // 🔧 移除加载消息和旧的概览消息，然后添加新的概览消息
             const filtered = prev.filter(m => {
               const text = m.content?.[0]?.text || ''
-              return !text.includes('让我看看') && !text.includes('欢迎回来')
+              // 移除加载消息
+              if (text.includes('让我看看') || text.includes('欢迎回来')) return false
+              // 🔧 移除旧的概览消息，确保新的能显示
+              if (m.content?.some((c: any) => c.interactive?.type === 'reflection-overview')) return false
+              return true
             })
-            const hasOverview = filtered.some(m => 
-
-              m.content?.some((c: any) => c.interactive?.type === 'reflection-overview')
-
-            )
-
-            if (hasOverview) return filtered
             return [...filtered, overviewMessage]
-
           })
 
           
@@ -4495,19 +4490,16 @@ export default function NotesDashboardPage() {
         }
 
         setChatMessages(prev => {
-
-          // 移除所有加载消息，添加概述消息
+          // 🔧 移除加载消息和旧的概览消息，然后添加新的概览消息
           const filtered = prev.filter(m => {
             const text = m.content?.[0]?.text || ''
-            return !text.includes('让我看看') && !text.includes('欢迎回来')
+            // 移除加载消息
+            if (text.includes('让我看看') || text.includes('欢迎回来')) return false
+            // 🔧 移除旧的概览消息，确保新的能显示
+            if (m.content?.some((c: any) => c.interactive?.type === 'reflection-overview')) return false
+            return true
           })
-          // 检查是否已有概述消息，避免重复
-          const hasOverview = filtered.some(m => 
-            m.content?.some((c: any) => c.interactive?.type === 'reflection-overview')
-          )
-          if (hasOverview) return filtered  // 已有概述消息，不重复添加
           return [...filtered, overviewMessage]
-
         })
 
         
@@ -4552,9 +4544,14 @@ export default function NotesDashboardPage() {
           ]
         }
         setChatMessages(prev => {
+          // 🔧 移除加载消息和旧的概览消息，然后添加新的概览消息
           const filtered = prev.filter(m => {
             const text = m.content?.[0]?.text || ''
-            return !text.includes('让我看看') && !text.includes('欢迎回来')
+            // 移除加载消息
+            if (text.includes('让我看看') || text.includes('欢迎回来')) return false
+            // 🔧 移除旧的概览消息，确保新的能显示
+            if (m.content?.some((c: any) => c.interactive?.type === 'reflection-overview')) return false
+            return true
           })
           return [...filtered, overviewMessage]
         })
