@@ -6,6 +6,8 @@
 
 import { createClient } from '@/lib/supabase-client'
 import type { DailyTask, CreateDailyTaskInput, UpdateDailyTaskInput, ParsedTask } from '@/types/daily-task'
+// 🆕 导入事件记录函数
+import { logTaskCreated } from '@/lib/analyticsService'
 
 /**
  * 数据库字段映射（snake_case → camelCase）
@@ -134,6 +136,12 @@ export async function createDailyTask(
 
     const task = mapDbTaskToTask(data)
     console.log(`✅ 任务创建成功: ${task.id}`)
+    
+    // 🆕 记录任务创建事件（不阻塞返回）
+    logTaskCreated(userId, task.id, task.depth ?? 0).catch(err => 
+      console.warn('⚠️ 记录任务创建事件失败:', err)
+    )
+    
     return task
 
   } catch (error) {
@@ -354,9 +362,184 @@ export async function getIncompleteDailyTasks(userId: string): Promise<DailyTask
   }
 }
 
+// ============================================
+// 🆕 历史上下文获取函数（用于元认知反思）
+// ============================================
 
+/**
+ * 近期任务历史记录（用于反思上下文）
+ */
+export interface RecentTaskHistoryItem {
+  date: string              // "2026-01-11"
+  dayLabel: string          // "昨天" | "前天" | "3天前"
+  tasks: {
+    id: string
+    title: string
+    completed: boolean
+    depth: number           // 0=父任务, 1=子任务
+    parentTaskId: string | null
+    parentTitle: string | null  // 父任务标题（方便显示）
+    estimatedDuration: number | null
+  }[]
+}
 
+/**
+ * 获取过去N天的任务历史
+ * @param userId 用户ID
+ * @param days 获取天数（默认3天）
+ * @param currentDate 当前日期（默认今天）
+ * @returns 按日期分组的任务历史
+ */
+export async function getRecentTaskHistory(
+  userId: string,
+  days: number = 3,
+  currentDate?: string
+): Promise<RecentTaskHistoryItem[]> {
+  try {
+    const supabase = createClient()
+    
+    // 计算日期范围
+    const today = currentDate || new Date().toISOString().split('T')[0]
+    const dates: string[] = []
+    const dayLabels: string[] = ['昨天', '前天', '3天前', '4天前', '5天前']
+    
+    for (let i = 1; i <= days; i++) {
+      const date = new Date(today)
+      date.setDate(date.getDate() - i)
+      dates.push(date.toISOString().split('T')[0])
+    }
+    
+    console.log(`📅 获取近期任务历史: userId=${userId}, 日期范围=${dates.join(', ')}`)
+    
+    // 一次性查询所有日期的任务
+    const { data, error } = await supabase
+      .from('daily_tasks')
+      .select('*')
+      .eq('user_id', userId)
+      .in('note_date', dates)
+      .order('note_date', { ascending: false })
+      .order('note_position', { ascending: true })
+    
+    if (error) {
+      console.error('❌ 获取近期任务历史失败:', error)
+      return []
+    }
+    
+    const allTasks = (data || []).map(mapDbTaskToTask)
+    
+    // 构建任务ID到任务的映射（用于查找父任务标题）
+    const taskById = new Map<string, DailyTask>()
+    allTasks.forEach(task => taskById.set(task.id, task))
+    
+    // 按日期分组
+    const historyByDate = new Map<string, RecentTaskHistoryItem>()
+    
+    dates.forEach((date, index) => {
+      historyByDate.set(date, {
+        date,
+        dayLabel: dayLabels[index] || `${index + 1}天前`,
+        tasks: []
+      })
+    })
+    
+    // 填充任务数据
+    allTasks.forEach(task => {
+      const history = historyByDate.get(task.noteDate)
+      if (history) {
+        // 查找父任务标题
+        let parentTitle: string | null = null
+        if (task.parentTaskId) {
+          const parentTask = taskById.get(task.parentTaskId)
+          parentTitle = parentTask?.title || null
+        }
+        
+        history.tasks.push({
+          id: task.id,
+          title: task.title,
+          completed: task.completed,
+          depth: task.depth ?? 0,
+          parentTaskId: task.parentTaskId || null,
+          parentTitle,
+          estimatedDuration: task.estimatedDuration || null
+        })
+      }
+    })
+    
+    // 转换为数组并过滤空日期
+    const result = dates
+      .map(date => historyByDate.get(date)!)
+      .filter(h => h.tasks.length > 0)
+    
+    console.log(`✅ 获取到 ${result.length} 天的任务历史，共 ${allTasks.length} 个任务`)
+    
+    return result
+    
+  } catch (error) {
+    console.error('❌ getRecentTaskHistory 异常:', error)
+    return []
+  }
+}
 
+/**
+ * 构建任务家族上下文（父任务 + 兄弟任务）
+ * @param task 当前任务
+ * @param allTasks 所有任务（同一天）
+ * @returns 任务家族上下文
+ */
+export interface TaskFamilyContext {
+  hasParent: boolean
+  parent: {
+    id: string
+    title: string
+    completed: boolean
+    childrenCount: number
+  } | null
+  siblings: {
+    id: string
+    title: string
+    completed: boolean
+  }[]
+}
+
+export function buildTaskFamilyContext(
+  task: DailyTask,
+  allTasks: DailyTask[]
+): TaskFamilyContext {
+  // 如果不是子任务，返回空上下文
+  if (!task.parentTaskId || task.depth === 0) {
+    return {
+      hasParent: false,
+      parent: null,
+      siblings: []
+    }
+  }
+  
+  // 查找父任务
+  const parentTask = allTasks.find(t => t.id === task.parentTaskId)
+  
+  // 查找兄弟任务（同一父任务下的其他子任务）
+  const siblings = allTasks
+    .filter(t => t.parentTaskId === task.parentTaskId && t.id !== task.id)
+    .map(t => ({
+      id: t.id,
+      title: t.title,
+      completed: t.completed
+    }))
+  
+  // 计算父任务下的子任务总数
+  const childrenCount = allTasks.filter(t => t.parentTaskId === task.parentTaskId).length
+  
+  return {
+    hasParent: true,
+    parent: parentTask ? {
+      id: parentTask.id,
+      title: parentTask.title,
+      completed: parentTask.completed,
+      childrenCount
+    } : null,
+    siblings
+  }
+}
 
 
 

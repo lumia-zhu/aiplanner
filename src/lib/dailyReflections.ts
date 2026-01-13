@@ -514,3 +514,120 @@ export async function getReflectionStats(userId: string) {
   }
 }
 
+// ============================================
+// 🆕 历史反思上下文获取函数（用于元认知反思）
+// ============================================
+
+/**
+ * 近期反思记录（用于反思上下文）
+ */
+export interface RecentReflectionItem {
+  date: string              // "2026-01-11"
+  dayLabel: string          // "昨天" | "前天" | "3天前"
+  questions: (string | null)[]     // 当天问的问题
+  answers: (string | null)[]       // 用户的回答
+  summary: string | null           // AI生成的总结
+  status: 'in_progress' | 'completed'
+}
+
+/**
+ * 获取过去N天的反思记录
+ * @param userId 用户ID
+ * @param days 获取天数（默认3天）
+ * @param currentDate 当前日期（默认今天）
+ * @returns 按日期排序的反思记录
+ */
+export async function getRecentReflections(
+  userId: string,
+  days: number = 3,
+  currentDate?: string
+): Promise<RecentReflectionItem[]> {
+  try {
+    // 计算日期范围
+    const today = currentDate || new Date().toISOString().split('T')[0]
+    const dates: string[] = []
+    const dayLabels: string[] = ['昨天', '前天', '3天前', '4天前', '5天前']
+    
+    for (let i = 1; i <= days; i++) {
+      const date = new Date(today)
+      date.setDate(date.getDate() - i)
+      dates.push(date.toISOString().split('T')[0])
+    }
+    
+    logger.debug('获取近期反思记录:', { userId, dates })
+    
+    // 查询过去N天的反思记录
+    const { data, error } = await supabase
+      .from('daily_reflections')
+      .select('*')
+      .eq('user_id', userId)
+      .in('date', dates)
+      .is('deleted_at', null)
+      .order('date', { ascending: false })
+    
+    if (error) {
+      logger.error('获取近期反思记录失败:', error)
+      return []
+    }
+    
+    // 构建日期到dayLabel的映射
+    const dateToDayLabel = new Map<string, string>()
+    dates.forEach((date, index) => {
+      dateToDayLabel.set(date, dayLabels[index] || `${index + 1}天前`)
+    })
+    
+    // 转换为返回格式
+    const result: RecentReflectionItem[] = (data || []).map(reflection => ({
+      date: reflection.date,
+      dayLabel: dateToDayLabel.get(reflection.date) || '',
+      questions: [
+        reflection.question_1,
+        reflection.question_2,
+        reflection.question_3
+      ],
+      answers: [
+        reflection.answer_1,
+        reflection.answer_2,
+        reflection.answer_3
+      ],
+      summary: reflection.ai_summary || null,
+      status: reflection.status
+    }))
+    
+    logger.debug(`获取到 ${result.length} 条近期反思记录`)
+    
+    return result
+    
+  } catch (error) {
+    logger.error('getRecentReflections 错误:', error)
+    return []
+  }
+}
+
+/**
+ * 从反思记录中提取有效的问答对（过滤掉未回答的）
+ * @param reflections 反思记录列表
+ * @returns 有效的问答对列表
+ */
+export function extractValidQAPairs(
+  reflections: RecentReflectionItem[]
+): { date: string; dayLabel: string; question: string; answer: string }[] {
+  const pairs: { date: string; dayLabel: string; question: string; answer: string }[] = []
+  
+  reflections.forEach(reflection => {
+    reflection.questions.forEach((question, index) => {
+      const answer = reflection.answers[index]
+      // 只提取有问题和有回答的
+      if (question && answer) {
+        pairs.push({
+          date: reflection.date,
+          dayLabel: reflection.dayLabel,
+          question,
+          answer
+        })
+      }
+    })
+  })
+  
+  return pairs
+}

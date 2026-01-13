@@ -14,6 +14,9 @@ import type {
   ReflectionRound,
   MatrixContextForPriority
 } from '@/types/reflection'
+// 🆕 历史上下文相关类型
+import type { RecentTaskHistoryItem, TaskFamilyContext } from '@/lib/dailyTasks'
+import type { RecentReflectionItem } from '@/lib/dailyReflections'
 
 // ==================== 类型定义 ====================
 
@@ -626,7 +629,8 @@ function buildRoundPrompt(
   round: ReflectionRoundType,
   tasks: TaskSnapshot[],
   scanResult: ScanResult,
-  previousResponses?: string[]
+  previousResponses?: string[],
+  reflectionContext?: ReflectionContext  // 🆕 历史上下文
 ): string {
   const config = ROUND_CONFIG[round]
   const uncompletedTasks = tasks.filter(t => !t.isCompleted)
@@ -645,6 +649,11 @@ function buildRoundPrompt(
   // 之前的回答（如果有）
   const previousContext = previousResponses && previousResponses.length > 0
     ? `\n【用户之前的回答】\n${previousResponses.map((r, i) => `${i + 1}. ${r}`).join('\n')}\n`
+    : ''
+  
+  // 🆕 历史上下文（纵向感知）
+  const historyContext = reflectionContext 
+    ? formatContextForPrompt(reflectionContext, uncompletedTasks[0]?.title)
     : ''
 
   // 根据轮次构建特定的 Prompt
@@ -668,6 +677,7 @@ function buildRoundPrompt(
 【用户的主要任务】（共 ${taskNames.length} 个，只关注这些顶层任务）
 ${topLevelTaskList}
 ${previousContext}
+${historyContext}
 【核心原则】
 你的问题必须**贴合任务的具体场景**，帮助用户更好地理解这个任务。
 - 不同类型的任务，关键问题不同
@@ -779,6 +789,7 @@ ${topLevelTaskList}
 - 工作负载: ${scanResult.workloadLevel === 'light' ? '轻松' : scanResult.workloadLevel === 'heavy' ? '较重' : '适中'}
 - 主要任务数: ${topLevelTasks.length}
 ${previousContext}
+${historyContext}
 【问题生成策略 - 核心调整】
 
 **❌ 禁止（Don't）：**
@@ -847,7 +858,7 @@ ${longTasks.length > 0 ? `- 耗时较长(>1小时): ${longTasks.map(t => `「${t
 ${shortTasks.length > 0 ? `- 可快速完成(≤30分钟): ${shortTasks.map(t => `「${t.title}」`).join('、')}` : ''}
 ${scanResult.deadlineConflicts.length > 0 ? `- ⚠️ 需要关注的 deadline: ${scanResult.deadlineConflicts.join(', ')}` : ''}
 ${previousContext}
-
+${historyContext}
 【你的目标】
 生成 **3 个个性化问题**，帮助用户判断每个任务应该放在四象限的哪个位置。
 
@@ -891,6 +902,184 @@ ${previousContext}
   return `生成 2-3 个关于任务的反思问题，任务列表：${taskList}`
 }
 
+// ==================== 🆕 历史上下文构建（纵向感知） ====================
+
+/**
+ * 反思上下文（注入到 Prompt 中）
+ */
+export interface ReflectionContext {
+  // 当前任务信息
+  currentTask: {
+    title: string
+    isSubtask: boolean
+    parentTitle: string | null
+    siblings: string[]
+  } | null
+  
+  // 历史上下文（过去3天）
+  recentHistory: RecentTaskHistoryItem[]
+  
+  // 用户过去的反思问答（精选）
+  previousQAPairs: {
+    date: string
+    dayLabel: string
+    question: string
+    answer: string
+  }[]
+  
+  // AI 总结（如果有）
+  previousSummaries: {
+    date: string
+    dayLabel: string
+    summary: string
+  }[]
+}
+
+/**
+ * 构建完整的反思上下文
+ * @param currentTask 当前选中的任务（可选，用于单任务反思）
+ * @param taskFamily 任务家族上下文（父子关系）
+ * @param recentHistory 过去N天的任务历史
+ * @param recentReflections 过去N天的反思记录
+ * @returns 完整的反思上下文对象
+ */
+export function buildReflectionContext(
+  currentTask: TaskSnapshot | null,
+  taskFamily: TaskFamilyContext | null,
+  recentHistory: RecentTaskHistoryItem[],
+  recentReflections: RecentReflectionItem[]
+): ReflectionContext {
+  // 1. 构建当前任务上下文
+  let currentTaskContext: ReflectionContext['currentTask'] = null
+  if (currentTask && taskFamily) {
+    currentTaskContext = {
+      title: currentTask.title,
+      isSubtask: taskFamily.hasParent,
+      parentTitle: taskFamily.parent?.title || null,
+      siblings: taskFamily.siblings.map(s => s.title)
+    }
+  }
+  
+  // 2. 提取有效的问答对
+  const previousQAPairs: ReflectionContext['previousQAPairs'] = []
+  recentReflections.forEach(reflection => {
+    reflection.questions.forEach((question, index) => {
+      const answer = reflection.answers[index]
+      if (question && answer) {
+        previousQAPairs.push({
+          date: reflection.date,
+          dayLabel: reflection.dayLabel,
+          question,
+          answer
+        })
+      }
+    })
+  })
+  
+  // 3. 提取 AI 总结
+  const previousSummaries: ReflectionContext['previousSummaries'] = recentReflections
+    .filter(r => r.summary)
+    .map(r => ({
+      date: r.date,
+      dayLabel: r.dayLabel,
+      summary: r.summary!
+    }))
+  
+  return {
+    currentTask: currentTaskContext,
+    recentHistory,
+    previousQAPairs,
+    previousSummaries
+  }
+}
+
+/**
+ * 将反思上下文格式化为 Prompt 文本
+ * @param context 反思上下文
+ * @param currentTaskTitle 当前任务标题（用于查找相似任务）
+ * @returns 格式化的 Prompt 文本段落
+ */
+export function formatContextForPrompt(
+  context: ReflectionContext,
+  currentTaskTitle?: string
+): string {
+  const lines: string[] = []
+  
+  // 1. 近期历史（不强调完成状态，因为用户可能完成了但没勾选）
+  if (context.recentHistory.length > 0) {
+    lines.push('【📅 近期任务历史（过去3天）】')
+    lines.push('（注意：这里只是记录用户安排过的任务，不代表实际完成情况）')
+    context.recentHistory.forEach(day => {
+      lines.push(`▸ ${day.dayLabel}（${day.date}）：`)
+      day.tasks.forEach(task => {
+        const parentInfo = task.parentTitle ? `（属于「${task.parentTitle}」）` : ''
+        lines.push(`  - 「${task.title}」${parentInfo}`)
+      })
+    })
+    lines.push('')
+  }
+  
+  // 2. 用户过去的反思回答（最多取3条最相关的）
+  if (context.previousQAPairs.length > 0) {
+    lines.push('【💬 用户近期反思摘录】')
+    // 取最近的3条
+    const recentPairs = context.previousQAPairs.slice(0, 3)
+    recentPairs.forEach(pair => {
+      lines.push(`▸ ${pair.dayLabel}：`)
+      lines.push(`  Q: "${pair.question}"`)
+      lines.push(`  A: "${pair.answer}"`)
+    })
+    lines.push('')
+  }
+  
+  // 3. 当前任务的父子关系（如果是子任务）
+  if (context.currentTask?.isSubtask) {
+    lines.push('【🌳 当前任务层级】')
+    lines.push(`当前选择的任务：「${context.currentTask.title}」`)
+    lines.push(`├── 父任务：「${context.currentTask.parentTitle}」`)
+    if (context.currentTask.siblings.length > 0) {
+      lines.push(`└── 兄弟任务：${context.currentTask.siblings.map(s => `「${s}」`).join('、')}`)
+    }
+    lines.push('')
+  }
+  
+  // 4. 任务模式判断指令
+  if (currentTaskTitle && context.recentHistory.length > 0) {
+    lines.push('【🔍 任务模式判断 - 请先执行】')
+    lines.push(`当前任务：「${currentTaskTitle}」`)
+    lines.push('')
+    lines.push('请分析当前任务与近期历史的关系，判断属于哪种模式：')
+    lines.push('')
+    lines.push('**Mode A: 新任务 (New Task)**')
+    lines.push('- 特征：过去3天没有语义相似的任务')
+    lines.push('- 策略：正常询问任务定义、目标、时间等基础问题')
+    lines.push('')
+    lines.push('**Mode B: 延续任务 (Continuation)**')
+    lines.push('- 特征：近期有相同或语义相似的任务（不管完成与否）')
+    lines.push('- 核心原则：**只陈述事实，不做假设，开放式提问**')
+    lines.push('- 策略：')
+    lines.push('  ✗ 不要问基础定义问题（"这个任务是什么？"）')
+    lines.push('  ✗ 不要假设用户"完成了"或"没完成"（因为勾选状态可能不准确）')
+    lines.push('  ✗ 不要问"为什么没完成"这类假设性问题')
+    lines.push('  ✓ 陈述事实："我注意到你昨天也安排了[类似任务]"')
+    lines.push('  ✓ 开放式提问："今天有什么不同的目标/安排吗？"')
+    lines.push('  ✓ 关注当下："今天想达到什么效果？"')
+    lines.push('  ✓ 可选询问体验："上次做得怎么样？有什么想调整的吗？"')
+    lines.push('  ✓ 如果有用户之前的反思回答，可以引用')
+    lines.push('')
+    lines.push('**示例对比**：')
+    lines.push('- ❌ 错误："上次锻炼没完成是因为时间不够还是身体不适？"（假设了没完成）')
+    lines.push('- ✅ 正确："昨天也安排了锻炼，今天有什么不同的目标吗？"')
+    lines.push('- ✅ 正确："这是连续安排的锻炼，今天想重点练哪个部分？"')
+    lines.push('')
+    lines.push('**请在回答开头用一行标注你的判断**，格式如：')
+    lines.push('`[Mode: B-Continuation | 相关任务: 昨天的「锻炼」]`')
+    lines.push('')
+  }
+  
+  return lines.join('\n')
+}
+
 // ==================== 核心函数 ====================
 
 /**
@@ -902,13 +1091,14 @@ export async function generateRoundQuestions(
   tasks: TaskSnapshot[],
   scanResult: ScanResult,
   previousResponses?: string[],
-  previousQuestions?: string[]  // 新增：之前问过的问题
+  previousQuestions?: string[],  // 之前问过的问题
+  reflectionContext?: ReflectionContext  // 🆕 历史上下文
 ): Promise<RoundResult | null> {
   try {
-    console.log(`💭 生成 ${round} 轮反思问题...`, previousQuestions ? '(补充问题模式)' : '')
+    console.log(`💭 生成 ${round} 轮反思问题...`, previousQuestions ? '(补充问题模式)' : '', reflectionContext ? '(有历史上下文)' : '')
     
     const config = ROUND_CONFIG[round]
-    let prompt = buildRoundPrompt(round, tasks, scanResult, previousResponses)
+    let prompt = buildRoundPrompt(round, tasks, scanResult, previousResponses, reflectionContext)
     
     // 如果有之前的问题，添加避免重复的指令
     if (previousQuestions && previousQuestions.length > 0) {
@@ -1033,15 +1223,24 @@ ${previousQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
  * 聚焦于帮助用户校准时间估计、识别隐形依赖、应对意外
  * 
  * @param tasks 用户选择的任务列表（通常是单个任务）
+ * @param reflectionContext 🆕 历史上下文（用于纵向感知）
  * @returns 问题字符串数组
  */
-export async function generateTimeQuestions(tasks: TaskSnapshot[]): Promise<string[]> {
+export async function generateTimeQuestions(
+  tasks: TaskSnapshot[],
+  reflectionContext?: ReflectionContext  // 🆕 历史上下文
+): Promise<string[]> {
   try {
     if (tasks.length === 0) {
       return ['今天这些任务加起来，时间够用吗？有没有需要调整的？']
     }
 
     const task = tasks[0] // 通常只选择一个任务
+    
+    // 🆕 格式化历史上下文
+    const historyContext = reflectionContext 
+      ? formatContextForPrompt(reflectionContext, task.title)
+      : ''
     
     // 构建任务信息
     const taskInfo = `
@@ -1119,7 +1318,7 @@ ${task.deadline ? `截止时间：${task.deadline}` : '无截止时间'}
     const userPrompt = `请基于以下任务信息，生成 1-3 个能有效帮助用户校准时间估计的问题：
 
 ${taskInfo}
-
+${historyContext ? `\n${historyContext}` : ''}
 请直接输出问题列表，每行以"- "开头。`
 
     const response = await doubaoService.sendMessage(
@@ -1178,11 +1377,13 @@ ${taskInfo}
  * 
  * @param tasks 用户选择的任务列表（通常是多个任务，至少2个）
  * @param matrixContext 可选的矩阵上下文，包含当前维度和已分类任务
+ * @param reflectionContext 🆕 历史上下文（用于纵向感知）
  * @returns 问题字符串数组
  */
 export async function generatePriorityQuestions(
   tasks: TaskSnapshot[], 
-  matrixContext?: MatrixContextForPriority
+  matrixContext?: MatrixContextForPriority,
+  reflectionContext?: ReflectionContext  // 🆕 历史上下文
 ): Promise<string[]> {
   try {
     if (tasks.length === 0) {
@@ -1191,6 +1392,11 @@ export async function generatePriorityQuestions(
 
     const taskNames = tasks.map(t => t.title)
     const taskList = tasks.map(t => `「${t.title}」`).join('、')
+    
+    // 🆕 格式化历史上下文
+    const historyContext = reflectionContext 
+      ? formatContextForPrompt(reflectionContext, tasks[0]?.title)
+      : ''
     
     // 构建任务信息
     let taskInfo = `
@@ -1292,7 +1498,7 @@ ${matrixContext ? `
 
 ${taskInfo}
 ${matrixInfo}
-
+${historyContext ? `\n${historyContext}` : ''}
 【重要提示】：
 1. **主要对比用户勾选的任务之间的关系**（而不是和已分类任务对比）
 2. **已分类任务只是参考锚点**，不要作为问题的主要对比对象

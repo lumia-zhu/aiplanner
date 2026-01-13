@@ -85,9 +85,26 @@ import {
 
   generatePersonalizedGreeting,
 
-  type ReflectionRoundType 
+  type ReflectionRoundType,
+  
+  // 🆕 历史上下文相关
+  buildReflectionContext,
+  type ReflectionContext
 
 } from '@/lib/reflectionFlow'
+
+// 🆕 历史数据获取
+import { getRecentTaskHistory, buildTaskFamilyContext } from '@/lib/dailyTasks'
+import { getRecentReflections } from '@/lib/dailyReflections'
+
+// 🆕 用户行为统计
+import { 
+  logMessageSent, 
+  logReflectionButtonClicked, 
+  logQuestionAsked, 
+  logQuestionAnswered, 
+  logRoundCompleted 
+} from '@/lib/analyticsService'
 
 import { MATRIX_DIMENSION_CONFIGS, MATRIX_QUADRANTS_CONFIGS } from '@/types'
 
@@ -6062,6 +6079,67 @@ export default function NotesDashboardPage() {
       // 根据轮次生成不同的问题
 
       try {
+        
+        // 🆕 获取历史上下文（纵向感知）
+        let reflectionContext: ReflectionContext | undefined
+        if (user) {
+          try {
+            const today = formatNoteDate(currentContextDate)
+            console.log('📅 获取历史上下文...', { userId: user.id, today })
+            
+            // 并行获取历史数据
+            const [recentHistory, recentReflections] = await Promise.all([
+              getRecentTaskHistory(user.id, 3, today),
+              getRecentReflections(user.id, 3, today)
+            ])
+            
+            console.log(`✅ 历史数据: ${recentHistory.length} 天任务, ${recentReflections.length} 天反思`)
+            
+            // 获取当前选中任务的家族上下文（如果是子任务）
+            const currentTask = selectedTasks[0]
+            let taskFamily = null
+            if (currentTask) {
+              // 获取当天所有任务来构建家族上下文
+              const todayTasks = reflectionTasks.map(t => ({
+                id: t.id,
+                userId: user.id,
+                title: t.title,
+                completed: t.isCompleted,
+                date: today,
+                noteDate: today,
+                createdAt: '',
+                updatedAt: '',
+                depth: t.depth ?? 0,
+                parentTaskId: t.parent_task_id || null,
+                notePosition: 0,
+                deadlineDatetime: t.deadline || null,
+                estimatedDuration: t.estimatedDuration || null
+              }))
+              taskFamily = buildTaskFamilyContext(
+                todayTasks.find(t => t.id === currentTask.id) as any,
+                todayTasks as any
+              )
+              console.log('👨‍👩‍👧 任务家族上下文:', taskFamily)
+            }
+            
+            // 构建完整上下文
+            reflectionContext = buildReflectionContext(
+              currentTask ? {
+                title: currentTask.title,
+                id: currentTask.id,
+                isCompleted: currentTask.isCompleted,
+                depth: currentTask.depth,
+                parent_task_id: currentTask.parent_task_id
+              } as any : null,
+              taskFamily,
+              recentHistory,
+              recentReflections
+            )
+            console.log('📦 完整反思上下文:', reflectionContext)
+          } catch (error) {
+            console.warn('⚠️ 获取历史上下文失败:', error)
+          }
+        }
 
         let questions: string[]
 
@@ -6087,7 +6165,7 @@ export default function NotesDashboardPage() {
 
             deadline_datetime: task.deadline,
 
-          } as any)
+          } as any, reflectionContext)  // 🆕 传递历史上下文
 
         } else if (pendingRound === 'decomposition') {
           // Decomposition 轮：生成context问题（单个任务）
@@ -6101,7 +6179,7 @@ export default function NotesDashboardPage() {
             created_at: new Date().toISOString(),
             estimatedDuration: task.estimatedDuration,
             deadline_datetime: task.deadline,
-          } as any)
+          } as any)  // 🆕 TODO: 后续可以给 generateContextQuestions 也加上 reflectionContext
         } else if (pendingRound === 'time') {
 
           // Time 轮：生成时间规划问题（单个任务）
@@ -6110,7 +6188,7 @@ export default function NotesDashboardPage() {
 
           taskTitle = task.title
 
-          questions = await generateTimeQuestions([task])
+          questions = await generateTimeQuestions([task], reflectionContext)  // 🆕 传递历史上下文
 
         } else {
 
@@ -6121,7 +6199,7 @@ export default function NotesDashboardPage() {
           // 传入矩阵上下文，让 LLM 知道当前维度和已分类任务
           const matrixContext = buildMatrixContextForPriority()
           console.log('🎯 优先级反思矩阵上下文:', matrixContext)
-          questions = await generatePriorityQuestions(selectedTasks, matrixContext)
+          questions = await generatePriorityQuestions(selectedTasks, matrixContext, reflectionContext)  // 🆕 传递历史上下文
         }
 
         
@@ -7798,6 +7876,13 @@ export default function NotesDashboardPage() {
 
     setAskedQuestions([])  // 新轮次开始，清空已问问题
 
+    // 📊 记录点击反思按钮事件
+    if (user) {
+      logReflectionButtonClicked(user.id, round).catch(err => 
+        console.warn('⚠️ 记录反思按钮点击失败:', err)
+      )
+    }
+
     
     
     try {
@@ -7840,9 +7925,31 @@ export default function NotesDashboardPage() {
 
       
       
-      // 生成反思问题
+      // 🆕 获取历史上下文（纵向感知）
+      let reflectionContext: ReflectionContext | undefined
+      if (user) {
+        try {
+          const today = formatNoteDate(currentContextDate)
+          console.log('📅 获取历史上下文...', { userId: user.id, today })
+          
+          // 并行获取历史数据
+          const [recentHistory, recentReflections] = await Promise.all([
+            getRecentTaskHistory(user.id, 3, today),
+            getRecentReflections(user.id, 3, today)
+          ])
+          
+          console.log(`✅ 历史数据: ${recentHistory.length} 天任务, ${recentReflections.length} 天反思`)
+          
+          // 构建上下文（当前没有选中特定任务，所以 currentTask 和 taskFamily 为 null）
+          reflectionContext = buildReflectionContext(null, null, recentHistory, recentReflections)
+        } catch (error) {
+          console.warn('⚠️ 获取历史上下文失败，继续使用无上下文模式:', error)
+        }
+      }
+      
+      // 生成反思问题（带历史上下文）
 
-      const result = await generateRoundQuestions(round, tasks, scanResult)
+      const result = await generateRoundQuestions(round, tasks, scanResult, undefined, undefined, reflectionContext)
 
       
       
@@ -7876,6 +7983,17 @@ export default function NotesDashboardPage() {
             messageType: 'reflection_question',
             metadata: { round, questionCount: result.questions.length }
           }).catch(err => console.error('保存反思问题失败:', err))
+          
+          // 📊 记录 AI 提问事件
+          result.questions.forEach((q, idx) => {
+            logQuestionAsked(
+              user.id, 
+              `q-${round}-${Date.now()}-${idx}`, 
+              q.text, 
+              round, 
+              result.questions.length
+            ).catch(err => console.warn('⚠️ 记录 AI 提问失败:', err))
+          })
         }
         
         
@@ -8254,9 +8372,21 @@ export default function NotesDashboardPage() {
         messageType: 'text',
         metadata: { completedRound: currentReflectionRound }
       }).catch(err => console.error('保存轮次完成消息失败:', err))
+      
+      // 📊 记录轮次完成事件
+      // 统计提问数和回答数（askedQuestions 中包含 AI 问题和用户回答）
+      const answeredCount = askedQuestions.filter(q => q.startsWith('用户回答:')).length
+      const questionCount = askedQuestions.filter(q => !q.startsWith('用户回答:')).length
+      
+      logRoundCompleted(
+        user.id, 
+        currentReflectionRound, 
+        answeredCount, 
+        questionCount
+      ).catch(err => console.warn('⚠️ 记录轮次完成失败:', err))
     }
 
-  }, [currentReflectionRound, reflectionSessionId, isDecompositionPhase, user, currentContextDate])
+  }, [currentReflectionRound, reflectionSessionId, isDecompositionPhase, user, currentContextDate, askedQuestions])
 
   
   
@@ -8498,6 +8628,21 @@ export default function NotesDashboardPage() {
     
     try {
 
+      // 🆕 获取历史上下文
+      let reflectionContext: ReflectionContext | undefined
+      if (user) {
+        try {
+          const today = formatNoteDate(currentContextDate)
+          const [recentHistory, recentReflections] = await Promise.all([
+            getRecentTaskHistory(user.id, 3, today),
+            getRecentReflections(user.id, 3, today)
+          ])
+          reflectionContext = buildReflectionContext(null, null, recentHistory, recentReflections)
+        } catch (error) {
+          console.warn('⚠️ 获取历史上下文失败:', error)
+        }
+      }
+
       // 传递已问过的问题，让 LLM 生成不同的问题
 
       const result = await generateRoundQuestions(
@@ -8510,7 +8655,9 @@ export default function NotesDashboardPage() {
 
         undefined,  // previousResponses
 
-        askedQuestions  // 传递已问过的问题
+        askedQuestions,  // 传递已问过的问题
+        
+        reflectionContext  // 🆕 历史上下文
 
       )
 
@@ -9407,7 +9554,13 @@ export default function NotesDashboardPage() {
     // 💾 异步保存用户消息到数据库（不阻塞 UI）
     const chatDate = formatNoteDate(currentContextDate)
     saveChatMessage(user.id, chatDate, 'user', userMessage.content, chatDate)
-      .then(() => logger.success('用户消息已保存到数据库'))
+      .then(() => {
+        logger.success('用户消息已保存到数据库')
+        // 📊 记录普通消息事件
+        logMessageSent(user.id, `user-${Date.now()}`, false).catch(err => 
+          console.warn('⚠️ 记录普通消息失败:', err)
+        )
+      })
       .catch((error) => logger.error('保存用户消息失败:', error))
 
     
@@ -9905,6 +10058,10 @@ export default function NotesDashboardPage() {
             contextDate: chatDate,
             messageType
           })
+          // 📊 记录普通消息事件
+          logMessageSent(user.id, `ai-${Date.now()}`, false).catch(err => 
+            console.warn('⚠️ 记录普通消息失败:', err)
+          )
         }
 
         logger.success(`✅ 已保存 ${finalMessages.length} 条最终结果到数据库（跳过 ${messages.length - finalMessages.length} 条推理过程）`)
@@ -10802,6 +10959,14 @@ ${matrixStats || '（无待办）'}
 
       await saveChatMessage(user.id, chatDate, 'assistant', aiMessage.content, chatDate)
 
+      // 📊 记录普通消息事件
+      logMessageSent(user.id, `user-${Date.now()}`, false).catch(err => 
+        console.warn('⚠️ 记录普通消息失败:', err)
+      )
+      logMessageSent(user.id, `ai-${Date.now()}`, false).catch(err => 
+        console.warn('⚠️ 记录普通消息失败:', err)
+      )
+
       
       
       console.log('✅ 普通对话完成')
@@ -10945,6 +11110,24 @@ ${matrixStats || '（无待办）'}
             contextDate: chatDate,
             messageType: 'text'
           }).catch(err => console.error('保存 AI 回应失败:', err))
+          
+          // 📊 记录反思消息事件
+          logMessageSent(user.id, `user-${Date.now()}`, true).catch(err => 
+            console.warn('⚠️ 记录反思消息失败:', err)
+          )
+          logMessageSent(user.id, `ai-${Date.now()}`, true).catch(err => 
+            console.warn('⚠️ 记录反思消息失败:', err)
+          )
+          
+          // 📊 记录用户回答事件
+          if (currentReflectionRound) {
+            logQuestionAnswered(
+              user.id, 
+              `ans-${currentReflectionRound}-${Date.now()}`, 
+              chatMessage.trim(), 
+              currentReflectionRound
+            ).catch(err => console.warn('⚠️ 记录用户回答失败:', err))
+          }
         }
         
         isSendingMessageRef.current = false  // 解锁
@@ -11196,6 +11379,14 @@ ${matrixStats || '（无待办）'}
           await saveChatMessage(user.id, chatDate, 'user', userMessage.content, chatDate)  // ✅ 传入格式化后的 contextDate
 
           await saveChatMessage(user.id, chatDate, 'assistant', aiMessage.content, chatDate)  // ✅ 传入格式化后的 contextDate
+
+          // 📊 记录普通消息事件
+          logMessageSent(user.id, `user-${Date.now()}`, false).catch(err => 
+            console.warn('⚠️ 记录普通消息失败:', err)
+          )
+          logMessageSent(user.id, `ai-${Date.now()}`, false).catch(err => 
+            console.warn('⚠️ 记录普通消息失败:', err)
+          )
 
         }
 

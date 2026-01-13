@@ -414,6 +414,12 @@ export default function AdminChatPage() {
                 >
                   笔记版本
                 </button>
+                <button 
+                  onClick={() => router.push('/admin/analytics')}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200"
+                >
+                  后台统计
+                </button>
               </div>
             </div>
             <button

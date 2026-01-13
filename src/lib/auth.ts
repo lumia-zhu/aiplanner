@@ -49,26 +49,34 @@ export async function registerUser(username: string, password: string): Promise<
 // 用户登录
 export async function loginUser(username: string, password: string): Promise<{ user?: AuthUser; error?: string }> {
   try {
+    console.log('🔑 loginUser 开始执行...')
     const supabase = createClient()
+    console.log('🔑 Supabase 客户端已创建')
     
     // 简单密码哈希
     const passwordHash = btoa(password)
     
+    console.log('🔑 正在查询 users 表...')
     const { data, error } = await supabase
       .from('users')
       .select('id, username, password_hash')
       .eq('username', username)
       .single()
     
+    console.log('🔑 查询完成:', { error: error?.message, hasData: !!data })
+    
     if (error || !data) {
+      console.log('🔑 查询失败或无数据:', error)
       return { error: '用户名或密码错误' }
     }
     
     // 验证密码
     if (data.password_hash !== passwordHash) {
+      console.log('🔑 密码不匹配')
       return { error: '用户名或密码错误' }
     }
     
+    console.log('🔑 登录成功!')
     return {
       user: {
         id: data.id,
@@ -76,6 +84,7 @@ export async function loginUser(username: string, password: string): Promise<{ u
       }
     }
   } catch (error) {
+    console.error('🔑 登录异常:', error)
     return { error: '登录异常' }
   }
 }

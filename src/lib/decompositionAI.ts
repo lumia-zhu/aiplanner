@@ -5,6 +5,8 @@
 
 import type { Task } from '@/types'
 import { generateContextQuestions } from './contextQuestions'
+// 🆕 历史上下文相关
+import { formatContextForPrompt, type ReflectionContext } from './reflectionFlow'
 
 // 豆包大模型配置
 const DOUBAO_CONFIG = {
@@ -15,12 +17,21 @@ const DOUBAO_CONFIG = {
 /**
  * 根据任务内容动态生成3个任务拆解引导问题
  * @param task 需要拆解的任务
+ * @param reflectionContext 🆕 历史上下文（用于纵向感知）
  * @returns 3个问题的数组
  */
-export async function generateDynamicDecompositionQuestions(task: Task): Promise<string[]> {
+export async function generateDynamicDecompositionQuestions(
+  task: Task,
+  reflectionContext?: ReflectionContext  // 🆕 历史上下文
+): Promise<string[]> {
   try {
     // 构建任务信息描述
     const taskInfo = buildTaskInfoDescription(task)
+    
+    // 🆕 格式化历史上下文
+    const historyContext = reflectionContext 
+      ? formatContextForPrompt(reflectionContext, task.title)
+      : ''
     
     // 构建AI prompt
     const systemPrompt = `你是一位擅长任务情境分析的智能助手。你的目标是：通过 1-3 个精准的开放式问题，帮助用户澄清任务的关键信息，确保任务可以顺利执行。
@@ -119,7 +130,7 @@ export async function generateDynamicDecompositionQuestions(task: Task): Promise
     const userPrompt = `请基于以下任务信息，生成 1-3 个能有效澄清任务关键信息的问题：
 
 ${taskInfo}
-
+${historyContext ? `\n${historyContext}` : ''}
 **你的分析流程**（内部执行，不要输出）：
 
 1️⃣ **任务复杂度判断**

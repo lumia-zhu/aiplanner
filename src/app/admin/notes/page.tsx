@@ -395,6 +395,12 @@ export default function AdminNotesPage() {
                 <button className="px-4 py-1.5 text-sm rounded bg-blue-500 text-white">
                   笔记版本
                 </button>
+                <button
+                  onClick={() => router.push('/admin/analytics')}
+                  className="px-4 py-1.5 text-sm rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+                >
+                  后台统计
+                </button>
               </div>
             </div>
             <button
