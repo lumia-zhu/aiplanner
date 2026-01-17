@@ -210,6 +210,9 @@ export default function NotesDashboardPage() {
   // 笔记相关状态
 
   const [currentNote, setCurrentNote] = useState<JSONContent | null>(null)
+  
+  // 🔧 使用 ref 存储实时内容，避免每次编辑都触发 React 重新渲染导致闪烁
+  const currentNoteRef = useRef<JSONContent | null>(null)
 
   const [isLoadingNote, setIsLoadingNote] = useState(false)  // 🆕 笔记加载状态
   const [isSaving, setIsSaving] = useState(false)
@@ -929,6 +932,7 @@ export default function NotesDashboardPage() {
 
       if (note) {
 
+        currentNoteRef.current = note.content  // 🔧 同步更新 ref
         setCurrentNote(note.content)
 
         calculateTaskStats(note.content) // 计算任务统计
@@ -945,6 +949,7 @@ export default function NotesDashboardPage() {
 
         }
 
+        currentNoteRef.current = emptyContent  // 🔧 同步更新 ref
         setCurrentNote(emptyContent)
 
         calculateTaskStats(emptyContent)
@@ -2079,10 +2084,11 @@ export default function NotesDashboardPage() {
 
 
   // 处理笔记内容更新（实时更新统计，不保存）
-
+  // 🔧 不再调用 setCurrentNote，避免每次编辑都触发 React 重新渲染导致闪烁
   const handleNoteUpdate = useCallback((content: JSONContent) => {
 
-    setCurrentNote(content) // ✅ 同步更新 currentNote，确保 AI 助手能读取最新内容
+    // 只更新 ref，不触发渲染
+    currentNoteRef.current = content
 
     calculateTaskStats(content) // 实时更新任务统计
 
@@ -2272,8 +2278,8 @@ export default function NotesDashboardPage() {
 
       
       
-      // ✅ 同步更新 currentNote 状态，确保 AI 助手能读取最新内容
-
+      // ✅ 同步更新 currentNote 状态和 ref，确保 AI 助手能读取最新内容
+      currentNoteRef.current = savedNote.content
       setCurrentNote(savedNote.content)
       
       
@@ -2845,14 +2851,15 @@ export default function NotesDashboardPage() {
     
     
     // 2. 在笔记中插入子任务
-
-    if (currentNote && decomposingTaskTitle) {
+    // 🔧 优先使用 ref 获取最新内容
+    const noteToUse = currentNoteRef.current || currentNote
+    if (noteToUse && decomposingTaskTitle) {
 
       try {
 
         // 深拷贝当前笔记内容
 
-        const newContent = JSON.parse(JSON.stringify(currentNote))
+        const newContent = JSON.parse(JSON.stringify(noteToUse))
 
         
         
@@ -2989,7 +2996,8 @@ export default function NotesDashboardPage() {
             console.log('✅ 通过编辑器实例插入子任务')
           }
           
-          // 同时更新状态（保持同步）
+          // 同时更新状态和 ref（保持同步）
+          currentNoteRef.current = newContent
           setCurrentNote(newContent)
           
           // 触发保存
@@ -4144,8 +4152,9 @@ export default function NotesDashboardPage() {
         
         
         // ⭐ 重要：从当前笔记中获取最新任务（而不是从快照中）
-
-        const currentTasks = currentNote ? parseTasksFromNote(currentNote) : []
+        // 🔧 优先使用 ref 获取最新内容
+        const latestNote = currentNoteRef.current || currentNote
+        const currentTasks = latestNote ? parseTasksFromNote(latestNote) : []
 
         const taskSnapshots = createTaskSnapshots(currentTasks)
 
@@ -4351,8 +4360,9 @@ export default function NotesDashboardPage() {
       
       
       // 2. 从当前笔记内容中提取任务
-
-      const currentTasks = currentNote ? parseTasksFromNote(currentNote) : []
+      // 🔧 优先使用 ref 获取最新内容
+      const latestNote = currentNoteRef.current || currentNote
+      const currentTasks = latestNote ? parseTasksFromNote(latestNote) : []
 
       if (currentTasks.length === 0) {
 
@@ -6286,6 +6296,23 @@ export default function NotesDashboardPage() {
         
         
         setChatMessages(prev => [...prev, firstQuestionMsg])
+        
+        // 📊 记录显示第一个问题卡片事件
+        if (user) {
+          console.log('🔍 调试 currentContextDate:', {
+            currentContextDate: currentContextDate,
+            formatted: formatNoteDate(currentContextDate),
+            today: new Date().toISOString()
+          })
+          logQuestionAsked(
+            user.id,
+            `q-${pendingRound}-${Date.now()}-0`,
+            questions[0],
+            pendingRound || 'clarity',
+            1,
+            formatNoteDate(currentContextDate)
+          ).catch(err => console.warn('⚠️ 记录问题显示失败:', err))
+        }
 
       } catch (error) {
 
@@ -6885,7 +6912,27 @@ export default function NotesDashboardPage() {
         
         console.log('💾 保存问题回答', currentQuestionAnswer)
 
+        // 📊 从 context 获取轮次类型（优先使用 context，回退到状态）
+        const roundType = context?.roundType || currentReflectionRound || 'clarity'
         
+        // 📊 记录用户回答事件和消息发送事件
+        if (user && currentAnswer) {
+          console.log('📊 准备记录用户回答事件, roundType:', roundType)
+          
+          // 记录用户回答
+          logQuestionAnswered(
+            user.id,
+            `ans-${roundType}-${Date.now()}`,
+            currentAnswer,
+            roundType,
+            formatNoteDate(currentContextDate)
+          ).catch(err => console.warn('⚠️ 记录用户回答失败:', err))
+          
+          // 记录消息发送（反思消息）
+          logMessageSent(user.id, `user-card-${Date.now()}`, true, formatNoteDate(currentContextDate)).catch(err => 
+            console.warn('⚠️ 记录反思消息失败:', err)
+          )
+        }
         
         // 🔧 同时更新 ref 和 state（ref 是同步的，state 是异步的）
 
@@ -7019,6 +7066,18 @@ export default function NotesDashboardPage() {
           )
 
         })))
+        
+        // 📊 记录显示下一个问题卡片事件
+        if (user) {
+          logQuestionAsked(
+            user.id,
+            `q-${context?.roundType || 'clarity'}-${Date.now()}-${nextIndex}`,
+            nextQuestion,
+            context?.roundType || 'clarity',
+            1,
+            formatNoteDate(currentContextDate)
+          ).catch(err => console.warn('⚠️ 记录问题显示失败:', err))
+        }
 
       } else {
 
@@ -7842,7 +7901,7 @@ export default function NotesDashboardPage() {
       
     }
 
-  }, [taskContextInput, user])
+  }, [taskContextInput, user, currentContextDate])
 
   
   
@@ -7878,7 +7937,7 @@ export default function NotesDashboardPage() {
 
     // 📊 记录点击反思按钮事件
     if (user) {
-      logReflectionButtonClicked(user.id, round).catch(err => 
+      logReflectionButtonClicked(user.id, round, formatNoteDate(currentContextDate)).catch(err => 
         console.warn('⚠️ 记录反思按钮点击失败:', err)
       )
     }
@@ -7991,9 +8050,15 @@ export default function NotesDashboardPage() {
               `q-${round}-${Date.now()}-${idx}`, 
               q.text, 
               round, 
-              result.questions.length
+              result.questions.length,
+              formatNoteDate(currentContextDate)
             ).catch(err => console.warn('⚠️ 记录 AI 提问失败:', err))
           })
+          
+          // 📊 记录 AI 消息发送事件（反思消息）
+          logMessageSent(user.id, `ai-question-${Date.now()}`, true, formatNoteDate(currentContextDate)).catch(err => 
+            console.warn('⚠️ 记录 AI 反思消息失败:', err)
+          )
         }
         
         
@@ -8201,7 +8266,7 @@ export default function NotesDashboardPage() {
     setReflectionSessionId(null)
 
     setCurrentReflectionType(null)  // 🆕 清空反思类型
-  }, [reflectionSessionId, reflectionTasks, reflectionScanResult])
+  }, [reflectionSessionId, reflectionTasks, reflectionScanResult, currentContextDate, user])
 
   
   
@@ -8382,7 +8447,8 @@ export default function NotesDashboardPage() {
         user.id, 
         currentReflectionRound, 
         answeredCount, 
-        questionCount
+        questionCount,
+        formatNoteDate(currentContextDate)
       ).catch(err => console.warn('⚠️ 记录轮次完成失败:', err))
     }
 
@@ -9557,7 +9623,7 @@ export default function NotesDashboardPage() {
       .then(() => {
         logger.success('用户消息已保存到数据库')
         // 📊 记录普通消息事件
-        logMessageSent(user.id, `user-${Date.now()}`, false).catch(err => 
+        logMessageSent(user.id, `user-${Date.now()}`, false, formatNoteDate(currentContextDate)).catch(err => 
           console.warn('⚠️ 记录普通消息失败:', err)
         )
       })
@@ -10059,7 +10125,7 @@ export default function NotesDashboardPage() {
             messageType
           })
           // 📊 记录普通消息事件
-          logMessageSent(user.id, `ai-${Date.now()}`, false).catch(err => 
+          logMessageSent(user.id, `ai-${Date.now()}`, false, formatNoteDate(currentContextDate)).catch(err => 
             console.warn('⚠️ 记录普通消息失败:', err)
           )
         }
@@ -10520,8 +10586,9 @@ export default function NotesDashboardPage() {
     
     
     // ✂️ 笔记内容截断优化
-
-    let noteText = currentNote ? getNoteText(currentNote).trim() : '（空笔记）'
+    // 🔧 优先使用 ref 获取最新内容，避免依赖可能过时的 state
+    const latestNote = currentNoteRef.current || currentNote
+    let noteText = latestNote ? getNoteText(latestNote).trim() : '（空笔记）'
 
     if (noteText.length > 1000) {
 
@@ -10960,10 +11027,10 @@ ${matrixStats || '（无待办）'}
       await saveChatMessage(user.id, chatDate, 'assistant', aiMessage.content, chatDate)
 
       // 📊 记录普通消息事件
-      logMessageSent(user.id, `user-${Date.now()}`, false).catch(err => 
+      logMessageSent(user.id, `user-${Date.now()}`, false, formatNoteDate(currentContextDate)).catch(err => 
         console.warn('⚠️ 记录普通消息失败:', err)
       )
-      logMessageSent(user.id, `ai-${Date.now()}`, false).catch(err => 
+      logMessageSent(user.id, `ai-${Date.now()}`, false, formatNoteDate(currentContextDate)).catch(err => 
         console.warn('⚠️ 记录普通消息失败:', err)
       )
 
@@ -11112,10 +11179,10 @@ ${matrixStats || '（无待办）'}
           }).catch(err => console.error('保存 AI 回应失败:', err))
           
           // 📊 记录反思消息事件
-          logMessageSent(user.id, `user-${Date.now()}`, true).catch(err => 
+          logMessageSent(user.id, `user-${Date.now()}`, true, formatNoteDate(currentContextDate)).catch(err => 
             console.warn('⚠️ 记录反思消息失败:', err)
           )
-          logMessageSent(user.id, `ai-${Date.now()}`, true).catch(err => 
+          logMessageSent(user.id, `ai-${Date.now()}`, true, formatNoteDate(currentContextDate)).catch(err => 
             console.warn('⚠️ 记录反思消息失败:', err)
           )
           
@@ -11125,7 +11192,8 @@ ${matrixStats || '（无待办）'}
               user.id, 
               `ans-${currentReflectionRound}-${Date.now()}`, 
               chatMessage.trim(), 
-              currentReflectionRound
+              currentReflectionRound,
+              formatNoteDate(currentContextDate)
             ).catch(err => console.warn('⚠️ 记录用户回答失败:', err))
           }
         }
@@ -11381,10 +11449,10 @@ ${matrixStats || '（无待办）'}
           await saveChatMessage(user.id, chatDate, 'assistant', aiMessage.content, chatDate)  // ✅ 传入格式化后的 contextDate
 
           // 📊 记录普通消息事件
-          logMessageSent(user.id, `user-${Date.now()}`, false).catch(err => 
+          logMessageSent(user.id, `user-${Date.now()}`, false, formatNoteDate(currentContextDate)).catch(err => 
             console.warn('⚠️ 记录普通消息失败:', err)
           )
-          logMessageSent(user.id, `ai-${Date.now()}`, false).catch(err => 
+          logMessageSent(user.id, `ai-${Date.now()}`, false, formatNoteDate(currentContextDate)).catch(err => 
             console.warn('⚠️ 记录普通消息失败:', err)
           )
 
@@ -12006,6 +12074,7 @@ ${matrixStats || '（无待办）'}
             editorRef.current.commands.setContent(newContent)
           }
         }
+        currentNoteRef.current = newContent
         setCurrentNote(newContent)
 
         logger.debug('✅ 编辑器内容已刷新')
@@ -12739,6 +12808,7 @@ ${matrixStats || '（无待办）'}
                 editorRef.current.commands.setContent(newContent)
               }
             }
+            currentNoteRef.current = newContent
             setCurrentNote(newContent)
 
             // 更新任务统计
@@ -13086,7 +13156,7 @@ ${matrixStats || '（无待办）'}
 
             <div className="flex items-center">
 
-              <h1 className="text-xl font-bold text-gray-900">📝 TaskFlow</h1>
+              <h1 className="text-xl font-bold text-gray-900">📝 MetaPlan</h1>
             </div>
 
             <div className="flex items-center space-x-4">

@@ -922,6 +922,7 @@ body {
 /* ============================================ */
 
 /* 上下文信息段落 - 类似子任务但有淡蓝色背景 */
+/* 🔧 移除了淡入动画（会在每次编辑时重新触发导致闪烁） */
 .ProseMirror p.context-info {
   padding: 0.5rem 0.75rem;
   margin: 0.375rem 0;
@@ -930,9 +931,10 @@ body {
   font-size: 0.95em;
   line-height: 1.6;
   color: #1e3a8a;  /* 深蓝色文字 */
-  transition: background-color 0.2s ease, transform 0.15s ease;
   cursor: default;
   user-select: text;  /* 允许选中文本 */
+  /* 只在悬停时使用过渡效果，避免编辑时触发 */
+  transition: background-color 0.15s ease;
 }
 
 /* 在taskItem内部的上下文信息 - 继承taskItem的缩进 */
@@ -940,24 +942,7 @@ body {
   margin-left: 0;  /* 不需要额外左侧margin */
 }
 
-/* 悬停效果 */
+/* 悬停效果 - 只改变背景色，不移动位置避免闪烁 */
 .ProseMirror p.context-info:hover {
   background-color: #dbeafe;  /* 悬停时稍深 bg-blue-100 */
-  transform: translateX(2px);  /* 微妙的平移效果 */
-}
-
-/* 上下文信息淡入动画 */
-@keyframes contextFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.ProseMirror p.context-info {
-  animation: contextFadeIn 0.3s ease-out;
 }

@@ -36,7 +36,9 @@ export async function logEvent(
     const supabase = createClient()
     const eventDate = date || new Date().toISOString().split('T')[0]
     
-    const { error } = await supabase
+    console.log(`📊 准备记录事件: ${eventType}, 日期: ${eventDate}, 用户: ${userId}`)
+    
+    const { data, error } = await supabase
       .from('user_interaction_events')
       .insert({
         user_id: userId,
@@ -44,11 +46,12 @@ export async function logEvent(
         event_data: eventData,
         date: eventDate
       })
+      .select()
     
     if (error) {
-      console.error('❌ 记录事件失败:', error)
+      console.error('❌ 记录事件失败:', error.message, error.code, error.details)
     } else {
-      console.log(`✅ 事件已记录: ${eventType}`, eventData)
+      console.log(`✅ 事件已记录: ${eventType}`, { date: eventDate, data })
     }
   } catch (error) {
     console.error('❌ logEvent 异常:', error)
@@ -65,16 +68,18 @@ export async function logEvent(
  * @param userId 用户ID
  * @param messageId 消息ID
  * @param isReflection 是否是反思消息
+ * @param contextDate 上下文日期（用户选择的日期）
  */
 export async function logMessageSent(
   userId: string,
   messageId: string,
-  isReflection: boolean
+  isReflection: boolean,
+  contextDate?: string
 ): Promise<void> {
   await logEvent(userId, 'message_sent', {
     messageId,
     isReflection
-  })
+  }, contextDate)
 }
 
 /**
@@ -83,17 +88,19 @@ export async function logMessageSent(
  * @param userId 用户ID
  * @param taskId 任务ID
  * @param depth 任务层级（0=父任务，>0=子任务）
+ * @param contextDate 上下文日期（用户选择的日期）
  */
 export async function logTaskCreated(
   userId: string,
   taskId: string,
-  depth: number
+  depth: number,
+  contextDate?: string
 ): Promise<void> {
   await logEvent(userId, 'task_created', {
     taskId,
     isParent: depth === 0,
     depth
-  })
+  }, contextDate)
 }
 
 /**
@@ -101,14 +108,16 @@ export async function logTaskCreated(
  * 
  * @param userId 用户ID
  * @param roundType 轮次类型
+ * @param contextDate 上下文日期（用户选择的日期）
  */
 export async function logReflectionButtonClicked(
   userId: string,
-  roundType: ReflectionRoundType
+  roundType: ReflectionRoundType,
+  contextDate?: string
 ): Promise<void> {
   await logEvent(userId, 'reflection_button_clicked', {
     roundType
-  })
+  }, contextDate)
 }
 
 /**
@@ -119,20 +128,22 @@ export async function logReflectionButtonClicked(
  * @param questionText 问题文本
  * @param roundType 轮次类型
  * @param questionCount 本轮问题总数
+ * @param contextDate 上下文日期（用户选择的日期）
  */
 export async function logQuestionAsked(
   userId: string,
   questionId: string,
   questionText: string,
   roundType: string,
-  questionCount: number
+  questionCount: number,
+  contextDate?: string
 ): Promise<void> {
   await logEvent(userId, 'reflection_question_asked', {
     questionId,
     questionText,
     roundType,
     questionCount
-  })
+  }, contextDate)
 }
 
 /**
@@ -142,18 +153,20 @@ export async function logQuestionAsked(
  * @param questionId 问题ID
  * @param answerText 回答文本
  * @param roundType 轮次类型
+ * @param contextDate 上下文日期（用户选择的日期）
  */
 export async function logQuestionAnswered(
   userId: string,
   questionId: string,
   answerText: string,
-  roundType: string
+  roundType: string,
+  contextDate?: string
 ): Promise<void> {
   await logEvent(userId, 'reflection_question_answered', {
     questionId,
     answerText,
     roundType
-  })
+  }, contextDate)
 }
 
 /**
@@ -163,18 +176,20 @@ export async function logQuestionAnswered(
  * @param roundType 轮次类型
  * @param answeredCount 回答的问题数
  * @param totalCount 总问题数
+ * @param contextDate 上下文日期（用户选择的日期）
  */
 export async function logRoundCompleted(
   userId: string,
   roundType: string,
   answeredCount: number,
-  totalCount: number
+  totalCount: number,
+  contextDate?: string
 ): Promise<void> {
   await logEvent(userId, 'reflection_round_completed', {
     roundType,
     answeredCount,
     totalCount
-  })
+  }, contextDate)
 }
 
 // ============================================
@@ -350,11 +365,12 @@ export async function aggregateDailyAnalytics(
           //   (已移除)
           
           case 'reflection_question_asked':
-            // 累加本轮问题数
-            analytics.total_questions += eventData.questionCount || 1
+            // 每显示一个问题卡片就算一个问题
+            analytics.total_questions++
             break
           
           case 'reflection_question_answered':
+            // 用户输入内容并提交才算已回答
             analytics.answered_questions++
             break
           

@@ -288,16 +288,25 @@ async function callAI(prompt: string): Promise<string[]> {
   const content = data.choices?.[0]?.message?.content || ''
   console.log('📥 AI 响应内容长度:', content.length, '字符')
 
-  // 解析输出：按行分割，过滤空行
+  // 解析输出：按行分割，过滤空行，去除可能的序号前缀
   const questions = content
     .split('\n')
-    .map((line: string) => line.trim())
-    .filter((line: string) => line.length > 0 && line.length <= 50)  // 过滤过长或空的行
+    .map((line: string) => {
+      let cleaned = line.trim()
+      // 去除常见的序号前缀，如 "1. ", "1、", "1）", "① " 等
+      cleaned = cleaned.replace(/^(\d+[\.\、\)\）\s]|[①②③④⑤⑥⑦⑧⑨⑩]\s*)/g, '')
+      return cleaned.trim()
+    })
+    .filter((line: string) => line.length > 5 && line.length <= 100)  // 放宽长度限制
 
-  if (questions.length < 5) {
+  console.log('📊 解析出的问题数量:', questions.length, '个')
+
+  // 降低最低要求到3个，避免频繁降级
+  if (questions.length < 3) {
     throw new Error(`AI返回问题数量不足: ${questions.length}`)
   }
 
+  // 返回最多5个问题
   return questions.slice(0, 5)
 }
 
