@@ -16,7 +16,7 @@ import { getGuidanceMessage } from '@/lib/guidanceService'
 import type { GuidanceScenario } from '@/lib/guidanceService'
 import { generateClarificationQuestions, formatClarificationQuestionsMessage, recommendTasksForClarification, formatRecommendationsMessage, recommendTasksForTimeEstimation, formatTimeEstimationRecommendationsMessage } from '@/lib/clarificationQuestions'
 import { doubaoService } from '@/lib/doubaoService'
-import { generateReflectionQuestion, buildUserProfile } from '@/lib/timeEstimationAI'
+import { generateReflectionQuestion } from '@/lib/timeEstimationAI'
 import { formatMinutes, calculateBuffer, encodeEstimatedDuration } from '@/utils/timeEstimation'
 import { generateClarificationQuestionsWithFallback } from '@/lib/clarificationAI'
 import { formatSummaryForEdit } from '@/utils/summaryUtils'
@@ -1135,11 +1135,8 @@ ${recommendation.reason}
     
     // 调用AI生成个性化反思问题
     try {
-      // 构建估算专用的用户画像（因为全局UserProfile不包含估算相关字段）
-      const userProfileData = buildUserProfile(tasks)
       const reflection = await generateReflectionQuestion({
         task: estimationTask,
-        userProfile: userProfileData,
         initialEstimate: minutes
       })
       

@@ -1,168 +1,89 @@
 /**
  * 时间估计AI服务
  * 用于生成个性化的时间估计反思问题
+ * 
+ * 核心原则：纯聚焦时间判断，不涉及其他维度
  */
 
 import type { Task } from '@/types'
-import { formatMinutes } from '@/utils/timeEstimation'
 import { MODEL_CONFIG } from '@/lib/config/modelConfig'
 
 // 使用统一的通用模型配置
 const DOUBAO_CONFIG = MODEL_CONFIG.general
 
-// ⭐ 扩展的用户画像（用于时间估算）
-// 注意：这里使用自己的接口，因为全局UserProfile不包含这些字段
-interface EstimationUserProfile {
-  taskHistory?: {
-    totalCompleted: number        // 历史完成任务数
-    averageEstimateAccuracy: number // 平均估计准确度（实际耗时/估计耗时）
-    overestimateRate: number       // 高估比例（估计>实际）
-    underestimateRate: number      // 低估比例（估计<实际）
-  }
-  preferences?: {
-    worksWellUnderPressure: boolean  // 是否在压力下工作更好
-    prefersBufferTime: boolean       // 是否偏好缓冲时间
-  }
-}
-
-// 任务特征接口
-interface TaskFeatures {
-  hasDeadline: boolean
-  isUrgent: boolean
-  isDifficult: boolean
-  isImportant: boolean
-  hasDescription: boolean
-  descriptionLength: number
-  estimatedComplexity: 'low' | 'medium' | 'high'
-}
-
-/**
- * 提取任务特征
- */
-function extractTaskFeatures(task: Task): TaskFeatures {
-  const hasDeadline = !!task.deadline_datetime
-  const isUrgent = task.tags?.includes('urgent') || false
-  const isDifficult = task.tags?.includes('difficult') || false
-  const isImportant = task.tags?.includes('important') || false
-  const hasDescription = !!task.description && task.description.trim().length > 0
-  const descriptionLength = task.description?.length || 0
-  
-  // 估算复杂度（基于标签和描述长度）
-  let estimatedComplexity: 'low' | 'medium' | 'high' = 'medium'
-  if (isDifficult || descriptionLength > 200) {
-    estimatedComplexity = 'high'
-  } else if (task.tags?.includes('easy') || descriptionLength < 50) {
-    estimatedComplexity = 'low'
-  }
-  
-  return {
-    hasDeadline,
-    isUrgent,
-    isDifficult,
-    isImportant,
-    hasDescription,
-    descriptionLength,
-    estimatedComplexity
-  }
-}
-
-/**
- * 构建用户上下文描述
- */
-function buildUserContextDescription(userProfile: EstimationUserProfile): string {
-  const parts: string[] = []
-  
-  if (userProfile.taskHistory) {
-    const { averageEstimateAccuracy, overestimateRate, underestimateRate } = userProfile.taskHistory
-    
-    if (averageEstimateAccuracy > 1.2) {
-      parts.push('用户倾向于高估任务时间（通常提前完成）')
-    } else if (averageEstimateAccuracy < 0.8) {
-      parts.push('用户倾向于低估任务时间（经常超时）')
-    }
-    
-    if (underestimateRate > 0.6) {
-      parts.push('经常低估任务复杂度')
-    }
-  }
-  
-  if (userProfile.preferences) {
-    if (userProfile.preferences.worksWellUnderPressure) {
-      parts.push('在适度压力下工作效率更高')
-    }
-    if (userProfile.preferences.prefersBufferTime) {
-      parts.push('偏好留有缓冲时间')
-    }
-  }
-  
-  return parts.length > 0 ? parts.join('；') : '新用户，暂无历史数据'
-}
-
 /**
  * 生成个性化反思问题（AI驱动）
  * @param params 参数对象
- * @returns 反思问题文本
+ * @returns 反思问题文本（包含3个问题）
  */
 export async function generateReflectionQuestion(params: {
   task: Task
-  userProfile: EstimationUserProfile
   initialEstimate: number
 }): Promise<string> {
-  const { task, userProfile, initialEstimate } = params
-  const features = extractTaskFeatures(task)
-  const userContext = buildUserContextDescription(userProfile)
+  const { task, initialEstimate } = params
+  
+  console.log('🕐 [时间估算] 开始生成反思问题，任务:', task.title, '估计:', initialEstimate, '分钟')
   
   const apiKey = process.env.NEXT_PUBLIC_DOUBAO_API_KEY
   if (!apiKey) {
     console.warn('⚠️ Doubao API Key未配置，使用规则反思')
-    return getRuleBasedReflection(task, features, initialEstimate)
+    return getRuleBasedReflection(task, initialEstimate)
   }
   
-  // 构建AI Prompt
-  const systemPrompt = `你是一位专业的时间管理教练，擅长帮助用户更准确地估算任务时间。
+  // 构建AI Prompt（极简且聚焦时间）
+  const systemPrompt = `你是一位擅长启发式提问的时间估算教练。你的目标是通过开放式问题，引导用户更深入地思考任务的实际情况，从而做出更准确的时间判断。
 
-你的任务是：
-1. 基于用户的历史行为模式和当前任务特征
-2. 生成恰好3个简短的反思性问题（必须是3个独立的问题）
-3. 帮助用户从不同角度重新审视自己的时间估计
+**核心原则：启发元认知，而非直接质问**
+- 问题要开放式（需要思考和解释，不能简单回答"是/否"）
+- 引导用户发现自己可能忽略的时间因素
+- 探索用户对任务的理解深度
+- 帮助用户意识到理想情况与现实的差距
 
-**反思问题的原则：**
-- 使用苏格拉底式提问，引导而不是说教
-- 必须是3个独立的问题，从不同维度切入：
-  维度1：隐藏步骤和前置工作
-  维度2：意外情况和应对措施（问"你打算怎么办"而不是"预留缓冲时间"）
-  维度3：依赖资源和后续工作
-- 每个问题简短（不超过30字）
-- 语气友好、鼓励性
-- 问题要开放、实际，避免假设用户有能力预留缓冲时间
+**时间估算的常见盲区**：
+1. 只算核心动作，忽略准备、收尾、切换、等待等隐藏耗时
+2. 按最顺利的情况估算，没考虑卡点、返工、查资料的时间
+3. 凭直觉估大任务，没有拆解和分步估算
+4. 低估熟悉度的影响（第一次做 vs 熟练操作）
 
-**严格的输出格式要求：**
-必须输出恰好3行，每行一个问题，以"• "开头。
-不要有任何其他文字、解释或说明。
+**好问题示例（开放式，启发思考）**：
+✅ "这个任务的哪个环节最容易超时？为什么？"
+✅ "你估计的${initialEstimate}分钟，是打算一口气做完，还是会中途休息？"
+✅ "如果${initialEstimate}分钟没做完，最可能卡在哪里？"
+✅ "这个任务你心里有清晰的步骤吗？每步大概要花多久？"
+✅ "你做过类似的任务吗？上次实际花了多久？"
+✅ "开始做之前，还需要做哪些准备？准备会花多久？"
 
-例如：
-• 这个任务包含准备和收尾工作的时间吗？
-• 如果被打断或遇到意外情况，你打算怎么办？会影响其他任务吗？
-• 有没有需要等待他人回复的环节？`
+**要避免的问题类型**：
+❌ 封闭式问题："考虑准备时间了吗？"（只能回答是/否）
+❌ 偏离时间的问题："你打算怎么做这个任务？"（问做法，不是时间）
+❌ 无关问题："今天还有其他任务吗？"（与当前任务时间无关）
+❌ 假设流程的问题："验证环节需要多久？"（用户可能根本不验证）
 
-  const userMessage = `**任务信息：**
-- 标题：${task.title}
-- 描述：${task.description || '无'}
-- 标签：${task.tags?.join('、') || '无'}
-- 截止时间：${task.deadline_datetime ? new Date(task.deadline_datetime).toLocaleString('zh-CN') : '无'}
+**提问策略**：
+• 从用户的估计出发，探索盲区（"${initialEstimate}分钟包括了XX吗？"）
+• 探索不确定性（"哪个部分最不确定？""最可能超时的是？"）
+• 引导拆解（"这个任务具体分几步？""每步呢？"）
+• 对比经验（"之前做过吗？""实际花了多久？"）
+• 探索现实约束（"一口气做完还是分几次？""会被打断吗？"）
 
-**任务特征：**
-- 复杂度：${features.estimatedComplexity}
-- 是否困难：${features.isDifficult ? '是' : '否'}
-- 是否紧急：${features.isUrgent ? '是' : '否'}
+**输出格式（恰好 3 个问题）**：
+• 问题1（开放式，引导深入思考）
+• 问题2（开放式，探索盲区）
+• 问题3（开放式，对比现实）`
 
-**用户画像：**
-${userContext}
+  const userMessage = `用户正在估算任务时间，请帮助 TA 重新审视估算。
 
-**用户的初始时间估计：**
-${formatMinutes(initialEstimate)}
+**任务**：${task.title}
+${task.description ? `**描述**：${task.description}` : ''}
+${task.tags?.length ? `**标签**：${task.tags.join('、')}` : ''}
+${task.deadline_datetime ? `**截止时间**：${new Date(task.deadline_datetime).toLocaleString('zh-CN')}` : ''}
 
-请生成一个反思性问题，帮助用户重新审视这个估计。`
+**用户的初始估计**：${initialEstimate} 分钟
+
+---
+
+请生成 3 个问题，帮助用户发现时间估算中可能忽略的部分。
+记住：只关注时间判断，不扩展到其他维度。`
 
   try {
     const response = await fetch(DOUBAO_CONFIG.endpoint, {
@@ -179,7 +100,7 @@ ${formatMinutes(initialEstimate)}
         ],
         stream: false,
         temperature: 0.7,
-        max_tokens: 100,  // 减少token数量，3个问题足够了
+        max_tokens: 300,  // 3个问题需要足够的token空间
         thinking: {
           type: "disabled"  // 关闭深度思考以提高响应速度
         }
@@ -203,6 +124,7 @@ ${formatMinutes(initialEstimate)}
     }
     
     if (text && text.trim().length > 0) {
+      console.log('🕐 [时间估算] AI生成的问题:\n', text.trim())
       return text.trim()
     } else {
       throw new Error('AI返回内容为空')
@@ -210,78 +132,38 @@ ${formatMinutes(initialEstimate)}
   } catch (error) {
     console.error('❌ AI反思问题生成失败:', error)
     // 降级到规则反思
-    return getRuleBasedReflection(task, features, initialEstimate)
+    console.log('🕐 [时间估算] 使用降级规则生成问题')
+    return getRuleBasedReflection(task, initialEstimate)
   }
 }
 
 /**
  * 规则基础的反思问题生成（降级方案）
- * 返回3个反思问题
+ * 返回3个聚焦时间判断的反思问题
  */
 function getRuleBasedReflection(
   task: Task,
-  features: TaskFeatures,
   initialEstimate: number
 ): string {
   const questions: string[] = []
+  const tags = task.tags || []
   
-  // 第1个问题：基于任务特征
-  if (features.isDifficult && initialEstimate < 60) {
-    questions.push('这个任务被标记为"困难"，半小时够吗？')
-  } else if (features.isUrgent && initialEstimate < 45) {
-    questions.push('紧急任务常有意外，考虑打断和切换成本了吗？')
-  } else if (!features.hasDescription && initialEstimate > 90) {
-    questions.push('任务描述不详细，是否充分了解要做什么？')
-  } else if (features.estimatedComplexity === 'high') {
-    questions.push('复杂任务常有意外细节，考虑调试和返工时间了吗？')
-  } else if (initialEstimate > 180) {
-    questions.push('任务较长，考虑中途休息和查资料的时间了吗？')
-  } else if (initialEstimate < 30) {
-    questions.push('快速任务也需要准备和切换，确定这个估计吗？')
+  // 通用时间问题
+  questions.push(`${initialEstimate}分钟包括了所有步骤吗？有没有忽略的准备或收尾时间？`)
+  
+  // 基于标签的问题
+  if (tags.some(t => ['学习', '阅读', '研究'].includes(t))) {
+    questions.push('学习类任务容易低估，实践和理解的时间算了吗？')
+  } else if (tags.some(t => ['技术', '开发', '调试'].includes(t))) {
+    questions.push('技术任务可能遇到意外问题，预留了调试时间吗？')
   } else {
-    questions.push('这个任务有没有隐藏的步骤或前置工作？')
+    questions.push('这个估计是理想情况还是考虑了可能的意外？')
   }
   
-  // 第2个问题：关于意外和阻塞
-  if (features.hasDeadline && features.isUrgent) {
-    questions.push('如果遇到技术难点或需要请教他人，会多花多久？')
-  } else if (features.isDifficult) {
-    questions.push('遇到卡点时，调试和解决问题需要多少时间？')
-  } else {
-    questions.push('如果需要查资料或学习新知识，会额外花多久？')
-  }
-  
-  // 第3个问题：关于依赖和资源
-  if (features.hasDescription && task.description!.length > 50) {
-    questions.push('有没有需要等待他人反馈或审批的环节？')
-  } else if (features.isImportant) {
-    questions.push('需要准备哪些资料或工具？这部分时间考虑了吗？')
-  } else {
-    questions.push('任务完成后的检查和收尾工作需要多久？')
-  }
+  // 经验对比
+  questions.push('你之前做过类似任务吗？实际花的时间和估计一致吗？')
   
   // 用项目符号格式化，让3个问题更清晰
   return questions.map(q => `• ${q}`).join('\n')
-}
-
-/**
- * 构建一个简单的用户画像（从历史任务中提取）
- * 这个函数可以后续扩展，从实际的任务历史数据中计算
- */
-export function buildUserProfile(tasks: Task[]): EstimationUserProfile {
-  // TODO: 后续可以根据实际的任务完成数据来计算
-  // 目前返回一个默认的用户画像
-  return {
-    taskHistory: {
-      totalCompleted: tasks.filter(t => t.is_completed).length,
-      averageEstimateAccuracy: 1.0,
-      overestimateRate: 0.5,
-      underestimateRate: 0.5,
-    },
-    preferences: {
-      worksWellUnderPressure: false,
-      prefersBufferTime: true,
-    }
-  }
 }
 

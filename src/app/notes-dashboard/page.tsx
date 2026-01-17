@@ -13841,7 +13841,7 @@ ${matrixStats || '（无待办）'}
                   
                   {/* 便签下拉框 - 仅在笔记模式下显示 */}
 
-                  {viewMode === 'editor' && (
+                  {/* {viewMode === 'editor' && (
 
                     <StickyNotesDropdown
 
@@ -13859,7 +13859,7 @@ ${matrixStats || '（无待办）'}
 
                     />
 
-                  )}
+                  )} */}
 
                   
                   
