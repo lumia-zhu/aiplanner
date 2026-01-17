@@ -12851,6 +12851,10 @@ ${matrixStats || '（无待办）'}
           // 保存到数据库
 
           await saveNote(user.id, taskNoteDate, newContent)
+          
+          // 🔧 更新保存状态
+          setLastSaved(new Date())
+          setSaveStatus('saved')
 
           console.log('✅ 笔记已保存到数据库')
 
@@ -13028,6 +13032,9 @@ ${matrixStats || '（无待办）'}
         taskIdsToMove.map(id => updateTaskQuadrant(id, targetQuadrant))
       )
       
+      // 🔧 更新保存状态，让用户知道操作已保存
+      setLastSaved(new Date())
+      setSaveStatus('saved')
       
       console.log('✅ 任务移动成功（数据库已同步）')
       
@@ -13872,7 +13879,8 @@ ${matrixStats || '（无待办）'}
                           console.log('⏳ 等待任务同步完成...')
                           await pendingSyncRef.current
                         }
-                        forceLoadTaskMatrix(user.id, selectedDate)
+                        // 🔧 确保矩阵数据加载完成
+                        await forceLoadTaskMatrix(user.id, selectedDate)
 
                       }
 
