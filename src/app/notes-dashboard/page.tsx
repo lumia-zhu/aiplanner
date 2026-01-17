@@ -138,7 +138,7 @@ import { saveChatMessage, getChatMessages, getAllChatMessages, clearChatMessages
 
 import { getStickyNotes, createStickyNote, updateStickyNote, deleteStickyNote, getMaxZIndex, hideStickyNote, restoreStickyNote, getHiddenStickyNotes } from '@/lib/stickyNotes'
 
-import { getTaskMatrixByDate, ensureTaskMatrix, updateTaskQuadrant } from '@/lib/taskMatrix'
+import { getTaskMatrixByDate, ensureTaskMatrix, updateTaskQuadrant, batchInitTaskMatrix } from '@/lib/taskMatrix'
 
 import { getDailyTasksByDate, toggleDailyTaskComplete } from '@/lib/dailyTasks'
 
@@ -574,6 +574,16 @@ export default function NotesDashboardPage() {
   
   // ⭐ 防止消息重复发送的ref（解决异步状态更新导致的多次触发问题）
   const isSendingMessageRef = useRef<boolean>(false)
+  
+  // 🔧 性能优化：任务矩阵刷新节流（防止频繁刷新）
+  const lastMatrixRefreshRef = useRef<number>(0)
+  const MATRIX_REFRESH_INTERVAL = 5000  // 5秒内最多刷新一次
+  
+  // 🔧 性能优化：任务变化检测（避免无变化时重复同步）
+  const lastTasksHashRef = useRef<string>('')
+  
+  // 🔧 跟踪正在进行的任务同步 Promise（用于视图切换时等待）
+  const pendingSyncRef = useRef<Promise<any> | null>(null)
   
   
   // ⭐ 任务拆解相关状态
@@ -1152,87 +1162,66 @@ export default function NotesDashboardPage() {
       
       
       // 4. 为每个任务匹配象限信息，并映射为显示格式
+      // 🔧 性能优化：先收集没有矩阵信息的任务，批量初始化
+      const tasksWithoutMatrix: string[] = []
+      const displayTasksMap = new Map<string, any>()
 
       for (const dailyTask of dailyTasks) {
-
-        // 查找任务的矩阵信息
-
-        const matrix = matrixData.find(m => m.taskId === dailyTask.id)
-
-        
-        
         // 映射 DailyTask 为显示格式（兼容 TaskCard 组件）
-
         const cleanedTitle = sanitizeTaskTitle(dailyTask.title)
-
         console.log('🧹 清理任务标题:', { original: dailyTask.title, cleaned: cleanedTitle })
 
         const displayTask: any = {
-
           id: dailyTask.id,
-
           user_id: dailyTask.userId,
-
           title: cleanedTitle,
-
           completed: dailyTask.completed,
-
           deadline: dailyTask.deadlineDatetime,
-
           timeRange: dailyTask.deadlineDatetime ? formatTimeRange(dailyTask.deadlineDatetime) : undefined,
-
           created_at: dailyTask.createdAt,
-
           updated_at: dailyTask.updatedAt,
-
           // 🆕 层级信息
           depth: dailyTask.depth ?? 0,
           parentTaskId: dailyTask.parentTaskId ?? null,
         }
 
-        
-        
-        // 如果没有矩阵信息，则自动初始化到默认象限
+        displayTasksMap.set(dailyTask.id, displayTask)
 
+        // 查找任务的矩阵信息
+        const matrix = matrixData.find(m => m.taskId === dailyTask.id)
+        
         if (!matrix) {
-
-          console.log(`⚠️ 任务 ${dailyTask.id} 没有矩阵信息，将自动初始化到默认象限`)
-
-          const newMatrix = await ensureTaskMatrix(userId, dailyTask.id)
-
-          
-          // 如果任务已被删除，跳过该任务
-          if (!newMatrix) {
-            console.warn(`⚠️ 任务 ${dailyTask.id} 无法初始化矩阵，跳过`)
-            continue
-          }
-          
-          const quadrant = newMatrix.quadrant as QuadrantType
-
-          if (!grouped[quadrant]) {
-
-            grouped[quadrant] = []
-
-          }
-
-          grouped[quadrant].push(displayTask)
-
+          // 收集没有矩阵信息的任务
+          tasksWithoutMatrix.push(dailyTask.id)
         } else {
-
-          // 按象限分组
-
+          // 按象限分组（有矩阵信息的任务）
           const quadrant = matrix.quadrant as QuadrantType
-
-          if (!grouped[quadrant]) {
-
-            grouped[quadrant] = []
-
-          }
-
+          if (!grouped[quadrant]) grouped[quadrant] = []
           grouped[quadrant].push(displayTask)
-
         }
+      }
 
+      // 🔧 批量初始化没有矩阵信息的任务
+      if (tasksWithoutMatrix.length > 0) {
+        console.log(`📦 发现 ${tasksWithoutMatrix.length} 个任务没有矩阵信息，批量初始化`)
+        const newMatrices = await batchInitTaskMatrix(userId, tasksWithoutMatrix)
+        
+        // 将新创建的矩阵信息对应的任务放入分组
+        for (const newMatrix of newMatrices) {
+          const displayTask = displayTasksMap.get(newMatrix.taskId)
+          if (displayTask) {
+            const quadrant = newMatrix.quadrant as QuadrantType
+            if (!grouped[quadrant]) grouped[quadrant] = []
+            grouped[quadrant].push(displayTask)
+          }
+        }
+        
+        // 检查是否有任务没有成功创建矩阵（可能已被删除）
+        const createdTaskIds = new Set(newMatrices.map(m => m.taskId))
+        const failedTasks = tasksWithoutMatrix.filter(id => !createdTaskIds.has(id))
+        if (failedTasks.length > 0) {
+          console.warn(`⚠️ ${failedTasks.length} 个任务无法初始化矩阵，可能已被删除`)
+        }
       }
 
       
@@ -1290,6 +1279,61 @@ export default function NotesDashboardPage() {
 
     }
 
+  }, [])
+
+  // 🔧 性能优化：节流版本的 loadTaskMatrix（后台同步时使用）
+  const throttledLoadTaskMatrix = useCallback(async (userId: string, date: Date) => {
+    const now = Date.now()
+    if (now - lastMatrixRefreshRef.current < MATRIX_REFRESH_INTERVAL) {
+      console.log('⏭️ 任务矩阵刷新节流中，跳过本次刷新')
+      return
+    }
+    lastMatrixRefreshRef.current = now
+    console.log('🔄 执行节流后的任务矩阵刷新')
+    await loadTaskMatrix(userId, date)
+  }, [loadTaskMatrix])
+
+  // 🔧 强制刷新任务矩阵（切换日期、视图等场景使用）
+  const forceLoadTaskMatrix = useCallback(async (userId: string, date: Date) => {
+    lastMatrixRefreshRef.current = 0  // 重置节流计时
+    console.log('🔄 强制刷新任务矩阵')
+    await loadTaskMatrix(userId, date)
+  }, [loadTaskMatrix])
+
+  // 🔧 性能优化：计算笔记内任务的哈希值（用于检测变化）
+  const calculateTasksHash = useCallback((content: JSONContent | null): string => {
+    if (!content || !content.content) return ''
+    
+    // 提取所有任务项的标题和完成状态
+    const taskSignatures: string[] = []
+    
+    // 递归提取节点文本
+    const extractText = (node: any): string => {
+      if (node.type === 'text') return node.text || ''
+      if (node.type === 'taskList') return ''  // 跳过嵌套的子任务列表
+      if (node.content && Array.isArray(node.content)) {
+        return node.content.map(extractText).join('')
+      }
+      return ''
+    }
+    
+    const extractTasks = (nodes: any[]) => {
+      for (const node of nodes) {
+        if (node.type === 'taskItem') {
+          const checked = node.attrs?.checked ? '1' : '0'
+          const text = extractText(node).trim()
+          if (text) {
+            taskSignatures.push(`${checked}:${text}`)
+          }
+        }
+        if (node.content) {
+          extractTasks(node.content)
+        }
+      }
+    }
+    
+    extractTasks(content.content)
+    return taskSignatures.sort().join('|')  // 排序后拼接，生成稳定的哈希
   }, [])
 
   
@@ -1831,17 +1875,19 @@ export default function NotesDashboardPage() {
 
 
 
-  // 当日期变化时加载任务矩阵
+  // 当日期变化时加载任务矩阵（强制刷新，不受节流限制）
 
   useEffect(() => {
 
     if (user) {
 
-      loadTaskMatrix(user.id, selectedDate)
+      // 🔧 重置任务哈希，确保新日期能正常同步
+      lastTasksHashRef.current = ''
+      forceLoadTaskMatrix(user.id, selectedDate)
 
     }
 
-  }, [user, selectedDate, loadTaskMatrix])
+  }, [user, selectedDate, forceLoadTaskMatrix])
 
   
   
@@ -2285,23 +2331,38 @@ export default function NotesDashboardPage() {
       
 
       // 🔄 后台异步同步任务到 daily_tasks 表（不阻塞UI）
-      syncTasksFromNote(user.id, dateKey, savedNote.content)
-        .then(async (syncResult) => {
-        console.log(`✅ 任务同步完成: 创建 ${syncResult.created}, 更新 ${syncResult.updated}, 删除 ${syncResult.deleted}`)
-        
-        
+      // 🔧 性能优化：先检测任务是否变化，如果没变化则跳过同步
+      const currentTasksHash = calculateTasksHash(savedNote.content)
+      if (currentTasksHash === lastTasksHashRef.current) {
+        console.log('⏭️ 任务无变化，跳过同步')
+        pendingSyncRef.current = null
+      } else {
+        lastTasksHashRef.current = currentTasksHash
+        // 🔧 保存同步 Promise，用于视图切换时等待
+        const syncPromise = syncTasksFromNote(user.id, dateKey, savedNote.content)
+          .then(async (syncResult) => {
+          console.log(`✅ 任务同步完成: 创建 ${syncResult.created}, 更新 ${syncResult.updated}, 删除 ${syncResult.deleted}`)
+          
+          
 
-          // 同步完成后，后台刷新任务矩阵
-          if (syncResult.created > 0 || syncResult.updated > 0 || syncResult.deleted > 0) {
-            loadTaskMatrix(user.id, selectedDate)
-          }
-        })
-        .catch((syncError) => {
-        console.error('❌ 任务同步失败:', syncError)
+            // 同步完成后，后台刷新任务矩阵（使用节流版本，避免频繁刷新）
+            if (syncResult.created > 0 || syncResult.updated > 0 || syncResult.deleted > 0) {
+              throttledLoadTaskMatrix(user.id, selectedDate)
+            }
+            return syncResult
+          })
+          .catch((syncError) => {
+          console.error('❌ 任务同步失败:', syncError)
 
-        // 任务同步失败不影响笔记保存，只记录错误
+          // 任务同步失败不影响笔记保存，只记录错误
 
-        })
+          })
+          .finally(() => {
+            // 同步完成后清除 ref
+            pendingSyncRef.current = null
+          })
+        pendingSyncRef.current = syncPromise
+      }
       
       
     } catch (error) {
@@ -2318,7 +2379,7 @@ export default function NotesDashboardPage() {
 
     }
 
-  }, [user, selectedDate, isNoteEmpty])
+  }, [user, selectedDate, isNoteEmpty, throttledLoadTaskMatrix, calculateTasksHash])
 
 
 
@@ -12623,11 +12684,11 @@ ${matrixStats || '（无待办）'}
 
 
 
-      // 如果在矩阵模式，刷新矩阵
+      // 如果在矩阵模式，刷新矩阵（任务移动后强制刷新）
 
       if (viewMode === 'matrix') {
 
-        await loadTaskMatrix(user.id, selectedDate)
+        await forceLoadTaskMatrix(user.id, selectedDate)
 
       }
 
@@ -13100,11 +13161,11 @@ ${matrixStats || '（无待办）'}
 
       
       
-      // 如果在矩阵视图，刷新矩阵
+      // 如果在矩阵视图，刷新矩阵（添加任务后强制刷新）
 
       if (viewMode === 'matrix') {
 
-        await loadTaskMatrix(user.id, selectedDate)
+        await forceLoadTaskMatrix(user.id, selectedDate)
 
       }
 
@@ -13801,13 +13862,17 @@ ${matrixStats || '（无待办）'}
 
                     currentMode={viewMode}
 
-                    onModeChange={(mode) => {
+                    onModeChange={async (mode) => {
 
                       setViewMode(mode)
 
                       if (mode === 'matrix' && user) {
-
-                        loadTaskMatrix(user.id, selectedDate)
+                        // 🔧 如果有正在进行的任务同步，先等待完成
+                        if (pendingSyncRef.current) {
+                          console.log('⏳ 等待任务同步完成...')
+                          await pendingSyncRef.current
+                        }
+                        forceLoadTaskMatrix(user.id, selectedDate)
 
                       }
 

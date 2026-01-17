@@ -253,6 +253,144 @@ export async function deleteDailyTasksByNoteDate(
   }
 }
 
+// ============================================
+// 🔧 性能优化：批量操作函数
+// ============================================
+
+/**
+ * 批量创建任务（一次数据库调用）
+ * @param userId 用户ID
+ * @param tasks 任务数组
+ * @returns 创建成功的任务数组
+ */
+export async function batchCreateDailyTasks(
+  userId: string,
+  tasks: CreateDailyTaskInput[]
+): Promise<DailyTask[]> {
+  if (tasks.length === 0) return []
+  
+  try {
+    const supabase = createClient()
+    console.log(`📦 批量创建任务: ${tasks.length} 个`)
+
+    const insertData = tasks.map(input => ({
+      user_id: userId,
+      title: input.title,
+      date: input.date,
+      note_date: input.noteDate,
+      completed: input.completed ?? false,
+      deadline_datetime: input.deadlineDatetime || null,
+      estimated_duration: input.estimatedDuration || null,
+      note_position: input.notePosition ?? 0,
+      depth: input.depth ?? 0,
+      parent_task_id: input.parentTaskId || null,
+    }))
+
+    const { data, error } = await supabase
+      .from('daily_tasks')
+      .insert(insertData)
+      .select()
+
+    if (error) {
+      console.error('❌ 批量创建任务失败:', error)
+      throw new Error(`批量创建任务失败: ${error.message}`)
+    }
+
+    const createdTasks = (data || []).map(mapDbTaskToTask)
+    console.log(`✅ 批量创建成功: ${createdTasks.length} 个任务`)
+    
+    // 🆕 批量记录任务创建事件（不阻塞返回）
+    Promise.all(createdTasks.map(task => 
+      logTaskCreated(userId, task.id, task.depth ?? 0)
+    )).catch(err => console.warn('⚠️ 批量记录任务创建事件失败:', err))
+
+    return createdTasks
+  } catch (error) {
+    console.error('❌ batchCreateDailyTasks 异常:', error)
+    throw error
+  }
+}
+
+/**
+ * 批量更新任务（并行执行多个更新）
+ * @param updates 更新数组 [{ taskId, updates }, ...]
+ * @returns 更新成功的数量
+ */
+export async function batchUpdateDailyTasks(
+  updates: Array<{ taskId: string; updates: UpdateDailyTaskInput }>
+): Promise<number> {
+  if (updates.length === 0) return 0
+  
+  try {
+    const supabase = createClient()
+    console.log(`📦 批量更新任务: ${updates.length} 个`)
+
+    // 并行执行所有更新
+    const promises = updates.map(({ taskId, updates: u }) => {
+      const updateData: any = {}
+      if (u.title !== undefined) updateData.title = u.title
+      if (u.completed !== undefined) updateData.completed = u.completed
+      if (u.date !== undefined) updateData.date = u.date
+      if (u.deadlineDatetime !== undefined) updateData.deadline_datetime = u.deadlineDatetime
+      if (u.estimatedDuration !== undefined) updateData.estimated_duration = u.estimatedDuration
+      if (u.notePosition !== undefined) updateData.note_position = u.notePosition
+      if (u.depth !== undefined) updateData.depth = u.depth
+      if (u.parentTaskId !== undefined) updateData.parent_task_id = u.parentTaskId
+
+      return supabase
+        .from('daily_tasks')
+        .update(updateData)
+        .eq('id', taskId)
+    })
+
+    const results = await Promise.all(promises)
+    
+    // 统计成功数量
+    const successCount = results.filter(r => !r.error).length
+    const errorCount = results.filter(r => r.error).length
+    
+    if (errorCount > 0) {
+      console.warn(`⚠️ 批量更新部分失败: ${errorCount} 个`)
+    }
+    
+    console.log(`✅ 批量更新成功: ${successCount} 个任务`)
+    return successCount
+  } catch (error) {
+    console.error('❌ batchUpdateDailyTasks 异常:', error)
+    throw error
+  }
+}
+
+/**
+ * 批量删除任务（按任务ID数组）
+ * @param taskIds 任务ID数组
+ * @returns 删除成功的数量
+ */
+export async function batchDeleteDailyTasks(taskIds: string[]): Promise<number> {
+  if (taskIds.length === 0) return 0
+  
+  try {
+    const supabase = createClient()
+    console.log(`🗑️ 批量删除任务: ${taskIds.length} 个`)
+
+    const { error, count } = await supabase
+      .from('daily_tasks')
+      .delete()
+      .in('id', taskIds)
+
+    if (error) {
+      console.error('❌ 批量删除任务失败:', error)
+      throw new Error(`批量删除任务失败: ${error.message}`)
+    }
+
+    console.log(`✅ 批量删除成功: ${count ?? taskIds.length} 个任务`)
+    return count ?? taskIds.length
+  } catch (error) {
+    console.error('❌ batchDeleteDailyTasks 异常:', error)
+    throw error
+  }
+}
+
 /**
  * 切换任务完成状态
  */

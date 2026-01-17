@@ -509,3 +509,76 @@ export async function ensureTaskMatrix(
   }
 }
 
+/**
+ * 🔧 性能优化：批量初始化任务矩阵
+ * 一次数据库操作为多个任务创建矩阵记录
+ * 
+ * @param userId - 用户ID
+ * @param taskIds - 任务ID数组
+ * @param initialQuadrant - 初始象限（默认待分类）
+ * @returns 创建成功的任务矩阵数组
+ */
+export async function batchInitTaskMatrix(
+  userId: string,
+  taskIds: string[],
+  initialQuadrant: QuadrantType = 'unclassified'
+): Promise<TaskMatrix[]> {
+  if (taskIds.length === 0) {
+    return []
+  }
+  
+  try {
+    console.log(`📦 批量初始化任务矩阵: ${taskIds.length} 个任务`)
+    
+    const supabase = createClient()
+    
+    // 准备批量插入数据
+    const insertData = taskIds.map(taskId => ({
+      user_id: userId,
+      task_id: taskId,
+      quadrant: initialQuadrant,
+      position: 0,
+    }))
+    
+    // 使用 upsert 避免重复插入冲突
+    const { data, error } = await supabase
+      .from('task_matrix')
+      .upsert(insertData, { 
+        onConflict: 'task_id',  // 如果 task_id 已存在则跳过
+        ignoreDuplicates: true 
+      })
+      .select()
+    
+    if (error) {
+      // 如果是外键约束错误，尝试逐个插入以跳过已删除的任务
+      if (error.code === '23503') {
+        console.warn('⚠️ 批量插入遇到外键错误，尝试逐个处理')
+        const results: TaskMatrix[] = []
+        for (const taskId of taskIds) {
+          const matrix = await initTaskMatrix(userId, taskId)
+          if (matrix) results.push(matrix)
+        }
+        return results
+      }
+      console.error('❌ 批量初始化任务矩阵失败:', error)
+      throw new Error(`批量初始化任务矩阵失败: ${error.message}`)
+    }
+    
+    const matrices: TaskMatrix[] = (data || []).map(row => ({
+      id: row.id,
+      taskId: row.task_id,
+      userId: row.user_id,
+      quadrant: row.quadrant as QuadrantType,
+      position: row.position || 0,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }))
+    
+    console.log(`✅ 批量初始化成功: ${matrices.length} 条记录`)
+    return matrices
+  } catch (error) {
+    console.error('❌ batchInitTaskMatrix 异常:', error)
+    throw error
+  }
+}
+

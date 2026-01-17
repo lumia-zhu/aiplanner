@@ -4,9 +4,17 @@
 // 功能：从笔记内容中提取任务并同步到 daily_tasks 表
 // ============================================
 
-import { createDailyTask, updateDailyTask, deleteDailyTask, getDailyTasksByNoteDate } from './dailyTasks'
-import { ensureTaskMatrix } from './taskMatrix'
-import type { ParsedTask, TaskSyncResult, DailyTask } from '@/types'
+import { 
+  createDailyTask, 
+  updateDailyTask, 
+  deleteDailyTask, 
+  getDailyTasksByNoteDate,
+  batchCreateDailyTasks,
+  batchUpdateDailyTasks,
+  batchDeleteDailyTasks
+} from './dailyTasks'
+import { ensureTaskMatrix, batchInitTaskMatrix } from './taskMatrix'
+import type { ParsedTask, TaskSyncResult, DailyTask, CreateDailyTaskInput, UpdateDailyTaskInput } from '@/types'
 
 /**
  * 从 Tiptap JSON 内容中提取任务
@@ -230,6 +238,7 @@ function parseTasksFromHtml(htmlContent: string): ParsedTask[] {
 
 /**
  * 同步笔记任务到数据库
+ * 🔧 性能优化版：使用批量数据库操作
  * 
  * @param userId 用户ID
  * @param noteDate 笔记日期 (YYYY-MM-DD)
@@ -249,7 +258,7 @@ export async function syncTasksFromNote(
   }
 
   try {
-    console.log(`🔄 开始同步任务: noteDate=${noteDate}`)
+    console.log(`🔄 开始同步任务（批量优化版）: noteDate=${noteDate}`)
 
     // 1. 从笔记内容中解析任务
     const rawParsedTasks = parseTasksFromNote(noteContent)
@@ -272,8 +281,7 @@ export async function syncTasksFromNote(
     const existingTasks = await getDailyTasksByNoteDate(userId, noteDate)
     console.log(`📊 数据库中有 ${existingTasks.length} 个任务`)
 
-    // 3. 🔧 构建任务映射（按 标题+父任务标题 匹配，而非位置）
-    // 这样即使任务位置变化，也能正确匹配到已有任务
+    // 3. 🔧 构建任务映射（按 标题+父任务标题 匹配）
     const existingTaskMap = new Map<string, DailyTask>()
     const existingTaskById = new Map<string, DailyTask>()
     
@@ -282,125 +290,55 @@ export async function syncTasksFromNote(
     }
     
     for (const task of existingTasks) {
-      // 生成唯一键：标题 + 父任务标题（如果有）
       const parentTitle = task.parentTaskId 
         ? existingTaskById.get(task.parentTaskId)?.title?.toLowerCase().trim() || 'unknown'
         : 'root'
       const key = `${task.title.toLowerCase().trim()}|${parentTitle}`
       existingTaskMap.set(key, task)
-      console.log(`📌 已有任务映射: "${task.title}" -> key: ${key}`)
     }
 
-    // 4. 同步任务（分两轮：先父任务，再子任务）
+    // 4. 🔧 分类任务：待创建、待更新、待删除
     const processedTaskKeys = new Set<string>()
-    
-    // 🆕 position → taskId 映射（用于建立父子关系）
-    // ⚠️ 注意：这里的 position 是当前解析的位置（parsedTask.position），不是数据库中的 notePosition
-    // 因为用户编辑笔记后任务位置可能变化，必须使用当前解析的位置来建立父子关系
     const positionToTaskId = new Map<number, string>()
-    // 🆕 position → title 映射（用于生成子任务的匹配键）
     const positionToTitle = new Map<number, string>()
+    
+    // 收集批量操作数据
+    const tasksToCreate: Array<{ input: CreateDailyTaskInput; position: number; depth: number }> = []
+    const tasksToUpdate: Array<{ taskId: string; updates: UpdateDailyTaskInput }> = []
+    const newTaskIds: string[] = []  // 新创建的任务ID（用于批量初始化矩阵）
 
-    // 🆕 第一轮：处理父任务（depth = 0）和更新已有任务
-    for (const parsedTask of parsedTasks.filter(t => (t.depth ?? 0) === 0)) {
-      // 🔧 使用 标题+root 作为匹配键（父任务没有父级）
-      const matchKey = `${parsedTask.title.toLowerCase().trim()}|root`
-      processedTaskKeys.add(matchKey)
-      const existingTask = existingTaskMap.get(matchKey)
+    // 按层级排序（先处理父任务，再处理子任务）
+    const sortedTasks = [...parsedTasks].sort((a, b) => (a.depth ?? 0) - (b.depth ?? 0))
+
+    // 5. 遍历任务，分类到创建/更新队列
+    for (const parsedTask of sortedTasks) {
+      const taskDepth = parsedTask.depth ?? 0
       
-      // 记录 position → title 映射
-      positionToTitle.set(parsedTask.position, parsedTask.title.toLowerCase().trim())
-      
-      // 父任务没有 parentTaskId
-      const parentTaskId: string | null = null
-
-      if (existingTask) {
-        // 任务已存在，检查是否需要更新
-        const taskDepth = parsedTask.depth ?? 0
-        const needsUpdate = 
-          existingTask.title !== parsedTask.title ||
-          existingTask.completed !== parsedTask.completed ||
-          existingTask.estimatedDuration !== parsedTask.estimatedDuration ||
-          (existingTask.depth ?? 0) !== taskDepth ||
-          existingTask.parentTaskId !== parentTaskId
-
-        if (needsUpdate) {
-          try {
-            await updateDailyTask(existingTask.id, {
-              title: parsedTask.title,
-              completed: parsedTask.completed,
-              estimatedDuration: parsedTask.estimatedDuration,
-              depth: taskDepth,               // 🆕 更新层级
-              parentTaskId: parentTaskId,     // 🆕 更新父任务ID
-            })
-            result.updated++
-            console.log(`✅ 更新任务: ${parsedTask.title} (depth=${taskDepth}, parentId=${parentTaskId})`)
-          } catch (error) {
-            result.errors.push(`更新任务失败: ${parsedTask.title}`)
-            console.error('❌ 更新任务失败:', error)
-          }
-        }
-        // 记录已存在任务的 ID 映射
-        positionToTaskId.set(parsedTask.position, existingTask.id)
-      } else {
-        // 新任务，创建
-        try {
-          const newTask = await createDailyTask(userId, {
-            title: parsedTask.title,
-            completed: parsedTask.completed,
-            date: noteDate, // 默认任务属于笔记的当天
-            noteDate: noteDate,
-            notePosition: parsedTask.position,
-            deadlineDatetime: parsedTask.deadlineDatetime,
-            estimatedDuration: parsedTask.estimatedDuration,
-            depth: parsedTask.depth ?? 0,           // 🆕 保存层级
-            parentTaskId: parentTaskId,              // 🆕 保存父任务ID
-          })
-          
-          // 🆕 记录新建任务的 ID 映射（供后续子任务使用）
-          positionToTaskId.set(parsedTask.position, newTask.id)
-
-          // 为新任务创建矩阵记录（默认：待分类）
-          await ensureTaskMatrix(userId, newTask.id)
-
-          result.created++
-          console.log(`✅ 创建任务: ${parsedTask.title} (depth=${parsedTask.depth}, parentId=${parentTaskId})`)
-        } catch (error) {
-          result.errors.push(`创建任务失败: ${parsedTask.title}`)
-          console.error('❌ 创建任务失败:', error)
-        }
+      // 计算匹配键
+      let parentTitle = 'root'
+      if (taskDepth > 0 && parsedTask.parentPosition !== undefined) {
+        parentTitle = positionToTitle.get(parsedTask.parentPosition) || 'unknown'
       }
-    }
-
-    // 🆕 第二轮：处理子任务（depth > 0）
-    for (const parsedTask of parsedTasks.filter(t => (t.depth ?? 0) > 0)) {
-      // 查找父任务标题（用于生成匹配键）
-      const parentTitle = parsedTask.parentPosition !== undefined 
-        ? positionToTitle.get(parsedTask.parentPosition) || 'unknown'
-        : 'root'
-      
-      // 🔧 使用 标题+父任务标题 作为匹配键
       const matchKey = `${parsedTask.title.toLowerCase().trim()}|${parentTitle}`
       processedTaskKeys.add(matchKey)
-      const existingTask = existingTaskMap.get(matchKey)
-      
-      // 记录 position → title 映射
       positionToTitle.set(parsedTask.position, parsedTask.title.toLowerCase().trim())
       
-      // 查找父任务ID
+      const existingTask = existingTaskMap.get(matchKey)
+      
+      // 确定父任务ID
       let parentTaskId: string | null = null
-      if (parsedTask.parentPosition !== undefined) {
+      if (taskDepth > 0 && parsedTask.parentPosition !== undefined) {
         parentTaskId = positionToTaskId.get(parsedTask.parentPosition) || null
         if (!parentTaskId) {
-          // 🔧 不再跳过，继续处理（parentTaskId 保持为 null）
-          // 这样可以确保任务被创建，并且它的后代任务也能被处理
-          console.warn(`⚠️ 子任务 "${parsedTask.title}" 的父任务(position=${parsedTask.parentPosition})未找到，将作为孤立任务处理`)
+          console.warn(`⚠️ 子任务 "${parsedTask.title}" 的父任务未找到，作为孤立任务处理`)
         }
       }
 
       if (existingTask) {
-        // 任务已存在，检查是否需要更新
-        const taskDepth = parsedTask.depth ?? 0
+        // 已存在，记录ID映射
+        positionToTaskId.set(parsedTask.position, existingTask.id)
+        
+        // 检查是否需要更新
         const needsUpdate = 
           existingTask.title !== parsedTask.title ||
           existingTask.completed !== parsedTask.completed ||
@@ -409,26 +347,21 @@ export async function syncTasksFromNote(
           existingTask.parentTaskId !== parentTaskId
 
         if (needsUpdate) {
-          try {
-            await updateDailyTask(existingTask.id, {
+          tasksToUpdate.push({
+            taskId: existingTask.id,
+            updates: {
               title: parsedTask.title,
               completed: parsedTask.completed,
               estimatedDuration: parsedTask.estimatedDuration,
               depth: taskDepth,
               parentTaskId: parentTaskId,
-            })
-            result.updated++
-            console.log(`✅ 更新子任务: ${parsedTask.title} (depth=${taskDepth}, parentId=${parentTaskId})`)
-          } catch (error) {
-            result.errors.push(`更新子任务失败: ${parsedTask.title}`)
-            console.error('❌ 更新子任务失败:', error)
-          }
+            }
+          })
         }
-        positionToTaskId.set(parsedTask.position, existingTask.id)
       } else {
-        // 新子任务，创建
-        try {
-          const newTask = await createDailyTask(userId, {
+        // 新任务，加入创建队列
+        tasksToCreate.push({
+          input: {
             title: parsedTask.title,
             completed: parsedTask.completed,
             date: noteDate,
@@ -436,24 +369,95 @@ export async function syncTasksFromNote(
             notePosition: parsedTask.position,
             deadlineDatetime: parsedTask.deadlineDatetime,
             estimatedDuration: parsedTask.estimatedDuration,
-            depth: parsedTask.depth ?? 0,
+            depth: taskDepth,
             parentTaskId: parentTaskId,
-          })
-          
-          positionToTaskId.set(parsedTask.position, newTask.id)
-          await ensureTaskMatrix(userId, newTask.id)
-          
-          result.created++
-          console.log(`✅ 创建子任务: ${parsedTask.title} (depth=${parsedTask.depth}, parentId=${parentTaskId})`)
-        } catch (error) {
-          result.errors.push(`创建子任务失败: ${parsedTask.title}`)
-          console.error('❌ 创建子任务失败:', error)
+          },
+          position: parsedTask.position,
+          depth: taskDepth,
+        })
+      }
+    }
+
+    // 6. 🔧 批量创建任务（按层级分批，确保父子关系正确）
+    // 获取所有层级
+    const depths = [...new Set(tasksToCreate.map(t => t.depth))].sort((a, b) => a - b)
+    
+    for (const depth of depths) {
+      const tasksAtDepth = tasksToCreate.filter(t => t.depth === depth)
+      if (tasksAtDepth.length === 0) continue
+      
+      // 更新 parentTaskId（使用已创建的父任务ID）
+      const inputsToCreate: CreateDailyTaskInput[] = tasksAtDepth.map(t => {
+        if (depth > 0) {
+          // 从 positionToTaskId 查找实际的父任务ID
+          const parsedTask = sortedTasks.find(p => p.position === t.position)
+          if (parsedTask?.parentPosition !== undefined) {
+            const actualParentId = positionToTaskId.get(parsedTask.parentPosition)
+            if (actualParentId) {
+              return { ...t.input, parentTaskId: actualParentId }
+            }
+          }
+        }
+        return t.input
+      })
+      
+      console.log(`📦 批量创建 depth=${depth} 的任务: ${inputsToCreate.length} 个`)
+      
+      try {
+        const createdTasks = await batchCreateDailyTasks(userId, inputsToCreate)
+        
+        // 记录新创建的任务ID映射
+        createdTasks.forEach((newTask, index) => {
+          const originalTask = tasksAtDepth[index]
+          positionToTaskId.set(originalTask.position, newTask.id)
+          newTaskIds.push(newTask.id)
+        })
+        
+        result.created += createdTasks.length
+        console.log(`✅ 批量创建成功: ${createdTasks.length} 个任务 (depth=${depth})`)
+      } catch (error) {
+        result.errors.push(`批量创建 depth=${depth} 任务失败`)
+        console.error(`❌ 批量创建失败 (depth=${depth}):`, error)
+        
+        // 降级为逐个创建
+        for (const taskData of tasksAtDepth) {
+          try {
+            const newTask = await createDailyTask(userId, taskData.input)
+            positionToTaskId.set(taskData.position, newTask.id)
+            newTaskIds.push(newTask.id)
+            result.created++
+          } catch (err) {
+            result.errors.push(`创建任务失败: ${taskData.input.title}`)
+          }
         }
       }
     }
 
-    // 5. 删除数据库中多余的任务（笔记中已移除）
-    // 🔧 使用任务键（标题+父标题）来判断，而不是位置
+    // 7. 🔧 批量更新任务
+    if (tasksToUpdate.length > 0) {
+      console.log(`📦 批量更新任务: ${tasksToUpdate.length} 个`)
+      try {
+        const updatedCount = await batchUpdateDailyTasks(tasksToUpdate)
+        result.updated = updatedCount
+        console.log(`✅ 批量更新成功: ${updatedCount} 个任务`)
+      } catch (error) {
+        result.errors.push('批量更新任务失败')
+        console.error('❌ 批量更新失败:', error)
+        
+        // 降级为逐个更新
+        for (const { taskId, updates } of tasksToUpdate) {
+          try {
+            await updateDailyTask(taskId, updates)
+            result.updated++
+          } catch (err) {
+            result.errors.push(`更新任务失败: ${taskId}`)
+          }
+        }
+      }
+    }
+
+    // 8. 🔧 批量删除任务
+    const tasksToDelete: string[] = []
     for (const existingTask of existingTasks) {
       const parentTitle = existingTask.parentTaskId 
         ? existingTaskById.get(existingTask.parentTaskId)?.title?.toLowerCase().trim() || 'unknown'
@@ -461,18 +465,45 @@ export async function syncTasksFromNote(
       const taskKey = `${existingTask.title.toLowerCase().trim()}|${parentTitle}`
       
       if (!processedTaskKeys.has(taskKey)) {
-        try {
-          await deleteDailyTask(existingTask.id)
-          result.deleted++
-          console.log(`🗑️ 删除任务: ${existingTask.title} (key: ${taskKey})`)
-        } catch (error) {
-          result.errors.push(`删除任务失败: ${existingTask.title}`)
-          console.error('❌ 删除任务失败:', error)
+        tasksToDelete.push(existingTask.id)
+      }
+    }
+    
+    if (tasksToDelete.length > 0) {
+      console.log(`🗑️ 批量删除任务: ${tasksToDelete.length} 个`)
+      try {
+        const deletedCount = await batchDeleteDailyTasks(tasksToDelete)
+        result.deleted = deletedCount
+        console.log(`✅ 批量删除成功: ${deletedCount} 个任务`)
+      } catch (error) {
+        result.errors.push('批量删除任务失败')
+        console.error('❌ 批量删除失败:', error)
+        
+        // 降级为逐个删除
+        for (const taskId of tasksToDelete) {
+          try {
+            await deleteDailyTask(taskId)
+            result.deleted++
+          } catch (err) {
+            result.errors.push(`删除任务失败: ${taskId}`)
+          }
         }
       }
     }
 
-    console.log(`✅ 任务同步完成: 创建 ${result.created}, 更新 ${result.updated}, 删除 ${result.deleted}`)
+    // 9. 🔧 批量初始化新任务的矩阵
+    if (newTaskIds.length > 0) {
+      console.log(`📦 批量初始化矩阵: ${newTaskIds.length} 个新任务`)
+      try {
+        await batchInitTaskMatrix(userId, newTaskIds)
+        console.log(`✅ 批量初始化矩阵成功`)
+      } catch (error) {
+        console.error('❌ 批量初始化矩阵失败:', error)
+        // 矩阵初始化失败不影响任务同步结果
+      }
+    }
+
+    console.log(`✅ 任务同步完成（批量优化版）: 创建 ${result.created}, 更新 ${result.updated}, 删除 ${result.deleted}`)
 
   } catch (error) {
     console.error('❌ syncTasksFromNote 异常:', error)
