@@ -5,6 +5,7 @@
  */
 
 import type { AgentConfig } from './AgentTypes'
+import { MODEL_CONFIG } from '@/lib/config/modelConfig'
 
 /**
  * 默认配置
@@ -16,9 +17,9 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = {
   // 最大迭代次数（防止死循环）
   maxIterations: 10,
   
-  // LLM 配置
+  // LLM 配置（使用统一配置）
   llm: {
-    model: 'doubao-seed-1-6-vision-250815',
+    model: MODEL_CONFIG.general.model,
     temperature: 0.3,  // ⭐ 降低 temperature 提升响应速度和决策稳定性（从 0.7 改为 0.3）
     maxTokens: 1500  // ⭐ 设置为 1500，支持返回约 20-30 个任务，平衡输出质量和成本
   },

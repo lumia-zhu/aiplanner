@@ -5,12 +5,10 @@
 
 import type { Task } from '@/types'
 import { formatMinutes } from '@/utils/timeEstimation'
+import { MODEL_CONFIG } from '@/lib/config/modelConfig'
 
-// 豆包大模型配置
-const DOUBAO_CONFIG = {
-  endpoint: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
-  model: 'doubao-seed-1-6-vision-250815',
-}
+// 使用统一的通用模型配置
+const DOUBAO_CONFIG = MODEL_CONFIG.general
 
 // ⭐ 扩展的用户画像（用于时间估算）
 // 注意：这里使用自己的接口，因为全局UserProfile不包含这些字段

@@ -5,12 +5,10 @@
 
 import type { Task } from '@/types'
 import { generateClarificationQuestions } from './clarificationQuestions'
+import { MODEL_CONFIG } from '@/lib/config/modelConfig'
 
-// AI大模型配置
-const DOUBAO_CONFIG = {
-  endpoint: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
-  model: 'deepseek-v3-2-251201',
-}
+// 使用统一的反思模型配置（任务澄清需要较强的理解能力）
+const DOUBAO_CONFIG = MODEL_CONFIG.reflection
 
 /**
  * 根据任务内容动态生成3个苏格拉底式问题

@@ -13,14 +13,10 @@ import type { DailyTask } from '@/types/daily-task'
 import type { DailyReflection } from '@/types/daily-reflection'
 import type { ReflectionSession } from '@/types/reflection'
 import { DAILY_REFLECTION_QUESTIONS } from '@/types/daily-reflection'
+import { MODEL_CONFIG } from '@/lib/config/modelConfig'
 
-/**
- * Deepseek V3.2 配置
- */
-const DEEPSEEK_CONFIG = {
-  endpoint: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
-  model: 'deepseek-v3-2-251201'
-}
+// 使用统一的反思模型配置
+const DEEPSEEK_CONFIG = MODEL_CONFIG.reflection
 
 /**
  * AI生成超时时间（毫秒）

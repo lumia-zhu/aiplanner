@@ -5,6 +5,8 @@
  * 直接调用豆包 LLM，不使用 Agent 架构
  */
 
+import { MODEL_CONFIG } from '@/lib/config/modelConfig'
+
 export interface CasualChatOptions {
   temperature?: number
   maxTokens?: number
@@ -82,14 +84,14 @@ export async function* casualChat(
   })
 
   try {
-    const response = await fetch('https://ark.cn-beijing.volces.com/api/v3/chat/completions', {
+    const response = await fetch(MODEL_CONFIG.general.endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: 'doubao-seed-1-6-vision-250815',
+        model: MODEL_CONFIG.general.model,
         messages: messages,
         temperature: opts.temperature,
         max_tokens: opts.maxTokens,

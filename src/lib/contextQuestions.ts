@@ -4,12 +4,10 @@
  */
 
 import type { Task } from '@/types'
+import { MODEL_CONFIG } from '@/lib/config/modelConfig'
 
-// 豆包大模型配置
-const DOUBAO_CONFIG = {
-  endpoint: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
-  model: 'doubao-seed-1-6-vision-250815',
-}
+// 使用统一的通用模型配置
+const DOUBAO_CONFIG = MODEL_CONFIG.general
 
 /**
  * 根据任务动态生成2-3个背景信息问题（使用AI）

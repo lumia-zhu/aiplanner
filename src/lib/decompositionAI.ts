@@ -7,12 +7,10 @@ import type { Task } from '@/types'
 import { generateContextQuestions } from './contextQuestions'
 // 🆕 历史上下文相关
 import { formatContextForPrompt, type ReflectionContext } from './reflectionFlow'
+import { MODEL_CONFIG } from '@/lib/config/modelConfig'
 
-// 豆包大模型配置
-const DOUBAO_CONFIG = {
-  endpoint: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
-  model: 'doubao-seed-1-6-vision-250815',
-}
+// 使用统一的通用模型配置
+const DOUBAO_CONFIG = MODEL_CONFIG.general
 
 /**
  * 根据任务内容动态生成3个任务拆解引导问题

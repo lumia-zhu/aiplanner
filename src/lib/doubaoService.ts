@@ -1,10 +1,9 @@
 'use client'
 
-// 豆包大模型配置
-const DOUBAO_CONFIG = {
-  endpoint: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
-  model: 'doubao-seed-1-6-vision-250815',
-}
+import { MODEL_CONFIG } from '@/lib/config/modelConfig'
+
+// 使用统一的通用模型配置
+const DOUBAO_CONFIG = MODEL_CONFIG.general
 
 // 任务澄清的JSON Schema定义（用于结构化输出）
 const TASK_CLARIFICATION_SCHEMA = {

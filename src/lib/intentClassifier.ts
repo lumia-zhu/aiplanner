@@ -2,6 +2,8 @@
  * 意图分类器 - 判断用户消息是任务管理还是普通聊天
  */
 
+import { MODEL_CONFIG } from '@/lib/config/modelConfig'
+
 /**
  * 意图类型
  * - task_management: 任务管理相关（需要调用 Agent）
@@ -218,14 +220,14 @@ async function llmClassify(userMessage: string): Promise<IntentResult> {
       throw new Error('缺少 DOUBAO_API_KEY')
     }
 
-    const response = await fetch('https://ark.cn-beijing.volces.com/api/v3/chat/completions', {
+    const response = await fetch(MODEL_CONFIG.general.endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: 'doubao-seed-1-6-vision-250815',  // 使用和主系统相同的模型
+        model: MODEL_CONFIG.general.model,  // 使用统一配置的模型
         messages: [
           {
             role: 'system',
