@@ -168,6 +168,9 @@ const DraggableTaskItem = TaskItem.extend({
           // 遍历旧文档和新文档，找出 checked 状态变化的 taskItem
           oldState.doc.descendants((oldNode, oldPos) => {
             if (oldNode.type.name === 'taskItem') {
+              // 🔧 检查位置是否在新文档范围内（防止删除任务时越界）
+              if (oldPos >= newState.doc.content.size) return
+              
               const newNode = newState.doc.nodeAt(oldPos)
               if (newNode && newNode.type.name === 'taskItem') {
                 const oldChecked = oldNode.attrs.checked || false

@@ -13327,9 +13327,9 @@ ${matrixStats || '（无待办）'}
               )}
               
               {/* 🧪 测试按钮（仅开发环境） */}
-              {process.env.NODE_ENV === 'development' && (
+              {/* {process.env.NODE_ENV === 'development' && (
                 <>
-                  {/* 清空每日回顾 */}
+                  清空每日回顾
                   <button
                     onClick={async () => {
                       if (!user) return
@@ -13395,7 +13395,7 @@ ${matrixStats || '（无待办）'}
                     <span>清空每日回顾</span>
                   </button>
                   
-                  {/* 清空任务规划会话 */}
+                  清空任务规划会话
                   <button
                     onClick={async () => {
                       if (!user || !selectedDate) return
@@ -13478,7 +13478,7 @@ ${matrixStats || '（无待办）'}
                     <span>清空任务规划</span>
                   </button>
                 </>
-              )}
+              )} */}
               
               <button
 
