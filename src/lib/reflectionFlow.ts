@@ -1218,6 +1218,47 @@ ${previousQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
 // ==================== 时间规划问题生成 ====================
 
 /**
+ * 格式化截止时间为友好的中文格式
+ * 例如：2026-01-18T18:00:00.000Z → "01月18日 18:00"
+ */
+function formatDeadlineForPrompt(deadline: string | undefined): string {
+  if (!deadline) return '无截止时间'
+  
+  try {
+    const date = new Date(deadline)
+    if (isNaN(date.getTime())) return deadline // 如果解析失败，返回原始字符串
+    
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const hours = String(date.getHours()).padStart(2, '0')
+    const minutes = String(date.getMinutes()).padStart(2, '0')
+    
+    return `${month}月${day}日 ${hours}:${minutes}`
+  } catch {
+    return deadline // 解析失败时返回原始字符串
+  }
+}
+
+/**
+ * 格式化时长为友好的中文格式
+ * 例如：90 → "1小时30分钟"
+ */
+function formatDurationForPrompt(minutes: number | undefined): string {
+  if (!minutes) return '未估时'
+  
+  if (minutes < 60) {
+    return `${minutes}分钟`
+  } else {
+    const hours = Math.floor(minutes / 60)
+    const remainingMinutes = minutes % 60
+    if (remainingMinutes === 0) {
+      return `${hours}小时`
+    }
+    return `${hours}小时${remainingMinutes}分钟`
+  }
+}
+
+/**
  * 为选定的任务生成估算时间反思问题（1-3个）
  * 
  * 聚焦于帮助用户校准时间估计、识别隐形依赖、应对意外
@@ -1242,12 +1283,24 @@ export async function generateTimeQuestions(
       ? formatContextForPrompt(reflectionContext, task.title)
       : ''
     
-    // 构建任务信息
+    // 构建任务信息（使用友好格式）
+    const formattedDuration = formatDurationForPrompt(task.estimatedDuration)
+    const formattedDeadline = formatDeadlineForPrompt(task.deadline)
+    
     const taskInfo = `
 任务名称：${task.title}
-${task.estimatedDuration ? `已估时长：${task.estimatedDuration}分钟` : '未估时'}
-${task.deadline ? `截止时间：${task.deadline}` : '无截止时间'}
+预估时长：${formattedDuration}
+截止时间：${formattedDeadline}
 `.trim()
+
+    // 📊 调试日志：显示传入 prompt 的任务信息
+    console.log('🔍 [generateTimeQuestions] 任务信息:', {
+      title: task.title,
+      原始时长: task.estimatedDuration,
+      格式化时长: formattedDuration,
+      原始截止时间: task.deadline,
+      格式化截止时间: formattedDeadline
+    })
 
     const systemPrompt = `你是一位擅长启发式提问的时间估算教练。你的目标是通过开放式问题，引导用户更深入地思考任务的实际情况，从而做出更准确的时间判断。
 
@@ -1377,12 +1430,28 @@ export async function generatePriorityQuestions(
       ? formatContextForPrompt(reflectionContext, tasks[0]?.title)
       : ''
     
-    // 构建任务信息
+    // 构建任务信息（使用友好格式）
+    const tasksWithDeadline = tasks.filter(t => t.deadline)
+    const deadlineInfo = tasksWithDeadline.length > 0 
+      ? `有截止时间的任务：${tasksWithDeadline.map(t => `「${t.title}」(${formatDeadlineForPrompt(t.deadline)})`).join('、')}`
+      : ''
+    
     let taskInfo = `
 待分类任务：${taskList}
 任务数量：${tasks.length} 个
-${tasks.some(t => t.deadline) ? `有截止时间的任务：${tasks.filter(t => t.deadline).map(t => `「${t.title}」(${t.deadline})`).join('、')}` : ''}
+${deadlineInfo}
 `.trim()
+
+    // 📊 调试日志：显示传入 prompt 的任务信息
+    console.log('🔍 [generatePriorityQuestions] 任务信息:', {
+      任务列表: tasks.map(t => ({
+        title: t.title,
+        原始截止时间: t.deadline,
+        格式化截止时间: formatDeadlineForPrompt(t.deadline),
+        原始时长: t.estimatedDuration,
+        格式化时长: formatDurationForPrompt(t.estimatedDuration)
+      }))
+    })
 
     // 如果有矩阵上下文，添加维度和已分类任务信息
     let matrixInfo = ''

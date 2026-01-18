@@ -109,7 +109,7 @@ export default function TaskActionMenu({
     },
     {
       icon: '⏰',
-      label: '设置时间',
+      label: '设置截止时间',
       onClick: () => {
         onOpenDateTimePicker()
         onClose()

@@ -14,6 +14,7 @@ interface DateTimePickerProps {
   position: { x: number; y: number }  // 弹窗位置
   initialValue?: DateTimeSetting      // 初始值（编辑时使用）
   onSelect: (value: DateTimeSetting) => void  // 选择回调
+  onClear?: () => void                // 清除时间回调（可选）
   onClose: () => void                 // 关闭回调
 }
 
@@ -21,6 +22,7 @@ export default function DateTimePicker({
   position,
   initialValue,
   onSelect,
+  onClear,
   onClose
 }: DateTimePickerProps) {
   const pickerRef = useRef<HTMLDivElement>(null)
@@ -214,7 +216,7 @@ export default function DateTimePicker({
       {/* 标题 */}
       <div className="mb-4">
         <h3 className="text-base font-semibold text-gray-800 flex items-center gap-2">
-          ⏰ 设置时间
+          ⏰ 设置截止时间
         </h3>
       </div>
       
@@ -349,6 +351,19 @@ export default function DateTimePicker({
         >
           取消
         </button>
+        {/* 只有当任务已有时间设置时才显示清除按钮 */}
+        {initialValue && onClear && (
+          <button
+            type="button"
+            onClick={() => {
+              onClear()
+              onClose()
+            }}
+            className="flex-1 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors text-sm font-medium"
+          >
+            清除
+          </button>
+        )}
         <button
           type="button"
           onClick={handleConfirm}

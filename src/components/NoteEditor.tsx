@@ -491,6 +491,7 @@ export default function NoteEditor({
   // 时间选择器状态
   const [showDateTimePicker, setShowDateTimePicker] = useState(false)
   const [dateTimePickerPosition, setDateTimePickerPosition] = useState({ x: 0, y: 0 })
+  const [currentTaskDateTime, setCurrentTaskDateTime] = useState<DateTimeSetting | undefined>(undefined)  // 当前任务的时间设置
 
   // ⏳ 时长选择器状态
   const [showDurationPicker, setShowDurationPicker] = useState(false)
@@ -1429,6 +1430,35 @@ export default function NoteEditor({
       x: rect.left + 35,
       y: rect.top
     })
+    
+    // 获取当前任务的时间设置（如果有）
+    const mode = currentTaskElement.getAttribute('data-datetime-mode')
+    if (mode === 'deadline') {
+      const deadlineIso = currentTaskElement.getAttribute('data-deadline-time')
+      if (deadlineIso) {
+        setCurrentTaskDateTime({
+          mode: 'deadline',
+          time: new Date(deadlineIso)
+        })
+      } else {
+        setCurrentTaskDateTime(undefined)
+      }
+    } else if (mode === 'interval') {
+      const startIso = currentTaskElement.getAttribute('data-interval-start')
+      const endIso = currentTaskElement.getAttribute('data-interval-end')
+      if (startIso && endIso) {
+        setCurrentTaskDateTime({
+          mode: 'interval',
+          startTime: new Date(startIso),
+          endTime: new Date(endIso)
+        })
+      } else {
+        setCurrentTaskDateTime(undefined)
+      }
+    } else {
+      setCurrentTaskDateTime(undefined)
+    }
+    
     setShowDateTimePicker(true)
   }, [currentTaskElement])
   
@@ -1571,7 +1601,7 @@ export default function NoteEditor({
 
     const taskInfo = getTaskItemPos()
     if (!taskInfo) {
-      console.warn('⚠️ 设置时间失败：未找到 taskItem 节点')
+      console.warn('⚠️ 设置截止时间失败：未找到 taskItem 节点')
       return
     }
     const taskPos = taskInfo.pos
@@ -1653,6 +1683,69 @@ export default function NoteEditor({
     }
     
     setShowDateTimePicker(false)
+  }, [editor, currentTaskElement, getTaskItemPos])
+
+  // 🗑️ 清除时间设置
+  const handleClearDateTime = useCallback(() => {
+    if (!editor || !currentTaskElement) return
+    
+    const taskInfo = getTaskItemPos()
+    if (!taskInfo) {
+      console.warn('⚠️ 清除时间失败：未找到 taskItem 节点')
+      return
+    }
+    const taskPos = taskInfo.pos
+    const taskNode = taskInfo.node
+    
+    // 获取 paragraph 节点位置
+    let paragraphPos: number | null = null
+    taskNode.forEach((child: ProseMirrorNode, offset: number) => {
+      if (child.type.name === 'paragraph') {
+        paragraphPos = taskPos + 1 + offset
+      }
+    })
+    
+    editor.chain()
+      .focus()
+      .command(({ tr }: { tr: Transaction }) => {
+        // 清除 taskItem 的时间属性
+        tr.setNodeMarkup(taskPos, undefined, {
+          ...taskNode.attrs,
+          datetimeMode: null,
+          deadlineTime: null,
+          intervalStart: null,
+          intervalEnd: null,
+        })
+        
+        // 清除 paragraph 的显示属性
+        if (paragraphPos !== null) {
+          const pNode = tr.doc.nodeAt(paragraphPos)
+          if (pNode && pNode.type.name === 'paragraph') {
+            tr.setNodeMarkup(paragraphPos, undefined, {
+              ...pNode.attrs,
+              datetimeDisplay: null,
+            })
+          }
+        }
+        return true
+      })
+      .run()
+    
+    // 清除 DOM 属性
+    currentTaskElement.removeAttribute('data-datetime-mode')
+    currentTaskElement.removeAttribute('data-deadline-time')
+    currentTaskElement.removeAttribute('data-interval-start')
+    currentTaskElement.removeAttribute('data-interval-end')
+    currentTaskElement.classList.remove('datetime-expired', 'datetime-active')
+    
+    // 清除段落的显示属性
+    const paragraph = currentTaskElement.querySelector('p[data-datetime-display]')
+    if (paragraph) {
+      paragraph.removeAttribute('data-datetime-display')
+    }
+    
+    setShowDateTimePicker(false)
+    setCurrentTaskDateTime(undefined)
   }, [editor, currentTaskElement, getTaskItemPos])
 
   // 处理时长设置
@@ -2084,7 +2177,9 @@ export default function NoteEditor({
       {showDateTimePicker && (
         <DateTimePicker
           position={dateTimePickerPosition}
+          initialValue={currentTaskDateTime}
           onSelect={handleSetDateTime}
+          onClear={handleClearDateTime}
           onClose={() => setShowDateTimePicker(false)}
         />
       )}

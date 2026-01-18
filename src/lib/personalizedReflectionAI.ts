@@ -258,7 +258,14 @@ async function callAI(prompt: string): Promise<string[]> {
     throw new Error('API Key未配置')
   }
 
-  console.log('📡 发送 AI 请求到:', DEEPSEEK_CONFIG.endpoint)
+  const startTime = Date.now()
+  console.log('📡 [personalizedReflectionAI] 发送请求:', {
+    endpoint: DEEPSEEK_CONFIG.endpoint,
+    model: DEEPSEEK_CONFIG.model,
+    apiKeyPrefix: apiKey.substring(0, 8) + '...',  // 只显示前8位
+    promptLength: prompt.length
+  })
+
   const response = await fetch(DEEPSEEK_CONFIG.endpoint, {
     method: 'POST',
     headers: {
@@ -271,18 +278,32 @@ async function callAI(prompt: string): Promise<string[]> {
         { role: 'user', content: prompt }
       ],
       temperature: 0.8,  // 稍高的温度增加多样性
-      max_tokens: 500
+      max_tokens: 500,
+      thinking: {
+        type: "disabled"  // 🔧 关键修复：关闭深度思考，避免响应时间过长导致超时
+      }
     })
   })
 
+  const elapsed = Date.now() - startTime
+  console.log(`⏱️ [personalizedReflectionAI] 响应耗时: ${elapsed}ms, 状态: ${response.status}`)
+
   if (!response.ok) {
-    console.error('❌ AI 请求失败:', response.status, response.statusText)
-    throw new Error(`AI请求失败: ${response.status}`)
+    const errorText = await response.text().catch(() => 'N/A')
+    console.error('❌ AI 请求失败:', {
+      status: response.status,
+      statusText: response.statusText,
+      errorBody: errorText.substring(0, 200)
+    })
+    throw new Error(`AI请求失败: ${response.status} - ${response.statusText}`)
   }
 
   const data = await response.json()
   const content = data.choices?.[0]?.message?.content || ''
-  console.log('📥 AI 响应内容长度:', content.length, '字符')
+  console.log('📥 [personalizedReflectionAI] AI 响应:', {
+    contentLength: content.length,
+    totalElapsed: Date.now() - startTime + 'ms'
+  })
 
   // 解析输出：按行分割，过滤空行，去除可能的序号前缀
   const questions = content
