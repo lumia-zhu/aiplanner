@@ -99,14 +99,14 @@ export default function TaskActionMenu({
   
   // 菜单项配置
   const menuItems: MenuItem[] = [
-    {
-      icon: '🏷️',
-      label: '添加标签',
-      onClick: () => {
-        onOpenTagPicker()
-        onClose()
-      }
-    },
+    // {
+    //   icon: '🏷️',
+    //   label: '添加标签',
+    //   onClick: () => {
+    //     onOpenTagPicker()
+    //     onClose()
+    //   }
+    // },
     {
       icon: '⏰',
       label: '设置截止时间',
@@ -127,14 +127,14 @@ export default function TaskActionMenu({
         onClose()
       }
     },
-    {
-      icon: '✂️',
-      label: '拆解任务',
-      onClick: () => {
-        onDecompose()
-        onClose()
-      }
-    },
+    // {
+    //   icon: '✂️',
+    //   label: '拆解任务',
+    //   onClick: () => {
+    //     onDecompose()
+    //     onClose()
+    //   }
+    // },
     {
       icon: '🗑️',
       label: '删除任务',
