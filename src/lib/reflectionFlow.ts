@@ -17,6 +17,8 @@ import type {
 // 🆕 历史上下文相关类型
 import type { RecentTaskHistoryItem, TaskFamilyContext } from '@/lib/dailyTasks'
 import type { RecentReflectionItem } from '@/lib/dailyReflections'
+// 🆕 用户画像类型（用于个性化问题生成）
+import type { UserProfile } from '@/types'
 
 // ==================== 类型定义 ====================
 
@@ -1403,26 +1405,36 @@ ${historyContext ? `\n${historyContext}` : ''}
 // ==================== 优先级问题生成 ====================
 
 /**
- * 为选定的任务生成优先级反思问题（1-3个）
+ * 为选定的任务生成优先级反思问题（固定3个，有逻辑递进关系）
  * 
- * 聚焦于帮助用户在矩阵中定位任务，通过后果对比、紧迫度校准、依赖关系等角度
+ * 问题生成逻辑链条：
+ * 1. 维度对比（在X轴或Y轴上对比选中的任务）
+ * 2. 认知校准（帮用户识别判断中的盲点）
+ * 3. 相对定位（和锚点对比或任务间直接定位）
  * 
  * @param tasks 用户选择的任务列表（通常是多个任务，至少2个）
  * @param matrixContext 可选的矩阵上下文，包含当前维度和已分类任务
- * @param reflectionContext 🆕 历史上下文（用于纵向感知）
- * @returns 问题字符串数组
+ * @param reflectionContext 历史上下文（用于纵向感知）
+ * @param userProfile 🆕 用户画像（用于个性化问题，如ADHD挑战标签）
+ * @returns 问题字符串数组（固定3个）
  */
 export async function generatePriorityQuestions(
   tasks: TaskSnapshot[], 
   matrixContext?: MatrixContextForPriority,
-  reflectionContext?: ReflectionContext  // 🆕 历史上下文
+  reflectionContext?: ReflectionContext,
+  userProfile?: UserProfile  // 🆕 用户画像
 ): Promise<string[]> {
   try {
+    const taskNames = tasks.map(t => t.title)
+    
     if (tasks.length === 0) {
-      return ['这几个任务里，哪个有真正的外部 deadline（比如别人在等）？']
+      return [
+        '你选择的任务里，哪个有真正的外部deadline（比如别人在等）？',
+        '这些任务对你当前最重要的目标，分别有什么影响？',
+        '如果今天只能完成一个，你会选哪个？为什么？'
+      ]
     }
 
-    const taskNames = tasks.map(t => t.title)
     const taskList = tasks.map(t => `「${t.title}」`).join('、')
     
     // 🆕 格式化历史上下文
@@ -1432,130 +1444,148 @@ export async function generatePriorityQuestions(
     
     // 构建任务信息（使用友好格式）
     const tasksWithDeadline = tasks.filter(t => t.deadline)
-    const deadlineInfo = tasksWithDeadline.length > 0 
-      ? `有截止时间的任务：${tasksWithDeadline.map(t => `「${t.title}」(${formatDeadlineForPrompt(t.deadline)})`).join('、')}`
-      : ''
-    
-    let taskInfo = `
-待分类任务：${taskList}
-任务数量：${tasks.length} 个
-${deadlineInfo}
-`.trim()
+    const hasDeadline = tasksWithDeadline.length > 0
+    const deadlineInfo = hasDeadline 
+      ? `\n有截止时间的任务：${tasksWithDeadline.map(t => `「${t.title}」(${formatDeadlineForPrompt(t.deadline)})`).join('、')}`
+      : '\n（这些任务暂无明确截止时间）'
 
-    // 📊 调试日志：显示传入 prompt 的任务信息
-    console.log('🔍 [generatePriorityQuestions] 任务信息:', {
-      任务列表: tasks.map(t => ({
-        title: t.title,
-        原始截止时间: t.deadline,
-        格式化截止时间: formatDeadlineForPrompt(t.deadline),
-        原始时长: t.estimatedDuration,
-        格式化时长: formatDurationForPrompt(t.estimatedDuration)
-      }))
-    })
-
-    // 如果有矩阵上下文，添加维度和已分类任务信息
-    let matrixInfo = ''
-    if (matrixContext) {
-      const { axes, quadrants } = matrixContext
-      matrixInfo = `
-
-【当前矩阵维度】
-- X轴：${axes.xAxis.name}（${axes.xAxis.lowLabel} ← → ${axes.xAxis.highLabel}）
-- Y轴：${axes.yAxis.name}（${axes.yAxis.lowLabel} ↑ ↓ ${axes.yAxis.highLabel}）
-
-【已分类的任务作为参考锚点】
-${quadrants.topRight.tasks.length > 0 ? `- ${quadrants.topRight.label}：${quadrants.topRight.tasks.map(t => `「${t}」`).join('、')}` : ''}
-${quadrants.topLeft.tasks.length > 0 ? `- ${quadrants.topLeft.label}：${quadrants.topLeft.tasks.map(t => `「${t}」`).join('、')}` : ''}
-${quadrants.bottomRight.tasks.length > 0 ? `- ${quadrants.bottomRight.label}：${quadrants.bottomRight.tasks.map(t => `「${t}」`).join('、')}` : ''}
-${quadrants.bottomLeft.tasks.length > 0 ? `- ${quadrants.bottomLeft.label}：${quadrants.bottomLeft.tasks.map(t => `「${t}」`).join('、')}` : ''}
-${[quadrants.topRight, quadrants.topLeft, quadrants.bottomRight, quadrants.bottomLeft].every(q => q.tasks.length === 0) ? '- （暂无已分类任务）' : ''}
-`.trim()
+    // 🆕 构建用户画像上下文
+    let userContext = ''
+    const challenges = userProfile?.challenges || []
+    if (challenges.length > 0) {
+      userContext = `\n【用户特点】用户标注的挑战：${challenges.join('、')}`
     }
 
-    const systemPrompt = `你是一位擅长优先级管理的智能助手。你的目标是：通过 1-3 个精准的**开放式问题**，帮助用户**判断任务应该放在矩阵的哪个象限**。
-${matrixContext ? `
-【重要】用户正在使用 ${matrixContext.axes.yAxis.name} × ${matrixContext.axes.xAxis.name} 矩阵来分类任务，问题应聚焦于这两个维度。
-` : ''}
-### 【核心分析框架】
+    // 📊 调试日志
+    console.log('🔍 [generatePriorityQuestions] 输入信息:', {
+      任务数量: tasks.length,
+      任务列表: taskNames,
+      有截止时间: hasDeadline,
+      用户挑战标签: challenges,
+      有矩阵上下文: !!matrixContext
+    })
 
-根据任务性质和矩阵维度，从以下角度帮助用户判断优先级（选择最相关的 1-3 个）：
+    // 构建矩阵维度信息
+    let matrixInfo = ''
+    let xAxisName = '紧急度'
+    let yAxisName = '重要性'
+    let hasAnchorTasks = false
+    let anchorTasksInfo = ''
+    
+    if (matrixContext) {
+      const { axes, quadrants } = matrixContext
+      xAxisName = axes.xAxis.name
+      yAxisName = axes.yAxis.name
+      
+      // 检查是否有已分类的参考锚点任务
+      const allAnchorTasks = [
+        ...quadrants.topRight.tasks,
+        ...quadrants.topLeft.tasks,
+        ...quadrants.bottomRight.tasks,
+        ...quadrants.bottomLeft.tasks
+      ]
+      hasAnchorTasks = allAnchorTasks.length > 0
+      
+      if (hasAnchorTasks) {
+        const anchorLines = []
+        if (quadrants.topRight.tasks.length > 0) {
+          anchorLines.push(`- ${quadrants.topRight.label}：${quadrants.topRight.tasks.map(t => `「${t}」`).join('、')}`)
+        }
+        if (quadrants.topLeft.tasks.length > 0) {
+          anchorLines.push(`- ${quadrants.topLeft.label}：${quadrants.topLeft.tasks.map(t => `「${t}」`).join('、')}`)
+        }
+        if (quadrants.bottomRight.tasks.length > 0) {
+          anchorLines.push(`- ${quadrants.bottomRight.label}：${quadrants.bottomRight.tasks.map(t => `「${t}」`).join('、')}`)
+        }
+        if (quadrants.bottomLeft.tasks.length > 0) {
+          anchorLines.push(`- ${quadrants.bottomLeft.label}：${quadrants.bottomLeft.tasks.map(t => `「${t}」`).join('、')}`)
+        }
+        anchorTasksInfo = anchorLines.join('\n')
+      }
+      
+      matrixInfo = `
+【矩阵维度】
+- X轴：${xAxisName}（${axes.xAxis.lowLabel} ← → ${axes.xAxis.highLabel}）
+- Y轴：${yAxisName}（${axes.yAxis.lowLabel} ↑ ↓ ${axes.yAxis.highLabel}）
+${hasAnchorTasks ? `\n【已分类任务（参考锚点）】\n${anchorTasksInfo}` : '\n（暂无已分类任务作为参考）'}
+`
+    }
 
-**【优先】任务之间的对比（重点）**
-   - **重点对比用户勾选的多个任务之间的关系**
-   - 引导用户思考相对优先级，而不是绝对优先级
+    // 🆕 动态策略选择
+    const strategy = {
+      focusOnDeadline: hasDeadline,
+      hasAnchors: hasAnchorTasks,
+      userHasProcrastination: challenges.includes('拖延'),
+      userHasTimeBlindness: challenges.includes('时间盲区'),
+      taskCount: tasks.length
+    }
+    
+    console.log('🎯 [generatePriorityQuestions] 问题生成策略:', strategy)
 
-**1. 后果对比（Consequence Comparison）**
-   - 在用户勾选的任务中，引导思考"如果不做会怎样"
-   - 示例：「项目报告」和「数据分析」如果今天只能做一个，不做哪个明天会更麻烦？
+    // 🆕 重构的 Prompt - 逻辑递进 + 维度聚焦
+    const systemPrompt = `你是一位擅长帮助用户判断任务优先级的智能助手。
 
-**2. 紧迫度/时间维度**
-   - ⚠️ **注意：只在任务有明确截止时间时才问时间相关问题**
-   - 区分"真的紧急"和"感觉紧急"
-   - 示例：「论文修改」和「PPT准备」，哪个的截止时间更不能推迟？为什么？
+## 你的任务
 
-**3. 重要性/价值维度**
-   - 在用户勾选的任务中对比价值和影响
-   - 示例：「学习Python」和「写周报」，哪个对你当前最重要的目标影响更大？具体是什么影响？
+用户选择了 ${tasks.length} 个任务进行优先级判断，你需要生成 **恰好 3 个** 有逻辑递进关系的开放式问题，帮助用户在「${yAxisName} × ${xAxisName}」矩阵中定位这些任务。
 
-**4. 依赖关系**
-   - 识别用户勾选任务之间的先后顺序
-   - 示例：在「数据分析」和「写报告」中，做完哪个会让另一个变得更容易？
+## 问题生成逻辑链条（必须按此顺序）
 
-**5. 参考已分类任务**（仅作为辅助）
-   - ⚠️ **已分类任务只是参考锚点，不是重点**
-   - 示例：和已经放在"重要紧急"的「XXX」比，「新任务A」和「新任务B」的紧迫性分别如何？
+### 第一个问题：维度对比（具体、客观）
+针对矩阵的 **X轴（${xAxisName}）或 Y轴（${yAxisName}）**，让用户对比选中的任务。
+- 问法：「任务A」和「任务B」在[维度]上有什么不同？体现在哪里？
+- 要具体，不能泛泛而问
+${!hasDeadline ? '- ⚠️ 这些任务没有明确截止时间，请聚焦于「重要性/价值」维度，不要问截止时间相关的问题' : ''}
 
-### 【问题设计原则】
+### 第二个问题：认知校准（识别盲点）
+帮助用户识别自己判断中的潜在盲点或偏差。
+${strategy.userHasProcrastination ? '- 用户有"拖延"挑战，可以问：有没有哪个任务是你一直想做但总在推后的？是什么让它难以开始？' : ''}
+${strategy.userHasTimeBlindness ? '- 用户有"时间盲区"挑战，可以问：你对这些任务的时间判断是基于什么？' : ''}
+- 可以问：有没有哪个任务你"感觉不紧急"但其实影响很大？
+- 可以问：「任务A」感觉紧急，是因为有外部压力还是内心的焦虑？
+
+### 第三个问题：相对定位（帮助最终判断）
+${hasAnchorTasks ? `- 可以和已分类的参考任务对比：和已经放在某象限的「锚点任务」比，这些任务的位置应该怎么排？` : '- 让用户在选中的任务之间做最终的相对排序：如果按[维度]从高到低排，这几个任务的顺序是什么？'}
+- 帮助用户做出最终的定位判断
+
+## 问题设计原则
 
 **必须遵守**：
-✅ **开放式问题**：用"什么/哪些/如何/多大程度"等词引导思考
-✅ **引导对比**：让用户描述差异而非做选择
-✅ **具体任务名**：每个问题必须包含「任务名」
-✅ **简短精准**：15-30字，每问只问一件事
+✅ 恰好输出 3 个问题，有逻辑递进关系
+✅ 开放式问题：用"什么/哪些/如何/多大程度/怎样"等词引导
+✅ 每个问题必须包含 **具体任务名称**（用「」包裹）
+✅ 聚焦任务之间的 **相对对比**
+✅ 简短精准：15-35字
 
 **绝对禁止**：
-❌ **Yes/No 问题**：如"是不是""有没有""合理吗""需要吗"
-❌ **给出答案让用户确认**：如"放在XX象限，你觉得合理吗？"
-❌ **任务启动类问题**：如"为什么一直没做""是否在逃避"（这不属于优先级判断）
-❌ **泛泛而问**：如"哪个重要""先做哪个"
-❌ **情绪评判**：如"难吗""有信心吗"
+❌ Yes/No 问题：如"是不是""有没有""合理吗""需要吗""对吗"
+❌ 给出答案让用户确认：如"放在XX象限，你觉得合理吗？"
+❌ 泛泛而问：如"哪个重要""先做哪个"
+❌ 情绪评判：如"难吗""有信心吗""焦虑吗"
+❌ 问"为什么没做"或"是否在逃避"
 
-### 【开放式 vs 封闭式示例】
+## 好问题示例
 
-| 维度 | ❌ 封闭式（禁止）| ✅ 开放式（推荐）|
-|------|----------------|-----------------|
-| 紧迫度 | 「任务A」紧急吗？ | 「任务A」的截止时间是怎么确定的？ |
-| 重要性 | 「任务A」重要吗？ | 「任务A」对你当前最重要的目标有什么影响？ |
-| 定位 | 放在"重要紧急"合理吗？ | 和「已分类任务」相比，「新任务」的紧迫程度怎么样？ |
-| 后果 | 不做会有问题吗？ | 如果今天不做「任务A」，明天会面临什么情况？ |
+假设用户选了「写论文」「回复邮件」：
+1. "「写论文」和「回复邮件」，哪个有外部的人在等你的结果？具体是谁在等？"（维度对比）
+2. "「回复邮件」感觉紧急，是因为有人催还是你自己的焦虑？"（认知校准）
+3. "如果按重要性从高到低排，「写论文」和「回复邮件」的顺序是什么？为什么？"（相对定位）
 
-### 【ADHD友好原则】
+## 输出格式
 
-- 温和、鼓励的语气
-- 降低决策焦虑，不问"为什么没做"
-- 问题顺序自然（先后果，再对比，最后定位）
-
-### 【输出格式】（严格遵守）
-
-- 输出 1-3 行问题
+- 恰好输出 3 行问题
 - 每行以"- "开头
-- 不添加任何说明、编号、标题
-- **每个问题必须是开放式的，包含具体任务名称**`
+- 不添加任何说明、编号、标题`
 
-    const userPrompt = `请基于以下信息，生成 1-3 个能有效帮助用户在矩阵中定位任务的开放式问题：
+    const userPrompt = `请为以下任务生成恰好 3 个优先级判断问题：
 
-${taskInfo}
+【待判断任务】${taskList}
+${deadlineInfo}
 ${matrixInfo}
+${userContext}
 ${historyContext ? `\n${historyContext}` : ''}
-【重要提示】：
-1. **主要对比用户勾选的任务之间的关系**（而不是和已分类任务对比）
-2. **已分类任务只是参考锚点**，不要作为问题的主要对比对象
-3. **如果任务没有截止时间信息，不要问截止时间相关的问题**
-4. 所有问题必须是开放式的（用"什么/哪些/如何/多大程度/哪个"引导）
-5. 绝对不要问 Yes/No 问题或给出答案让用户确认
-6. 每个问题必须包含具体任务名称（用「」包裹）
 
-请直接输出问题列表，每行以"- "开头。`
+请直接输出 3 个问题，每行以"- "开头。`
 
     const response = await doubaoService.sendMessage(
       `${systemPrompt}\n\n${userPrompt}`
@@ -1563,21 +1593,8 @@ ${historyContext ? `\n${historyContext}` : ''}
 
     if (!response.success || !response.message) {
       console.error('❌ 生成优先级问题失败:', response.error)
-      // 降级：返回通用开放式问题
-      if (taskNames.length >= 2) {
-        const fallbackQuestions = [
-          `「${taskNames[0]}」和「${taskNames[1]}」如果今天只能做一个，不做哪个明天会面临什么情况？`
-        ]
-        // 只在有截止时间的任务时才问时间相关问题
-        if (tasks.some(t => t.deadline)) {
-          fallbackQuestions.push(`这几个任务里，哪个的截止时间是外部确定的（比如别人在等）？`)
-        } else {
-          fallbackQuestions.push(`「${taskNames[0]}」和「${taskNames[1]}」对你当前最重要的目标，哪个影响更大？`)
-        }
-        return fallbackQuestions
-      } else {
-        return [`「${taskNames[0] || '这个任务'}」如果今天不做，明天会面临什么情况？`]
-      }
+      // 降级：返回通用开放式问题（固定3个）
+      return generateFallbackPriorityQuestions(taskNames, hasDeadline, xAxisName, yAxisName)
     }
 
     // 解析问题（每行以"- "开头）
@@ -1591,45 +1608,58 @@ ${historyContext ? `\n${historyContext}` : ''}
 
     console.log('🔍 解析后的问题:', questions)
 
-    if (questions.length === 0) {
-      console.warn('⚠️ 未能解析出问题，使用降级方案')
-      if (taskNames.length >= 2) {
-        const fallbackQuestions = [
-          `「${taskNames[0]}」和「${taskNames[1]}」如果今天只能做一个，不做哪个明天会面临什么情况？`
-        ]
-        // 只在有截止时间的任务时才问时间相关问题
-        if (tasks.some(t => t.deadline)) {
-          fallbackQuestions.push(`这几个任务里，哪个的截止时间是外部确定的（比如别人在等）？`)
-        } else {
-          fallbackQuestions.push(`「${taskNames[0]}」和「${taskNames[1]}」对你当前最重要的目标，哪个影响更大？`)
-        }
-        return fallbackQuestions
-      } else {
-        return [`「${taskNames[0] || '这个任务'}」如果今天不做，明天会面临什么情况？`]
+    // 确保返回恰好3个问题
+    if (questions.length < 3) {
+      console.warn(`⚠️ 只解析出 ${questions.length} 个问题，补充降级问题`)
+      const fallback = generateFallbackPriorityQuestions(taskNames, hasDeadline, xAxisName, yAxisName)
+      while (questions.length < 3 && fallback.length > 0) {
+        questions.push(fallback.shift()!)
       }
     }
 
     console.log(`✅ 生成了 ${questions.length} 个优先级问题`)
-    return questions.slice(0, 3) // 最多返回3个
+    return questions.slice(0, 3) // 返回恰好3个
 
   } catch (error) {
     console.error('❌ 生成优先级问题失败:', error)
-    // 降级：返回通用开放式问题
     const taskNames = tasks.map(t => t.title)
-    if (taskNames.length >= 2) {
-      const fallbackQuestions = [
-        `「${taskNames[0]}」和「${taskNames[1]}」如果今天只能做一个，不做哪个明天会面临什么情况？`
+    const hasDeadline = tasks.some(t => t.deadline)
+    return generateFallbackPriorityQuestions(taskNames, hasDeadline, '紧急度', '重要性')
+  }
+}
+
+/**
+ * 生成降级的优先级问题（固定3个）
+ */
+function generateFallbackPriorityQuestions(
+  taskNames: string[], 
+  hasDeadline: boolean,
+  xAxisName: string,
+  yAxisName: string
+): string[] {
+  const t1 = taskNames[0] || '任务A'
+  const t2 = taskNames[1] || '任务B'
+  
+  if (taskNames.length >= 2) {
+    if (hasDeadline) {
+      return [
+        `「${t1}」和「${t2}」，哪个有更明确的外部截止时间？具体是什么时候？`,
+        `这两个任务里，有没有哪个你"感觉紧急"但其实可以推迟的？`,
+        `如果按${yAxisName}从高到低排，「${t1}」和「${t2}」的顺序是什么？`
       ]
-      // 只在有截止时间的任务时才问时间相关问题
-      if (tasks.some(t => t.deadline)) {
-        fallbackQuestions.push(`这几个任务里，哪个的截止时间是外部确定的（比如别人在等）？`)
-      } else {
-        fallbackQuestions.push(`「${taskNames[0]}」和「${taskNames[1]}」对你当前最重要的目标，哪个影响更大？`)
-      }
-      return fallbackQuestions
     } else {
-      return [`「${taskNames[0] || '这个任务'}」如果今天不做，明天会面临什么情况？`]
+      return [
+        `「${t1}」和「${t2}」对你当前最重要的目标，分别有什么影响？`,
+        `这两个任务里，有没有哪个你一直想做但总在推后的？是什么让它难以开始？`,
+        `如果今天只能完成一个，你会选「${t1}」还是「${t2}」？为什么？`
+      ]
     }
+  } else {
+    return [
+      `「${t1}」对你当前最重要的目标有什么影响？`,
+      `「${t1}」如果今天不做，明天会面临什么情况？`,
+      `在${yAxisName}和${xAxisName}两个维度上，「${t1}」分别处于什么位置？`
+    ]
   }
 }
 

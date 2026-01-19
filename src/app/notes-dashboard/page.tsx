@@ -6270,7 +6270,8 @@ export default function NotesDashboardPage() {
           // 传入矩阵上下文，让 LLM 知道当前维度和已分类任务
           const matrixContext = buildMatrixContextForPriority()
           console.log('🎯 优先级反思矩阵上下文:', matrixContext)
-          questions = await generatePriorityQuestions(selectedTasks, matrixContext, reflectionContext)  // 🆕 传递历史上下文
+          // 🆕 传递历史上下文 + 用户画像（用于个性化问题生成）
+          questions = await generatePriorityQuestions(selectedTasks, matrixContext, reflectionContext, userProfile || undefined)
         }
 
         
