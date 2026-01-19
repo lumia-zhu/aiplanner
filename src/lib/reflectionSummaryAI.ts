@@ -131,7 +131,9 @@ ${qaContext}
         ],
         temperature: 0.7,  // 适中的创造性，确保忠实原文
         max_tokens: 800,   // 增加到800，支持200-300字的总结
-        top_p: 0.9
+        top_p: 0.9,
+        // ⚠️ 禁用豆包模型的"深度思考"功能，避免响应时间过长
+        thinking: { type: "disabled" }
       })
     })
 
