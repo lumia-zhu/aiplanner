@@ -68,6 +68,15 @@ export interface ParsedTask {
 }
 
 /**
+ * 完成状态变化的任务信息
+ */
+export interface TaskCompletionChange {
+  taskId: string
+  taskTitle: string
+  newCompleted: boolean  // true = 完成, false = 取消完成
+}
+
+/**
  * 任务同步结果
  */
 export interface TaskSyncResult {
@@ -75,6 +84,7 @@ export interface TaskSyncResult {
   updated: number               // 更新任务数
   deleted: number               // 删除任务数
   errors: string[]              // 错误信息
+  completionChanges: TaskCompletionChange[]  // 🆕 完成状态变化的任务列表
 }
 
 

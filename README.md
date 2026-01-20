@@ -392,9 +392,40 @@ MIT License
 
 **详细报告**: [PHASE1_COMPLETION_REPORT.md](./PHASE1_COMPLETION_REPORT.md)
 
+### 用户交互数据收集系统 (2026-01-20) ✅
+
+**目标**: 建立完整的用户行为追踪系统，支持研究分析
+
+**新增文件**:
+- `supabase/migrations/20260120_create_user_events_tables.sql` - 数据库迁移
+- `src/types/user-event.ts` - TypeScript 类型定义
+- `src/lib/userEventService.ts` - 事件记录服务
+- `src/hooks/useSessionTracking.ts` - Session 管理 Hook
+
+**新增数据表**:
+- `user_sessions` - 用户会话表（记录每次使用的时长、设备信息）
+- `user_events` - 用户事件表（记录所有操作行为）
+
+**已实现的事件追踪**:
+- ✅ 会话开始/结束
+- ✅ 任务完成/取消完成
+- ✅ 任务矩阵拖拽移动
+- ✅ 问题跳过
+- ✅ 视图切换（笔记/矩阵）
+- ✅ 日期切换
+
+**Admin 后台适配**:
+- ✅ `getUserEvents()` - 查询用户事件
+- ✅ `getUserSessions()` - 查询用户会话
+- ✅ `calculateEventsSummary()` - 计算事件统计
+- ✅ `exportUserEventsCSV()` - 导出事件 CSV
+
+**详细方案**: [USER_INTERACTION_DATA_COLLECTION_PLAN.md](./USER_INTERACTION_DATA_COLLECTION_PLAN.md)
+
 ---
 
 **开发时间**: 约 4-5 天 + AI Agent (3 天)  
 **适用场景**: 个人任务管理、小团队协作、原型验证  
 **架构设计**: 2025-10-30 更新  
 **AI Agent**: 2025-11-07 完成
+**用户数据收集**: 2026-01-20 完成

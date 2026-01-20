@@ -7,6 +7,7 @@
 import { createClient } from '@/lib/supabase-client'
 import { aggregateDailyAnalytics } from '@/lib/analyticsService'
 import type { DailyUserAnalytics } from '@/types/analytics'
+import type { UserSession, UserEvent, EventCategory, EventAction } from '@/types/user-event'
 
 // ============================================
 // 类型定义
@@ -398,4 +399,214 @@ export function downloadCSV(csv: string, filename: string): void {
   document.body.removeChild(link)
   
   URL.revokeObjectURL(url)
+}
+
+// ============================================
+// 🆕 用户事件数据查询（新表 user_events）
+// ============================================
+
+/**
+ * 用户事件统计概览
+ */
+export interface UserEventsSummary {
+  totalEvents: number
+  totalSessions: number
+  eventsByCategory: Record<string, number>
+  eventsByAction: Record<string, number>
+  avgSessionDurationMs: number
+  avgEventsPerSession: number
+}
+
+/**
+ * 获取用户事件列表
+ * 
+ * @param userId 用户ID，'all' 表示所有用户
+ * @param startDate 开始日期 (YYYY-MM-DD)
+ * @param endDate 结束日期 (YYYY-MM-DD)
+ * @param category 事件类别筛选（可选）
+ * @param limit 返回条数限制（默认100）
+ * @returns 事件列表
+ */
+export async function getUserEvents(
+  userId: string | 'all',
+  startDate: string,
+  endDate: string,
+  category?: EventCategory,
+  limit: number = 100
+): Promise<UserEvent[]> {
+  try {
+    const supabase = createClient()
+    
+    let query = supabase
+      .from('user_events')
+      .select('*')
+      .gte('context_date', startDate)
+      .lte('context_date', endDate)
+      .order('created_at', { ascending: false })
+      .limit(limit)
+    
+    if (userId !== 'all') {
+      query = query.eq('user_id', userId)
+    }
+    
+    if (category) {
+      query = query.eq('event_category', category)
+    }
+    
+    const { data, error } = await query
+    
+    if (error) {
+      console.error('❌ 获取用户事件失败:', error)
+      return []
+    }
+    
+    return (data || []) as UserEvent[]
+    
+  } catch (error) {
+    console.error('❌ getUserEvents 异常:', error)
+    return []
+  }
+}
+
+/**
+ * 获取用户会话列表
+ * 
+ * @param userId 用户ID，'all' 表示所有用户
+ * @param startDate 开始日期 (YYYY-MM-DD)
+ * @param endDate 结束日期 (YYYY-MM-DD)
+ * @param limit 返回条数限制（默认50）
+ * @returns 会话列表
+ */
+export async function getUserSessions(
+  userId: string | 'all',
+  startDate: string,
+  endDate: string,
+  limit: number = 50
+): Promise<UserSession[]> {
+  try {
+    const supabase = createClient()
+    
+    let query = supabase
+      .from('user_sessions')
+      .select('*')
+      .gte('started_at', `${startDate}T00:00:00`)
+      .lte('started_at', `${endDate}T23:59:59`)
+      .order('started_at', { ascending: false })
+      .limit(limit)
+    
+    if (userId !== 'all') {
+      query = query.eq('user_id', userId)
+    }
+    
+    const { data, error } = await query
+    
+    if (error) {
+      console.error('❌ 获取用户会话失败:', error)
+      return []
+    }
+    
+    return (data || []) as UserSession[]
+    
+  } catch (error) {
+    console.error('❌ getUserSessions 异常:', error)
+    return []
+  }
+}
+
+/**
+ * 计算用户事件统计概览
+ * 
+ * @param events 事件列表
+ * @param sessions 会话列表
+ * @returns 统计概览
+ */
+export function calculateEventsSummary(
+  events: UserEvent[],
+  sessions: UserSession[]
+): UserEventsSummary {
+  const eventsByCategory: Record<string, number> = {}
+  const eventsByAction: Record<string, number> = {}
+  
+  // 统计事件
+  for (const event of events) {
+    // 按类别统计
+    eventsByCategory[event.event_category] = (eventsByCategory[event.event_category] || 0) + 1
+    
+    // 按动作统计（组合类别和动作）
+    const actionKey = `${event.event_category}.${event.event_action}`
+    eventsByAction[actionKey] = (eventsByAction[actionKey] || 0) + 1
+  }
+  
+  // 计算会话统计
+  let totalDurationMs = 0
+  let validSessionsCount = 0
+  
+  for (const session of sessions) {
+    if (session.duration_ms && session.duration_ms > 0) {
+      totalDurationMs += session.duration_ms
+      validSessionsCount++
+    }
+  }
+  
+  const avgSessionDurationMs = validSessionsCount > 0 
+    ? Math.round(totalDurationMs / validSessionsCount) 
+    : 0
+  
+  const avgEventsPerSession = sessions.length > 0 
+    ? Math.round(events.length / sessions.length) 
+    : 0
+  
+  return {
+    totalEvents: events.length,
+    totalSessions: sessions.length,
+    eventsByCategory,
+    eventsByAction,
+    avgSessionDurationMs,
+    avgEventsPerSession
+  }
+}
+
+/**
+ * 导出用户事件为 CSV
+ * 
+ * @param events 事件列表
+ * @param users 用户列表（用于匹配用户名）
+ * @returns CSV 字符串
+ */
+export function exportUserEventsCSV(
+  events: UserEvent[],
+  users: UserWithStats[]
+): string {
+  const userMap = new Map(users.map(u => [u.user_id, u.username]))
+  
+  const headers = [
+    '时间',
+    '用户名',
+    '事件类别',
+    '事件动作',
+    '对象类型',
+    '对象标题',
+    '上下文日期',
+    '视图模式',
+    '耗时(ms)',
+    '元数据'
+  ]
+  
+  const rows = events.map(e => [
+    e.created_at,
+    userMap.get(e.user_id) || '未知用户',
+    e.event_category,
+    e.event_action,
+    e.entity_type || '',
+    (e.entity_title || '').replace(/,/g, '，'),  // 替换逗号避免 CSV 问题
+    e.context_date,
+    e.view_mode || '',
+    e.duration_ms || '',
+    JSON.stringify(e.metadata || {}).replace(/,/g, '；')  // 替换逗号
+  ])
+  
+  return [
+    headers.join(','),
+    ...rows.map(row => row.join(','))
+  ].join('\n')
 }

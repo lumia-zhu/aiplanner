@@ -255,6 +255,7 @@ export async function syncTasksFromNote(
     updated: 0,
     deleted: 0,
     errors: [],
+    completionChanges: [],  // 🆕 记录完成状态变化的任务
   }
 
   try {
@@ -338,10 +339,20 @@ export async function syncTasksFromNote(
         // 已存在，记录ID映射
         positionToTaskId.set(parsedTask.position, existingTask.id)
         
+        // 🆕 检测完成状态变化
+        const completedChanged = existingTask.completed !== parsedTask.completed
+        if (completedChanged) {
+          result.completionChanges.push({
+            taskId: existingTask.id,
+            taskTitle: parsedTask.title,
+            newCompleted: parsedTask.completed
+          })
+        }
+        
         // 检查是否需要更新
         const needsUpdate = 
           existingTask.title !== parsedTask.title ||
-          existingTask.completed !== parsedTask.completed ||
+          completedChanged ||
           existingTask.estimatedDuration !== parsedTask.estimatedDuration ||
           (existingTask.depth ?? 0) !== taskDepth ||
           existingTask.parentTaskId !== parentTaskId

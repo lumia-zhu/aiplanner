@@ -184,6 +184,19 @@ import { generatePersonalizedQuestions, selectThreeQuestions } from '@/lib/perso
 import type { DailyReflection } from '@/types/daily-reflection'
 import { getDailyTasksByNoteDate } from '@/lib/dailyTasks'
 
+// 🆕 用户事件追踪
+import { useSessionTracking } from '@/hooks/useSessionTracking'
+import { 
+  logTaskCompleted, 
+  logTaskUncompleted, 
+  logTaskMoved,
+  logQuestionSkipped as logQuestionSkippedEvent,
+  logViewChanged,
+  logDateChanged,
+  logMatrixAxisChanged
+} from '@/lib/userEventService'
+import type { ViewMode as EventViewMode } from '@/types/user-event'
+
 
 export default function NotesDashboardPage() {
 
@@ -200,6 +213,12 @@ export default function NotesDashboardPage() {
   // 日期相关状态
 
   const [selectedDate, setSelectedDate] = useState(new Date())
+  
+  // 🆕 Session 追踪（用于用户行为分析）
+  const { sessionId, incrementEventCount, isInitialized: isSessionInitialized } = useSessionTracking(
+    user?.id,
+    selectedDate.toISOString().split('T')[0]
+  )
 
   const [currentContextDate, setCurrentContextDate] = useState<Date>(new Date())  // ✅ 新增：当前对话上下文日期
 
@@ -1365,6 +1384,14 @@ export default function NotesDashboardPage() {
     }
 
     setMatrixAxes(newConfig)
+    
+    // 🆕 记录矩阵维度切换事件
+    if (user?.id && sessionId) {
+      const contextDate = formatNoteDate(selectedDate)
+      logMatrixAxisChanged(user.id, sessionId, newDimension, matrixAxes.yAxis, contextDate, matrixAxes.xAxis, matrixAxes.yAxis)
+        .then(() => incrementEventCount())
+        .catch(err => console.warn('⚠️ 记录矩阵维度切换事件失败:', err))
+    }
 
     
     
@@ -1392,7 +1419,7 @@ export default function NotesDashboardPage() {
 
     }
 
-  }, [matrixAxes])
+  }, [matrixAxes, user?.id, sessionId, selectedDate, incrementEventCount])
 
   
   
@@ -1423,6 +1450,14 @@ export default function NotesDashboardPage() {
     }
 
     setMatrixAxes(newConfig)
+    
+    // 🆕 记录矩阵维度切换事件
+    if (user?.id && sessionId) {
+      const contextDate = formatNoteDate(selectedDate)
+      logMatrixAxisChanged(user.id, sessionId, matrixAxes.xAxis, newDimension, contextDate, matrixAxes.xAxis, matrixAxes.yAxis)
+        .then(() => incrementEventCount())
+        .catch(err => console.warn('⚠️ 记录矩阵维度切换事件失败:', err))
+    }
 
     
     
@@ -1450,7 +1485,7 @@ export default function NotesDashboardPage() {
 
     }
 
-  }, [matrixAxes])
+  }, [matrixAxes, user?.id, sessionId, selectedDate, incrementEventCount])
 
   
   
@@ -2343,7 +2378,21 @@ export default function NotesDashboardPage() {
           .then(async (syncResult) => {
           console.log(`✅ 任务同步完成: 创建 ${syncResult.created}, 更新 ${syncResult.updated}, 删除 ${syncResult.deleted}`)
           
-          
+          // 🆕 记录任务完成/取消完成事件（笔记模式）
+          if (syncResult.completionChanges && syncResult.completionChanges.length > 0 && sessionId) {
+            console.log(`📝 记录 ${syncResult.completionChanges.length} 个任务完成状态变化事件`)
+            for (const change of syncResult.completionChanges) {
+              if (change.newCompleted) {
+                logTaskCompleted(user.id, sessionId, change.taskId, change.taskTitle, dateKey, 'notes')
+                  .then(() => incrementEventCount())
+                  .catch(err => console.warn('⚠️ 记录任务完成事件失败:', err))
+              } else {
+                logTaskUncompleted(user.id, sessionId, change.taskId, change.taskTitle, dateKey, 'notes')
+                  .then(() => incrementEventCount())
+                  .catch(err => console.warn('⚠️ 记录任务取消完成事件失败:', err))
+              }
+            }
+          }
 
             // 同步完成后，后台刷新任务矩阵（使用节流版本，避免频繁刷新）
             if (syncResult.created > 0 || syncResult.updated > 0 || syncResult.deleted > 0) {
@@ -2379,7 +2428,7 @@ export default function NotesDashboardPage() {
 
     }
 
-  }, [user, selectedDate, isNoteEmpty, throttledLoadTaskMatrix, calculateTasksHash])
+  }, [user, selectedDate, isNoteEmpty, throttledLoadTaskMatrix, calculateTasksHash, sessionId, incrementEventCount])
 
 
 
@@ -3339,10 +3388,22 @@ export default function NotesDashboardPage() {
   // 处理日期选择
 
   const handleDateSelect = useCallback((date: Date) => {
-
+    const prevDate = selectedDate
     setSelectedDate(date)
 
     setCurrentContextDate(date)  // ✅ 更新对话上下文日期（不清空对话）
+    
+    // 🆕 记录日期切换事件
+    if (user?.id && sessionId) {
+      const fromDateStr = formatNoteDate(prevDate)
+      const toDateStr = formatNoteDate(date)
+      if (fromDateStr !== toDateStr) {
+        const viewModeForEvent: EventViewMode = viewMode === 'editor' ? 'notes' : 'matrix'
+        logDateChanged(user.id, sessionId, fromDateStr, toDateStr, viewModeForEvent)
+          .then(() => incrementEventCount())
+          .catch(err => console.warn('⚠️ 记录日期切换事件失败:', err))
+      }
+    }
 
     
     
@@ -3366,7 +3427,7 @@ export default function NotesDashboardPage() {
 
     }
 
-  }, [calendarViewDate])
+  }, [calendarViewDate, selectedDate, user?.id, sessionId, viewMode, incrementEventCount])
 
 
 
@@ -5313,6 +5374,14 @@ export default function NotesDashboardPage() {
             question: currentQuestion
           }
         }).catch(err => console.error('保存每日回顾跳过记录失败:', err))
+        
+        // 🆕 记录问题跳过事件
+        if (sessionId) {
+          const viewModeForEvent: EventViewMode = viewMode === 'editor' ? 'notes' : 'matrix'
+          logQuestionSkippedEvent(user.id, sessionId, currentQuestion, 'daily_review', chatDate, viewModeForEvent)
+            .then(() => incrementEventCount())
+            .catch(err => console.warn('⚠️ 记录问题跳过事件失败:', err))
+        }
       }
       
       // 3. 判断是否还有下一个问题
@@ -12790,6 +12859,20 @@ ${matrixStats || '（无待办）'}
       const updatedTask = await toggleDailyTaskComplete(taskId)
       console.log('✅ 父任务数据库已更新:', updatedTask)
       
+      // 🆕 记录任务完成/取消完成事件（矩阵模式）
+      if (user?.id && sessionId) {
+        const contextDate = formatNoteDate(selectedDate)
+        if (newCompleted) {
+          logTaskCompleted(user.id, sessionId, taskId, clickedTask?.title || '', contextDate, 'matrix')
+            .then(() => incrementEventCount())
+            .catch(err => console.warn('⚠️ 记录任务完成事件失败:', err))
+        } else {
+          logTaskUncompleted(user.id, sessionId, taskId, clickedTask?.title || '', contextDate, 'matrix')
+            .then(() => incrementEventCount())
+            .catch(err => console.warn('⚠️ 记录任务取消完成事件失败:', err))
+        }
+      }
+      
       // 如果是父任务且有子任务，同步更新子任务状态
       if (childTaskIds.length > 0) {
         console.log(`🔄 同步更新 ${childTaskIds.length} 个子任务状态为: ${newCompleted}`)
@@ -12917,7 +13000,7 @@ ${matrixStats || '（无待办）'}
 
     }
 
-  }, [user, selectedDate, calculateTaskStats, tasksByQuadrant])
+  }, [user, selectedDate, calculateTaskStats, tasksByQuadrant, sessionId, incrementEventCount])
 
 
   // 处理任务拖拽放置（乐观更新策略）
@@ -12939,6 +13022,10 @@ ${matrixStats || '（无待办）'}
     // 需要移动的所有任务ID（包括子任务）
     let taskIdsToMove: string[] = []
     
+    // 🆕 记录原始象限和任务信息（用于事件记录）
+    let fromQuadrant: string = 'unclassified'
+    let draggedTaskTitle: string = ''
+    
     
     try {
 
@@ -12956,8 +13043,17 @@ ${matrixStats || '（无待办）'}
           allTasks.push(...prev[quadrant as QuadrantType])
         }
         
-        // 2. 找到被拖拽的任务
-        const draggedTask = allTasks.find(t => t.id === taskId)
+        // 2. 找到被拖拽的任务及其原始象限
+        let draggedTask: any = null
+        for (const quadrant in prev) {
+          const found = prev[quadrant as QuadrantType].find(t => t.id === taskId)
+          if (found) {
+            draggedTask = found
+            fromQuadrant = quadrant  // 🆕 记录原始象限
+            draggedTaskTitle = found.title || ''  // 🆕 记录任务标题
+            break
+          }
+        }
         if (!draggedTask) {
           console.warn('⚠️ 找不到被拖拽的任务')
           return prev
@@ -13037,6 +13133,14 @@ ${matrixStats || '（无待办）'}
       setLastSaved(new Date())
       setSaveStatus('saved')
       
+      // 🆕 记录任务移动事件
+      if (user?.id && sessionId && fromQuadrant !== targetQuadrant) {
+        const contextDate = formatNoteDate(selectedDate)
+        logTaskMoved(user.id, sessionId, taskId, draggedTaskTitle, fromQuadrant, targetQuadrant, contextDate)
+          .then(() => incrementEventCount())
+          .catch(err => console.warn('⚠️ 记录任务移动事件失败:', err))
+      }
+      
       console.log('✅ 任务移动成功（数据库已同步）')
       
       
@@ -13063,7 +13167,7 @@ ${matrixStats || '（无待办）'}
 
     }
 
-  }, [user])
+  }, [user, selectedDate, sessionId, incrementEventCount])
 
 
 
@@ -13871,8 +13975,18 @@ ${matrixStats || '（无待办）'}
                     currentMode={viewMode}
 
                     onModeChange={async (mode) => {
-
+                      const prevMode = viewMode
                       setViewMode(mode)
+                      
+                      // 🆕 记录视图切换事件
+                      if (user?.id && sessionId && prevMode !== mode) {
+                        const fromMode: EventViewMode = prevMode === 'editor' ? 'notes' : 'matrix'
+                        const toMode: EventViewMode = mode === 'editor' ? 'notes' : 'matrix'
+                        const contextDate = formatNoteDate(selectedDate)
+                        logViewChanged(user.id, sessionId, fromMode, toMode, contextDate)
+                          .then(() => incrementEventCount())
+                          .catch(err => console.warn('⚠️ 记录视图切换事件失败:', err))
+                      }
 
                       if (mode === 'matrix' && user) {
                         // 🔧 如果有正在进行的任务同步，先等待完成
