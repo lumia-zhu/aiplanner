@@ -686,8 +686,8 @@ const ReflectionTaskSelectionCard: React.FC<ReflectionTaskSelectionCardProps> = 
   const isConfirmDisabled = !isActive || visibleTasks.length === 0 || (isMultiSelect ? selectedIds.size < 1 : !selectedId)
   
   const roundInfo = {
-    clarity: { emoji: '📝', label: '明确任务', color: 'blue' },
-    decomposition: { emoji: '✂️', label: '拆分步骤', color: 'purple' },
+    clarity: { emoji: '📝', label: '明确/拆分任务', color: 'blue' },
+    decomposition: { emoji: '✂️', label: '拆分步骤', color: 'purple' },  // 🔧 保留定义但会隐藏按钮
     time: { emoji: '⏱️', label: '估算时间', color: 'green' },
     priority: { emoji: '🎯', label: '安排优先级', color: 'orange' }
   }
@@ -1182,7 +1182,8 @@ interface ChatSidebarProps {
   onToggleTaskCollapse?: (taskId: string) => void  // 切换折叠状态
   
   // ⭐ 上下文信息回调
-  onContextInfoAdded?: (taskTitle: string, contextContent: string, contextId: string) => void  // 上下文信息添加成功回调
+  onContextInfoAdded?: (taskTitle: string, contextContent: string, contextId: string, roundType?: string, sourceTaskTitle?: string) => void  // 上下文信息添加成功回调
+  onContextAddCancelled?: (roundType: string, sourceTaskTitle: string) => void  // 🆕 用户取消添加上下文回调
   
   // 事件处理函数
   handleSendMessage: () => void
@@ -1296,6 +1297,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   onToggleTaskCollapse,  // 切换折叠状态
   // ⭐ 上下文信息回调
   onContextInfoAdded,  // 上下文信息添加成功回调
+  onContextAddCancelled,  // 🆕 用户取消添加上下文回调
   handleSendMessage,
   handleClearChat,
   handleDragEnter,
@@ -1319,6 +1321,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
     taskId: string
     source: string
   } | null>(null)
+  const [contextAddedSuccessfully, setContextAddedSuccessfully] = useState(false)  // 🆕 跟踪是否成功添加
   
   // ⭐ Agent 模式状态管理（默认关闭）
   const [isAgentMode, setIsAgentMode] = useState(false)
@@ -1356,10 +1359,52 @@ const ChatSidebar = memo<ChatSidebarProps>(({
   const handleContextModalSuccess = async (addedContent: string, selectedTaskTitle: string, contextId: string) => {
     console.log('✅ 上下文信息添加成功:', { addedContent, selectedTaskTitle, contextId })
     
-    // 通知主页面：需要插入上下文信息到笔记
-    if (onContextInfoAdded) {
-      onContextInfoAdded(selectedTaskTitle, addedContent, contextId)
+    // 标记为成功添加（防止关闭时触发取消事件）
+    setContextAddedSuccessfully(true)
+    
+    // 从 source 推断 roundType
+    const sourceToRoundType: Record<string, string> = {
+      'clarity-reflection': 'clarity',
+      'decomposition-reflection': 'decomposition',
+      'time-reflection': 'time',
+      'priority-reflection': 'priority'
     }
+    const roundType = contextModalData?.source ? sourceToRoundType[contextModalData.source] || 'clarity' : 'clarity'
+    const sourceTaskTitle = contextModalData?.taskId || '未知任务'
+    
+    // 通知主页面：需要插入上下文信息到笔记，同时传递 roundType 和 sourceTaskTitle 用于事件记录
+    if (onContextInfoAdded) {
+      onContextInfoAdded(selectedTaskTitle, addedContent, contextId, roundType, sourceTaskTitle)
+    }
+  }
+  
+  // 🆕 处理弹窗关闭（注意：成功添加后 Modal 内部会先调用 onClose，再调用 onSuccess）
+  // 所以我们需要在下一个事件循环中检查是否是取消
+  const handleContextModalClose = () => {
+    const currentData = contextModalData
+    
+    // 使用 setTimeout 来确保在 onSuccess 之后执行
+    setTimeout(() => {
+      // 如果没有成功添加，说明是用户取消
+      if (!contextAddedSuccessfully && currentData && onContextAddCancelled) {
+        const sourceToRoundType: Record<string, string> = {
+          'clarity-reflection': 'clarity',
+          'decomposition-reflection': 'decomposition',
+          'time-reflection': 'time',
+          'priority-reflection': 'priority'
+        }
+        const roundType = currentData.source ? sourceToRoundType[currentData.source] || 'clarity' : 'clarity'
+        const sourceTaskTitle = currentData.taskId || '未知任务'
+        console.log('⏭️ 用户取消添加上下文:', { roundType, sourceTaskTitle })
+        onContextAddCancelled(roundType, sourceTaskTitle)
+      }
+      
+      // 重置状态
+      setContextAddedSuccessfully(false)
+    }, 0)
+    
+    setContextModalOpen(false)
+    setContextModalData(null)
   }
   
   // ⭐ 自动滚动到底部（当有新消息时）
@@ -1947,7 +1992,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
         <div className="border-t border-gray-200 bg-blue-50 p-3 flex-shrink-0">
           <div className="flex items-center justify-between">
             <span className="text-xs text-blue-600">
-              💭 {currentReflectionRound === 'clarity' ? '明确任务' : currentReflectionRound === 'time' ? '估算时间' : '安排优先级'}
+              💭 {currentReflectionRound === 'clarity' ? '明确/拆分任务' : currentReflectionRound === 'time' ? '估算时间' : '安排优先级'}
             </span>
             <div className="flex gap-1.5">
               <button
@@ -2466,7 +2511,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
       {contextModalOpen && contextModalData && availableTasksForSelection && availableTasksForSelection.length > 0 && (
         <AddContextInfoModal
           isOpen={contextModalOpen}
-          onClose={() => setContextModalOpen(false)}
+          onClose={handleContextModalClose}
           questionAnswer={contextModalData.qaList ? undefined : contextModalData.qa}  // 单个问答
           questionAnswers={contextModalData.qaList}  // 🆕 多个问答（批量模式）
           defaultTaskId={(() => {

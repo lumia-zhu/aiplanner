@@ -34,11 +34,16 @@ export type TaskEventAction =
  * 反思相关事件动作
  */
 export type ReflectionEventAction = 
-  | 'round_started'      // 开始一轮反思
-  | 'question_shown'     // 显示问题
-  | 'question_answered'  // 回答问题
-  | 'question_skipped'   // 跳过问题
-  | 'round_completed'    // 完成一轮反思
+  | 'round_started'              // 开始一轮反思
+  | 'question_shown'             // 显示问题
+  | 'question_answered'          // 回答问题
+  | 'question_skipped'           // 跳过问题
+  | 'round_completed'            // 完成一轮反思
+  | 'context_add_option_shown'   // 🆕 添加上下文选项展示
+  | 'context_added'              // 🆕 用户确认添加上下文
+  | 'context_add_cancelled'      // 🆕 用户取消添加上下文
+  | 'decompose_choice_yes'       // 🆕 用户选择拆解任务（clarity 完成后）
+  | 'decompose_choice_skip'      // 🆕 用户跳过拆解任务（clarity 完成后）
 
 /**
  * 导航相关事件动作
@@ -267,6 +272,35 @@ export interface RoundCompletedMetadata {
   answeredCount: number
   totalCount: number
   skippedCount: number
+}
+
+/**
+ * 🆕 上下文添加选项展示的 metadata
+ */
+export interface ContextAddOptionShownMetadata {
+  roundType: string               // 反思类型：clarity/decomposition/time/priority
+  sourceTaskId?: string           // 来源任务ID
+  sourceTaskTitle: string         // 来源任务标题
+  qaCount: number                 // 问答数量
+}
+
+/**
+ * 🆕 用户确认添加上下文的 metadata
+ */
+export interface ContextAddedMetadata {
+  roundType: string               // 反思类型
+  sourceTaskTitle: string         // 来源任务标题
+  targetTaskTitle: string         // 目标任务标题
+  contextContent: string          // 添加的内容
+  contextId: string               // 上下文ID
+}
+
+/**
+ * 🆕 用户取消添加上下文的 metadata
+ */
+export interface ContextAddCancelledMetadata {
+  roundType: string               // 反思类型
+  sourceTaskTitle: string         // 来源任务标题
 }
 
 /**

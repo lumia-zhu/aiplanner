@@ -17,12 +17,12 @@ interface TaskDecompositionCardProps {
  */
 export default function TaskDecompositionCard({
   parentTask,
-  suggestions,
+  suggestions = [],  // 🔧 添加默认值防止 undefined
   isActive = true,
   onConfirm,
   onCancel,
 }: TaskDecompositionCardProps) {
-  const [subtasks, setSubtasks] = useState<SubtaskSuggestion[]>(suggestions)
+  const [subtasks, setSubtasks] = useState<SubtaskSuggestion[]>(suggestions || [])
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState('')
   const [isAddingNew, setIsAddingNew] = useState(false)

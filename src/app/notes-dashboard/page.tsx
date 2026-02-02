@@ -193,7 +193,12 @@ import {
   logQuestionSkipped as logQuestionSkippedEvent,
   logViewChanged,
   logDateChanged,
-  logMatrixAxisChanged
+  logMatrixAxisChanged,
+  logContextAddOptionShown,
+  logContextAdded,
+  logContextAddCancelled,
+  logDecomposeChoiceYes,
+  logDecomposeChoiceSkip
 } from '@/lib/userEventService'
 import type { ViewMode as EventViewMode } from '@/types/user-event'
 
@@ -450,7 +455,7 @@ export default function NotesDashboardPage() {
   const editorRef = useRef<any>(null)
   
   // ⭐ 处理上下文信息添加成功
-  const handleContextInfoAdded = useCallback((taskTitle: string, contextContent: string, contextId: string) => {
+  const handleContextInfoAdded = useCallback((taskTitle: string, contextContent: string, contextId: string, roundType?: string, sourceTaskTitle?: string) => {
     
     if (!taskTitle || !contextContent) {
       console.warn('⚠️ 任务标题或内容为空，跳过插入')
@@ -459,7 +464,34 @@ export default function NotesDashboardPage() {
     
     // 保存待插入信息，触发插入逻辑
     setPendingContextInsert({ taskTitle, contextContent, contextId })
-  }, [])
+    
+    // 🆕 记录上下文添加成功事件
+    if (user?.id && sessionId && roundType) {
+      const contextDate = formatNoteDate(currentContextDate)
+      logContextAdded(
+        user.id,
+        sessionId,
+        roundType,
+        sourceTaskTitle || '未知任务',
+        taskTitle,
+        contextContent,
+        contextId,
+        contextDate
+      )
+        .then(() => incrementEventCount())
+        .catch(err => console.warn('⚠️ 记录上下文添加成功事件失败:', err))
+    }
+  }, [user?.id, sessionId, currentContextDate, incrementEventCount])
+  
+  // 🆕 处理上下文添加取消
+  const handleContextAddCancelled = useCallback((roundType: string, sourceTaskTitle: string) => {
+    if (user?.id && sessionId) {
+      const contextDate = formatNoteDate(currentContextDate)
+      logContextAddCancelled(user.id, sessionId, roundType, sourceTaskTitle, contextDate)
+        .then(() => incrementEventCount())
+        .catch(err => console.warn('⚠️ 记录上下文添加取消事件失败:', err))
+    }
+  }, [user?.id, sessionId, currentContextDate, incrementEventCount])
   
   // ⭐ 监听 pendingContextInsert，执行插入
   useEffect(() => {
@@ -5718,7 +5750,7 @@ export default function NotesDashboardPage() {
 
     const roundInfo = {
 
-      clarity: { emoji: '📝', label: '澄清任务' },
+      clarity: { emoji: '📝', label: '明确/拆分任务' },
 
       decomposition: { emoji: '✂️', label: '任务拆解' },
       time: { emoji: '⏱️', label: '时间规划' },
@@ -6094,7 +6126,7 @@ export default function NotesDashboardPage() {
 
     const roundInfo = {
 
-      clarity: { emoji: '📝', label: '澄清任务' },
+      clarity: { emoji: '📝', label: '明确/拆分任务' },
 
       decomposition: { emoji: '✂️', label: '任务拆解' },
       time: { emoji: '⏱️', label: '时间规划' },
@@ -7283,6 +7315,24 @@ export default function NotesDashboardPage() {
         // 🆕 根据轮次类型显示不同的后续选项
 
         const roundType = context?.roundType || 'clarity'
+        
+        // 🆕 记录上下文添加选项展示事件（仅非 priority 类型显示添加按钮）
+        if (allAnswers.length > 0 && roundType !== 'priority' && user?.id && sessionId) {
+          const contextDate = formatNoteDate(currentContextDate)
+          // 验证 taskId 是否为有效 UUID 格式（数据库 entity_id 是 UUID 类型）
+          const isValidUUID = taskId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(taskId)
+          logContextAddOptionShown(
+            user.id,
+            sessionId,
+            roundType,
+            context?.taskTitle || '未知任务',
+            allAnswers.length,
+            contextDate,
+            isValidUUID ? taskId : undefined  // 只有有效 UUID 才传入
+          )
+            .then(() => incrementEventCount())
+            .catch(err => console.warn('⚠️ 记录上下文添加选项展示事件失败:', err))
+        }
 
         
         
@@ -7296,7 +7346,7 @@ export default function NotesDashboardPage() {
         
         if (roundType === 'clarity') {
 
-          // Clarity 轮：显示返回按钮（不再提供拆解选项）
+          // Clarity 轮完成：询问是否需要拆解任务
           optionsMsg = {
 
             role: 'assistant' as const,
@@ -7309,11 +7359,9 @@ export default function NotesDashboardPage() {
 
                 text: `✅ 任务澄清完成！
 
-你可以：
+需要我帮你把「${context?.taskTitle || '这个任务'}」**拆成具体可执行的步骤**吗？
 
-• **返回选择其他任务进行澄清**
-
-• **点击底部任务规划按钮进行其他类型规划**`
+这样可以让你更容易开始行动 💪`
               },
 
               {
@@ -7328,10 +7376,17 @@ export default function NotesDashboardPage() {
 
                     buttons: [
 
-                      { id: 'clarity-round-complete-back', label: '← 返回选择其他任务', variant: 'secondary' }
+                      { id: 'clarity-decompose-yes', label: '✂️ 是，帮我拆解', variant: 'primary' },
+                      { id: 'clarity-decompose-skip', label: '跳过', variant: 'secondary' }
                     ],
 
-                    context: { taskId, taskTitle: context?.taskTitle, roundType }
+                    context: { 
+                      taskId, 
+                      taskTitle: context?.taskTitle, 
+                      roundType,
+                      // 🆕 保存问答上下文，供拆解时使用
+                      clarityAnswers: allAnswers 
+                    }
 
                   },
 
@@ -7805,6 +7860,244 @@ export default function NotesDashboardPage() {
 
     
 
+    // 🆕 Clarity 完成后选择「是，帮我拆解」
+    if (buttonId === 'clarity-decompose-yes') {
+      console.log('✂️ 用户选择拆解任务', { context })
+      
+      const taskTitle = context?.taskTitle || '未知任务'
+      const taskId = context?.taskId
+      
+      // 📊 记录用户选择拆解的事件
+      if (user?.id && sessionId) {
+        const contextDate = formatNoteDate(currentContextDate)
+        // 验证 taskId 是否为有效 UUID
+        const isValidUUID = taskId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(taskId)
+        logDecomposeChoiceYes(user.id, sessionId, taskTitle, contextDate, isValidUUID ? taskId : undefined)
+          .then(() => incrementEventCount())
+          .catch(err => console.warn('⚠️ 记录拆解选择事件失败:', err))
+      }
+      
+      // 禁用当前按钮
+      setChatMessages(prev => prev.map(msg => ({
+        ...msg,
+        content: msg.content.map((c: MessageContent) => 
+          c.type === 'interactive' && c.interactive?.type === 'buttons'
+            ? { ...c, interactive: { ...c.interactive, isActive: false } }
+            : c
+        )
+      })))
+      
+      const clarityAnswers = context?.clarityAnswers || []
+      
+      // 显示加载消息
+      const loadingMsg: ChatMessage = {
+        role: 'assistant' as const,
+        content: [{ type: 'text' as const, text: `🤔 正在拆解任务「${taskTitle}」...` }]
+      }
+      setChatMessages(prev => [...prev, loadingMsg])
+      
+      // 调用拆解 AI
+      setTimeout(async () => {
+        try {
+          // 使用 clarity 问答作为上下文
+          const userContext = clarityAnswers.map((qa: {question: string, answer: string}) => 
+            `Q: ${qa.question}\nA: ${qa.answer}`
+          ).join('\n\n')
+          
+          console.log('📝 拆解上下文:', userContext)
+          
+          // 调用 AI 生成拆解建议
+          const result = await doubaoService.decomposeTask(
+            taskTitle,
+            undefined,
+            userContext,
+            undefined
+          )
+          
+          // 移除加载消息
+          setChatMessages(prev => prev.slice(0, -1))
+          
+          if (!result.success || !result.message) {
+            console.error('AI拆解失败:', result.error)
+            setChatMessages(prev => [
+              ...prev,
+              {
+                role: 'assistant',
+                content: [{
+                  type: 'text',
+                  text: `❌ 抱歉，任务拆解失败：${result.error || '未知错误'}\n\n你可以点击底部按钮继续其他规划。`
+                }]
+              }
+            ])
+            return
+          }
+          
+          // 解析 AI 返回的 JSON
+          let subtasks: string[] = []
+          try {
+            // 尝试匹配 subtasks 数组
+            const subtasksMatch = result.message.match(/"subtasks"\s*:\s*\[([\s\S]*?)\]/);
+            if (subtasksMatch) {
+              const subtasksJson = `[${subtasksMatch[1]}]`;
+              const parsedData = JSON.parse(subtasksJson);
+              subtasks = parsedData.map((item: any) => item.title || item.name || '');
+            } else {
+              // 尝试直接匹配数组
+              const jsonMatch = result.message.match(/\[[\s\S]*\]/);
+              if (jsonMatch) {
+                const parsedData = JSON.parse(jsonMatch[0]);
+                subtasks = parsedData.map((item: any) => item.title || item.name || '');
+              }
+            }
+          } catch (parseError) {
+            console.error('解析AI响应失败:', parseError)
+            setChatMessages(prev => [
+              ...prev,
+              {
+                role: 'assistant',
+                content: [{
+                  type: 'text',
+                  text: `❌ 解析拆解结果失败，请稍后重试。\n\n你可以点击底部按钮继续其他规划。`
+                }]
+              }
+            ])
+            return
+          }
+          
+          // 过滤空值
+          subtasks = subtasks.filter(s => s && s.trim())
+          
+          if (subtasks.length === 0) {
+            setChatMessages(prev => [
+              ...prev,
+              {
+                role: 'assistant',
+                content: [{
+                  type: 'text',
+                  text: `🤔 没有生成有效的子任务，可能是因为任务本身已经足够具体了。\n\n你可以点击底部按钮继续其他规划。`
+                }]
+              }
+            ])
+            return
+          }
+          
+          // 🔧 转换为 SubtaskSuggestion 格式（与正常拆解流程一致）
+          const subtaskSuggestions = subtasks.map((task, index) => ({
+            id: `suggestion-${Date.now()}-${index}`,
+            title: task,
+            order: index + 1,
+            is_selected: true
+          }))
+          
+          // 创建 mock parentTask（与正常拆解流程一致）
+          const mockParentTask = {
+            id: context?.taskId || `mock-${Date.now()}`,
+            title: taskTitle,
+            user_id: user?.id || '',
+            is_completed: false,
+            created_at: new Date().toISOString()
+          } as any
+          
+          // 显示拆解结果（直接显示 GUI 卡片，不重复文字）
+          const resultMsg: ChatMessage = {
+            role: 'assistant' as const,
+            content: [
+              {
+                type: 'interactive' as const,
+                interactive: {
+                  type: 'task-decomposition' as const,
+                  data: {
+                    parentTask: mockParentTask,
+                    suggestions: subtaskSuggestions,
+                    source: 'clarity-decompose'  // 标记来源
+                  },
+                  isActive: true
+                }
+              }
+            ]
+          }
+          setChatMessages(prev => [...prev, resultMsg])
+          
+        } catch (error) {
+          console.error('拆解任务出错:', error)
+          setChatMessages(prev => {
+            const newPrev = prev.slice(0, -1)  // 移除加载消息
+            return [
+              ...newPrev,
+              {
+                role: 'assistant',
+                content: [{
+                  type: 'text',
+                  text: `❌ 拆解任务时出错，请稍后重试。\n\n你可以点击底部按钮继续其他规划。`
+                }]
+              }
+            ]
+          })
+        }
+      }, 100)
+      
+      return
+    }
+    
+    // 🆕 Clarity 完成后选择「跳过」拆解
+    if (buttonId === 'clarity-decompose-skip') {
+      console.log('⏭️ 用户跳过拆解')
+      
+      const taskTitle = context?.taskTitle || '未知任务'
+      const taskId = context?.taskId
+      
+      // 📊 记录用户跳过拆解的事件
+      if (user?.id && sessionId) {
+        const contextDate = formatNoteDate(currentContextDate)
+        // 验证 taskId 是否为有效 UUID
+        const isValidUUID = taskId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(taskId)
+        logDecomposeChoiceSkip(user.id, sessionId, taskTitle, contextDate, isValidUUID ? taskId : undefined)
+          .then(() => incrementEventCount())
+          .catch(err => console.warn('⚠️ 记录跳过拆解事件失败:', err))
+      }
+      
+      // 禁用当前按钮
+      setChatMessages(prev => prev.map(msg => ({
+        ...msg,
+        content: msg.content.map((c: MessageContent) => 
+          c.type === 'interactive' && c.interactive?.type === 'buttons'
+            ? { ...c, interactive: { ...c.interactive, isActive: false } }
+            : c
+        )
+      })))
+      
+      // 显示跳过确认和后续选项
+      const skipMsg: ChatMessage = {
+        role: 'assistant' as const,
+        content: [
+          { 
+            type: 'text' as const, 
+            text: `好的，跳过拆解～
+
+你可以：
+• **返回选择其他任务进行澄清**
+• **点击底部任务规划按钮进行其他类型规划**`
+          },
+          {
+            type: 'interactive' as const,
+            interactive: {
+              type: 'buttons' as const,
+              data: {
+                buttons: [
+                  { id: 'clarity-round-complete-back', label: '← 返回选择其他任务', variant: 'secondary' }
+                ],
+                context: { taskId: context?.taskId, taskTitle: context?.taskTitle, roundType: 'clarity' }
+              },
+              isActive: true
+            }
+          }
+        ]
+      }
+      setChatMessages(prev => [...prev, skipMsg])
+      
+      return
+    }
+    
     if (buttonId === 'clarity-round-complete-back') {
       // Clarity 轮完成后返回到任务选择界面
       
@@ -14341,6 +14634,7 @@ ${matrixStats || '（无待办）'}
               onToggleTaskCollapse={toggleTaskCollapse}
               // ⭐ 上下文信息回调
               onContextInfoAdded={handleContextInfoAdded}
+              onContextAddCancelled={handleContextAddCancelled}
             />
 
           </div>

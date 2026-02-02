@@ -443,6 +443,144 @@ export function logReflectionRoundCompleted(
   })
 }
 
+/**
+ * 🆕 记录上下文添加选项展示
+ */
+export function logContextAddOptionShown(
+  userId: string,
+  sessionId: string,
+  roundType: string,
+  sourceTaskTitle: string,
+  qaCount: number,
+  contextDate: string,
+  sourceTaskId?: string
+): Promise<boolean> {
+  return logUserEvent({
+    userId,
+    sessionId,
+    eventCategory: 'reflection',
+    eventAction: 'context_add_option_shown',
+    entityType: 'task',
+    entityId: sourceTaskId,
+    entityTitle: sourceTaskTitle,
+    contextDate,
+    metadata: {
+      roundType,
+      sourceTaskId,
+      sourceTaskTitle,
+      qaCount
+    }
+  })
+}
+
+/**
+ * 🆕 记录用户确认添加上下文
+ */
+export function logContextAdded(
+  userId: string,
+  sessionId: string,
+  roundType: string,
+  sourceTaskTitle: string,
+  targetTaskTitle: string,
+  contextContent: string,
+  contextId: string,
+  contextDate: string
+): Promise<boolean> {
+  return logUserEvent({
+    userId,
+    sessionId,
+    eventCategory: 'reflection',
+    eventAction: 'context_added',
+    entityType: 'task',
+    entityTitle: targetTaskTitle,
+    contextDate,
+    metadata: {
+      roundType,
+      sourceTaskTitle,
+      targetTaskTitle,
+      contextContent,
+      contextId
+    }
+  })
+}
+
+/**
+ * 🆕 记录用户取消添加上下文
+ */
+export function logContextAddCancelled(
+  userId: string,
+  sessionId: string,
+  roundType: string,
+  sourceTaskTitle: string,
+  contextDate: string
+): Promise<boolean> {
+  return logUserEvent({
+    userId,
+    sessionId,
+    eventCategory: 'reflection',
+    eventAction: 'context_add_cancelled',
+    entityType: 'task',
+    entityTitle: sourceTaskTitle,
+    contextDate,
+    metadata: {
+      roundType,
+      sourceTaskTitle
+    }
+  })
+}
+
+/**
+ * 🆕 记录用户选择拆解任务（clarity 完成后）
+ */
+export function logDecomposeChoiceYes(
+  userId: string,
+  sessionId: string,
+  taskTitle: string,
+  contextDate: string,
+  taskId?: string
+): Promise<boolean> {
+  return logUserEvent({
+    userId,
+    sessionId,
+    eventCategory: 'reflection',
+    eventAction: 'decompose_choice_yes',
+    entityType: 'task',
+    entityId: taskId,
+    entityTitle: taskTitle,
+    contextDate,
+    metadata: {
+      taskTitle,
+      source: 'clarity_completion'  // 来源：clarity 完成后的询问
+    }
+  })
+}
+
+/**
+ * 🆕 记录用户跳过拆解任务（clarity 完成后）
+ */
+export function logDecomposeChoiceSkip(
+  userId: string,
+  sessionId: string,
+  taskTitle: string,
+  contextDate: string,
+  taskId?: string
+): Promise<boolean> {
+  return logUserEvent({
+    userId,
+    sessionId,
+    eventCategory: 'reflection',
+    eventAction: 'decompose_choice_skip',
+    entityType: 'task',
+    entityId: taskId,
+    entityTitle: taskTitle,
+    contextDate,
+    metadata: {
+      taskTitle,
+      source: 'clarity_completion'  // 来源：clarity 完成后的询问
+    }
+  })
+}
+
 // ============================================
 // 便捷函数：导航模块
 // ============================================

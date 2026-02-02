@@ -49,7 +49,7 @@ const ROUND_CONFIG: Record<ReflectionRoundType, {
   emoji: string
 }> = {
   clarity: {
-    title: '明确任务',
+    title: '明确/拆分任务',
     description: '让我们先看看这些任务是否足够清晰～',
     emoji: '🟦'
   },

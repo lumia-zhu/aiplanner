@@ -22,7 +22,7 @@ export function ReflectionQuickActions({
     { 
       type: 'clarity' as const, 
       icon: '📝', 
-      label: '明确任务',
+      label: '明确/拆分任务',
       baseColor: 'border-blue-200 bg-blue-50 text-blue-700',
       activeRing: 'ring-2 ring-blue-500 ring-offset-2',
       hoverColor: 'hover:border-blue-300 hover:bg-blue-100'
@@ -65,9 +65,9 @@ export function ReflectionQuickActions({
         <span>任务规划</span>
       </div>
       
-      {/* 四个按钮 (2行2列) */}
-      <div className="grid grid-cols-2 gap-1.5">
-        {buttons.map(btn => {
+      {/* 三个按钮一行 (隐藏拆分步骤，已集成到明确/拆分任务中) */}
+      <div className="grid grid-cols-3 gap-1.5">
+        {buttons.filter(btn => btn.type !== 'decomposition').map(btn => {
           const isActive = currentReflectionType === btn.type
           const isThisLoading = isLoading && loadingType === btn.type
           
@@ -77,8 +77,8 @@ export function ReflectionQuickActions({
               onClick={() => onReflectionStart(btn.type)}
               disabled={isLoading}
               className={`
-                flex items-center justify-center gap-1.5
-                h-[42px] px-2 rounded-md border
+                flex items-center justify-center gap-1
+                h-[44px] px-1 rounded-md border
                 transition-all duration-200 ease-out
                 ${btn.baseColor}
                 ${isLoading ? 'opacity-50 cursor-not-allowed' : btn.hoverColor}
@@ -88,8 +88,8 @@ export function ReflectionQuickActions({
               {isThisLoading ? (
                 <>
                   <span className="text-lg animate-spin">⏳</span>
-                  <span className="text-xs font-medium whitespace-nowrap">
-                    处理中...
+                  <span className="text-xs font-medium">
+                    处理中
                   </span>
                 </>
               ) : (
@@ -99,7 +99,7 @@ export function ReflectionQuickActions({
                   }`}>
                     {btn.icon}
                   </span>
-                  <span className="text-xs font-medium whitespace-nowrap">
+                  <span className="text-xs font-medium">
                     {btn.label}
                   </span>
                 </>
