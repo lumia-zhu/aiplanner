@@ -4819,12 +4819,47 @@ export default function NotesDashboardPage() {
 
   }, [user, selectedDate, currentNote, saveKeyMessageToDb])
   
-  // ⭐ 开启每日回顾（从顶部按钮触发）
+  // ⭐ 开启每日回顾（从顶部按钮触发）- 先显示确认消息
   const startDailyReflection = useCallback(async () => {
     if (!user) return
     
+    console.log('💭 开启每日回顾（显示确认消息）')
+    
+    // 显示确认消息
+    const confirmMessage: ChatMessage = {
+      role: 'assistant' as const,
+      content: [
+        { 
+          type: 'text' as const, 
+          text: `📋 在开始今日回顾之前，请确认：
+
+✅ 请确保你已经把今天**完成的任务**都勾选了
+
+这样我可以更准确地帮你回顾今天的工作～`
+        },
+        {
+          type: 'interactive' as const,
+          interactive: {
+            type: 'buttons' as const,
+            data: {
+              buttons: [
+                { id: 'daily-reflection-confirm-start', label: '✓ 我已确认，开始回顾', variant: 'primary' }
+              ]
+            },
+            isActive: true
+          }
+        }
+      ]
+    }
+    setChatMessages(prev => [...prev, confirmMessage])
+  }, [user])
+  
+  // ⭐ 执行每日回顾（用户确认后调用）
+  const executeDailyReflection = useCallback(async () => {
+    if (!user) return
+    
     const today = new Date().toISOString().split('T')[0]
-    console.log('💭 开启每日回顾:', { userId: user.id, date: today })
+    console.log('💭 执行每日回顾:', { userId: user.id, date: today })
     
     try {
       // 1. 检查今天是否已有回顾记录
@@ -8094,6 +8129,26 @@ export default function NotesDashboardPage() {
         ]
       }
       setChatMessages(prev => [...prev, skipMsg])
+      
+      return
+    }
+    
+    // 🆕 每日回顾 - 用户确认开始
+    if (buttonId === 'daily-reflection-confirm-start') {
+      console.log('✅ 用户确认开始每日回顾')
+      
+      // 禁用确认按钮
+      setChatMessages(prev => prev.map(msg => ({
+        ...msg,
+        content: msg.content.map((c: MessageContent) => 
+          c.type === 'interactive' && c.interactive?.type === 'buttons'
+            ? { ...c, interactive: { ...c.interactive, isActive: false } }
+            : c
+        )
+      })))
+      
+      // 调用执行每日回顾的函数
+      executeDailyReflection()
       
       return
     }
