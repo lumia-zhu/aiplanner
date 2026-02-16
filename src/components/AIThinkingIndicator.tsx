@@ -89,7 +89,7 @@ export const AIThinkingIndicator: React.FC<AIThinkingIndicatorProps> = ({
       <img 
         src="/ai-avatar.svg" 
         alt="AI" 
-        className="w-8 h-8 rounded-full flex-shrink-0" 
+        className="hidden w-8 h-8 rounded-full flex-shrink-0" 
       />
       <div className="bg-white rounded-lg px-4 py-3 shadow-sm max-w-[85%] min-w-[240px]">
         {/* 标题 */}

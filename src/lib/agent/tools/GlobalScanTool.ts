@@ -73,7 +73,7 @@ export class GlobalScanTool implements AgentTool {
           type: 'success',
           data: {
             scanResult: this.createEmptyScanResult(),
-            summary: '📭 今天还没有任务，可以开始规划了！'
+            summary: '今天还没有任务，可以开始规划了！'
           }
         }
       }

@@ -164,7 +164,7 @@ export async function generateOverviewMessage(
   
   // 如果没有任务，返回空消息
   if (parentTasks.length === 0) {
-    return '📭 今天还没有任务呢，先在左边添加一些任务吧～'
+    return '今天还没有任务呢，先在左边添加一些任务吧～'
   }
   
   // 检查哪些父任务有子任务
@@ -252,15 +252,15 @@ ${taskList}
 【输出格式要求】
 使用以下结构化格式（每个方面独立段落，用空行分隔）：
 
-📋 今天有 ${parentTasks.length} 个任务！
+今天有 ${parentTasks.length} 个任务！
 
-**📝 明确任务**
+1️⃣ **明确任务**
 [1句话，≤50字，只针对父类任务]
 
-**⏱️✂️ 拆分步骤与估算时间**
+2️⃣ **拆分步骤与估算时间**
 [1句话，≤50字，只针对父类任务，优先提拆分建议]
 
-**🎯 安排优先级**
+3️⃣ **安排优先级**
 [1句话，≤40字，只针对父类任务]
 
 【注意事项 - ADHD友好】
@@ -268,7 +268,7 @@ ${taskList}
 - 建议式语气：用"可以考虑""可以想想""要不要"
 - 只陈述事实，不臆测原因/依赖关系
 - 不替用户做决策，不批评用户
-- 不要用 markdown 加粗（除了上面格式中的标题）
+- 只在三个标题处使用 markdown 加粗，其他地方不加粗
 
 请生成诊断：`
 
@@ -301,11 +301,11 @@ function generateFallbackOverview(
   const topLevelTasks = tasks.filter(t => (t.depth ?? 0) === 0)
   
   // 父类任务数量
-  lines.push(`📋 今天有 ${topLevelTasks.length} 个任务！`)
+  lines.push(`今天有 ${topLevelTasks.length} 个任务！`)
   lines.push('')
   
   // 明确任务建议 - 更智能的判断（只针对父类任务）
-  lines.push('**📝 明确任务**')
+  lines.push('1️⃣ **明确任务**')
   
   // 找出可能需要澄清的任务（简单规则）
   const vaguePatterns = [
@@ -329,18 +329,18 @@ function generateFallbackOverview(
   
   if (vagueTasks.length > 0) {
     const vagueNames = vagueTasks.slice(0, 2).map(t => `「${t.title}」`).join('')
-    lines.push(`${vagueNames}可以更具体～如明确具体内容`)
+    lines.push(`   ${vagueNames}可以更具体～如明确具体内容`)
     lines.push('')
   } else if (tasksWithChildren.length > 0 && topLevelTasks.length > tasksWithChildren.length) {
     // 有些任务有子任务，其他任务可能需要更具体
     const taskWithChildNames = tasksWithChildren.slice(0, 2).map(t => `「${t.title}」`).join('')
-    lines.push(`${taskWithChildNames}有子任务，其他可考虑更具体～`)
+    lines.push(`   ${taskWithChildNames}有子任务，其他可考虑更具体～`)
     lines.push('')
   }
   // 如果任务都挺清晰，不输出任何内容，直接进入下一部分
   
   // 拆分步骤与估算时间建议（只针对父类任务）
-  lines.push('**⏱️✂️ 拆分步骤与估算时间**')
+  lines.push('2️⃣ **拆分步骤与估算时间**')
   
   // 找出可能需要拆分的复杂任务
   const complexTasks = topLevelTasks.filter(t => {
@@ -357,20 +357,20 @@ function generateFallbackOverview(
   
   if (complexTasks.length > 0) {
     const complexNames = complexTasks.slice(0, 2).map(t => `「${t.title}」`).join('')
-    lines.push(`${complexNames}可以考虑拆分步骤～估算时间也会更准确`)
+    lines.push(`   ${complexNames}可以考虑拆分步骤～估算时间也会更准确`)
   } else if (unestimatedCount > 0) {
-    lines.push(`有 ${unestimatedCount} 个任务可以考虑估算下时间？`)
+    lines.push(`   有 ${unestimatedCount} 个任务可以考虑估算下时间？`)
   } else {
-    lines.push(`拆分和估算看起来不错～`)
+    lines.push(`   拆分和估算看起来不错～`)
   }
   lines.push('')
   
   // 优先级建议（只针对父类任务）
-  lines.push('**🎯 安排优先级**')
+  lines.push('3️⃣ **安排优先级**')
   if (topLevelTasks.length > 1) {
     lines.push(`可以想想：先做哪个任务最“好启动”，又能带动后续？`)
   } else {
-    lines.push(`今天任务不多，按自己的节奏来～`)
+    lines.push(`   今天任务不多，按自己的节奏来～`)
   }
   
   return lines.join('\n')
@@ -408,7 +408,7 @@ export async function generatePersonalizedGreeting(
   
   // 如果没有任务
   if (parentTasks.length === 0) {
-    return '👋 欢迎回来！今天还没有任务，要不要添加一些？'
+    return '欢迎回来！今天还没有任务，要不要添加一些？'
   }
   
   // 取前 3 个任务名作为上下文

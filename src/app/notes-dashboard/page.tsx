@@ -4527,7 +4527,7 @@ export default function NotesDashboardPage() {
 
           role: 'assistant' as const,
 
-          content: [{ type: 'text' as const, text: '📭 今天还没有任务，可以先在左边的笔记区域添加一些任务，然后我来帮你做规划反思～' }]
+          content: [{ type: 'text' as const, text: '今天还没有任务，可以先在左边的笔记区域添加一些任务，然后我来帮你做规划反思～' }]
 
         }
 

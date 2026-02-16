@@ -1530,7 +1530,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
                 {message.role === 'user' ? (
                   <img src="/user-avatar.svg" alt="我" className="w-8 h-8 rounded-full flex-shrink-0" />
                 ) : (
-                  <img src="/ai-avatar.svg" alt="AI" className="w-8 h-8 rounded-full flex-shrink-0" />
+                  <img src="/ai-avatar.svg" alt="AI" className="hidden w-8 h-8 rounded-full flex-shrink-0" />
                 )}
                 
                 {/* 任务列表卡片或任务选择卡片独立显示 */}
@@ -1962,7 +1962,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
           
           {streamingMessage && !isTaskRecognitionMode && (
             <div className="flex items-start gap-3">
-              <img src="/ai-avatar.svg" alt="AI" className="w-8 h-8 rounded-full flex-shrink-0" />
+              <img src="/ai-avatar.svg" alt="AI" className="hidden w-8 h-8 rounded-full flex-shrink-0" />
               <div className="bg-white rounded-lg px-3 py-2 shadow-sm max-w-[80%]">
                 <div className="text-sm prose-chat">
                   <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{streamingMessage}</ReactMarkdown>
@@ -1975,7 +1975,7 @@ const ChatSidebar = memo<ChatSidebarProps>(({
           {/* 正在生成反思问题的加载提示 */}
           {isGeneratingQuestions && (
             <div className="flex items-start gap-3">
-              <img src="/ai-avatar.svg" alt="AI" className="w-8 h-8 rounded-full flex-shrink-0" />
+              <img src="/ai-avatar.svg" alt="AI" className="hidden w-8 h-8 rounded-full flex-shrink-0" />
               <div className="bg-white rounded-lg px-3 py-2 shadow-sm">
                 <div className="flex items-center gap-2 text-sm text-gray-500">
                   <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
