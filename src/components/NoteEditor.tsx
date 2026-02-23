@@ -2203,17 +2203,7 @@ export default function NoteEditor({
               <code className="px-1.5 py-0.5 bg-gray-200 rounded text-gray-700">[]</code> 待办
             </span>
             <span>
-              <code className="px-1.5 py-0.5 bg-gray-200 rounded text-gray-700">#</code> 标题
-            </span>
-            <span>
-              <code className="px-1.5 py-0.5 bg-gray-200 rounded text-gray-700">-</code> 列表
-            </span>
-            <span>
-              <code className="px-1.5 py-0.5 bg-gray-200 rounded text-gray-700">1.</code> 有序
-            </span>
-            <span className="text-gray-400">|</span>
-            <span>
-              <code className="px-1.5 py-0.5 bg-gray-200 rounded text-gray-700">Tab</code> 缩进
+              <code className="px-1.5 py-0.5 bg-gray-200 rounded text-gray-700">Tab</code> 设为子任务
             </span>
           </div>
         </div>

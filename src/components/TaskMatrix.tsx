@@ -302,24 +302,36 @@ export default function TaskMatrix({
         </div>
         
         {/* 底部提示栏 */}
-        <div className="px-6 py-3 border-t border-gray-200 bg-gray-50">
-          <div className="flex flex-col gap-1 text-xs text-gray-500 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-col gap-2">
-              <span>💡 提示：从左侧拖动任务到对应象限，点击坐标轴标签即可切换维度组合</span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-1">
-                {DIMENSION_HINTS.map(hint => (
-                  <span key={hint.label} className="flex items-center gap-1">
-                    <span>{hint.icon}</span>
-                    <span className="font-medium text-gray-600">{hint.label}：</span>
-                    <span>{hint.desc}</span>
-                  </span>
-                ))}
+        <div className="px-6 py-2 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+          {/* 左侧：维度说明悬浮图标 */}
+          <div className="relative group">
+            <button className="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-500 transition-colors px-2 py-1 rounded hover:bg-blue-50 cursor-default">
+              <span className="flex items-center justify-center w-4 h-4 rounded-full border border-gray-400 hover:border-blue-400 text-[10px] leading-none font-medium">i</span>
+              <span>维度说明</span>
+            </button>
+            {/* Hover 展开的提示框（向上展开） */}
+            <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block z-50">
+              <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-xs text-gray-600 w-72">
+                <div className="font-medium text-gray-700 mb-2">💡 维度说明</div>
+                <div className="grid grid-cols-1 gap-1.5 mb-2">
+                  {DIMENSION_HINTS.map(hint => (
+                    <span key={hint.label} className="flex items-center gap-1.5">
+                      <span>{hint.icon}</span>
+                      <span className="font-medium text-gray-700 w-12 shrink-0">{hint.label}：</span>
+                      <span className="text-gray-500">{hint.desc}</span>
+                    </span>
+                  ))}
+                </div>
+                <div className="text-gray-400 border-t border-gray-100 pt-2">
+                  从左侧拖动任务到对应象限，点击坐标轴标签即可切换维度组合
+                </div>
               </div>
-            </div>
-            <div className="flex items-center gap-2 pt-2 sm:pt-0 sm:self-end pr-16 sm:pr-0">
-              <span>共 {Object.values(tasks).flat().length} 个任务</span>
+              {/* 箭头 */}
+              <div className="w-2 h-2 bg-white border-r border-b border-gray-200 rotate-45 ml-4 -mt-1"></div>
             </div>
           </div>
+          {/* 右侧：任务数量 */}
+          <span className="text-xs text-gray-400">共 {Object.values(tasks).flat().length} 个任务</span>
         </div>
       </div>
       
